@@ -80,6 +80,7 @@ on conflict (id) do update set
   metalness = excluded.metalness,
   swatch_width_mm = excluded.swatch_width_mm,
   swatch_height_mm = excluded.swatch_height_mm,
+  tiling_mode = excluded.tiling_mode,
   price_per_sq_m = excluded.price_per_sq_m,
   updated_at = excluded.updated_at;
 
