@@ -1,0 +1,5 @@
+assetId: Marble021
+source: https://ambientcg.com/view?id=Marble021
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+note: ambientCG has no true quartz scan; closest bright veined polished stone

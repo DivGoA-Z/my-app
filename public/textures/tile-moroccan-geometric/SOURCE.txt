@@ -1,0 +1,5 @@
+assetId: Tiles138
+source: https://ambientcg.com/view?id=Tiles138
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+note: ambientCG has no ornate Moroccan pattern; closest geometric stone/tile scan

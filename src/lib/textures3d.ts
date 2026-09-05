@@ -55,6 +55,52 @@ export interface TextureSet {
   roughnessMap: THREE.Texture | null;
 }
 
+// Disposes the GPU-side resource of a per-mesh TextureSet CLONE only.
+//
+// This is safe to call on the sets returned by useSurfaceTextures,
+// useFinishTextures and useMetalHardwareTextures specifically because
+// every map in those sets is produced by `.clone()` (see the "clones
+// matter here" comment on useSurfaceTextures below): THREE.Texture.clone()
+// makes a new Texture wrapper around the SAME shared `.image`/`source`
+// object rather than copying pixels, and Texture.dispose() only frees
+// that wrapper's own GPU upload (its WebGLTexture), not the shared
+// source data — so disposing a clone never pulls the image out from
+// under the cached original or any other mesh's clone of it. It must
+// NEVER be called on the cached originals themselves (the ones stored
+// in textureSetCache / urlTextureCache) — only on a set this hook
+// itself received as "the previous render's clones."
+function disposeTextureSetClone(set: TextureSet | null | undefined): void {
+  if (!set) return;
+  set.map?.dispose();
+  set.normalMap?.dispose();
+  set.roughnessMap?.dispose();
+}
+
+// Disposes the PREVIOUS per-mesh clone set whenever a hook produces a
+// new one (finish switched, face resized, component unmounted).
+//
+// Without this, every recomputation of useMemo in useSurfaceTextures /
+// useFinishTextures / useMetalHardwareTextures allocates a fresh set of
+// GPU-uploaded clones and simply drops the reference to the old one —
+// three.js has no automatic GC for abandoned Textures, so the old
+// clone's WebGLTexture stays resident until the page reloads. Switching
+// a cabinet's finish repeatedly (a normal thing to do while shopping
+// finishes in the UI) would then grow WebGLRenderer.info.memory.textures
+// without bound: N switches -> N clones uploaded, 0 disposed, steady
+// climb. With this hook: exactly one "current" set is alive per mounted
+// surface at a time, since the previous set is disposed synchronously
+// (via the effect cleanup) before/as the next one takes over, so the
+// live clone count is bounded by the number of currently-mounted
+// surfaces rather than the number of switches that have ever happened.
+//
+// useMemo itself has no cleanup callback (only useEffect does), which is
+// why this needs to be a separate effect keyed off the memoized value.
+function useDisposeTextureSetOnChange(set: TextureSet | null): void {
+  useEffect(() => {
+    return () => disposeTextureSetClone(set);
+  }, [set]);
+}
+
 export interface SurfaceFileSet {
   map: string;
   normalMap: string;
@@ -392,9 +438,14 @@ export function getSurfaceTextureSet(kind: SurfaceKind): TextureSet {
 // with whichever set it last. Cloning gives each mesh its own repeat
 // while three.js keeps sharing the underlying image `source`, so the
 // pixels are still uploaded to the GPU exactly once no matter how many
-// cabinets are on screen. (For the same reason these clones are
-// deliberately never disposed — the source they point at is shared, and
-// disposing one would pull the image out from under every other mesh.)
+// cabinets are on screen. The shared SOURCE (the cached original in
+// textureSetCache/urlTextureCache) is deliberately never disposed —
+// disposing it would pull the image out from under every other mesh's
+// clone of it. The per-mesh CLONES themselves are a different matter:
+// see disposeTextureSetClone/useDisposeTextureSetOnChange below, which
+// this hook (and useFinishTextures/useMetalHardwareTextures) uses to
+// free each clone's own GPU upload once it's replaced or the mesh
+// unmounts.
 export function useSurfaceTextures(
   kind: SurfaceKind,
   extentAlongUM: number,
@@ -402,7 +453,7 @@ export function useSurfaceTextures(
 ): TextureSet {
   const maxAnisotropy = useThree((state) => state.gl.capabilities.getMaxAnisotropy());
 
-  return useMemo(() => {
+  const textures = useMemo(() => {
     const base = getSurfaceTextureSet(kind);
     const worldSize = SURFACE_WORLD_SIZE_M[kind];
     const repeatU = Math.max(0.25, extentAlongUM / worldSize);
@@ -431,6 +482,12 @@ export function useSurfaceTextures(
       roughnessMap: cloneOptional(base.roughnessMap),
     };
   }, [kind, extentAlongUM, extentAlongVM, maxAnisotropy]);
+
+  // Disposes the PREVIOUS clone set (not the shared cached source — see
+  // disposeTextureSetClone above) whenever this recomputes or unmounts.
+  useDisposeTextureSetOnChange(textures);
+
+  return textures;
 }
 
 // ---- Finish-driven textures ----
@@ -628,7 +685,7 @@ export function useFinishTextures(
     reliefStrength
   );
 
-  return useMemo(() => {
+  const result = useMemo(() => {
     const wrapMode =
       tilingMode === 'mirror' ? THREE.MirroredRepeatWrapping : THREE.RepeatWrapping;
 
@@ -717,6 +774,14 @@ export function useFinishTextures(
     maxAnisotropy,
     derivedNormal,
   ]);
+
+  // Disposes the PREVIOUS clone set (never the shared cached source —
+  // see disposeTextureSetClone above) whenever this recomputes or
+  // unmounts. A no-op on the `null` branch (solid-colour finish), since
+  // there's nothing to dispose there.
+  useDisposeTextureSetOnChange(result);
+
+  return result;
 }
 
 // ---- Fixed-path hardware/appliance metal textures ----
@@ -748,7 +813,7 @@ const METAL_HARDWARE_SWATCH_M = 0.5;
 export function useMetalHardwareTextures(faceWidthM: number, faceHeightM: number): TextureSet {
   const maxAnisotropy = useThree((state) => state.gl.capabilities.getMaxAnisotropy());
 
-  return useMemo(() => {
+  const textures = useMemo(() => {
     const repeatU = Math.max(0.25, faceWidthM / METAL_HARDWARE_SWATCH_M);
     const repeatV = Math.max(0.25, faceHeightM / METAL_HARDWARE_SWATCH_M);
 
@@ -767,6 +832,13 @@ export function useMetalHardwareTextures(faceWidthM: number, faceHeightM: number
       roughnessMap: fit(getUrlTexture(METAL_HARDWARE_FILES.roughnessMap, false)),
     };
   }, [faceWidthM, faceHeightM, maxAnisotropy]);
+
+  // Disposes the PREVIOUS clone set (never the shared cached source —
+  // see disposeTextureSetClone above) whenever this recomputes or
+  // unmounts.
+  useDisposeTextureSetOnChange(textures);
+
+  return textures;
 }
 
 // ---- Opening backdrops ----
