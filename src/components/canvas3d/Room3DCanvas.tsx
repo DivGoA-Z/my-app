@@ -70,7 +70,7 @@ import {
 import { useLayoutStore } from '../../store/layoutStore';
 import { useSelectedCabinetId } from '../../hooks/useSelection';
 import { resolveMaterial } from '../../lib/materials3d';
-import { useSurfaceTextures, useFinishTextures, useOpeningBackdrop } from '../../lib/textures3d';
+import { useSurfaceTextures, useFinishTextures, useOpeningBackdrop, useMetalHardwareTextures } from '../../lib/textures3d';
 import { resolveFinish } from '../../types/finish';
 import {
   hasCountertop,
@@ -2006,6 +2006,14 @@ function HandleMesh({
   const { handle, orientation, lengthMm, centerXMm, centerYMm } = placement;
   const lengthM = mmToWorld(lengthMm);
 
+  // DECISION: handles stay scalar-only (colorHex/metalness/roughness),
+  // no albedo/normal maps. A ~128mm bar is always seen mid-distance in
+  // the walkthrough, never macro-inspected like a cabinet front; at that
+  // distance/scale the eye reads the SHAPE of the specular highlight —
+  // driven by roughness + the real HDRI now in place — not fine
+  // brush-line micro-texture, which would be heavily minified anyway.
+  // Scalars + real environment reflections already read as brushed
+  // steel. Not worth a schema/CRUD/UI change for a gain that small.
   const metalMaterial = (
     <meshStandardMaterial
       color={handle.colorHex}
@@ -2157,6 +2165,16 @@ function ApplianceMesh({ item }: { item: PlacedApplianceItem }) {
   const [worldX, worldZ] = groundPosition(item.x + item.widthMm / 2, item.y + item.depthMm / 2);
   const centerY = mmToWorld(item.elevationMm) + heightM / 2;
 
+  // Sink and chimney are real brushed-steel products, so their box
+  // FALLBACK (rendered whenever no .glb model is set/loaded for that
+  // placement — see resolveApplianceModel) gets the same
+  // metal-brushed-steel PBR set used for cabinet-front finishes, scaled
+  // off the appliance's own real width/height so a 600mm sink face
+  // doesn't show one stretched copy of the 500mm swatch. Other
+  // appliance types keep their flat fallback colors — untouched.
+  const isMetalAppliance = item.applianceType === 'sink' || item.applianceType === 'chimney';
+  const metalTextures = useMetalHardwareTextures(widthM, heightM);
+
   return (
     <mesh
       position={[worldX, centerY, worldZ]}
@@ -2165,13 +2183,22 @@ function ApplianceMesh({ item }: { item: PlacedApplianceItem }) {
       receiveShadow
     >
       <boxGeometry args={[widthM, heightM, depthM]} />
-      <meshStandardMaterial
-        color={APPLIANCE_MESH_COLORS[item.applianceType]}
-        roughness={0.4}
-        metalness={
-          item.applianceType === 'sink' ? 0.75 : item.applianceType === 'stove' ? 0.4 : 0.1
-        }
-      />
+      {isMetalAppliance ? (
+        <meshStandardMaterial
+          map={metalTextures.map}
+          normalMap={metalTextures.normalMap}
+          roughnessMap={metalTextures.roughnessMap}
+          color={APPLIANCE_MESH_COLORS[item.applianceType]}
+          roughness={1}
+          metalness={item.applianceType === 'sink' ? 0.85 : 0.35}
+        />
+      ) : (
+        <meshStandardMaterial
+          color={APPLIANCE_MESH_COLORS[item.applianceType]}
+          roughness={0.4}
+          metalness={item.applianceType === 'stove' ? 0.4 : 0.1}
+        />
+      )}
     </mesh>
   );
 }
