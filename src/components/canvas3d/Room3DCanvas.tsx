@@ -85,6 +85,7 @@ import { PanoramaViewerModal } from '../panorama/PanoramaViewerModal';
 import { Cabinet3DInspector } from './Cabinet3DInspector';
 import { ApplianceModel } from './ApplianceModel';
 import { resolveApplianceModel } from '../../lib/applianceGeometry';
+import { FixtureModel } from './FixtureModel';
 import { wallSegments } from '../../lib/openings';
 import { resolveAllFixtures, selectRealLights, maxLightsFor } from '../../lib/fixtures';
 import { useLightQuality } from '../../hooks/useLightQuality';
@@ -1528,37 +1529,81 @@ function FixtureInScene({
       ? Math.max(0, mmToWorld(placement.suspendedFromMm - placement.zMm))
       : 0;
 
+  // A real model, when the catalogue row has one — BODY GEOMETRY ONLY.
+  // See this file's header comment for why: the glow mesh and the real
+  // light just below are wired from item.lumens/colorTempK/
+  // throwDirection regardless of which body renders, and must stay
+  // exactly as they are so a GLB with a baked-bright material can't
+  // reintroduce "glows by itself, lights nothing".
+  const hasModel = !!item.modelUrl;
+  const modelOrientation = {
+    xDeg: item.modelRotationXDeg ?? 0,
+    yDeg: item.modelRotationYDeg ?? 0,
+    zDeg: item.modelRotationZDeg ?? 0,
+  };
+  // Fixtures have no priced widthMm/heightMm/depthMm the way appliances
+  // do — a fixed real-world size for the decorative body, roughly a
+  // small pendant shade, is good enough here since nothing is priced or
+  // measured against it. Non-pendant kinds don't currently ship a
+  // model, but the size is picked to be reasonable for any of them.
+  const modelWidthMm = 300;
+  const modelHeightMm = 350;
+  const modelDepthMm = 300;
+  // Suppress the synthetic cord when a model is rendering instead of
+  // the primitive body: hanging_industrial_lamp (the one model wired up
+  // so far) is a pendant lamp asset and almost certainly includes its
+  // own cord/cable geometry down to the shade, so drawing the synthetic
+  // cylinder as well would double it up. If a future fixture model
+  // arrives WITHOUT its own cord, this should become per-catalogue-row
+  // rather than blanket-suppressed.
+  const suppressSyntheticStem = hasModel;
+
+  const primitiveBody = (
+    <mesh>
+      <boxGeometry args={bodySize} />
+      {/* meshStandardMaterial with emissive rather than
+          meshBasicMaterial: basic would ignore the room's light
+          entirely and the fitting would look like a flat cut-out when
+          switched off. This way the body is a real lit object that
+          ALSO glows when on. */}
+      <meshStandardMaterial
+        color={emissiveOn ? colour : '#3f3f46'}
+        emissive={emissiveOn ? colour : '#000000'}
+        emissiveIntensity={emissiveOn ? FIXTURE_EMISSIVE_INTENSITY : 0}
+        roughness={0.5}
+        metalness={0.2}
+        // TONE MAPPED, unlike before. toneMapped={false} exempted the
+        // body from the scene's exposure curve, so it displayed at
+        // full brightness however dark or bright the room was — the
+        // mechanical reason a fixture could look blazing while
+        // contributing nothing. Now it passes through the same
+        // exposure as the light it casts.
+        toneMapped
+      />
+    </mesh>
+  );
+
   return (
     <group position={position}>
-      {stemHeightM > 0 && (
+      {stemHeightM > 0 && !suppressSyntheticStem && (
         <mesh position={[0, stemHeightM / 2, 0]}>
           <cylinderGeometry args={[mmToWorld(6), mmToWorld(6), stemHeightM, 8]} />
           <meshStandardMaterial color="#3f3f46" roughness={0.6} metalness={0.3} />
         </mesh>
       )}
 
-      <mesh>
-        <boxGeometry args={bodySize} />
-        {/* meshStandardMaterial with emissive rather than
-            meshBasicMaterial: basic would ignore the room's light
-            entirely and the fitting would look like a flat cut-out when
-            switched off. This way the body is a real lit object that
-            ALSO glows when on. */}
-        <meshStandardMaterial
-          color={emissiveOn ? colour : '#3f3f46'}
-          emissive={emissiveOn ? colour : '#000000'}
-          emissiveIntensity={emissiveOn ? FIXTURE_EMISSIVE_INTENSITY : 0}
-          roughness={0.5}
-          metalness={0.2}
-          // TONE MAPPED, unlike before. toneMapped={false} exempted the
-          // body from the scene's exposure curve, so it displayed at
-          // full brightness however dark or bright the room was — the
-          // mechanical reason a fixture could look blazing while
-          // contributing nothing. Now it passes through the same
-          // exposure as the light it casts.
-          toneMapped
+      {hasModel ? (
+        <FixtureModel
+          modelUrl={item.modelUrl}
+          orientation={modelOrientation}
+          widthMm={modelWidthMm}
+          heightMm={modelHeightMm}
+          depthMm={modelDepthMm}
+          fallback={primitiveBody}
         />
-      </mesh>
+      ) : (
+        primitiveBody
+      )}
 
       {/* The real light, for the budgeted few — AIMED.
           This was a pointLight, which is omnidirectional, so an
