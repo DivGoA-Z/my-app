@@ -1,0 +1,118 @@
+{
+  "categories": [
+    {
+      "name": "Base",
+      "items": [
+        {
+          "catalogId": "base-cabinet-600",
+          "label": "Base Cabinet (600mm)",
+          "moduleType": "base-cabinet",
+          "widthMm": 600,
+          "depthMm": 600,
+          "heightMm": 850,
+          "material": "HDMR",
+          "finish": "Laminate",
+          "unitPrice": 9500
+        },
+        {
+          "catalogId": "sink-unit-900",
+          "label": "Sink Unit (900mm)",
+          "moduleType": "sink-unit",
+          "widthMm": 900,
+          "depthMm": 600,
+          "heightMm": 850,
+          "material": "HDMR",
+          "finish": "Acrylic",
+          "unitPrice": 18500
+        },
+        {
+          "catalogId": "cylinder-trolley-450",
+          "label": "Cylinder Trolley (450mm)",
+          "moduleType": "cylinder-trolley",
+          "widthMm": 450,
+          "depthMm": 600,
+          "heightMm": 850,
+          "material": "Plywood",
+          "finish": "Laminate",
+          "unitPrice": 9200
+        },
+        {
+          "catalogId": "corner-unit-900",
+          "label": "Corner Unit (900mm)",
+          "moduleType": "corner-unit",
+          "widthMm": 900,
+          "depthMm": 900,
+          "heightMm": 850,
+          "material": "HDMR",
+          "finish": "Laminate",
+          "unitPrice": 15800
+        },
+        {
+          "catalogId": "drawer-unit-450",
+          "label": "Drawer Unit (450mm)",
+          "moduleType": "drawer-unit",
+          "widthMm": 450,
+          "depthMm": 600,
+          "heightMm": 850,
+          "material": "MDF",
+          "finish": "PU",
+          "unitPrice": 11200
+        }
+      ]
+    },
+    {
+      "name": "Wall",
+      "items": [
+        {
+          "catalogId": "wall-cabinet-600",
+          "label": "Wall Cabinet (600mm)",
+          "moduleType": "wall-cabinet",
+          "widthMm": 600,
+          "depthMm": 300,
+          "heightMm": 700,
+          "material": "MDF",
+          "finish": "Laminate",
+          "unitPrice": 8200
+        },
+        {
+          "catalogId": "wall-cabinet-900",
+          "label": "Wall Cabinet (900mm)",
+          "moduleType": "wall-cabinet",
+          "widthMm": 900,
+          "depthMm": 300,
+          "heightMm": 700,
+          "material": "MDF",
+          "finish": "PU",
+          "unitPrice": 12000
+        }
+      ]
+    },
+    {
+      "name": "Tall",
+      "items": [
+        {
+          "catalogId": "tall-unit-600",
+          "label": "Tall Unit (600mm)",
+          "moduleType": "tall-unit",
+          "widthMm": 600,
+          "depthMm": 600,
+          "heightMm": 2100,
+          "material": "HDMR",
+          "finish": "Laminate",
+          "unitPrice": 24500
+        },
+        {
+          "catalogId": "tall-unit-900",
+          "label": "Tall Larder Unit (900mm)",
+          "moduleType": "tall-unit",
+          "widthMm": 900,
+          "depthMm": 600,
+          "heightMm": 2100,
+          "material": "HDMR",
+          "finish": "PU",
+          "unitPrice": 32800
+        }
+      ]
+    }
+  ]
+}

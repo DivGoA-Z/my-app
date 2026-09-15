@@ -70,7 +70,7 @@ import {
 import { useLayoutStore } from '../../store/layoutStore';
 import { useSelectedCabinetId } from '../../hooks/useSelection';
 import { resolveMaterial } from '../../lib/materials3d';
-import { useSurfaceTextures, useFinishTextures, useOpeningBackdrop, useMetalHardwareTextures } from '../../lib/textures3d';
+import { useSurfaceTextures, useFinishTextures, useOpeningBackdrop } from '../../lib/textures3d';
 import { resolveFinish } from '../../types/finish';
 import {
   hasCountertop,
@@ -78,14 +78,13 @@ import {
   COUNTERTOP_OVERHANG_MM,
 } from '../../lib/cabinetGeometry';
 import { mmToWorld, groundPosition, clockwiseDegToThreeY, MM_TO_M } from '../../lib/scene3d';
-import { lightingEnvironmentFor, clampExposure, DEFAULT_EXPOSURE, FIXTURE_LUMEN_SCALE, FIXTURE_ORIGIN_STANDOFF_M, FIXTURE_LIGHT_DECAY, DAYLIGHT_DECAY, LINEAR_SAMPLES_BY_QUALITY, LINEAR_SAMPLE_MIN_LENGTH_MM, FIXTURE_LIGHT_DISTANCE_MM, FIXTURE_EMISSIVE_INTENSITY, DAYLIGHT_BASE_INTENSITY, BACKDROP_DISTANCE_M, BACKDROP_OVERSIZE, kelvinToColor, DAYLIGHT_STANDOFF_MM, DAYLIGHT_THROW_MM, DAYLIGHT_CONE_ANGLE_RAD, DOOR_HANDLE_PROJECTION_MM, DOOR_HANDLE_HEIGHT_MM, DOOR_HANDLE_EDGE_INSET_MM } from '../../lib/lighting3d';
+import { lightingEnvironmentFor, clampExposure, DEFAULT_EXPOSURE, FIXTURE_LUMEN_SCALE, FIXTURE_ORIGIN_STANDOFF_M, FIXTURE_LIGHT_DECAY, DAYLIGHT_DECAY, LINEAR_SAMPLES_BY_QUALITY, LINEAR_SAMPLE_MIN_LENGTH_MM, DIFFUSE_ORIGIN_STANDOFF_MM, FIXTURE_LIGHT_DISTANCE_MM, FIXTURE_EMISSIVE_INTENSITY, DAYLIGHT_BASE_INTENSITY, BACKDROP_DISTANCE_M, BACKDROP_OVERSIZE, kelvinToColor, DAYLIGHT_STANDOFF_MM, DAYLIGHT_THROW_MM, DAYLIGHT_CONE_ANGLE_RAD, DOOR_HANDLE_PROJECTION_MM, DOOR_HANDLE_HEIGHT_MM, DOOR_HANDLE_EDGE_INSET_MM } from '../../lib/lighting3d';
 import { capturePanorama, DEFAULT_CAPTURE_ORIENTATION } from '../../lib/panoramaCapture';
 import type { CapturePanoramaOptions } from '../../lib/panoramaCapture';
 import { PanoramaViewerModal } from '../panorama/PanoramaViewerModal';
 import { Cabinet3DInspector } from './Cabinet3DInspector';
 import { ApplianceModel } from './ApplianceModel';
 import { resolveApplianceModel } from '../../lib/applianceGeometry';
-import { FixtureModel } from './FixtureModel';
 import { wallSegments } from '../../lib/openings';
 import { resolveAllFixtures, selectRealLights, maxLightsFor } from '../../lib/fixtures';
 import { useLightQuality } from '../../hooks/useLightQuality';
@@ -482,70 +481,67 @@ export function Room3DCanvas({ widthMm, depthMm }: Room3DCanvasProps) {
         >
           <color attach="background" args={['#dbeafe']} />
 
-          {/* Lighting environment: a real, self-hosted HDRI plus two
-              supplemental Lightformer panels.
+          {/* Lighting environment, built from emissive panels instead of
+              an HDR image.
               WAS preset="apartment", which fetched a stock HDR photo
               from drei's CDN. Two problems with that: it needed network
               access at runtime, and any glossy surface REFLECTED it —
               so a photo of someone's apartment hallway, wooden door and
-              all, showed up mirrored in the kitchen floor. A later pass
-              replaced that with flat emissive Lightformer rectangles —
-              no network fetch, and generic-light-panel reflections
-              instead of a stranger's hallway.
-              That all-Lightformer rig undersells the new metal finishes
-              (metal-brushed-steel, metal-polished-chrome, etc.) and the
-              stone finishes, though: a polished/metallic surface is
-              ALMOST ENTIRELY a reflection of its surroundings, and 3
-              flat rectangles reflect back as 3 flat rectangles — no
-              grazing-angle falloff, no soft real-world variance, so
-              chrome and polished quartz read as flat grey regardless of
-              how good their texture maps are. So this now loads
-              public/hdri/studio-small-09.hdr (CC0, Poly Haven
-              studio_small_09 @ 1k, ~1.6MB — see public/hdri/CREDITS.md
-              and scripts/fetch_hdri.py) via `files=`, downloaded once at
-              build time and served from this app's own origin, same
-              "no runtime CDN" guarantee as the Lightformer-only
-              version had, but with actual image-based lighting instead
-              of hand-placed rectangles.
-              The ceiling softbox and dark ground panel are KEPT
-              alongside the HDRI, not replaced by it: the HDRI is a
-              small (1k) indoor studio panorama and on its own reads a
-              bit dim and flat overhead in this room's proportions — the
-              softbox restores a clear, directional key light from
-              above, and the dark ground panel restores the
-              bright/dark reflection CONTRAST that makes gloss read as
-              gloss (a uniformly-lit environment makes any reflective
-              surface look uniformly bright, not polished). The two
-              side-wall color-tint panels (cool "window" / warm bounce)
-              were REMOVED: the HDRI now supplies that left/right
-              directional variance itself, and reflected, more
-              realistically than a flat rectangle.
+              all, showed up mirrored in the kitchen floor. A few
+              Lightformer rectangles give the same soft highlights on
+              acrylic and stone with nothing to download, and their
+              reflections read as generic light panels, which is what a
+              real kitchen reflects anyway.
               frames={1} bakes it once rather than re-rendering the
               environment every frame — nothing here moves.
               background={false} keeps our own flat backdrop, since an
               enclosed room with no ceiling mesh would otherwise show
-              the environment floating above the walls.
-              resolution={256} controlled the Lightformer bake
-              resolution (the render target the panels get drawn into);
-              it's meaningless for a `files=` HDRI, which three.js loads
-              at its native resolution instead, so it's dropped here. */}
-          <Environment files="/hdri/studio-small-09.hdr" frames={1} background={false}>
-            {/* Broad ceiling softbox — the main directional key light,
-                on top of the HDRI's softer ambient fill. */}
+              the environment floating above the walls. */}
+          {/* Panel intensities and colours are now driven by the
+              lighting mode (see lightingEnvironmentFor). They used to
+              be fixed, which meant the environment lit the room at full
+              strength while everything else receded for placed
+              fixtures — and kept its blue/cream tint in the mode that
+              promises no tint at all. Note an environment map is NOT
+              occluded by geometry: these panels sit outside the walls
+              and light straight through them, so their strength is the
+              only control there is. */}
+          <Environment resolution={256} frames={1} background={false}>
+            {/* Broad ceiling softbox — the main source of the sheen on
+                horizontal surfaces. */}
             <Lightformer
               form="rect"
-              intensity={1.5}
+              intensity={1.5 * lightEnv.envIntensityScale}
               color="#ffffff"
               position={[0, 4, 0]}
               rotation={[Math.PI / 2, 0, 0]}
               scale={[9, 9, 1]}
+            />
+            {/* Cool daylight from one side, standing in for a window. */}
+            <Lightformer
+              form="rect"
+              intensity={1.1 * lightEnv.envIntensityScale}
+              color={lightEnv.envTinted ? '#dce9f5' : '#ffffff'}
+              position={[-4.5, 1.6, 0]}
+              rotation={[0, Math.PI / 2, 0]}
+              scale={[7, 3.5, 1]}
+            />
+            {/* Warm, weaker bounce off the opposite wall, so highlights
+                aren't identical on both sides of a glossy shutter. */}
+            <Lightformer
+              form="rect"
+              intensity={0.55 * lightEnv.envIntensityScale}
+              color={lightEnv.envTinted ? '#f6e8d8' : '#ffffff'}
+              position={[4.5, 1.6, 0]}
+              rotation={[0, -Math.PI / 2, 0]}
+              scale={[7, 3.5, 1]}
             />
             {/* Dark ground panel. Without something dim below, every
                 reflection is uniformly bright and gloss stops reading as
                 gloss — contrast is what makes a surface look polished. */}
             <Lightformer
               form="rect"
-              intensity={0.18}
+              intensity={0.18 * lightEnv.envIntensityScale}
               color="#3a3a3a"
               position={[0, -2.5, 0]}
               rotation={[-Math.PI / 2, 0, 0]}
@@ -1529,81 +1525,37 @@ function FixtureInScene({
       ? Math.max(0, mmToWorld(placement.suspendedFromMm - placement.zMm))
       : 0;
 
-  // A real model, when the catalogue row has one — BODY GEOMETRY ONLY.
-  // See this file's header comment for why: the glow mesh and the real
-  // light just below are wired from item.lumens/colorTempK/
-  // throwDirection regardless of which body renders, and must stay
-  // exactly as they are so a GLB with a baked-bright material can't
-  // reintroduce "glows by itself, lights nothing".
-  const hasModel = !!item.modelUrl;
-  const modelOrientation = {
-    xDeg: item.modelRotationXDeg ?? 0,
-    yDeg: item.modelRotationYDeg ?? 0,
-    zDeg: item.modelRotationZDeg ?? 0,
-  };
-  // Fixtures have no priced widthMm/heightMm/depthMm the way appliances
-  // do — a fixed real-world size for the decorative body, roughly a
-  // small pendant shade, is good enough here since nothing is priced or
-  // measured against it. Non-pendant kinds don't currently ship a
-  // model, but the size is picked to be reasonable for any of them.
-  const modelWidthMm = 300;
-  const modelHeightMm = 350;
-  const modelDepthMm = 300;
-  // Suppress the synthetic cord when a model is rendering instead of
-  // the primitive body: hanging_industrial_lamp (the one model wired up
-  // so far) is a pendant lamp asset and almost certainly includes its
-  // own cord/cable geometry down to the shade, so drawing the synthetic
-  // cylinder as well would double it up. If a future fixture model
-  // arrives WITHOUT its own cord, this should become per-catalogue-row
-  // rather than blanket-suppressed.
-  const suppressSyntheticStem = hasModel;
-
-  const primitiveBody = (
-    <mesh>
-      <boxGeometry args={bodySize} />
-      {/* meshStandardMaterial with emissive rather than
-          meshBasicMaterial: basic would ignore the room's light
-          entirely and the fitting would look like a flat cut-out when
-          switched off. This way the body is a real lit object that
-          ALSO glows when on. */}
-      <meshStandardMaterial
-        color={emissiveOn ? colour : '#3f3f46'}
-        emissive={emissiveOn ? colour : '#000000'}
-        emissiveIntensity={emissiveOn ? FIXTURE_EMISSIVE_INTENSITY : 0}
-        roughness={0.5}
-        metalness={0.2}
-        // TONE MAPPED, unlike before. toneMapped={false} exempted the
-        // body from the scene's exposure curve, so it displayed at
-        // full brightness however dark or bright the room was — the
-        // mechanical reason a fixture could look blazing while
-        // contributing nothing. Now it passes through the same
-        // exposure as the light it casts.
-        toneMapped
-      />
-    </mesh>
-  );
-
   return (
     <group position={position}>
-      {stemHeightM > 0 && !suppressSyntheticStem && (
+      {stemHeightM > 0 && (
         <mesh position={[0, stemHeightM / 2, 0]}>
           <cylinderGeometry args={[mmToWorld(6), mmToWorld(6), stemHeightM, 8]} />
           <meshStandardMaterial color="#3f3f46" roughness={0.6} metalness={0.3} />
         </mesh>
       )}
 
-      {hasModel ? (
-        <FixtureModel
-          modelUrl={item.modelUrl}
-          orientation={modelOrientation}
-          widthMm={modelWidthMm}
-          heightMm={modelHeightMm}
-          depthMm={modelDepthMm}
-          fallback={primitiveBody}
+      <mesh>
+        <boxGeometry args={bodySize} />
+        {/* meshStandardMaterial with emissive rather than
+            meshBasicMaterial: basic would ignore the room's light
+            entirely and the fitting would look like a flat cut-out when
+            switched off. This way the body is a real lit object that
+            ALSO glows when on. */}
+        <meshStandardMaterial
+          color={emissiveOn ? colour : '#3f3f46'}
+          emissive={emissiveOn ? colour : '#000000'}
+          emissiveIntensity={emissiveOn ? FIXTURE_EMISSIVE_INTENSITY : 0}
+          roughness={0.5}
+          metalness={0.2}
+          // TONE MAPPED, unlike before. toneMapped={false} exempted the
+          // body from the scene's exposure curve, so it displayed at
+          // full brightness however dark or bright the room was — the
+          // mechanical reason a fixture could look blazing while
+          // contributing nothing. Now it passes through the same
+          // exposure as the light it casts.
+          toneMapped
         />
-      ) : (
-        primitiveBody
-      )}
+      </mesh>
 
       {/* The real light, for the budgeted few — AIMED.
           This was a pointLight, which is omnidirectional, so an
@@ -1633,20 +1585,22 @@ function FixtureInScene({
             runLengthM={runM}
           />
         ) : (
-          /* DIFFUSE — radiates, so a point light and no aiming.
+          /* DIFFUSE — radiates, so point lights and no aiming.
              This is what a pendant with a shade, a bare bulb or an opal
-             ceiling fitting actually does, and it's why the pendant
-             appeared to work when the aimed strips didn't: a wide cone
-             in open air behaves almost like a point source anyway. */
-          <pointLight
-            color={colour}
+             ceiling fitting actually does.
+
+             SPREAD ALONG THE RUN, which it was not before: this was a
+             single pointLight, so a 2.4m strip set to "all directions"
+             lit only from its centre. A pendant is unaffected (one
+             sample is correct for a point fitting); the bug only ever
+             showed on linear kinds. */
+          <DiffuseFixtureLight
+            colour={colour}
             intensity={item.lumens * FIXTURE_LUMEN_SCALE}
-            distance={mmToWorld(FIXTURE_LIGHT_DISTANCE_MM)}
-            // Real falloff here too, so a pendant lights the table
-            // below it more than the far corner — which is both true
-            // and the thing that makes a room read as lit rather than
-            // uniformly filled.
-            decay={FIXTURE_LIGHT_DECAY}
+            samples={sampleCount}
+            sampleAxis={sampleAxis}
+            runLengthM={runM}
+            hostNormal={{ x: placement.hostNormalX, y: placement.hostNormalY }}
           />
         )
       )}
@@ -1663,6 +1617,101 @@ function FixtureInScene({
 // Note the direction arrives already mapped from room space (x, y-plan,
 // z-up) into three.js space (x, y-up, z-plan) by the caller; getting
 // that swap wrong is how a downward light ends up pointing sideways.
+// Offsets along a linear run, centred: 1 sample -> [0], 2 -> [-1/4,
+// +1/4], 3 -> [-1/3, 0, +1/3] of the length.
+//
+// Lifted out of AimedFixtureLight because the DIFFUSE branch needed it
+// too and didn't have it — a 2.4m strip set to "all directions" emitted
+// from a single point at its centre, so it hotspotted the middle and
+// left both ends dark. That was a real omission when diffuse was added:
+// the run sampling was wired into the aimed path only, as though
+// "diffuse" implied "point source". It doesn't. A diffused strip is
+// still a LINE of light; what makes it diffuse is that it radiates in
+// every direction, not that it collapses to a point.
+function runSampleOffsets(
+  samples: number,
+  sampleAxis: 'x' | 'y' | 'z' | null,
+  runLengthM: number
+): number[] {
+  if (!sampleAxis || samples <= 1 || runLengthM <= 0) return [0];
+  // 0.9 of the length, not 0.7. The tighter figure bunched the samples
+  // toward the middle and left both ends of a run visibly dark, which
+  // on a strip reads as the ends being broken.
+  return Array.from(
+    { length: samples },
+    (_, i) => (i / (samples - 1) - 0.5) * runLengthM * 0.9
+  );
+}
+
+// Turns an offset along the run into a local position vector.
+function offsetVector(
+  sampleAxis: 'x' | 'y' | 'z' | null,
+  offset: number
+): [number, number, number] {
+  switch (sampleAxis) {
+    case 'x': return [offset, 0, 0];
+    case 'y': return [0, offset, 0];
+    case 'z': return [0, 0, offset];
+    default: return [0, 0, 0];
+  }
+}
+
+// A DIFFUSE fixture's light: point lights, spread along the run.
+//
+// Point rather than spot because diffuse means it radiates — there is
+// no cone and no aiming. Spread rather than single because the run has
+// length. Intensity is divided between samples, so lengthening a strip
+// spreads its output rather than multiplying it, exactly as the aimed
+// path does.
+function DiffuseFixtureLight({
+  colour,
+  intensity,
+  samples,
+  sampleAxis,
+  runLengthM,
+  hostNormal,
+}: {
+  colour: string;
+  intensity: number;
+  samples: number;
+  sampleAxis: 'x' | 'y' | 'z' | null;
+  runLengthM: number;
+  // Outward normal of the surface this is fixed to, in ROOM x/y (zero
+  // for ceiling and free mounts). Not the throw — a diffuse fixture has
+  // no throw; see FixturePlacement.hostNormalX.
+  hostNormal: { x: number; y: number };
+}) {
+  const offsets = runSampleOffsets(samples, sampleAxis, runLengthM);
+  const perSample = intensity / offsets.length;
+
+  // Sample origins stand off the host surface so their pools are wide
+  // enough to overlap into one band. Room x/y maps to world x/z.
+  const standoffM = mmToWorld(DIFFUSE_ORIGIN_STANDOFF_MM);
+  const nx = hostNormal.x * standoffM;
+  const nz = hostNormal.y * standoffM;
+
+  return (
+    <>
+      {offsets.map((offset, i) => {
+        const along = offsetVector(sampleAxis, offset);
+        return (
+        <pointLight
+          key={i}
+          position={[along[0] + nx, along[1], along[2] + nz]}
+          color={colour}
+          intensity={perSample}
+          distance={mmToWorld(FIXTURE_LIGHT_DISTANCE_MM)}
+          // Real falloff, so a pendant lights what's below it more than
+          // the far corner — both true, and what makes a room read as
+          // lit rather than uniformly filled.
+          decay={FIXTURE_LIGHT_DECAY}
+        />
+        );
+      })}
+    </>
+  );
+}
+
 function AimedFixtureLight({
   colour,
   intensity,
@@ -1683,16 +1732,7 @@ function AimedFixtureLight({
   runLengthM: number;
 }) {
   const reachM = mmToWorld(FIXTURE_LIGHT_DISTANCE_MM);
-
-  // Offsets along the run, centred: 1 sample -> [0], 2 -> [-1/4, +1/4],
-  // 3 -> [-1/3, 0, +1/3] of the length.
-  const offsets =
-    sampleAxis && samples > 1 && runLengthM > 0
-      ? Array.from(
-          { length: samples },
-          (_, i) => (i / (samples - 1) - 0.5) * runLengthM * 0.7
-        )
-      : [0];
+  const offsets = runSampleOffsets(samples, sampleAxis, runLengthM);
 
   // Intensity is DIVIDED between samples, so sampling a run spreads the
   // same output along it rather than multiplying it.
@@ -1707,15 +1747,7 @@ function AimedFixtureLight({
           intensity={perSample}
           direction={direction}
           reachM={reachM}
-          offset={
-            sampleAxis === 'x'
-              ? [offset, 0, 0]
-              : sampleAxis === 'y'
-                ? [0, offset, 0]
-                : sampleAxis === 'z'
-                  ? [0, 0, offset]
-                  : [0, 0, 0]
-          }
+          offset={offsetVector(sampleAxis, offset)}
         />
       ))}
     </>
@@ -1878,14 +1910,22 @@ function CabinetMesh({ item, isSelected, onSelect }: CabinetMeshProps) {
   // cabinet can't be drawn with one handle and charged for another.
   const handles = useLayoutStore((state) => state.handles);
   const handle = resolveHandle(handles, item.handleId);
+  // Rates reach a RENDER path only because panels and hardware come out
+  // of one subdivision pass, which is the invariant that stops the
+  // picture and the price disagreeing. Nothing drawn below depends on a
+  // rupee value; if this coupling ever gets in the way, the fix is to
+  // split geometry from costing in lib/fronts.ts rather than to pass a
+  // placeholder rate card here.
+  const rateCard = useLayoutStore((state) => state.rateCard);
   const fronts = useMemo(
     () =>
       cabinetFrontBreakdown(
         item,
         item.frontLayout ?? defaultFrontLayout(item.moduleType, item.widthMm),
-        handle
+        handle,
+        rateCard.hardware
       ),
-    [item, handle]
+    [item, handle, rateCard]
   );
 
   // The carcass is SHORTENED by the front thickness and pushed back, so
@@ -2051,14 +2091,6 @@ function HandleMesh({
   const { handle, orientation, lengthMm, centerXMm, centerYMm } = placement;
   const lengthM = mmToWorld(lengthMm);
 
-  // DECISION: handles stay scalar-only (colorHex/metalness/roughness),
-  // no albedo/normal maps. A ~128mm bar is always seen mid-distance in
-  // the walkthrough, never macro-inspected like a cabinet front; at that
-  // distance/scale the eye reads the SHAPE of the specular highlight —
-  // driven by roughness + the real HDRI now in place — not fine
-  // brush-line micro-texture, which would be heavily minified anyway.
-  // Scalars + real environment reflections already read as brushed
-  // steel. Not worth a schema/CRUD/UI change for a gain that small.
   const metalMaterial = (
     <meshStandardMaterial
       color={handle.colorHex}
@@ -2210,16 +2242,6 @@ function ApplianceMesh({ item }: { item: PlacedApplianceItem }) {
   const [worldX, worldZ] = groundPosition(item.x + item.widthMm / 2, item.y + item.depthMm / 2);
   const centerY = mmToWorld(item.elevationMm) + heightM / 2;
 
-  // Sink and chimney are real brushed-steel products, so their box
-  // FALLBACK (rendered whenever no .glb model is set/loaded for that
-  // placement — see resolveApplianceModel) gets the same
-  // metal-brushed-steel PBR set used for cabinet-front finishes, scaled
-  // off the appliance's own real width/height so a 600mm sink face
-  // doesn't show one stretched copy of the 500mm swatch. Other
-  // appliance types keep their flat fallback colors — untouched.
-  const isMetalAppliance = item.applianceType === 'sink' || item.applianceType === 'chimney';
-  const metalTextures = useMetalHardwareTextures(widthM, heightM);
-
   return (
     <mesh
       position={[worldX, centerY, worldZ]}
@@ -2228,22 +2250,13 @@ function ApplianceMesh({ item }: { item: PlacedApplianceItem }) {
       receiveShadow
     >
       <boxGeometry args={[widthM, heightM, depthM]} />
-      {isMetalAppliance ? (
-        <meshStandardMaterial
-          map={metalTextures.map}
-          normalMap={metalTextures.normalMap}
-          roughnessMap={metalTextures.roughnessMap}
-          color={APPLIANCE_MESH_COLORS[item.applianceType]}
-          roughness={1}
-          metalness={item.applianceType === 'sink' ? 0.85 : 0.35}
-        />
-      ) : (
-        <meshStandardMaterial
-          color={APPLIANCE_MESH_COLORS[item.applianceType]}
-          roughness={0.4}
-          metalness={item.applianceType === 'stove' ? 0.4 : 0.1}
-        />
-      )}
+      <meshStandardMaterial
+        color={APPLIANCE_MESH_COLORS[item.applianceType]}
+        roughness={0.4}
+        metalness={
+          item.applianceType === 'sink' ? 0.75 : item.applianceType === 'stove' ? 0.4 : 0.1
+        }
+      />
     </mesh>
   );
 }

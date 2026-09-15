@@ -1,0 +1,6 @@
+source: Poly Haven
+asset: hanging_industrial_lamp
+url: https://polyhaven.com/a/hanging_industrial_lamp
+license: CC0 1.0 Universal (public domain)
+resolution: 1k
+note: Organized for future use only — FixtureCatalogItem (types/fixture.ts) has no modelUrl field yet, so this isn't wired into the app.

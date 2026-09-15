@@ -1,0 +1,153 @@
+{
+  "customers": [
+    {
+      "id": "proj_001",
+      "clientName": "Ananya Sharma",
+      "phone": "+91-98765-43210",
+      "email": "ananya.sharma@example.com",
+      "address": "B-42, Sector 21",
+      "locality": "Dwarka, Delhi",
+      "status": "Quote Sent",
+      "assignedTo": "designer_rahul",
+      "notes": "Prefers acrylic finish, wants cylinder trolley near sink.",
+      "quoteTotal": 61551,
+      "createdAt": "2026-07-10T09:30:00.000Z",
+      "updatedAt": "2026-08-20T14:05:00.000Z"
+    },
+    {
+      "id": "proj_002",
+      "clientName": "Rohan Mehta",
+      "phone": "+91-98110-22334",
+      "address": "C-14, Sector 9",
+      "locality": "Rohini, Delhi",
+      "status": "Lead",
+      "assignedTo": "designer_rahul",
+      "notes": "Called in after a site visit inquiry; layout not started.",
+      "createdAt": "2026-08-18T11:00:00.000Z",
+      "updatedAt": "2026-08-18T11:00:00.000Z"
+    },
+    {
+      "id": "proj_003",
+      "clientName": "Priya Kapoor",
+      "phone": "+91-99887-65432",
+      "address": "Tower 4, DLF Phase 3",
+      "locality": "Gurgaon",
+      "status": "Layout Drafted",
+      "assignedTo": "designer_meera",
+      "notes": "L-shaped kitchen, exposed pillar near the window.",
+      "createdAt": "2026-08-05T09:15:00.000Z",
+      "updatedAt": "2026-08-22T16:40:00.000Z"
+    },
+    {
+      "id": "proj_004",
+      "clientName": "Vikram Singh",
+      "phone": "+91-97654-32109",
+      "address": "Sector 62",
+      "locality": "Noida",
+      "status": "Approved",
+      "assignedTo": "designer_rahul",
+      "notes": "Approved with PU finish upgrade.",
+      "quoteTotal": 84200,
+      "createdAt": "2026-07-22T13:20:00.000Z",
+      "updatedAt": "2026-08-25T10:05:00.000Z"
+    },
+    {
+      "id": "proj_005",
+      "clientName": "Neha Verma",
+      "phone": "+91-96501-11223",
+      "address": "Sector 15",
+      "locality": "Faridabad",
+      "status": "In Production",
+      "assignedTo": "designer_meera",
+      "notes": "Production started; cylinder trolley on backorder.",
+      "quoteTotal": 132500,
+      "createdAt": "2026-06-30T08:00:00.000Z",
+      "updatedAt": "2026-08-27T12:00:00.000Z"
+    }
+  ],
+  "layout": {
+    "id": "layout_001",
+    "projectId": "proj_001",
+    "name": "Kitchen - Ground Floor",
+    "dimensions": { "widthMm": 3000, "depthMm": 4000, "ceilingHeightMm": 2700 },
+    "walls": [
+      { "id": "wall_n", "orientation": "north", "lengthMm": 3000 },
+      { "id": "wall_e", "orientation": "east", "lengthMm": 4000, "hasWindow": true },
+      { "id": "wall_s", "orientation": "south", "lengthMm": 3000, "hasDoor": true },
+      { "id": "wall_w", "orientation": "west", "lengthMm": 4000 }
+    ],
+    "obstacles": [
+      {
+        "id": "obs_pillar_1",
+        "type": "pillar",
+        "x": 0,
+        "y": 0,
+        "widthMm": 300,
+        "depthMm": 300,
+        "floorToCeiling": true
+      }
+    ],
+    "gridSnapMm": 50,
+    "createdAt": "2026-07-12T10:00:00.000Z",
+    "updatedAt": "2026-08-15T11:20:00.000Z"
+  },
+  "cabinets": [
+    {
+      "id": "cab_001",
+      "layoutId": "layout_001",
+      "moduleType": "sink-unit",
+      "x": 600,
+      "y": 0,
+      "widthMm": 900,
+      "depthMm": 600,
+      "heightMm": 850,
+      "rotationDeg": 0,
+      "material": "HDMR",
+      "finish": "Acrylic",
+      "color": "#E5E0D8",
+      "unitPrice": 18500,
+      "quantity": 1,
+      "hardware": [
+        { "type": "hinge", "count": 4, "unitCost": 120 },
+        { "type": "channel", "count": 2, "unitCost": 450 }
+      ]
+    },
+    {
+      "id": "cab_002",
+      "layoutId": "layout_001",
+      "moduleType": "cylinder-trolley",
+      "x": 1500,
+      "y": 0,
+      "widthMm": 450,
+      "depthMm": 600,
+      "heightMm": 850,
+      "rotationDeg": 0,
+      "material": "Plywood",
+      "finish": "Laminate",
+      "unitPrice": 9200,
+      "quantity": 1,
+      "hardware": [
+        { "type": "basket", "count": 1, "unitCost": 1800 }
+      ]
+    },
+    {
+      "id": "cab_003",
+      "layoutId": "layout_001",
+      "moduleType": "wall-cabinet",
+      "x": 600,
+      "y": 1500,
+      "widthMm": 900,
+      "depthMm": 300,
+      "heightMm": 600,
+      "rotationDeg": 0,
+      "material": "MDF",
+      "finish": "PU",
+      "unitPrice": 12000,
+      "quantity": 2,
+      "hardware": [
+        { "type": "hinge", "count": 4, "unitCost": 120 },
+        { "type": "handle", "count": 2, "unitCost": 250 }
+      ]
+    }
+  ]
+}

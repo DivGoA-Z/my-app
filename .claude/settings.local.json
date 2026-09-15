@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 scripts/fetch_textures.py discover \"wood\" --limit 8)",
+      "Bash(python3 scripts/fetch_textures.py discover \"marble\" --limit 8)",
+      "Bash(python3 scripts/fetch_textures.py discover \"tiles\" --limit 8)",
+      "Bash(python3 scripts/fetch_textures.py fetch Marble012 --as quartz)",
+      "Bash(python3 scripts/fetch_textures.py fetch Tiles107 --as tile)",
+      "Bash(curl -s \"https://api.polyhaven.com/assets?type=models\" --max-time 15 -o /tmp_models.json)",
+      "Bash(python3 -c ' *)",
+      "Bash(mkdir -p /private/tmp/claude-502/-Users-dgoyal2-my-app/b1684986-9155-456f-b48d-55082250e567/scratchpad)",
+      "Bash(curl -s \"https://api.polyhaven.com/assets?type=models\" --max-time 20 -o /private/tmp/claude-502/-Users-dgoyal2-my-app/b1684986-9155-456f-b48d-55082250e567/scratchpad/models.json)",
+      "Bash(python3 *)",
+      "Bash(curl -s https://api.polyhaven.com/files/electric_stove --max-time 20 -o /private/tmp/claude-502/-Users-dgoyal2-my-app/b1684986-9155-456f-b48d-55082250e567/scratchpad/electric_stove_files.json)",
+      "Bash(curl -s https://dl.polyhaven.org/file/ph-assets/Models/gltf/1k/electric_stove/electric_stove_1k.gltf -o /private/tmp/claude-502/-Users-dgoyal2-my-app/b1684986-9155-456f-b48d-55082250e567/scratchpad/electric_stove_1k.gltf --max-time 30)",
+      "Bash(npx tsc *)",
+      "WebSearch",
+      "Bash(curl -s -L \"https://kenney.nl/assets/furniture-kit\" --max-time 20 -A \"Mozilla/5.0\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{url_effective}\\\\n\" -L \"https://kenney.nl/media/pages/assets/furniture-kit/76a3a5f0d3-1677098986/kenney_furniture-kit.zip\" --max-time 15)"
+    ]
+  }
+}

@@ -1,0 +1,5 @@
+assetId: Wood051
+source: https://ambientcg.com/view?id=Wood051
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+note: closest CC0 dark hardwood grain

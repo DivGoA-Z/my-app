@@ -1,0 +1,5 @@
+assetId: Chipboard004
+source: https://ambientcg.com/view?id=Chipboard004
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+note: chipboard/plywood edge grain

@@ -1,0 +1,5 @@
+source: Poly Haven
+asset: vintage_microwave
+url: https://polyhaven.com/a/vintage_microwave
+license: CC0 1.0 Universal (public domain)
+resolution: 1k

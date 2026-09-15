@@ -1,0 +1,6 @@
+source: Poly Haven
+asset: electric_stove
+url: https://polyhaven.com/a/electric_stove
+license: CC0 1.0 Universal (public domain)
+resolution: 1k
+note: Poly Haven has no dedicated gas-hob/induction-cooktop asset; this flat-glass electric stove is the closest CC0 stand-in for the induction cooktop slot.

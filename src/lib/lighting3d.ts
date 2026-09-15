@@ -82,35 +82,8 @@ export const DAYLIGHT_BASE_INTENSITY = 3.2;
 // see its edges the moment you look through at an angle, which reads as
 // the image "peeling". A little depth plus generous overscan gives a
 // convincing sense of a world outside for two triangles.
-//
-// RECALIBRATED from 0.6/2.6 after a trigonometric check (added when the
-// backdrop-preset picker was added to OpeningInspector.tsx — see that
-// commit) found a real gap at those values, not just a theoretical one.
-//
-// The plane's edge becomes visible whenever a ray from the camera,
-// grazing the FAR jamb of the opening, lands beyond the plane's own far
-// edge by the time it reaches the plane's depth. For a camera at
-// perpendicular distance L from the wall, lateral offset producing a
-// lateral-to-edge distance E (at the opening, depth 0), the extra
-// lateral drift by the time the ray reaches depth d behind the wall is
-// E * d / L — i.e. the OVERSHOOT SCALES WITH d/L, and the plane's
-// available margin scales with (oversize - 1) * openingWidth/2. Worst
-// case modelled: a modest ~2.2-2.5m-wide kitchen, camera standing close
-// to a counter/sink right under the window (L as low as 0.35-0.5m) and
-// as far to the side as the room allows. At the old 0.6/2.6 that
-// worst case oversheets the plane by ~0.9-1.1m (landing ~1.7-2.5m out
-// against a ~1.2-1.6m half-plane) — the edge WOULD show. Reworking the
-// same worst-case scenarios (window widths 0.9-2.1m, rooms 2.2-4.0m,
-// L down to 0.35m) against 0.3/4.0 leaves a comfortable positive margin
-// (>=0.02m, typically 0.3-2.4m) in every one, while still keeping
-// nonzero depth so the view isn't a flat sticker.
-//
-// This is a GEOMETRIC calculation, not a rendered/visual check — this
-// project's tooling can't screenshot the WebGL scene, so "no edge
-// visible from any camera position" here means "the worst-case ray this
-// script modelled doesn't overshoot the plane," not "confirmed by eye."
-export const BACKDROP_DISTANCE_M = 0.3;
-export const BACKDROP_OVERSIZE = 4.0;
+export const BACKDROP_DISTANCE_M = 0.6;
+export const BACKDROP_OVERSIZE = 2.6;
 
 // Black-body colour for a light's temperature in Kelvin, as an
 // approximation good enough over the 2000-7000K range interiors
@@ -219,6 +192,34 @@ export interface LightingEnvironment {
   // Shadows are what make a room read as real — and what makes a
   // finish hard to judge, since half of it ends up in shade.
   shadowsEnabled: boolean;
+
+  // ---- Image-based environment ----
+  //
+  // These two were missing, and their absence was a real bug rather
+  // than an omission. The <Environment> Lightformer panels in
+  // Room3DCanvas were hardcoded and ungated, so they rendered
+  // IDENTICALLY in all three modes while ambient and the viewing light
+  // dutifully receded around them. Three consequences, all reported
+  // from the app:
+  //
+  //   - An environment map is not occluded by geometry. The panels sit
+  //     outside the walls, above the ceiling and below the floor, and
+  //     light straight through all of them. Nothing shadows them.
+  //   - They are asymmetric on purpose (a cool "window" on one side, a
+  //     warm bounce on the other), which put a brightness and colour
+  //     gradient across the ceiling that corresponds to nothing the
+  //     designer placed.
+  //   - Two of the four are TINTED, which meant 'true colour' — the
+  //     mode whose entire purpose is that nothing tints the finishes —
+  //     was tinting the finishes.
+
+  // Multiplier on every Lightformer's intensity, so the environment
+  // recedes alongside ambient and the viewing light once real fixtures
+  // are doing the work.
+  envIntensityScale: number;
+  // Whether the panels keep their colours. False forces them white, so
+  // true colour means true colour.
+  envTinted: boolean;
 }
 
 // `hasPlacedLight` is the fix for the biggest complaint about this
@@ -256,6 +257,23 @@ export function lightingEnvironmentFor(
         daylightTinted: true,
         daylightScale: 1,
         shadowsEnabled: true,
+        // Reduced, but not as far as true colour.
+        //
+        // My first pass left this at full strength on the reasoning
+        // that with fixtures off the environment and the viewing light
+        // are all there is. That reasoning was about ILLUMINATION and
+        // missed the actual complaint, which was about REFLECTION: a
+        // highlight visible on the ceiling in the one mode where
+        // nothing is supposed to be switched on. Leaving it at 1 would
+        // have fixed the other two modes and left the reported one
+        // untouched.
+        //
+        // 0.6 keeps the room comfortably lit (ambient and the viewing
+        // light are both at full strength here) while roughly halving
+        // what glossy surfaces mirror. Raise it back toward 1 if an
+        // unlit walkthrough now reads too flat.
+        envIntensityScale: 0.6,
+        envTinted: true,
       };
 
     case 'true-colour':
@@ -276,6 +294,13 @@ export function lightingEnvironmentFor(
         daylightTinted: false,
         daylightScale: 0.35,
         shadowsEnabled: false,
+        // Dim AND untinted. Not zero: with no environment at all,
+        // gloss and matte become indistinguishable, and telling a
+        // high-gloss acrylic from a matte laminate is half of what this
+        // mode is for. Low enough that the panels no longer paint a
+        // gradient, present enough that a sheen still reads.
+        envIntensityScale: 0.3,
+        envTinted: false,
       };
 
     case 'designed':
@@ -296,6 +321,13 @@ export function lightingEnvironmentFor(
         daylightTinted: true,
         daylightScale: 1,
         shadowsEnabled: true,
+        // Recedes with everything else once real light is placed. This
+        // is the line that was missing: ambient and the viewing light
+        // already stepped back for placed fixtures, the environment did
+        // not, so it became the dominant source by default and a
+        // pendant appeared to light nothing.
+        envIntensityScale: hasPlacedLight ? BASE_LIGHT_RECESSION : 1,
+        envTinted: true,
       };
   }
 }
@@ -317,7 +349,17 @@ export function lightingEnvironmentFor(
 // counter lands at roughly 3 in linear terms against a receded base of
 // about 0.375 — call it eight times the ambient, which is what a task
 // light actually looks like.
-export const FIXTURE_LUMEN_SCALE = 1 / 400;
+// Raised from 1/400, PAIRED with the emissive drop below — the two
+// belong together and moving either alone is what made this constant
+// churn before.
+//
+// The request behind it: "make its brightness low but throwing light
+// out higher." That is not one dial, it is two, and they had been
+// conflated. A real fitting's diffuser is only modestly bright to look
+// at; what it does is put light on things. Rendering it the other way
+// round — a blazing bar that lit almost nothing — is why placed
+// fixtures kept reading as decals.
+export const FIXTURE_LUMEN_SCALE = 1 / 240;
 
 // Physical inverse-square falloff for placed fixtures.
 //
@@ -360,9 +402,38 @@ export const DAYLIGHT_DECAY = 0;
 // unchanged.
 export const LINEAR_SAMPLES_BY_QUALITY: Record<string, number> = {
   low: 1,
-  auto: 2,
-  all: 3,
+  auto: 3,
+  all: 6,
 };
+
+// How far a DIFFUSE fixture's light origin stands off the surface it is
+// fixed to, in millimetres. The body does not move — only the sampled
+// light origins do.
+//
+// This is the fix for "three light sources inside one strip". The cause
+// was geometric rather than a bad sample count: a point light 60mm from
+// a wall (WALL_STANDOFF_MM in lib/fixtures.ts) lights a pool about 60mm
+// across, because illuminance falls as 1/r² and r is dominated by that
+// 60mm. Samples 430mm apart along a 2.4m run therefore land as
+// discrete, obviously separate blobs, and NO affordable number of them
+// closes the gap — merging pools 60mm wide across 2.4m would take forty
+// lights.
+//
+// Standing the origins off the surface widens each pool to roughly the
+// standoff distance, so at 350mm they overlap at the ~430mm spacing six
+// samples give and read as one continuous band.
+//
+// The same trick, for the same reason, as FIXTURE_ORIGIN_STANDOFF_M
+// below — that one exists because an AIMED light at its own body has
+// nowhere to throw. Both are approximations of an area source using
+// point primitives.
+//
+// The honest alternative is three.js RectAreaLight, which IS a
+// rectangular emitter and would need no sampling at all. It is not used
+// here because it requires RectAreaLightUniformsLib.init() at startup
+// and renders BLACK without it, and that is not a change to make
+// untested.
+export const DIFFUSE_ORIGIN_STANDOFF_MM = 350;
 
 // Below this length a run is a point for all practical purposes and
 // sampling it twice just costs a light.
@@ -389,7 +460,11 @@ export const FIXTURE_LIGHT_DISTANCE_MM = 3200;
 // Tone mapped, an emissive of 2.6 still reads clearly as a source
 // against a lit room, and — the point — reads DIMMER when the light is
 // off or the room is bright, which is the honest behaviour.
-export const FIXTURE_EMISSIVE_INTENSITY = 2.6;
+// Dropped from 2.6. At that value the body clipped to flat white under
+// ACES, which destroyed the profile it is mounted in and made three
+// sampled point lights read as three separate lamps rather than one
+// strip — a blown highlight has no shape for the eye to join up.
+export const FIXTURE_EMISSIVE_INTENSITY = 1.0;
 
 // How far AHEAD of its own body an aimed fixture's light sits, in
 // metres.
