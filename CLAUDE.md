@@ -1,5 +1,10 @@
 # my-app — kitchen renovation designer
 
+**This file belongs at the REPO ROOT, not in `docs/`.** Claude Code
+auto-loads `CLAUDE.md` from the project root only. It was found in
+`docs/` once, which means sessions had been starting without any of the
+conventions below — silently, since nothing reports a missing file.
+
 Operating manual. Loaded into every session, so it stays short.
 Reasoning and bug history live in `docs/DECISIONS.md` — read that
 before changing anything in pricing, lighting, or wall geometry.
@@ -205,6 +210,63 @@ cabinets and appliances.
 **Not started:** quote export (PDF / WhatsApp / share link) — the last
 piece of the original brief, and the reason a quote currently cannot
 leave the app. Multi-tenancy. Draco decoding.
+
+## Keeping the documents true
+
+These files are only worth loading if they stay accurate. Three rules,
+and they are obligations on you, not suggestions.
+
+**When you make a non-obvious decision, record it in
+`docs/DECISIONS.md`** — what was chosen, what was rejected, and WHY.
+The why is the part that cannot be recovered from the code later. Also
+record failed approaches: "X was tried and broke because Y" is the
+highest-value content in that file, because without it the next
+session retries X.
+
+**When a decision changes what the product is trying to be, update
+`docs/PRINCIPLES.md`** — and say so out loud, because that is a bigger
+change than a code edit and the user should agree to it explicitly.
+Part 1 (the principles) should change rarely; Part 2 (the roadmap)
+changes often.
+
+**When you fix something from `docs/ISSUES.md`, move it to a "Fixed"
+section in that file with the date — never delete it.** Two reasons: a
+regression is only recognisable if the original report survives, and the
+pattern of what keeps breaking says more about where the app is
+structurally weak than any single fix does. If a fix turns out to be
+interesting — a wrong assumption, a non-obvious cause — it also belongs
+in `docs/DECISIONS.md`.
+
+**When you find that a document is wrong, correct it and say what was
+wrong** rather than quietly overwriting. There is precedent: the
+fingerprint reasoning in `types/quote.ts` was corrected in place with a
+note explaining that the original claim about cabinets being a separate
+table was false. A silent correction loses the information that someone
+once believed the wrong thing.
+
+## At the end of a working session
+
+**Update `docs/STATUS.md`.** It is the bridge to planning conversations
+held outside this repo — a Claude Project cannot see these files, so
+that one document is what gets pasted across. Keep it a snapshot, not a
+history: what is built, what is not, what is unverified, what is
+blocked, what is next. Reasoning belongs in `docs/DECISIONS.md`.
+
+Then remind the user to commit and push. A session's work that is not
+pushed does not survive a lost laptop.
+
+## Document map
+
+- `CLAUDE.md` (this file) — conventions and traps. Loaded every session.
+- `docs/PRINCIPLES.md` — what the product is trying to be, and the
+  roadmap. Read before proposing direction.
+- `docs/DECISIONS.md` — why things are the way they are, and the bug
+  history. Read before changing pricing, lighting or wall geometry.
+- `docs/STATUS.md` — current state, for conversations outside the repo.
+- `docs/ISSUES.md` — problems found in real use, when present.
+- `docs/SUPABASE_SETUP.md`, `docs/SETUP_NEW_MACHINE.md` — environment.
+- `docs/PROJECT_INSTRUCTIONS.md` — custom instructions for the separate
+  Claude Project. Not used by this repo; kept here so it is versioned.
 
 ## House style
 

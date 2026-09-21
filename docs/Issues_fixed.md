@@ -1,0 +1,22 @@
+#Issues
+
+- I can't add a cabinet with one open shelf and other drawer
+- I am adding a cabinet but it is taking more space because of the slab stone placed on top of it taking a little extra space than cabinet itself
+- I should be able to see the dimensions of each cabinet, each length, breadth, height on the layout. also, the remaining spaces for instsance, I am trying to fit in cabinets on floor and last remaining space is left, I should be able to see what its dimensions are
+- we don't have an L-shaped corner unit taking some space from both sides of L shaped kitchen
+- pressing enter to fnalize dimension change on layout for anything like cabinets
+- I don't have control over the material and finish of the slab/stone over lower cabinets (or should we add it separately)
+- shouldn't sink unit have a hole on top instead of the stone/slab? we should be able to control its hole dimensions to be able to match iot with different sized sinks put in inventory by the businesses.
+- there is no tamboure unit to be put on shelf
+- if there is any object which does not have an inspector opening up, add it like for appliances, doors and windows, lighting, etc.
+- open shelves does not seem like open , they are simply surfaces (inside feels like a surface on top/outside)
+- if we want to put something in the cabinet like any appliance and see it in the 3D view like microwave/air fryer in the tamboure unit, we should be able to do it to visualize (but okay, let's take it up later but remember this point too).
+- there is no option for me to rotate the obstacles like pillar or shaft like that of cabinets, give me that option too
+- when I choose "manage" in the inventory section of the UI, it should take me to that section on inventory and not only the top page of that inventory page
+- floor shows some reflections or some other things rather than simple floor
+- if a chimney goes through the cabinet then layout will be overlapped only. so give me an option to turn on or off the overlap alert thing so that we may give a proper visualization.
+- I can't fit 2 horizontal wall cabinets of 760mm each and one turned wall cabinet of 305 mm on a 1825mm wall
+- also, at the L point, we have a cabinet facing one side when aplplied should have a check mechanism to see if another wall will have cabinet placed so close that their doors/drawers are in each other's way. (like we check for doors). again alert which can be turned off
+- lighting was fine until I added an opening, it was uniform all along so didn't have any shadows (no lightings added) but when I added an opening like a door opening w/o door, light comes in and casts shadow, would want to control that in the inventory section only. ask there if want an incoming light from this opening.
+- tried to change appliance info - 	Failed to save appliance catalog item: TypeError: Failed to fetch (gave an error)
+- can't save the project - Failed to save: Failed to save project: TypeError: Failed to fetch
