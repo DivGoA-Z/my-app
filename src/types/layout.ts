@@ -109,6 +109,23 @@ export interface Obstacle {
   // obstacles saved before this field existed — see normalizeObstacle
   // in lib/persistence.ts.
   elevationMm: number;
+  // Quarter turn, same convention as PlacedCabinetItem.rotationDeg
+  // (types/cabinet.ts) and the same footprint rules in lib/footprint.ts:
+  // x/y stays the UNROTATED top-left corner, and a 90/270 turn swaps
+  // which of widthMm/depthMm is the footprint's on-floor extent along
+  // each axis. Most obstacles are square in plan (a pillar) where this
+  // does nothing, but a rectangular duct or shaft against a wall often
+  // needs its long side turned to match the wall it's against.
+  // Backfilled to 0 for obstacles saved before this field existed — see
+  // normalizeObstacle in lib/persistence.ts.
+  rotationDeg: 0 | 90 | 180 | 270;
+  // Suppresses the red collision highlight/warning for any overlap
+  // involving THIS obstacle — see lib/collision.ts. For a known,
+  // accepted overlap (e.g. a chimney duct that's expected to run
+  // through this obstacle's box) rather than an actual mistake. Never
+  // affects placement itself (Principle 6: warn, never block) — only
+  // whether the warning is shown. Defaults to false/unset.
+  ignoreOverlap?: boolean;
 }
 
 export interface RoomLayout {
@@ -156,6 +173,21 @@ export interface RoomLayout {
   // hides ceiling area except a floor-to-ceiling unit, and that
   // OCCUPIES rather than conceals it.
   ceilingFinishId?: string;
+  // One finish (FK -> SurfaceFinish.id) for every countertop in the
+  // layout — a kitchen's slab is one continuous material in practice,
+  // same reasoning as floor/ceiling being singular rather than per-run.
+  countertopFinishId?: string;
+  // Whether the countertop appears as a CHARGE on the quote.
+  //
+  // Same shape as priceElectrical, for the same market reason: in Delhi
+  // NCR the kitchen business usually does NOT supply the slab — the
+  // homeowner arranges stone separately. So the countertop is always
+  // part of the DESIGN (it's real, it affects the render and the
+  // walkthrough) but only OPTIONALLY part of the PRICE. Off (the
+  // default), the countertop still prints on the quote as a
+  // specification at zero, same as an unpriced fixture — not supplying
+  // it is different from it being free.
+  priceCountertop?: boolean;
   gridSnapMm: number;        // e.g. 50 — controls drag-and-drop snapping
   createdAt: string;
   updatedAt: string;

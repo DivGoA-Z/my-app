@@ -148,12 +148,7 @@ export function detectClearanceIssues(
     }
 
     for (const obstacle of layout.obstacles) {
-      const rect = {
-        x: obstacle.x,
-        y: obstacle.y,
-        widthMm: obstacle.widthMm,
-        depthMm: obstacle.depthMm,
-      };
+      const rect = currentFootprintRect(obstacle);
       if (!rectsOverlap(zone, rect)) continue;
 
       // Obstacles carry their own vertical convention: a floor-to-

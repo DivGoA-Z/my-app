@@ -28,6 +28,7 @@ interface FixtureCatalogRow {
   model_rotation_x_deg?: number | null;
   model_rotation_y_deg?: number | null;
   model_rotation_z_deg?: number | null;
+  business_id: string;
   created_at: string;
   updated_at: string;
 }
@@ -50,7 +51,7 @@ function rowToItem(row: FixtureCatalogRow): FixtureCatalogItem {
   };
 }
 
-function itemToRow(item: FixtureCatalogItem): FixtureCatalogRow {
+function itemToRow(item: FixtureCatalogItem, businessId: string): FixtureCatalogRow {
   return {
     id: item.id,
     label: item.label,
@@ -63,6 +64,7 @@ function itemToRow(item: FixtureCatalogItem): FixtureCatalogRow {
     model_rotation_x_deg: item.modelRotationXDeg ?? null,
     model_rotation_y_deg: item.modelRotationYDeg ?? null,
     model_rotation_z_deg: item.modelRotationZDeg ?? null,
+    business_id: businessId,
     created_at: item.createdAt,
     updated_at: new Date().toISOString(), // bumped on every save
   };
@@ -78,9 +80,28 @@ export async function fetchFixtureCatalog(): Promise<FixtureCatalogItem[]> {
   return (data as FixtureCatalogRow[]).map(rowToItem);
 }
 
-export async function saveFixtureCatalogItem(item: FixtureCatalogItem): Promise<void> {
-  const { error } = await supabase.from('light_fixture_catalog').upsert(itemToRow(item));
+export async function saveFixtureCatalogItem(
+  item: FixtureCatalogItem,
+  businessId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('light_fixture_catalog')
+    .upsert(itemToRow(item, businessId));
   if (error) throw new Error(`Failed to save light fixture: ${error.message}`);
+}
+
+// One multi-row upsert, genuinely atomic — used by the fixture Excel
+// import's "Commit" step. Same reasoning as
+// saveCabinetCatalogItemsBulk in lib/Inventory.ts.
+export async function saveFixtureCatalogItemsBulk(
+  items: FixtureCatalogItem[],
+  businessId: string
+): Promise<void> {
+  if (items.length === 0) return;
+  const { error } = await supabase
+    .from('light_fixture_catalog')
+    .upsert(items.map((item) => itemToRow(item, businessId)));
+  if (error) throw new Error(`Failed to save light fixtures: ${error.message}`);
 }
 
 // Deleting a catalogue row that placed fixtures still reference is
@@ -93,4 +114,12 @@ export async function saveFixtureCatalogItem(item: FixtureCatalogItem): Promise<
 export async function deleteFixtureCatalogItem(id: string): Promise<void> {
   const { error } = await supabase.from('light_fixture_catalog').delete().eq('id', id);
   if (error) throw new Error(`Failed to delete light fixture: ${error.message}`);
+}
+
+// Same reasoning as saveFixtureCatalogItemsBulk — one statement, used
+// by the Excel import's explicit "DELETE" column.
+export async function deleteFixtureCatalogItemsBulk(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const { error } = await supabase.from('light_fixture_catalog').delete().in('id', ids);
+  if (error) throw new Error(`Failed to delete light fixtures: ${error.message}`);
 }

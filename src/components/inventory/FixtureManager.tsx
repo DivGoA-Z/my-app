@@ -12,10 +12,14 @@
 // rendered colour, so the number doesn't have to be imagined.
 
 import { useState } from 'react';
+import { toast } from 'sonner';
+import { Button } from '../ui/button';
+import { confirmDialog } from '../../store/confirmDialogStore';
 import { useLayoutStore } from '../../store/layoutStore';
 import { FIXTURE_KIND_LABELS, isLinear } from '../../types/fixture';
 import type { FixtureCatalogItem, FixtureKind } from '../../types/fixture';
 import { kelvinToColor } from '../../lib/lighting3d';
+import { FixtureCatalogImportExport } from './FixtureCatalogImportExport';
 
 const KINDS: FixtureKind[] = ['strip', 'spot', 'cove', 'pendant', 'plinth', 'drawer'];
 
@@ -44,6 +48,8 @@ export function FixtureManager() {
           light when a kitchen has more than the 3D view can afford to draw.
         </p>
       </div>
+
+      <FixtureCatalogImportExport />
 
       <div className="overflow-x-auto rounded-lg border border-gray-200">
         <table className="w-full border-collapse text-left text-xs">
@@ -85,12 +91,26 @@ function Row({
   const [isSaving, setIsSaving] = useState(false);
   const isDirty = JSON.stringify(draft) !== JSON.stringify(item);
 
+  async function handleDelete() {
+    if (!(await confirmDialog({ title: `Delete "${item.label}"?`, description: "This can't be undone." })))
+      return;
+    try {
+      await onDelete(item.id);
+      toast.success(`Deleted "${item.label}"`);
+    } catch (err) {
+      toast.error('Failed to delete', {
+        description: err instanceof Error ? err.message : 'Failed to delete.',
+      });
+    }
+  }
+
   return (
     <tr className="border-b border-gray-100">
       <Fields draft={draft} setDraft={setDraft} />
       <td className="px-2 py-1.5">
         <div className="flex flex-col gap-1">
-          <button
+          <Button
+            size="xs"
             onClick={async () => {
               setIsSaving(true);
               try {
@@ -100,17 +120,17 @@ function Row({
               }
             }}
             disabled={isSaving || !isDirty}
-            className="rounded bg-gray-800 px-2 py-1 text-[10px] text-white hover:bg-gray-700 disabled:opacity-40"
           >
             {isSaving ? '...' : 'Save'}
-          </button>
-          <button
-            onClick={() => onDelete(item.id)}
+          </Button>
+          <Button
+            size="xs"
+            variant="destructive"
+            onClick={handleDelete}
             title="Fixtures already placed from this row stop rendering and stop being priced"
-            className="rounded border border-red-300 px-2 py-1 text-[10px] text-red-600 hover:bg-red-50"
           >
             Delete
-          </button>
+          </Button>
         </div>
       </td>
     </tr>
@@ -140,7 +160,8 @@ function NewRow({ onAdd }: { onAdd: (item: FixtureCatalogItem) => Promise<void> 
     <tr className="bg-gray-50/50">
       <Fields draft={draft} setDraft={setDraft} />
       <td className="px-2 py-1.5">
-        <button
+        <Button
+          size="xs"
           onClick={async () => {
             if (!draft.label.trim()) return;
             setIsSaving(true);
@@ -152,10 +173,9 @@ function NewRow({ onAdd }: { onAdd: (item: FixtureCatalogItem) => Promise<void> 
             }
           }}
           disabled={isSaving || !draft.label.trim()}
-          className="rounded bg-gray-800 px-2 py-1 text-[10px] text-white hover:bg-gray-700 disabled:opacity-40"
         >
           {isSaving ? '...' : 'Add'}
-        </button>
+        </Button>
       </td>
     </tr>
   );

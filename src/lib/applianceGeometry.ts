@@ -97,3 +97,32 @@ export function resolveApplianceModel(
     },
   };
 }
+
+// The countertop hole a placed sink needs cut, in the sink's own
+// UNROTATED width/depth axes — same resolution order as
+// resolveApplianceModel (catalogItemId first, applianceType as the
+// legacy fallback), and the same reasoning for living on the catalogue
+// row rather than the placement: the cutout size is a property of
+// which sink model this is, not of where it's been put.
+//
+// Null covers three real states as one: not a sink, no catalogue row
+// (deleted, or placed before catalogItemId existed and no type match
+// either), or a sink row that hasn't had its cutout dimensions set
+// yet. All three mean the same thing to the renderer — draw the
+// countertop as a plain, uncut slab — so CountertopMesh doesn't need
+// to tell them apart.
+export function resolveSinkCutout(
+  item: PlacedApplianceItem,
+  catalog: ApplianceCatalogItem[]
+): { widthMm: number; depthMm: number } | null {
+  if (item.applianceType !== 'sink') return null;
+
+  const row =
+    (item.catalogItemId
+      ? catalog.find((c) => c.id === item.catalogItemId)
+      : undefined) ?? catalog.find((c) => c.applianceType === 'sink');
+
+  if (!row?.sinkCutoutWidthMm || !row?.sinkCutoutDepthMm) return null;
+
+  return { widthMm: row.sinkCutoutWidthMm, depthMm: row.sinkCutoutDepthMm };
+}

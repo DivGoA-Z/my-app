@@ -88,6 +88,7 @@ export async function fetchLatestQuote(projectId: string): Promise<FrozenQuote |
 
 export interface FreezeQuoteInput {
   projectId: string;
+  businessId: string;
   summary: BOMSummary;
   pricingContext: FrozenPricingContext;
   note?: string;
@@ -119,6 +120,7 @@ export async function freezeQuote(input: FreezeQuoteInput): Promise<FrozenQuote>
       // so there is no server-side default to fall back on.
       id: crypto.randomUUID(),
       project_id: input.projectId,
+      business_id: input.businessId,
       version,
       summary: input.summary,
       pricing_context: input.pricingContext,

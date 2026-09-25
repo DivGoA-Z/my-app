@@ -19,8 +19,8 @@
 // origin, so its front face is exactly this rectangle at
 // z = +depthMm/2). The renderer converts to metres at the last moment.
 
-import type { FrontLayout, HandleSpec } from '../types/front';
-import { clampCount } from '../types/front';
+import type { FrontKind, FrontLayout, FrontRowKind, HandleSpec } from '../types/front';
+import { clampCount, clampTambourShelfCount } from '../types/front';
 import type { HardwareSpec, PlacedCabinetItem } from '../types/cabinet';
 import type { HardwareRates } from '../types/rates';
 
@@ -88,6 +88,13 @@ export interface FrontPanel {
   // Null for kinds that carry no handle at all — open shelves, false
   // fronts, and any front whose handle is 'handleless'.
   handle: HandlePlacement | null;
+  // Which row-kind produced this panel — every panel-producing case
+  // sets its own, and 'mixed' preserves whatever its rows' panels
+  // already carry. Exists so the 3D renderer can give a panel a
+  // different physical treatment (a tambour's ridged shutter vs. a
+  // flat door) without re-deriving "what kind of front is this" from
+  // the panel's shape alone, which a plain rectangle can't answer.
+  kind: FrontRowKind;
 }
 
 export interface FrontBreakdown {
@@ -119,6 +126,67 @@ function normaliseRatios(count: number, ratios: number[] | undefined): number[] 
 
   const total = usable.reduce((a, b) => a + b, 0);
   return usable.map((r) => r / total);
+}
+
+// Which front kinds have no shutter/drawer front at all, so the
+// CARCASS behind them needs a real opening rather than a sealed box —
+// see carcassBands below.
+const OPEN_CARCASS_KINDS: FrontKind[] = ['open-shelf', 'appliance-housing'];
+
+export interface CarcassBand {
+  centerYMm: number;
+  heightMm: number;
+  // True: no front panel exists here, so the carcass itself needs a
+  // genuine opening (see Room3DCanvas.tsx's per-band carcass build).
+  // False: a door/drawer/trolley front covers this band, so the
+  // existing sealed-box carcass is correct and unchanged.
+  open: boolean;
+  // Which row-kind this band belongs to — same reasoning FrontPanel's
+  // own `kind` field has: the 3D renderer needs to give a TAMBOUR band
+  // a different treatment (open it up when an appliance is placed
+  // behind the shutter, so there's something to see) without
+  // re-deriving "what kind of front is this row" from a plain
+  // centerYMm/heightMm pair, which can't answer that on its own.
+  kind: FrontRowKind;
+}
+
+// Height bands for the CARCASS specifically — one band for the whole
+// cabinet for a plain (non-mixed) front, or one per row for 'mixed'.
+// Deliberately NOT rows()/rowBands-with-reveals: those exist to place
+// the visible FRONT PANELS with the shadow-line gaps between them,
+// but a carcass divider between two compartments is a real, continuous
+// piece of board with no gap in it. Using the reveal-gapped split here
+// would put a few millimetres of nothing inside the cabinet's own
+// body, which would show as a thin dark slit in what should be solid
+// carcass material.
+export function carcassBands(layout: FrontLayout, heightMm: number): CarcassBand[] {
+  if (layout.kind === 'mixed') {
+    const rowSpecs = layout.rows ?? [];
+    // No rows configured yet — nothing meaningful to report as `kind`,
+    // so this is treated as a plain sealed band (false-front: no
+    // opening, no handle, no hardware — the least presumptive default).
+    if (rowSpecs.length === 0) return [{ centerYMm: 0, heightMm, open: false, kind: 'false-front' }];
+
+    const fractions = normaliseRatios(
+      rowSpecs.length,
+      rowSpecs.map((r) => r.heightRatio)
+    );
+    const bands: CarcassBand[] = [];
+    let cursorY = heightMm / 2; // top edge, walking down — same order rows() uses
+    for (let i = 0; i < rowSpecs.length; i++) {
+      const bandHeight = heightMm * fractions[i];
+      bands.push({
+        centerYMm: cursorY - bandHeight / 2,
+        heightMm: bandHeight,
+        open: OPEN_CARCASS_KINDS.includes(rowSpecs[i].kind),
+        kind: rowSpecs[i].kind,
+      });
+      cursorY -= bandHeight;
+    }
+    return bands;
+  }
+
+  return [{ centerYMm: 0, heightMm, open: OPEN_CARCASS_KINDS.includes(layout.kind), kind: layout.kind }];
 }
 
 // Splits the face into `count` COLUMNS, left to right.
@@ -157,14 +225,44 @@ function rows(widthMm: number, heightMm: number, count: number, ratios: number[]
   return out;
 }
 
-// Thickness of a visible shelf board.
-const SHELF_THICKNESS_MM = 18;
+// Splits the face into vertical BANDS, top to bottom, for the 'mixed'
+// case's recursive composition. Same reveal-and-ratio math as rows()
+// above, but keeps each band's FULL width rather than reveal-reducing
+// it — every band gets its own recursive computeFrontBreakdown call,
+// which applies its OWN horizontal reveal when it builds real panels.
+// Reveal-reducing twice would leave a mixed cabinet's panels a few mm
+// narrower than the equivalent plain one.
+function rowBands(widthMm: number, heightMm: number, count: number, ratios: number[] | undefined) {
+  const available = heightMm - REVEAL_MM * (count + 1);
+  const fractions = normaliseRatios(count, ratios);
+
+  const out: Rect[] = [];
+  let cursorY = heightMm / 2 - REVEAL_MM;
+  for (let i = 0; i < count; i++) {
+    const bandHeight = available * fractions[i];
+    out.push({
+      centerXMm: 0,
+      centerYMm: cursorY - bandHeight / 2,
+      widthMm,
+      heightMm: bandHeight,
+    });
+    cursorY -= bandHeight + REVEAL_MM;
+  }
+  return out;
+}
+
+// Thickness of a visible shelf board. Exported so a tambour's own
+// "which slot" picker (FrontPicker.tsx) can compute each slot's real
+// clear height from the SAME boards it's about to render, rather than
+// a second, potentially-diverging estimate of where they sit.
+export const SHELF_THICKNESS_MM = 18;
 
 // `count` shelves divide the interior into count+1 compartments, so
 // they sit at even fractions of the height rather than at 1/count —
 // three shelves in a 900mm unit go at 225/450/675, not 300/600/900
-// (the last of which would be the top of the carcass).
-function shelfBoards(widthMm: number, heightMm: number, count: number): Rect[] {
+// (the last of which would be the top of the carcass). Exported for
+// the same reason SHELF_THICKNESS_MM is.
+export function shelfBoards(widthMm: number, heightMm: number, count: number): Rect[] {
   return Array.from({ length: count }, (_, i) => ({
     centerXMm: 0,
     centerYMm: -heightMm / 2 + ((i + 1) * heightMm) / (count + 1),
@@ -278,6 +376,72 @@ export function computeFrontBreakdown(
       // in it is priced as an appliance.
       return { panels: [], shelves: [], hardware: [], panelAreaMm2: 0 };
 
+    case 'mixed': {
+      const rowSpecs = layout.rows ?? [];
+      if (rowSpecs.length === 0) {
+        return { panels: [], shelves: [], hardware: [], panelAreaMm2: 0 };
+      }
+
+      const bands = rowBands(
+        widthMm,
+        heightMm,
+        rowSpecs.length,
+        rowSpecs.map((r) => r.heightRatio)
+      );
+
+      const panels: FrontPanel[] = [];
+      const shelves: Rect[] = [];
+      let panelAreaMm2 = 0;
+      // Merged by type rather than left as one entry per row, so two
+      // drawer rows read as one "Drawer channels x5" line instead of
+      // two separate lines that would also collide as React keys
+      // (FrontPicker lists this array keyed by h.type).
+      const hardwareByType = new Map<HardwareSpec['type'], HardwareSpec>();
+
+      rowSpecs.forEach((rowSpec, i) => {
+        const band = bands[i];
+        const subLayout: FrontLayout = {
+          kind: rowSpec.kind,
+          count: rowSpec.count,
+          hinge: rowSpec.hinge,
+          heightRatios: rowSpec.heightRatios,
+        };
+        const sub = computeFrontBreakdown(subLayout, band.widthMm, band.heightMm, handle, rates);
+
+        for (const panel of sub.panels) {
+          panels.push({
+            ...panel,
+            index: panels.length,
+            centerYMm: band.centerYMm + panel.centerYMm,
+            // The handle is a NESTED object with its own centerYMm,
+            // computed by placeHandle() in the row's own LOCAL frame
+            // (typically centred on that row's panel) — offsetting the
+            // panel alone leaves every row's handle sitting at its
+            // pre-offset height, which is why they all lined up at
+            // roughly the middle of the whole face regardless of which
+            // row they belonged to.
+            handle: panel.handle
+              ? { ...panel.handle, centerYMm: band.centerYMm + panel.handle.centerYMm }
+              : null,
+          });
+        }
+        for (const shelf of sub.shelves) {
+          shelves.push({ ...shelf, centerYMm: band.centerYMm + shelf.centerYMm });
+        }
+        panelAreaMm2 += sub.panelAreaMm2;
+
+        for (const hw of sub.hardware) {
+          const existing = hardwareByType.get(hw.type);
+          // unitCost is the same rate-card figure regardless of which
+          // row it came from — only the count accumulates.
+          if (existing) existing.count += hw.count;
+          else hardwareByType.set(hw.type, { ...hw });
+        }
+      });
+
+      return { panels, shelves, hardware: Array.from(hardwareByType.values()), panelAreaMm2 };
+    }
+
     case 'open-shelf': {
       const count = clampCount(layout.count);
       // Open shelves have no fronts to draw, but the shelves
@@ -292,9 +456,38 @@ export function computeFrontBreakdown(
       // no hinges, no handle, because it doesn't open.
       const rect = columns(widthMm, heightMm, 1)[0];
       return {
-        panels: [{ index: 0, ...rect, handle: null }],
+        panels: [{ index: 0, ...rect, handle: null, kind: 'false-front' }],
         shelves: [],
         hardware: [],
+        panelAreaMm2: rect.widthMm * rect.heightMm,
+      };
+    }
+
+    case 'tambour': {
+      // Same shape as false-front — one full-face panel, priced for
+      // its material and finish — but no handle: a tambour rides on
+      // its own track and is gripped by a finger-pull groove moulded
+      // into the bottom slat, not a bar/knob from the handle
+      // catalogue. No hinges either, for the same reason a sliding
+      // door never gets any. `kind: 'tambour'` is what tells the 3D
+      // renderer to draw the ridged shutter look instead of a flat
+      // panel — see CabinetMesh in Room3DCanvas.tsx.
+      const rect = columns(widthMm, heightMm, 1)[0];
+      // Shelves inside the compartment — what an appliance placed in
+      // it (FrontPicker's own tambour picker) actually rests on,
+      // reusing the exact same shelfBoards geometry open-shelf uses.
+      // clampTambourShelfCount rather than clampCount: unlike every
+      // other count-driven kind, a tambour is allowed down to ZERO
+      // shelves (the appliance then sits directly on the cabinet's own
+      // floor) — defaults to 1 (something to rest on) only when
+      // genuinely unset.
+      const shelfCount = clampTambourShelfCount(layout.count);
+      const hardware: HardwareSpec[] = [];
+      if (shelfCount > 0) hardware.push({ type: 'shelf', count: shelfCount, unitCost: rates.shelf });
+      return {
+        panels: [{ index: 0, ...rect, handle: null, kind: 'tambour' }],
+        shelves: shelfBoards(widthMm, heightMm, shelfCount),
+        hardware,
         panelAreaMm2: rect.widthMm * rect.heightMm,
       };
     }
@@ -353,10 +546,15 @@ export function computeFrontBreakdown(
     }
   }
 
+  // Only single-door/double-door/drawers/trolley reach here — every
+  // other kind returns directly above — so this cast just names what
+  // TypeScript can't see across the switch's early returns.
+  const rectsKind = layout.kind as FrontRowKind;
   const panels: FrontPanel[] = rects.map(({ rect, side }, index) => ({
     index,
     ...rect,
     handle: placeHandle(rect, handle, side),
+    kind: rectsKind,
   }));
 
   const handleLine = handleHardware(
@@ -391,11 +589,34 @@ export function cabinetFrontBreakdown(
   );
 }
 
+// A magic-corner pull-out system or a carousel/lazy-susan mechanism is
+// a real component that exists regardless of which door front sits in
+// front of it — a magic corner and a blind corner can both use a plain
+// single door, so the mechanism can't be derived from FrontKind the
+// way every other hardware line in this file is. Keyed on moduleType
+// instead, which is why it lives as its own function rather than
+// another case in computeFrontBreakdown's switch.
+export function cornerMechanismHardware(
+  moduleType: PlacedCabinetItem['moduleType'],
+  rates: HardwareRates
+): HardwareSpec[] {
+  switch (moduleType) {
+    case 'corner-magic':
+      return [{ type: 'cornerMagic', count: 1, unitCost: rates.cornerMagic }];
+    case 'corner-carousel':
+      return [{ type: 'cornerCarousel', count: 1, unitCost: rates.cornerCarousel }];
+    default:
+      return [];
+  }
+}
+
 // The hardware a cabinet is charged for. An explicit item.hardware
 // array WINS over derivation, so a one-off (a lift-up mechanism, an
 // imported fitting) can still be entered by hand — but nothing sets it
 // today, which is precisely why every quote so far has charged ₹0 of
-// hardware.
+// hardware. An override replaces the corner mechanism too: a business
+// that's typed in a full hardware list for one cabinet meant it to be
+// the whole story, not an addition to it.
 export function effectiveHardware(
   item: PlacedCabinetItem,
   fallbackLayout: FrontLayout,
@@ -403,5 +624,8 @@ export function effectiveHardware(
   rates: HardwareRates
 ): HardwareSpec[] {
   if (item.hardware && item.hardware.length > 0) return item.hardware;
-  return cabinetFrontBreakdown(item, fallbackLayout, handle, rates).hardware;
+  return [
+    ...cabinetFrontBreakdown(item, fallbackLayout, handle, rates).hardware,
+    ...cornerMechanismHardware(item.moduleType, rates),
+  ];
 }

@@ -8,8 +8,20 @@ export type ModuleType =
   | 'tall-unit'
   | 'sink-unit'
   | 'cylinder-trolley'
-  | 'corner-unit'
-  | 'drawer-unit';
+  | 'drawer-unit'
+  // Three distinct corner solutions, not one generic 'corner-unit'
+  // (which existed as an inert catalogue entry — a colour and a label,
+  // nothing else — until this replaced it). They behave too
+  // differently to share a type: a blind corner is a plain rectangular
+  // carcass with fixed shelves behind an ordinary door; a magic corner
+  // is the same plain rectangle but with a pull-out swinging-tray
+  // mechanism inside instead; a carousel is the classic diagonal-front
+  // cabinet with a rotating lazy-susan shelf. Kept separate so a future
+  // "open this cabinet" animation has one switch-on-moduleType case per
+  // mechanism instead of a flag inside a flag. See DECISIONS.md.
+  | 'corner-blind'
+  | 'corner-magic'
+  | 'corner-carousel';
 
 // The carcass board. Drives price and durability — and NOT appearance:
 // a finished cabinet never shows its substrate. Appearance now comes
@@ -24,8 +36,12 @@ export type MaterialType = 'HDMR' | 'Plywood' | 'MDF' | 'Particle Board';
 export interface HardwareSpec {
   // 'shelf' added with parametric fronts — an open-shelf unit's
   // shelves are real cut-and-edge-banded boards that nothing was
-  // charging for.
-  type: 'hinge' | 'channel' | 'handle' | 'basket' | 'shelf';
+  // charging for. 'cornerMagic'/'cornerCarousel' price the mechanism
+  // itself (see lib/fronts.ts's cornerMechanismHardware) — a real
+  // component that exists regardless of which door front sits in
+  // front of it, which is why it's keyed on moduleType rather than on
+  // FrontKind like everything else here.
+  type: 'hinge' | 'channel' | 'handle' | 'basket' | 'shelf' | 'cornerMagic' | 'cornerCarousel';
   // Quantity in THIS item's own unit: pieces for hinges, handles,
   // baskets and shelves; drawer channel PAIRS for 'channel'; and
   // running METRES for a gola or edge profile, which is sold by
@@ -96,6 +112,21 @@ export interface PlacedCabinetItem {
   // counts derived from frontLayout. See effectiveHardware in
   // lib/fronts.ts.
   hardware?: HardwareSpec[];
+  // Suppresses the red collision highlight/warning for any overlap
+  // involving THIS cabinet — see lib/collision.ts. For a known,
+  // accepted overlap (e.g. a chimney duct routed through this
+  // cabinet's box) rather than an actual mistake. Never affects
+  // placement itself (Principle 6: warn, never block) — only whether
+  // the warning is shown. Defaults to false/unset.
+  ignoreOverlap?: boolean;
+  // Same idea as ignoreOverlap, but for the SEPARATE, softer warning
+  // in lib/cabinetClearance.ts — this cabinet's door/drawer reach zone
+  // crossing another cabinet's, at an L-corner or otherwise. A real
+  // physical overlap and an unusable-but-not-overlapping door swing are
+  // different problems (clearance.ts's own header comment already
+  // makes this distinction for room doors), so they get independent
+  // mutes rather than sharing one flag.
+  ignoreClearance?: boolean;
 }
 
 /*

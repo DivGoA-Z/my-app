@@ -77,6 +77,9 @@ import {
   COUNTERTOP_THICKNESS_MM,
   COUNTERTOP_OVERHANG_MM,
 } from '../../lib/cabinetGeometry';
+import { currentFootprintRect } from '../../lib/footprint';
+import type { FootprintRect } from '../../lib/footprint';
+import type { ApplianceCatalogItem } from '../../types/Catalog';
 import { mmToWorld, groundPosition, clockwiseDegToThreeY, MM_TO_M } from '../../lib/scene3d';
 import { lightingEnvironmentFor, clampExposure, DEFAULT_EXPOSURE, FIXTURE_LUMEN_SCALE, FIXTURE_ORIGIN_STANDOFF_M, FIXTURE_LIGHT_DECAY, DAYLIGHT_DECAY, LINEAR_SAMPLES_BY_QUALITY, LINEAR_SAMPLE_MIN_LENGTH_MM, DIFFUSE_ORIGIN_STANDOFF_MM, FIXTURE_LIGHT_DISTANCE_MM, FIXTURE_EMISSIVE_INTENSITY, DAYLIGHT_BASE_INTENSITY, BACKDROP_DISTANCE_M, BACKDROP_OVERSIZE, kelvinToColor, DAYLIGHT_STANDOFF_MM, DAYLIGHT_THROW_MM, DAYLIGHT_CONE_ANGLE_RAD, DOOR_HANDLE_PROJECTION_MM, DOOR_HANDLE_HEIGHT_MM, DOOR_HANDLE_EDGE_INSET_MM } from '../../lib/lighting3d';
 import { capturePanorama, DEFAULT_CAPTURE_ORIENTATION } from '../../lib/panoramaCapture';
@@ -84,14 +87,14 @@ import type { CapturePanoramaOptions } from '../../lib/panoramaCapture';
 import { PanoramaViewerModal } from '../panorama/PanoramaViewerModal';
 import { Cabinet3DInspector } from './Cabinet3DInspector';
 import { ApplianceModel } from './ApplianceModel';
-import { resolveApplianceModel } from '../../lib/applianceGeometry';
+import { resolveApplianceModel, resolveSinkCutout, applianceFootprint } from '../../lib/applianceGeometry';
 import { wallSegments } from '../../lib/openings';
 import { resolveAllFixtures, selectRealLights, maxLightsFor } from '../../lib/fixtures';
 import { useLightQuality } from '../../hooks/useLightQuality';
 import type { FixturePlacement } from '../../lib/fixtures';
 import { isLinear, isVisibleWhenClosed, isDirectional, defaultThrowFor } from '../../types/fixture';
 import type { WallOpening } from '../../types/opening';
-import { cabinetFrontBreakdown, FRONT_THICKNESS_MM } from '../../lib/fronts';
+import { cabinetFrontBreakdown, FRONT_THICKNESS_MM, carcassBands } from '../../lib/fronts';
 import type { HandlePlacement } from '../../lib/fronts';
 import { defaultFrontLayout, resolveHandle } from '../../types/front';
 import { DEFAULT_CAMERA_HEIGHT_MM } from '../../types/Camera';
@@ -107,6 +110,7 @@ export interface Room3DCanvasProps {
 
 const DEFAULT_CEILING_HEIGHT_MM = 2700;
 const WALL_THICKNESS_M = 0.05;
+
 // Starting vertical FOV for the walkthrough camera, now adjustable at
 // runtime (see the fov slider in "Capture settings" below). Some edge
 // stretching is INHERENT to any flat/rectilinear projection — it isn't
@@ -597,13 +601,19 @@ export function Room3DCanvas({ widthMm, depthMm }: Room3DCanvasProps) {
             />
           ))}
 
-          {/* Quartz worktops over every base-height module. Visual only
-              — see the note on hasCountertop in lib/cabinetGeometry.ts
-              about this not being priced into the quote yet. */}
+          {/* Worktops over every base-height module — priced and
+              finish-selectable now, see hasCountertop in
+              lib/cabinetGeometry.ts. */}
           {cabinets
             .filter((item) => hasCountertop(item.moduleType) && item.elevationMm === 0)
             .map((item) => (
-              <CountertopMesh key={`counter-${item.id}`} item={item} />
+              <CountertopMesh
+                key={`counter-${item.id}`}
+                item={item}
+                cabinets={cabinets}
+                obstacles={obstacles}
+                appliances={appliances}
+              />
             ))}
 
           {obstacles.map((obstacle) => (
@@ -633,6 +643,16 @@ export function Room3DCanvas({ widthMm, depthMm }: Room3DCanvasProps) {
             // and orientation somewhere else would eventually pair one
             // chimney's model with another chimney's correction.
             const { modelUrl, orientation } = resolveApplianceModel(item, applianceCatalog);
+            // A sink with a countertop cutout previously had its
+            // rendered position dropped here, to avoid a z-fight with
+            // the cut edge — reverted. Every offset tried (10mm, then
+            // 2mm, anchored either to the sink's own elevationMm or to
+            // the host cabinet's geometry) made the sink render fully
+            // black/invisible instead, worse than the original
+            // flicker it was meant to fix. See DECISIONS.md's "Sink
+            // cutout" entry — this needs real numbers (the sink's
+            // actual elevationMm/heightMm and its cabinet's heightMm)
+            // before trying again, not another guess.
             return (
               <ApplianceModel
                 key={item.id}
@@ -1877,6 +1897,134 @@ interface CabinetMeshProps {
   onSelect: (clientX: number, clientY: number) => void;
 }
 
+// A tambour is a garage-style roll-up shutter, not a flat door — a
+// single flat box in its place would just look like a plain false
+// front with no handle, which reads as "the modeller forgot the
+// handle" rather than "this is a different kind of front on purpose".
+// Slats are the cheapest way to make that reading obvious without
+// building a real curved-track mechanism nobody asked for: a handful
+// of thin boxes stacked with a small reveal between them, same
+// material as a flat panel would use, so the assigned finish still
+// shows correctly.
+const TAMBOUR_SLAT_HEIGHT_MM = 45;
+const TAMBOUR_SLAT_GAP_MM = 3;
+
+interface TambourSlat {
+  centerYMm: number;
+  heightMm: number;
+}
+
+function tambourSlats(panelHeightMm: number): TambourSlat[] {
+  const slatCount = Math.max(
+    4,
+    Math.round(panelHeightMm / (TAMBOUR_SLAT_HEIGHT_MM + TAMBOUR_SLAT_GAP_MM))
+  );
+  const bandHeight = panelHeightMm / slatCount;
+  const slatHeight = Math.max(1, bandHeight - TAMBOUR_SLAT_GAP_MM);
+  const slats: TambourSlat[] = [];
+  let cursorY = panelHeightMm / 2; // top edge, walking down
+  for (let i = 0; i < slatCount; i++) {
+    slats.push({ centerYMm: cursorY - bandHeight / 2, heightMm: slatHeight });
+    cursorY -= bandHeight;
+  }
+  return slats;
+}
+
+// The carousel corner unit's diagonal cut, in the SAME proportion
+// CabinetLayer.tsx's 2D plan uses (cornerCarouselPoints,
+// CORNER_CAROUSEL_CUT_FRACTION) — the two must agree, or the plan and
+// the walkthrough would show two different-looking cabinets for the
+// same placed item.
+const CORNER_CAROUSEL_CUT_FRACTION = 0.4;
+
+// All the geometry a carousel corner band needs, computed once in the
+// cabinet's own local frame (X = width axis, Z = depth axis, both
+// centred on the cabinet — same convention every other mesh below
+// uses). The cut corner is the local (+X, +Z) one, matching
+// cornerCarouselPoints' local bottom-right convention in 2D (room x/y
+// increasing maps to local +X/+Z here — see groundPosition's comment
+// in lib/scene3d.ts): rotationDeg spins the whole group, so this
+// stays fixed regardless of which real corner the cabinet sits in.
+interface CornerCarouselGeometry {
+  // Carcass footprint, INSET along the diagonal edge by frontThicknessM
+  // — same reason a normal closed band's box is shortened by
+  // frontThicknessM: the door panel fills that gap, flush with the
+  // carcass rather than floating in front of or sinking into it.
+  carcassPoints: [number, number][]; // (x, z) pairs, five vertices
+  // Diagonal door panel: centre (x, z), full length along the edge,
+  // and the Y rotation that points its thickness axis along the
+  // edge's outward normal.
+  doorCenterX: number;
+  doorCenterZ: number;
+  doorLengthM: number;
+  doorRotationY: number;
+  // A representative handle position, near one end of the panel,
+  // inset the same amount a normal door's handle is from its edge.
+  handleX: number;
+  handleZ: number;
+}
+
+function cornerCarouselGeometry(
+  widthM: number,
+  depthM: number,
+  frontThicknessM: number
+): CornerCarouselGeometry {
+  const cutW = widthM * CORNER_CAROUSEL_CUT_FRACTION;
+  const cutD = depthM * CORNER_CAROUSEL_CUT_FRACTION;
+  const halfW = widthM / 2;
+  const halfD = depthM / 2;
+
+  // The five OUTER vertices, local (x, z), walking the same order
+  // cornerCarouselPoints does: wall corner, along-width, cut start,
+  // cut end, along-depth.
+  const p1: [number, number] = [-halfW, -halfD];
+  const p2: [number, number] = [halfW, -halfD];
+  const p3: [number, number] = [halfW, halfD - cutD]; // cut edge start
+  const p4: [number, number] = [halfW - cutW, halfD]; // cut edge end
+  const p5: [number, number] = [-halfW, halfD];
+
+  // Outward unit normal of the P3->P4 edge. Edge direction is
+  // (p4x-p3x, p4z-p3z) = (-cutW, cutD); rotating that -90° gives
+  // (cutD, cutW), which points away from the cabinet's interior
+  // (toward larger x AND larger z) exactly when the cut is in the
+  // +x/+z corner, as it always is in this local frame.
+  const edgeLen = Math.hypot(cutW, cutD);
+  const nx = cutD / edgeLen;
+  const nz = cutW / edgeLen;
+
+  // Carcass vertices: only the cut edge moves, pulled inward by the
+  // front thickness along its own normal. The two neighbouring edges
+  // (p2-p3, p4-p5) tilt by a fraction of a degree as a result, which
+  // is invisible at real cabinet scale (frontThicknessM is ~18mm
+  // against a ~900mm unit) — the same order of approximation a mitred
+  // carcass corner already carries.
+  const p3carcass: [number, number] = [p3[0] - nx * frontThicknessM, p3[1] - nz * frontThicknessM];
+  const p4carcass: [number, number] = [p4[0] - nx * frontThicknessM, p4[1] - nz * frontThicknessM];
+
+  const doorCenterX = (p3[0] + p4[0]) / 2 + (nx * frontThicknessM) / 2;
+  const doorCenterZ = (p3[1] + p4[1]) / 2 + (nz * frontThicknessM) / 2;
+  // atan2(nx, nz): the rotation that sends local +Z to the outward
+  // normal (nx, nz) — see the comment on the door mesh's rotation
+  // below for the derivation.
+  const doorRotationY = Math.atan2(nx, nz);
+
+  // Same inset a normal door's handle sits at (HANDLE_EDGE_INSET_MM in
+  // lib/fronts.ts) — kept as its own literal here rather than imported,
+  // since that constant is private to fronts.ts and this is a one-off
+  // approximation, not a shared rule the two need to stay in sync on.
+  const handleInsetM = mmToWorld(45);
+  const t = Math.min(0.5, handleInsetM / edgeLen);
+  return {
+    carcassPoints: [p1, p2, p3carcass, p4carcass, p5],
+    doorCenterX,
+    doorCenterZ,
+    doorLengthM: edgeLen,
+    doorRotationY,
+    handleX: p3[0] + (p4[0] - p3[0]) * t,
+    handleZ: p3[1] + (p4[1] - p3[1]) * t,
+  };
+}
+
 function CabinetMesh({ item, isSelected, onSelect }: CabinetMeshProps) {
   const widthM = mmToWorld(item.widthMm);
   const heightM = mmToWorld(item.heightMm);
@@ -1917,52 +2065,108 @@ function CabinetMesh({ item, isSelected, onSelect }: CabinetMeshProps) {
   // split geometry from costing in lib/fronts.ts rather than to pass a
   // placeholder rate card here.
   const rateCard = useLayoutStore((state) => state.rateCard);
+  // Only reached for the tambour-occupancy check below — every other
+  // use of appliances in this file (sink cutouts, the render loop
+  // itself) already has its own copy at the scene level.
+  const appliances = useLayoutStore((state) => state.appliances);
+  const frontLayout = item.frontLayout ?? defaultFrontLayout(item.moduleType, item.widthMm);
   const fronts = useMemo(
-    () =>
-      cabinetFrontBreakdown(
-        item,
-        item.frontLayout ?? defaultFrontLayout(item.moduleType, item.widthMm),
-        handle,
-        rateCard.hardware
-      ),
-    [item, handle, rateCard]
+    () => cabinetFrontBreakdown(item, frontLayout, handle, rateCard.hardware),
+    [item, frontLayout, handle, rateCard]
   );
 
-  // The carcass is SHORTENED by the front thickness and pushed back, so
-  // the panels occupy the front 18mm of the cabinet's STATED depth
-  // rather than protruding past it. Two reasons that matters: the depth
-  // is what the client is charged against and what collision tests, so
-  // silently growing it would be a quote error; and a panel sitting
-  // exactly on the carcass's own front face would z-fight with it.
+  // A closed band's carcass is SHORTENED by the front thickness and
+  // pushed back, so its panel occupies the front 18mm of the cabinet's
+  // STATED depth rather than protruding past it. Two reasons that
+  // matters: the depth is what the client is charged against and what
+  // collision tests, so silently growing it would be a quote error;
+  // and a panel sitting exactly on the carcass's own front face would
+  // z-fight with it. An open band skips this — there's no panel to
+  // clear, and the carcass there is thin walls, not a sealed slab.
   const frontThicknessM = mmToWorld(FRONT_THICKNESS_MM);
-  const hasPanels = fronts.panels.length > 0;
-  const carcassDepthM = hasPanels ? depthM - frontThicknessM : depthM;
-  const carcassOffsetZ = hasPanels ? -frontThicknessM / 2 : 0;
   // Front face of the finished cabinet, in the group's local frame.
   const faceZ = depthM / 2;
 
-  const finishMaterial = (
-    /* MeshPhysicalMaterial rather than MeshStandardMaterial so glossy
-       finishes can carry a clearcoat layer — for matte finishes
-       clearcoat is 0, which renders identically to
-       MeshStandardMaterial, so one material type covers everything.
-       resolveMaterial (materials3d.ts) already worked out whether
-       `color` should be a real colour or plain white to leave a
-       texture untinted, so nothing needs deciding here. */
-    <meshPhysicalMaterial
-      color={material.color}
-      map={textures?.map ?? null}
-      normalMap={textures?.normalMap ?? null}
-      // Drives the finish's relief slider — the normal map itself is
-      // baked at a fixed depth and scaled here (materials3d.ts).
-      normalScale={[material.normalScale, material.normalScale]}
-      roughnessMap={textures?.roughnessMap ?? null}
-      roughness={material.roughness}
-      metalness={material.metalness}
-      clearcoat={material.clearcoat}
-      clearcoatRoughness={material.clearcoatRoughness}
-    />
+  // One band per row for a 'mixed' front, one band spanning the whole
+  // cabinet otherwise — see carcassBands (lib/fronts.ts) for why this
+  // needs its own reveal-free split rather than reusing the front
+  // panels'.
+  const bands = useMemo(
+    () => carcassBands(frontLayout, item.heightMm),
+    [frontLayout, item.heightMm]
   );
+
+  // A tambour is a closed shutter by default — same sealed treatment
+  // any other door gets — but "put an appliance in the garage and see
+  // it" only means anything if the shutter gets out of the way once
+  // something is actually placed behind it. Checked the same
+  // footprint-center-inside way sinkRestsOnCabinet already does for a
+  // sink, plus a genuine Z-RANGE overlap (not closeness to one plane
+  // — a tambour compartment has real height, unlike a countertop's
+  // single reference surface) against the specific band/panel's own
+  // absolute height range, since a mixed front's tambour row might
+  // not be the whole cabinet.
+  const cabinetFootprint = useMemo(() => currentFootprintRect(item), [item]);
+  function occupyingAppliance(centerYMm: number, heightMm: number) {
+    const bandMidAbsMm = item.elevationMm + item.heightMm / 2 + centerYMm;
+    const bandBottomMm = bandMidAbsMm - heightMm / 2;
+    const bandTopMm = bandMidAbsMm + heightMm / 2;
+    return appliances.find((a) => {
+      const aFootprint = applianceFootprint(a);
+      const centerX = aFootprint.x + aFootprint.widthMm / 2;
+      const centerZ = aFootprint.y + aFootprint.depthMm / 2;
+      const insideFootprint =
+        centerX >= cabinetFootprint.x &&
+        centerX <= cabinetFootprint.x + cabinetFootprint.widthMm &&
+        centerZ >= cabinetFootprint.y &&
+        centerZ <= cabinetFootprint.y + cabinetFootprint.depthMm;
+      if (!insideFootprint) return false;
+      return a.elevationMm < bandTopMm && a.elevationMm + a.heightMm > bandBottomMm;
+    });
+  }
+
+  /* MeshPhysicalMaterial rather than MeshStandardMaterial so glossy
+     finishes can carry a clearcoat layer — for matte finishes
+     clearcoat is 0, which renders identically to MeshStandardMaterial,
+     so one material type covers everything. resolveMaterial
+     (materials3d.ts) already worked out whether `color` should be a
+     real colour or plain white to leave a texture untinted, so nothing
+     needs deciding here.
+     A FUNCTION, not a stored element — three.js materials are objects,
+     and JSX can't mount the same element in several places, so every
+     closed band's mesh (there can be more than one now, for a mixed
+     front) needs its own fresh instance. */
+  function renderFinishMaterial() {
+    return (
+      <meshPhysicalMaterial
+        color={material.color}
+        map={textures?.map ?? null}
+        normalMap={textures?.normalMap ?? null}
+        // Drives the finish's relief slider — the normal map itself is
+        // baked at a fixed depth and scaled here (materials3d.ts).
+        normalScale={[material.normalScale, material.normalScale]}
+        roughnessMap={textures?.roughnessMap ?? null}
+        roughness={material.roughness}
+        metalness={material.metalness}
+        clearcoat={material.clearcoat}
+        clearcoatRoughness={material.clearcoatRoughness}
+      />
+    );
+  }
+
+  // The inside of an open band — plain and fixed, not the exterior
+  // finish. A real cabinet interior is a light, cheap laminate, not
+  // whatever the outside is finished in; showing the exterior finish
+  // (a dark wood grain, say) lining the inside of an open shelf was
+  // exactly the "half-built" look CLAUDE.md flagged. Same simple
+  // convention as PLASTER_COLOR elsewhere in this file for an
+  // unfinished wall — a fixed rendering default, not a priced,
+  // business-editable SurfaceFinish row. Also a function, same reason
+  // as renderFinishMaterial: up to 5 panels per open band each need
+  // their own material instance.
+  function renderInteriorMaterial() {
+    return <meshStandardMaterial color={PLASTER_COLOR} roughness={0.9} metalness={0} />;
+  }
 
   return (
     <group
@@ -1986,72 +2190,270 @@ function CabinetMesh({ item, isSelected, onSelect }: CabinetMeshProps) {
         document.body.style.cursor = 'auto';
       }}
     >
-      <mesh position={[0, 0, carcassOffsetZ]} castShadow receiveShadow>
-        <boxGeometry args={[widthM, heightM, carcassDepthM]} />
-        {finishMaterial}
-      </mesh>
+      {item.moduleType === 'corner-carousel' ? (
+        // Diagonal carcass + a single diagonal door, per band (in
+        // practice always one — a carousel realistically never gets a
+        // mixed front). Every OTHER module type keeps the exact
+        // rectangular path below untouched; this is the only place
+        // that reads cornerCarouselGeometry. Interior geometry (the
+        // actual rotating shelf) is deliberately not built yet — see
+        // DECISIONS.md's "Three corner solutions" entry — so an open
+        // band here still gets the same solid pentagon prism as a
+        // closed one rather than a bespoke open-shell treatment nobody
+        // can see the point of yet.
+        <>
+          {bands.map((band, bandIndex) => {
+            const bandHeightM = mmToWorld(band.heightMm);
+            const bandCenterYM = mmToWorld(band.centerYMm);
+            const geo = cornerCarouselGeometry(widthM, depthM, frontThicknessM);
+            const shape = new THREE.Shape(
+              geo.carcassPoints.map(([x, z]) => new THREE.Vector2(x, -z))
+            );
 
-      {/* Panels get their own material element rather than sharing one
-          instance: three.js materials are objects, and JSX can't mount
-          the same element in several places. They read from the same
-          resolved values, so they stay identical by construction. */}
-      {fronts.panels.map((panel) => (
-        <group
-          key={panel.index}
-          position={[
-            mmToWorld(panel.centerXMm),
-            mmToWorld(panel.centerYMm),
-            faceZ - frontThicknessM / 2,
-          ]}
-        >
-          <mesh castShadow receiveShadow>
-            <boxGeometry
-              args={[mmToWorld(panel.widthMm), mmToWorld(panel.heightMm), frontThicknessM]}
-            />
-            <meshPhysicalMaterial
-              color={material.color}
-              map={textures?.map ?? null}
-              normalMap={textures?.normalMap ?? null}
-              normalScale={[material.normalScale, material.normalScale]}
-              roughnessMap={textures?.roughnessMap ?? null}
-              roughness={material.roughness}
-              metalness={material.metalness}
-              clearcoat={material.clearcoat}
-              clearcoatRoughness={material.clearcoatRoughness}
-            />
-          </mesh>
-        </group>
-      ))}
+            return (
+              <group key={bandIndex}>
+                <mesh
+                  position={[0, bandCenterYM - bandHeightM / 2, 0]}
+                  rotation={[-Math.PI / 2, 0, 0]}
+                  castShadow
+                  receiveShadow
+                >
+                  <extrudeGeometry
+                    args={[shape, { depth: bandHeightM, bevelEnabled: false }]}
+                  />
+                  {renderFinishMaterial()}
+                </mesh>
+                <group
+                  position={[geo.doorCenterX, bandCenterYM, geo.doorCenterZ]}
+                  rotation={[0, geo.doorRotationY, 0]}
+                >
+                  <mesh castShadow receiveShadow>
+                    <boxGeometry args={[geo.doorLengthM, bandHeightM, frontThicknessM]} />
+                    <meshPhysicalMaterial
+                      color={material.color}
+                      map={textures?.map ?? null}
+                      normalMap={textures?.normalMap ?? null}
+                      normalScale={[material.normalScale, material.normalScale]}
+                      roughnessMap={textures?.roughnessMap ?? null}
+                      roughness={material.roughness}
+                      metalness={material.metalness}
+                      clearcoat={material.clearcoat}
+                      clearcoatRoughness={material.clearcoatRoughness}
+                    />
+                  </mesh>
+                </group>
+                {/* A representative bar handle — the generic
+                    HandleMesh assumes a flat face perpendicular to Z,
+                    which doesn't hold for a diagonal panel, so this is
+                    placed directly rather than through that shared
+                    path. */}
+                <mesh
+                  position={[
+                    // sin/cos of doorRotationY recover the same
+                    // (nx, nz) outward normal cornerCarouselGeometry
+                    // computed the rotation FROM — pushing the handle
+                    // proud of the door's outer face, same idea as a
+                    // knob's faceZ + radiusM offset elsewhere in this
+                    // file.
+                    geo.handleX + Math.sin(geo.doorRotationY) * (frontThicknessM / 2 + mmToWorld(20)),
+                    bandCenterYM,
+                    geo.handleZ + Math.cos(geo.doorRotationY) * (frontThicknessM / 2 + mmToWorld(20)),
+                  ]}
+                  rotation={[0, geo.doorRotationY, 0]}
+                  castShadow
+                >
+                  <boxGeometry args={[mmToWorld(18), mmToWorld(120), mmToWorld(18)]} />
+                  <meshStandardMaterial color="#c0c0c0" metalness={0.6} roughness={0.4} />
+                </mesh>
+              </group>
+            );
+          })}
+        </>
+      ) : (
+        <>
+          {bands.map((band, bandIndex) => {
+            const bandHeightM = mmToWorld(band.heightMm);
+            const bandCenterYM = mmToWorld(band.centerYMm);
 
-      {/* Handles are positioned relative to the FINISHED face, not the
-          panel, so they project out of the cabinet rather than being
-          buried in the shutter. */}
-      {fronts.panels.map((panel) =>
-        panel.handle ? (
-          <HandleMesh key={`handle-${panel.index}`} placement={panel.handle} faceZ={faceZ} />
-        ) : null
+            // A tambour band with a matching appliance behind it opens
+            // up exactly like open-shelf/appliance-housing already do
+            // — there's no shutter panel left to clear (skipped below,
+            // in the panels loop), so the same full-depth thin-wall
+            // treatment applies unchanged.
+            const isOccupiedTambour =
+              band.kind === 'tambour' && occupyingAppliance(band.centerYMm, band.heightMm) !== undefined;
+
+            if (!band.open && !isOccupiedTambour) {
+              return (
+                <mesh
+                  key={bandIndex}
+                  position={[0, bandCenterYM, -frontThicknessM / 2]}
+                  castShadow
+                  receiveShadow
+                >
+                  <boxGeometry args={[widthM, bandHeightM, depthM - frontThicknessM]} />
+                  {renderFinishMaterial()}
+                </mesh>
+              );
+            }
+
+            // An open band: a real opening, built as 5 thin panels (both
+            // sides, top, bottom, back) rather than a sealed box — the fix
+            // for open-shelf/appliance-housing previously rendering inside
+            // a fully closed carcass with nothing to actually see into.
+            // Full depthM throughout (no front-thickness shortening —
+            // there's no panel here to clear), walls the same thickness as
+            // a front panel (wallM, reusing FRONT_THICKNESS_MM as a
+            // reasonable carcass board thickness too). Slight overlap at
+            // the corners between side/top/bottom panels is invisible
+            // (opaque boxes meeting at a corner), so nothing here miters
+            // them.
+            const wallM = frontThicknessM;
+            return (
+              <group key={bandIndex}>
+                <mesh position={[-widthM / 2 + wallM / 2, bandCenterYM, 0]} castShadow receiveShadow>
+                  <boxGeometry args={[wallM, bandHeightM, depthM]} />
+                  {renderInteriorMaterial()}
+                </mesh>
+                <mesh position={[widthM / 2 - wallM / 2, bandCenterYM, 0]} castShadow receiveShadow>
+                  <boxGeometry args={[wallM, bandHeightM, depthM]} />
+                  {renderInteriorMaterial()}
+                </mesh>
+                <mesh
+                  position={[0, bandCenterYM + bandHeightM / 2 - wallM / 2, 0]}
+                  castShadow
+                  receiveShadow
+                >
+                  <boxGeometry args={[widthM, wallM, depthM]} />
+                  {renderInteriorMaterial()}
+                </mesh>
+                <mesh
+                  position={[0, bandCenterYM - bandHeightM / 2 + wallM / 2, 0]}
+                  castShadow
+                  receiveShadow
+                >
+                  <boxGeometry args={[widthM, wallM, depthM]} />
+                  {renderInteriorMaterial()}
+                </mesh>
+                <mesh position={[0, bandCenterYM, -depthM / 2 + wallM / 2]} castShadow receiveShadow>
+                  <boxGeometry args={[widthM, bandHeightM, wallM]} />
+                  {renderInteriorMaterial()}
+                </mesh>
+              </group>
+            );
+          })}
+
+          {/* Panels get their own material element rather than sharing one
+              instance: three.js materials are objects, and JSX can't mount
+              the same element in several places. They read from the same
+              resolved values, so they stay identical by construction. */}
+          {fronts.panels.map((panel) => {
+            // A tambour with an appliance sitting behind it, per
+            // occupyingAppliance above — skip the shutter entirely
+            // (matches the carcass band opening up in the loop above)
+            // rather than drawing slats in front of the very thing
+            // this feature exists to let a business see.
+            if (
+              panel.kind === 'tambour' &&
+              occupyingAppliance(panel.centerYMm, panel.heightMm) !== undefined
+            ) {
+              return null;
+            }
+            return panel.kind === 'tambour' ? (
+              // Ridged shutter: a stack of thin slats instead of one flat
+              // box, each getting its OWN material element for the same
+              // reason every other panel does — see the comment above this
+              // block.
+              <group
+                key={panel.index}
+                position={[
+                  mmToWorld(panel.centerXMm),
+                  mmToWorld(panel.centerYMm),
+                  faceZ - frontThicknessM / 2,
+                ]}
+              >
+                {tambourSlats(panel.heightMm).map((slat, slatIndex) => (
+                  <mesh
+                    key={slatIndex}
+                    position={[0, mmToWorld(slat.centerYMm), 0]}
+                    castShadow
+                    receiveShadow
+                  >
+                    <boxGeometry
+                      args={[mmToWorld(panel.widthMm), mmToWorld(slat.heightMm), frontThicknessM]}
+                    />
+                    <meshPhysicalMaterial
+                      color={material.color}
+                      map={textures?.map ?? null}
+                      normalMap={textures?.normalMap ?? null}
+                      normalScale={[material.normalScale, material.normalScale]}
+                      roughnessMap={textures?.roughnessMap ?? null}
+                      roughness={material.roughness}
+                      metalness={material.metalness}
+                      clearcoat={material.clearcoat}
+                      clearcoatRoughness={material.clearcoatRoughness}
+                    />
+                  </mesh>
+                ))}
+              </group>
+            ) : (
+              <group
+                key={panel.index}
+                position={[
+                  mmToWorld(panel.centerXMm),
+                  mmToWorld(panel.centerYMm),
+                  faceZ - frontThicknessM / 2,
+                ]}
+              >
+                <mesh castShadow receiveShadow>
+                  <boxGeometry
+                    args={[mmToWorld(panel.widthMm), mmToWorld(panel.heightMm), frontThicknessM]}
+                  />
+                  <meshPhysicalMaterial
+                    color={material.color}
+                    map={textures?.map ?? null}
+                    normalMap={textures?.normalMap ?? null}
+                    normalScale={[material.normalScale, material.normalScale]}
+                    roughnessMap={textures?.roughnessMap ?? null}
+                    roughness={material.roughness}
+                    metalness={material.metalness}
+                    clearcoat={material.clearcoat}
+                    clearcoatRoughness={material.clearcoatRoughness}
+                  />
+                </mesh>
+              </group>
+            );
+          })}
+
+          {/* Handles are positioned relative to the FINISHED face, not the
+              panel, so they project out of the cabinet rather than being
+              buried in the shutter. */}
+          {fronts.panels.map((panel) =>
+            panel.handle ? (
+              <HandleMesh key={`handle-${panel.index}`} placement={panel.handle} faceZ={faceZ} />
+            ) : null
+          )}
+
+          {/* Open-shelf units only. Boards sit centred in the FULL depth —
+              an open band's carcass is thin walls now, not a shortened
+              slab, so there's no front-thickness offset to match. Slightly
+              inset from full depth (0.92) so a board doesn't poke through
+              the front/back wall panels. Interior liner material, same as
+              the walls around it — a shelf board is part of the interior,
+              not the exterior finish. */}
+          {fronts.shelves.map((shelf, i) => (
+            <mesh
+              key={`shelf-${i}`}
+              position={[mmToWorld(shelf.centerXMm), mmToWorld(shelf.centerYMm), 0]}
+              castShadow
+              receiveShadow
+            >
+              <boxGeometry args={[mmToWorld(shelf.widthMm), mmToWorld(shelf.heightMm), depthM * 0.92]} />
+              {renderInteriorMaterial()}
+            </mesh>
+          ))}
+        </>
       )}
-
-      {/* Open-shelf units only. Boards sit inside the carcass depth so
-          they read as shelving rather than as a protruding ledge. */}
-      {fronts.shelves.map((shelf, i) => (
-        <mesh
-          key={`shelf-${i}`}
-          position={[mmToWorld(shelf.centerXMm), mmToWorld(shelf.centerYMm), carcassOffsetZ]}
-          castShadow
-          receiveShadow
-        >
-          <boxGeometry
-            args={[mmToWorld(shelf.widthMm), mmToWorld(shelf.heightMm), carcassDepthM * 0.92]}
-          />
-          <meshPhysicalMaterial
-            color={material.color}
-            map={textures?.map ?? null}
-            roughness={material.roughness}
-            metalness={material.metalness}
-          />
-        </mesh>
-      ))}
 
       {/* drei's Edges derives line segments from the parent geometry, so
           it tracks any resize automatically and handles its own
@@ -2137,47 +2539,421 @@ function HandleMesh({
   );
 }
 
-// A quartz worktop slab sitting on top of a base-height cabinet.
-// Purely presentational — it isn't a PlacedCabinetItem, isn't
-// selectable, and doesn't participate in collision detection, since
-// it's derived geometry rather than something the user placed.
-function CountertopMesh({ item }: { item: PlacedCabinetItem }) {
-  const widthM = mmToWorld(item.widthMm + COUNTERTOP_OVERHANG_MM * 2);
-  const depthM = mmToWorld(item.depthMm + COUNTERTOP_OVERHANG_MM * 2);
-  const thicknessM = mmToWorld(COUNTERTOP_THICKNESS_MM);
+// How close two edges have to be to count as "flush" when deciding
+// whether a countertop's overhang would poke into a neighbour — a
+// tolerance rather than requiring an exact match, since a dragged
+// item's snapped position is rarely off by more than a rounding error
+// (see the ObstacleLayer grid-snap note in ISSUES-FIXED.md, which is a
+// much bigger gap than this covers).
+const COUNTERTOP_NEIGHBOR_GAP_TOLERANCE_MM = 5;
 
-  // Same center convention as CabinetMesh, raised to sit on the
-  // cabinet's top face.
-  const [worldX, worldZ] = groundPosition(item.x + item.widthMm / 2, item.y + item.depthMm / 2);
+function isFlush(a: number, b: number): boolean {
+  return Math.abs(a - b) <= COUNTERTOP_NEIGHBOR_GAP_TOLERANCE_MM;
+}
+
+function rangesOverlap(aMin: number, aMax: number, bMin: number, bMax: number): boolean {
+  return aMin < bMax && aMax > bMin;
+}
+
+// How far a countertop slab overhangs its own cabinet's footprint on
+// each of the four sides, in mm. Normally COUNTERTOP_OVERHANG_MM
+// everywhere (see cabinetGeometry.ts) — but suppressed on any side
+// where another cabinet or obstacle is flush against that edge AND
+// reaches higher than this cabinet's own carcass top (a tall unit, a
+// wall-height pillar, anything the slab can't legitimately run over).
+// Without this, that side's overhang draws straight through the
+// neighbour's face rather than stopping at the seam — reported after
+// the countertop finish work made the slab visually distinct enough
+// from the cabinets for the overlap to actually show.
+//
+// A neighbour that's ITSELF a countertop-bearing base unit is
+// deliberately not checked here: two adjacent worktops overhanging
+// into each other at the same height is a continuous run, which is
+// what a real slab is anyway.
+function countertopOverhangs(
+  item: PlacedCabinetItem,
+  cabinets: PlacedCabinetItem[],
+  obstacles: Obstacle[]
+): { left: number; right: number; front: number; back: number } {
+  const footprint = currentFootprintRect(item);
+  const minX = footprint.x;
+  const maxX = footprint.x + footprint.widthMm;
+  const minY = footprint.y;
+  const maxY = footprint.y + footprint.depthMm;
+  // The overhang itself is a thin slab from counterTopMm up to
+  // counterTopMm + thickness — a neighbour only actually collides with
+  // it if their vertical spans overlap. A wall cabinet mounted well
+  // above the counter (the normal case) has a bottom face far above
+  // this range and should NOT suppress the overhang beneath it; a tall
+  // unit or a floor-to-ceiling obstacle spans right through it and
+  // should.
+  const counterTopMm = item.elevationMm + item.heightMm;
+  const overhangTopMm = counterTopMm + COUNTERTOP_THICKNESS_MM;
+
+  const tallNeighbourFootprints = [
+    ...cabinets
+      .filter(
+        (c) =>
+          c.id !== item.id &&
+          c.elevationMm < overhangTopMm &&
+          c.elevationMm + c.heightMm > counterTopMm
+      )
+      .map((c) => currentFootprintRect(c)),
+    ...obstacles
+      .filter((o) => {
+        const bottomMm = o.floorToCeiling ? 0 : o.elevationMm;
+        const topMm = o.floorToCeiling ? Number.POSITIVE_INFINITY : o.elevationMm + o.heightMm;
+        return bottomMm < overhangTopMm && topMm > counterTopMm;
+      })
+      .map((o) => currentFootprintRect(o)),
+  ];
+
+  let left = COUNTERTOP_OVERHANG_MM;
+  let right = COUNTERTOP_OVERHANG_MM;
+  let front = COUNTERTOP_OVERHANG_MM;
+  let back = COUNTERTOP_OVERHANG_MM;
+
+  for (const n of tallNeighbourFootprints) {
+    const nMinX = n.x;
+    const nMaxX = n.x + n.widthMm;
+    const nMinY = n.y;
+    const nMaxY = n.y + n.depthMm;
+
+    if (isFlush(nMaxX, minX) && rangesOverlap(nMinY, nMaxY, minY, maxY)) left = 0;
+    if (isFlush(nMinX, maxX) && rangesOverlap(nMinY, nMaxY, minY, maxY)) right = 0;
+    if (isFlush(nMaxY, minY) && rangesOverlap(nMinX, nMaxX, minX, maxX)) front = 0;
+    if (isFlush(nMinY, maxY) && rangesOverlap(nMinX, nMaxX, minX, maxX)) back = 0;
+  }
+
+  return { left, right, front, back };
+}
+
+type MmRect = { minX: number; maxX: number; minY: number; maxY: number };
+
+// How close a sink's own elevationMm has to be to a cabinet's top face
+// to count as "resting on this counter" — generous enough to absorb
+// ordinary rounding, tight enough to exclude anything actually mounted
+// elsewhere (a wall-height placement is hundreds of mm off, not tens).
+const SINK_COUNTER_ELEVATION_TOLERANCE_MM = 100;
+
+// Used by sinkCutoutRectMm below to decide whether a placed sink
+// belongs to a given cabinet's countertop: X/Y footprint-center
+// overlap AND elevationMm close to that cabinet's own top — not X/Y
+// alone, since a sink placed at some unrelated height could still
+// share X/Y with a base cabinet underneath it (the same reason
+// collision.ts is Z-aware).
+function sinkRestsOnCabinet(
+  sink: PlacedApplianceItem,
+  cabinetFootprint: FootprintRect,
+  counterTopMm: number
+): boolean {
+  if (Math.abs(sink.elevationMm - counterTopMm) > SINK_COUNTER_ELEVATION_TOLERANCE_MM) {
+    return false;
+  }
+  const sinkFootprint = applianceFootprint(sink);
+  const sinkCenterX = sinkFootprint.x + sinkFootprint.widthMm / 2;
+  const sinkCenterY = sinkFootprint.y + sinkFootprint.depthMm / 2;
+  return (
+    sinkCenterX >= cabinetFootprint.x &&
+    sinkCenterX <= cabinetFootprint.x + cabinetFootprint.widthMm &&
+    sinkCenterY >= cabinetFootprint.y &&
+    sinkCenterY <= cabinetFootprint.y + cabinetFootprint.depthMm
+  );
+}
+
+// The hole to cut in THIS cabinet's slab, if a placed sink whose
+// catalogue row has a configured cutout sits on it — see
+// sinkRestsOnCabinet above for what "sits on it" means. The cutout's
+// own width/depth get the same quarter-turn swap the sink's footprint
+// does, so turning the sink turns its hole with it.
+function sinkCutoutRectMm(
+  cabinetFootprint: FootprintRect,
+  counterTopMm: number,
+  appliances: PlacedApplianceItem[],
+  applianceCatalog: ApplianceCatalogItem[]
+): MmRect | null {
+  for (const appliance of appliances) {
+    if (appliance.applianceType !== 'sink') continue;
+    if (!sinkRestsOnCabinet(appliance, cabinetFootprint, counterTopMm)) continue;
+
+    const sinkFootprint = applianceFootprint(appliance);
+    const sinkCenterX = sinkFootprint.x + sinkFootprint.widthMm / 2;
+    const sinkCenterY = sinkFootprint.y + sinkFootprint.depthMm / 2;
+
+    const cutout = resolveSinkCutout(appliance, applianceCatalog);
+    if (!cutout) continue;
+
+    const isQuarterTurn = appliance.rotationDeg === 90 || appliance.rotationDeg === 270;
+    const cutoutWidthMm = isQuarterTurn ? cutout.depthMm : cutout.widthMm;
+    const cutoutDepthMm = isQuarterTurn ? cutout.widthMm : cutout.depthMm;
+
+    return {
+      minX: sinkCenterX - cutoutWidthMm / 2,
+      maxX: sinkCenterX + cutoutWidthMm / 2,
+      minY: sinkCenterY - cutoutDepthMm / 2,
+      maxY: sinkCenterY + cutoutDepthMm / 2,
+    };
+  }
+
+  return null;
+}
+
+// Splits the slab into up to 4 boxes framing the cutout — left,
+// right, and the strips above/below the cutout between them — rather
+// than one box with a boolean-subtracted hole. Plain box geometry,
+// consistent with how every other mesh in this file is built, and
+// avoids a CSG library this project doesn't otherwise need. Clamps the
+// cutout to the slab first: a sink whose configured cutout is larger
+// than the slab it sits on (bad catalogue data, or an oversized
+// cutout near the slab's own edge) degrades to "no cutout" rather than
+// producing an inverted or negative-size segment.
+function countertopSegments(slab: MmRect, cutout: MmRect | null): MmRect[] {
+  if (!cutout) return [slab];
+
+  const cMinX = Math.min(Math.max(cutout.minX, slab.minX), slab.maxX);
+  const cMaxX = Math.min(Math.max(cutout.maxX, slab.minX), slab.maxX);
+  const cMinY = Math.min(Math.max(cutout.minY, slab.minY), slab.maxY);
+  const cMaxY = Math.min(Math.max(cutout.maxY, slab.minY), slab.maxY);
+
+  if (cMaxX <= cMinX || cMaxY <= cMinY) return [slab];
+
+  const segments: MmRect[] = [];
+  if (cMinX > slab.minX) segments.push({ minX: slab.minX, maxX: cMinX, minY: slab.minY, maxY: slab.maxY });
+  if (cMaxX < slab.maxX) segments.push({ minX: cMaxX, maxX: slab.maxX, minY: slab.minY, maxY: slab.maxY });
+  if (cMinY > slab.minY) segments.push({ minX: cMinX, maxX: cMaxX, minY: slab.minY, maxY: cMinY });
+  if (cMaxY < slab.maxY) segments.push({ minX: cMinX, maxX: cMaxX, minY: cMaxY, maxY: slab.maxY });
+
+  return segments;
+}
+
+// Which corner of a cabinet's room-space AABB its diagonal cut lands
+// on, for a given rotationDeg — the countertop equivalent of
+// cornerCarouselGeometry's local convention (Room3DCanvas's cabinet
+// meshes work in the item's own rotated LOCAL frame; CountertopMesh
+// builds everything directly in room/world space, via groundPosition,
+// so it needs the cut corner's ROOM-space identity instead).
+//
+// Derived once, algebraically, rather than by trial: CabinetLayer's 2D
+// plan cuts the LOCAL bottom-right corner and spins the whole shape by
+// rotationDeg using Konva's clockwise convention. Applying that same
+// clockwise rotation (x' = x cosθ - y sinθ, y' = x sinθ + y cosθ, which
+// reads as visually clockwise because room Y already points "down")
+// to the bottom-right corner (+h, +h) of a square centred at the
+// origin gives: 0°→(+h,+h) itself, 90°→(-h,+h), 180°→(-h,-h),
+// 270°→(+h,-h) — i.e. the cut corner cycles bottom-right, bottom-left,
+// top-left, top-right as rotationDeg increases. signX/signY below say
+// which side (max/min) of the room-space AABB that corner sits on.
+function cornerCutSign(rotationDeg: number): { signX: 1 | -1; signY: 1 | -1 } {
+  switch (rotationDeg) {
+    case 0:
+      return { signX: 1, signY: 1 };
+    case 90:
+      return { signX: -1, signY: 1 };
+    case 180:
+      return { signX: -1, signY: -1 };
+    case 270:
+    default:
+      return { signX: 1, signY: -1 };
+  }
+}
+
+// The countertop's own diagonal pentagon, in room-space mm — same
+// CORNER_CAROUSEL_CUT_FRACTION as the carcass below it, applied to the
+// ALREADY-overhung rect so the cut scales with the slab rather than
+// leaving the carcass's proportion stranded inside a now-larger
+// rectangle. Flush-neighbour overhang suppression (countertopOverhangs)
+// still applies to the two STRAIGHT edges; the diagonal edge always
+// gets the plain overhang, since a corner unit's diagonal face
+// practically never sits flush against another tall cabinet the way
+// its two wall-facing edges do.
+function cornerCarouselSlabPointsMm(
+  footprint: FootprintRect,
+  rotationDeg: number,
+  overhang: { left: number; right: number; front: number; back: number }
+): { x: number; y: number }[] {
+  const minX = footprint.x - overhang.left;
+  const maxX = footprint.x + footprint.widthMm + overhang.right;
+  const minY = footprint.y - overhang.front;
+  const maxY = footprint.y + footprint.depthMm + overhang.back;
+
+  const { signX, signY } = cornerCutSign(rotationDeg);
+  const cutW = (maxX - minX) * CORNER_CAROUSEL_CUT_FRACTION;
+  const cutD = (maxY - minY) * CORNER_CAROUSEL_CUT_FRACTION;
+
+  const xCut = signX > 0 ? maxX : minX;
+  const xOther = signX > 0 ? minX : maxX;
+  const yCut = signY > 0 ? maxY : minY;
+  const yOther = signY > 0 ? minY : maxY;
+
+  return [
+    { x: xOther, y: yOther },
+    { x: xCut, y: yOther },
+    { x: xCut, y: yCut - signY * cutD },
+    { x: xCut - signX * cutW, y: yCut },
+    { x: xOther, y: yCut },
+  ];
+}
+
+// The worktop slab sitting on top of a base-height cabinet. Purely
+// presentational — it isn't a PlacedCabinetItem, isn't selectable, and
+// doesn't participate in collision detection, since it's derived
+// geometry rather than something the user placed.
+//
+// Rendered from layout.countertopFinishId when the business has
+// actually chosen one (RoomSurfacesPanel), through the SAME
+// resolveMaterial/useFinishTextures pipeline CabinetMesh's shutters
+// use, so a countertop finish looks and costs consistently with every
+// other finish in the catalogue. Falls back to the built-in procedural
+// quartz look — unchanged from before this was choosable — when no
+// finish has been assigned yet, same "sensible default before anyone
+// visits the surfaces panel" treatment RoomFloor gives an unset floor.
+//
+// Cut for a sink (sinkCutoutRectMm/countertopSegments above) when one
+// sits on this cabinet and its catalogue row has cutout dimensions —
+// see the LIMITATION note on ApplianceType in types/appliance.ts this
+// replaces. Rendered as up to 4 boxes framing the hole rather than one
+// box with a boolean-subtracted hole; see countertopSegments for why.
+function CountertopMesh({
+  item,
+  cabinets,
+  obstacles,
+  appliances,
+}: {
+  item: PlacedCabinetItem;
+  cabinets: PlacedCabinetItem[];
+  obstacles: Obstacle[];
+  appliances: PlacedApplianceItem[];
+}) {
+  // The slab's real room-space extent, ALREADY rotation-aware (footprint
+  // is the rotated AABB) and already overhang-aware per side — so
+  // unlike most meshes here, no further mesh `rotation` is applied
+  // below; rotating an already-axis-aligned box would double-rotate it.
+  const footprint = currentFootprintRect(item);
+  const overhang = countertopOverhangs(item, cabinets, obstacles);
+  const slab: MmRect = {
+    minX: footprint.x - overhang.left,
+    maxX: footprint.x + footprint.widthMm + overhang.right,
+    minY: footprint.y - overhang.front,
+    maxY: footprint.y + footprint.depthMm + overhang.back,
+  };
+
+  const applianceCatalog = useLayoutStore((s) => s.applianceCatalog);
+  const cutout = sinkCutoutRectMm(
+    footprint,
+    item.elevationMm + item.heightMm,
+    appliances,
+    applianceCatalog
+  );
+  const segments = countertopSegments(slab, cutout);
+
+  // Texture tiling is scaled off the FULL slab, not each segment — a
+  // cut stone slab's veining still reads as one continuous piece, not
+  // as separately-tiled fragments either side of the sink.
+  const widthM = mmToWorld(slab.maxX - slab.minX);
+  const depthM = mmToWorld(slab.maxY - slab.minY);
+  const thicknessM = mmToWorld(COUNTERTOP_THICKNESS_MM);
   const cabinetTopM = mmToWorld(item.elevationMm + item.heightMm);
   const centerY = cabinetTopM + thicknessM / 2;
 
-  // Scaled off the horizontal face — that's the one anyone actually
-  // looks at on a worktop.
-  const textures = useSurfaceTextures('quartz', widthM, depthM);
+  const countertopFinishId = useLayoutStore((s) => s.currentLayout?.countertopFinishId);
+  const finishes = useLayoutStore((s) => s.finishes);
+  const chosenFinish = resolveFinish(finishes, countertopFinishId);
+  const material = resolveMaterial(chosenFinish);
+  // Both called unconditionally, every render — hooks can't be
+  // conditional — and only the one the JSX below actually needs gets
+  // used. Scaled off the horizontal face, since that's the one anyone
+  // actually looks at on a worktop.
+  const finishTextures = useFinishTextures(chosenFinish, widthM, depthM);
+  const proceduralTextures = useSurfaceTextures('quartz', widthM, depthM);
 
-  return (
-    <mesh
-      position={[worldX, centerY, worldZ]}
-      rotation={[0, clockwiseDegToThreeY(item.rotationDeg), 0]}
-      castShadow
-      receiveShadow
-    >
-      <boxGeometry args={[widthM, thicknessM, depthM]} />
-      {/* Polished stone: low roughness plus a light clearcoat, the same
-          way materials3d.ts models glossy cabinet finishes. */}
+  // A closure, not a component: it reads already-resolved values from
+  // above rather than calling its own hooks, so it's safe to call once
+  // per segment. Each mesh needs its OWN material element regardless —
+  // three.js materials are objects, and JSX can't mount the same one
+  // in several places (same reason CabinetMesh's panels each get their
+  // own <meshPhysicalMaterial>).
+  function countertopMaterial() {
+    return countertopFinishId ? (
+      // A real catalogue finish — same material assembly CabinetMesh
+      // uses for shutters, so a laminate or acrylic countertop looks
+      // like the same product as the cabinet it sits on.
       <meshPhysicalMaterial
-        map={textures.map}
-        normalMap={textures.normalMap}
-        roughnessMap={textures.roughnessMap}
-        // Same as the floor: 1 lets the quartz map's own low roughness
-        // (~0.16-0.23, a polished slab) come through unscaled.
+        color={material.color}
+        map={finishTextures?.map ?? null}
+        normalMap={finishTextures?.normalMap ?? null}
+        normalScale={[material.normalScale, material.normalScale]}
+        roughnessMap={finishTextures?.roughnessMap ?? null}
+        roughness={material.roughness}
+        metalness={material.metalness}
+        clearcoat={material.clearcoat}
+        clearcoatRoughness={material.clearcoatRoughness}
+      />
+    ) : (
+      /* Polished stone default: low roughness plus a light clearcoat,
+         the same way materials3d.ts models glossy cabinet finishes. */
+      <meshPhysicalMaterial
+        map={proceduralTextures.map}
+        normalMap={proceduralTextures.normalMap}
+        roughnessMap={proceduralTextures.roughnessMap}
+        // Same as the floor: 1 lets the quartz map's own low
+        // roughness (~0.16-0.23, a polished slab) come through
+        // unscaled.
         roughness={1}
         metalness={0.02}
         clearcoat={0.35}
         clearcoatRoughness={0.25}
       />
-    </mesh>
+    );
+  }
+
+  // A rectangular slab over a diagonal-cut carousel carcass would
+  // overhang past the cut corner into thin air — reported directly as
+  // "the countertop is still rectangular and protruding." The pentagon
+  // below matches CabinetMesh's carcass shape exactly (same
+  // CORNER_CAROUSEL_CUT_FRACTION), just built in room-space mm instead
+  // of the item's local frame, since CountertopMesh has no rotation
+  // wrapper to do that for it. No sink-cutout handling here — a
+  // carousel unit is never a sink cabinet in practice, and intersecting
+  // a rectangular cutout with a pentagon isn't a problem worth solving
+  // speculatively.
+  if (item.moduleType === 'corner-carousel') {
+    const points = cornerCarouselSlabPointsMm(footprint, item.rotationDeg, overhang);
+    const shape = new THREE.Shape(
+      points.map((p) => {
+        const [x, z] = groundPosition(p.x, p.y);
+        return new THREE.Vector2(x, -z);
+      })
+    );
+    return (
+      <mesh
+        position={[0, centerY - thicknessM / 2, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        castShadow
+        receiveShadow
+      >
+        <extrudeGeometry args={[shape, { depth: thicknessM, bevelEnabled: false }]} />
+        {countertopMaterial()}
+      </mesh>
+    );
+  }
+
+  return (
+    <>
+      {segments.map((seg, i) => {
+        const [segWorldX, segWorldZ] = groundPosition(
+          (seg.minX + seg.maxX) / 2,
+          (seg.minY + seg.maxY) / 2
+        );
+        return (
+          <mesh key={i} position={[segWorldX, centerY, segWorldZ]} castShadow receiveShadow>
+            <boxGeometry
+              args={[mmToWorld(seg.maxX - seg.minX), thicknessM, mmToWorld(seg.maxY - seg.minY)]}
+            />
+            {countertopMaterial()}
+          </mesh>
+        );
+      })}
+    </>
   );
 }
 
@@ -2205,7 +2981,12 @@ function ObstacleMesh({ obstacle, ceilingHeightMm }: ObstacleMeshProps) {
   );
 
   return (
-    <mesh position={[worldX, centerY, worldZ]} castShadow receiveShadow>
+    <mesh
+      position={[worldX, centerY, worldZ]}
+      rotation={[0, clockwiseDegToThreeY(obstacle.rotationDeg), 0]}
+      castShadow
+      receiveShadow
+    >
       <boxGeometry args={[widthM, heightM, depthM]} />
       <meshStandardMaterial color="#9ca3af" roughness={0.9} metalness={0} />
     </mesh>

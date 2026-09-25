@@ -41,6 +41,11 @@ export interface ApplianceLayerProps {
   maxWidthPx?: number;
   maxHeightPx?: number;
   gridSnapMm?: number; // should match the active RoomLayout.gridSnapMm
+  // Global master for the red overlap highlight — same session-only
+  // toggle CabinetLayer takes, off means no highlight regardless of
+  // any item's own ignoreOverlap (which still applies underneath;
+  // this only ever hides MORE). See CabinetLayerProps' own comment.
+  showOverlapWarnings?: boolean;
 }
 
 // Distinct from MODULE_COLORS (CabinetLayer) and OBSTACLE_STYLES
@@ -81,6 +86,7 @@ export function ApplianceLayer({
   maxWidthPx = 800,
   maxHeightPx = 600,
   gridSnapMm = 50,
+  showOverlapWarnings = true,
 }: ApplianceLayerProps) {
   const appliances = useLayoutStore((state) => state.appliances);
   const cabinets = useLayoutStore((state) => state.cabinets);
@@ -112,7 +118,7 @@ export function ApplianceLayer({
         const depthPx = item.depthMm * scale;
         const centerX = originX + item.x * scale + widthPx / 2;
         const centerY = originY + item.y * scale + depthPx / 2;
-        const isColliding = collidingApplianceIds.has(item.id);
+        const isColliding = showOverlapWarnings && collidingApplianceIds.has(item.id);
         const isSelected = item.id === selectedApplianceId;
 
         // Effective on-canvas footprint for the CURRENT rotation. The

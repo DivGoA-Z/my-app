@@ -11,32 +11,56 @@
 // specifically has something to show).
 //
 // Deliberately NOT like CabinetInspector in scope: no material/finish
-// (obstacles don't have them) and no duplicate button — just the
-// dimensions, height, elevation (how far off the floor it starts —
-// same idea as a wall cabinet), and floor-to-ceiling toggle the user
-// asked for, plus delete. Every edit goes through the same
+// (obstacles don't have them) and no duplicate button — just rotation,
+// exact position (dragging only grid-snaps, so this is the only way to
+// land exactly flush against a neighbor whose edge isn't a multiple of
+// the grid step), dimensions, height, elevation (how far off the floor
+// it starts — same idea as a wall cabinet), and floor-to-ceiling toggle
+// the user asked for, plus delete. Every edit goes through the same
 // updateObstacle/removeObstacle store actions ObstacleLayer/
 // ObstacleToolbar already use, so collision detection and the 3D
-// preview pick up a resize immediately.
+// preview pick up a move, resize, or turn immediately.
 
 import { useLayoutStore } from '../../store/layoutStore';
 import { useSelectedObstacleId } from '../../hooks/useSelection';
 import { OBSTACLE_TYPE_LABELS } from '../../types/layout';
 import { PARTIAL_OBSTACLE_HEIGHT_MM } from '../../lib/collision';
+import { rotateFootprint } from '../../lib/footprint';
 
 const inputClass = 'w-20 shrink-0 rounded border border-gray-300 px-2 py-1 text-xs';
+
+// Same fallback as CabinetInspector, for the same reason — a sane room
+// size to clamp a rotated footprint against before any layout has
+// loaded.
+const DEFAULT_ROOM_WIDTH_MM = 3000;
+const DEFAULT_ROOM_DEPTH_MM = 4000;
 
 export function ObstacleInspector() {
   const selectedObstacleId = useSelectedObstacleId();
   const obstacles = useLayoutStore((state) => state.obstacles);
+  const currentLayout = useLayoutStore((state) => state.currentLayout);
   const updateObstacle = useLayoutStore((state) => state.updateObstacle);
   const removeObstacle = useLayoutStore((state) => state.removeObstacle);
   const selectObstacle = useLayoutStore((state) => state.selectObstacle);
 
-  const obstacle = obstacles.find((o) => o.id === selectedObstacleId);
+  const found = obstacles.find((o) => o.id === selectedObstacleId);
 
-  if (!obstacle) {
+  if (!found) {
     return null;
+  }
+
+  // Narrowing an early-returned `const` doesn't survive into a nested
+  // function declaration defined further down the same body — same
+  // gotcha documented in lib/fixtures.ts's defaultDrawerLightQuantity.
+  // Re-binding it here is what lets handleRotate below use it without
+  // TypeScript re-widening it back to `Obstacle | undefined`.
+  const obstacle = found;
+
+  const roomWidthMm = currentLayout?.dimensions.widthMm ?? DEFAULT_ROOM_WIDTH_MM;
+  const roomDepthMm = currentLayout?.dimensions.depthMm ?? DEFAULT_ROOM_DEPTH_MM;
+
+  function handleRotate(direction: 1 | -1) {
+    updateObstacle(obstacle.id, rotateFootprint(obstacle, direction, roomWidthMm, roomDepthMm));
   }
 
   return (
@@ -50,6 +74,55 @@ export function ObstacleInspector() {
         >
           ×
         </button>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <span className="text-xs text-gray-500">Rotation: {obstacle.rotationDeg}°</span>
+        <div className="flex gap-2">
+          <button
+            onClick={() => handleRotate(-1)}
+            className="flex-1 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+          >
+            −90°
+          </button>
+          <button
+            onClick={() => handleRotate(1)}
+            className="flex-1 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+          >
+            +90°
+          </button>
+        </div>
+      </div>
+
+      {/* Dragging only grid-snaps to gridSnapMm (50mm by default), so an
+          obstacle can't be dragged flush against a neighbor whose edge
+          sits at a non-multiple of the grid — e.g. a cabinet ending at
+          305mm. The nearest reachable drag position (300 or 350) then
+          either genuinely overlaps the cabinet by a few mm or leaves a
+          gap, and the overlap warning that follows is correct given
+          where the obstacle actually is — it just couldn't be dragged
+          to where it was meant to be. Typing the exact position here
+          bypasses grid-snap entirely, same as every other numeric field
+          on this panel. */}
+      <div className="flex gap-2">
+        <label className="flex flex-1 flex-col gap-1 text-xs text-gray-600">
+          X (mm)
+          <input
+            type="number"
+            value={obstacle.x}
+            onChange={(e) => updateObstacle(obstacle.id, { x: Number(e.target.value) })}
+            className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+          />
+        </label>
+        <label className="flex flex-1 flex-col gap-1 text-xs text-gray-600">
+          Y (mm)
+          <input
+            type="number"
+            value={obstacle.y}
+            onChange={(e) => updateObstacle(obstacle.id, { y: Number(e.target.value) })}
+            className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+          />
+        </label>
       </div>
 
       <div className="flex items-center justify-between gap-2 text-xs text-gray-600">
@@ -134,6 +207,22 @@ export function ObstacleInspector() {
           </label>
         </>
       )}
+
+      <label className="flex items-start gap-2 text-xs text-gray-600">
+        <input
+          type="checkbox"
+          checked={obstacle.ignoreOverlap ?? false}
+          onChange={(e) => updateObstacle(obstacle.id, { ignoreOverlap: e.target.checked })}
+          className="mt-0.5"
+        />
+        <span>
+          Ignore overlap alerts for this item
+          <br />
+          <span className="text-[10px] text-gray-400">
+            e.g. a chimney duct that's meant to run through this obstacle
+          </span>
+        </span>
+      </label>
 
       <div className="flex border-t border-gray-200 pt-3">
         <button

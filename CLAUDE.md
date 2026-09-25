@@ -123,11 +123,19 @@ statement is `if not exists` / `on conflict do nothing`, so re-running
 the whole file is always safe and never overwrites a business's edited
 rates. There are no numbered migrations. Keep it that way.
 
-**RLS is disabled on every table, and both storage buckets
-(`panoramas`, `material-swatches`) are public.** Single-business MVP;
-there is no tenant column anywhere. The anon key ships in browser code,
-so this is a dev/demo posture — see the end of
-`docs/SUPABASE_SETUP.md`.
+**Real auth + RLS are live.** Every table has a `business_id` column
+and RLS policies scoped to it (`current_business_id()`, keyed off
+`business_users` — see `supabase/schema.sql`'s "BUSINESS ISOLATION
+(RLS)" block), plus a `super_admins` bypass for the software owner.
+Sign-in is real (Supabase Auth, `src/store/authStore.ts`) but there is
+no self-serve sign-up — one business exists today, created via a
+manual step in `docs/SUPABASE_SETUP.md`. `business_id` is passed
+explicitly by every write path (never a silent DB default — see the
+`calculateBOM`/`PricingContext` story above; this is the same lesson
+applied again). The three storage buckets (`panoramas`,
+`material-swatches`, `quote-pdfs`) still allow public READ — a
+customer opens a quote PDF link with no account, which is the point —
+but uploading to them now requires being signed in.
 
 **Supabase credentials come only from `.env`** (`VITE_SUPABASE_URL`,
 `VITE_SUPABASE_ANON_KEY`). Nothing hardcodes a project id, so switching
@@ -182,7 +190,19 @@ unused-import check that split `type X` inline imports and searched for
 the literal `"type RateCard"`. Distrust your own tooling before you
 trust it.
 
-Always ask the user to run `npx tsc --noEmit` before trusting a change.
+**Run `npx tsc --noEmit -p tsconfig.app.json` before trusting a change
+— NOT bare `npx tsc --noEmit`.** This was wrong here for a real reason,
+not a typo: the root `tsconfig.json` is a solution-style file
+(`"files": []`, only `references`), meant for `tsc -b`. A bare
+`tsc --noEmit` against it type-checks ZERO files and exits clean no
+matter what's broken — a silent no-op that reads exactly like a
+passing check. This was believed to be "clean" for a stretch of a
+session before the mistake was caught, during which a real type error
+(a closure-narrowing bug in `ObstacleInspector.tsx`, same class of
+issue as the one already documented in `lib/fixtures.ts`) sat
+uncaught. `npm run build` (`tsc -b && vite build`) is unaffected — it
+already builds via the referenced project — so this only matters for
+an ad hoc `tsc --noEmit` sanity check.
 
 ## Current state
 
@@ -198,10 +218,16 @@ cabinets and appliances.
 
 **Half-built:**
 
-- **Cabinet carcass ("B2").** `appliance-housing` and `open-shelf`
-  fronts still render inside a sealed box, so an open shelf reads as a
-  missing door. Interiors use the shutter finish rather than a white
-  liner. The `inside` cabinet-light mount is deferred.
+- **Cabinet carcass ("B2").** RESOLVED for the two things this used to
+  say: `appliance-housing`/`open-shelf` fronts (whole-cabinet, or a
+  single row of a `'mixed'` front — see `carcassBands` in
+  `lib/fronts.ts`) now get a genuinely open carcass — 5 thin panels,
+  no sealed front — instead of rendering inside a fully closed box,
+  and the inside of that opening uses a fixed plain liner colour
+  (`PLASTER_COLOR` in `Room3DCanvas.tsx`) rather than the exterior
+  shutter finish. The `inside` cabinet-light mount is still deferred —
+  that's a fixture-mounting gap, unrelated to the carcass geometry
+  itself, and wasn't touched by this fix.
 - **Assets.** `public/textures/` (15 ambientCG CC0 PBR sets) and
   `public/models/` (10 GLBs) exist. Several are deliberately unwired —
   see `docs/DECISIONS.md` and `public/models/CREDITS*.md`. There is no

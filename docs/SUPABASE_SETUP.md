@@ -11,7 +11,7 @@ The project URL and key are read only from environment variables
 (`src/lib/Supabaseclient.ts`), and nothing anywhere hardcodes a project
 id. Changing databases is entirely a `.env` change.
 
-**`schema.sql` builds everything**, including the two storage buckets
+**`schema.sql` builds everything**, including the three storage buckets
 and their policies — there is no manual dashboard clicking beyond
 creating the project itself.
 
@@ -42,14 +42,19 @@ seeds.
 
 This creates:
 
-- **10 tables** — `projects`, `layouts`, `surface_finishes`,
-  `cabinet_catalog_items`, `obstacle_presets`,
+- **13 tables** — the original 10 (`projects`, `layouts`,
+  `surface_finishes`, `cabinet_catalog_items`, `obstacle_presets`,
   `appliance_catalog_items`, `handles`, `light_fixture_catalog`,
-  `rate_cards`, `quotes`
-- **2 public storage buckets** — `panoramas`, `material-swatches`,
-  each with public read and insert policies
+  `rate_cards`, `quotes`), each now with a `business_id` column and
+  Row Level Security policies, plus 3 new ones: `businesses`,
+  `business_users` (who belongs to which business, and their role),
+  and `super_admins` (your own cross-business access — see CLAUDE.md)
+- **3 public storage buckets** — `panoramas`, `material-swatches`,
+  `quote-pdfs`. Read stays public (a quote PDF link works with no
+  login); uploading now requires being signed in
 - **Seed rows** — 6 handles, 10 light fixtures, 1 rate card, plus
-  finish and catalogue starters
+  finish and catalogue starters, all tagged to one seeded business
+  (`biz_default`)
 
 Every statement is `if not exists` / `on conflict do nothing`, so
 **re-running the whole file is always safe.** That is also how you apply
@@ -85,6 +90,13 @@ In the repo root — the same folder as `package.json`:
 ```
 VITE_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOi...
+
+# Optional — put your own business's name/phone on the quote PDF's
+# letterhead (src/lib/quotePdf.ts). There's no `businesses` table yet
+# (that's a multi-tenancy thing, not built), so this is the only way
+# to set it today. Falls back to a generic placeholder if left unset.
+VITE_BUSINESS_NAME=Your Business Name
+VITE_BUSINESS_PHONE=+91-XXXXX-XXXXX
 ```
 
 Four things that catch people:
@@ -99,7 +111,31 @@ Four things that catch people:
 - **Vite reads env only at startup.** Editing `.env` while `npm run
   dev` is running changes nothing until you stop and restart it.
 
-## Step 5 — Run
+## Step 5 — Create your login
+
+There is no sign-up screen (see `CLAUDE.md` — deliberate, not missing).
+Your one account is created by hand, once:
+
+1. **Authentication → Users → Add user** in the dashboard. Set an
+   email and password — this is what you'll type into the app's own
+   sign-in screen.
+2. Copy that user's **UID** (shown in the users list).
+3. Back in the **SQL Editor**, run (replacing `<uid>`):
+   ```sql
+   insert into business_users (business_id, user_id) values ('biz_default', '<uid>');
+   insert into super_admins (user_id) values ('<uid>');
+   ```
+   The first row makes you a member of the one seeded business — this
+   is what everyday data (customers, layouts, catalogue) is scoped to.
+   The second gives you the software-owner bypass described in
+   `CLAUDE.md`, separate from that membership.
+
+If you ever add a second person to this business later, that's the
+same first insert again with their UID and no schema change — see
+`docs/DECISIONS.md` for why `business_users` is a table and not a
+column.
+
+## Step 6 — Run
 
 ```bash
 npm install
@@ -108,36 +144,42 @@ npm run dev
 
 If the URL or key is missing, `Supabaseclient.ts` throws a named error
 at import time telling you which — it fails loudly on purpose rather
-than silently rendering an empty app.
+than silently rendering an empty app. Sign in with the email/password
+from Step 5.
 
-## Step 6 — Verify
+## Step 7 — Verify
 
 Paste this into the SQL Editor:
 
 ```sql
-select 'tables' as kind, count(*)::text as found, '10' as expected
+select 'tables' as kind, count(*)::text as found, '13' as expected
 from information_schema.tables
 where table_schema = 'public'
   and table_name in ('projects','layouts','surface_finishes',
     'cabinet_catalog_items','obstacle_presets','appliance_catalog_items',
-    'handles','light_fixture_catalog','rate_cards','quotes')
+    'handles','light_fixture_catalog','rate_cards','quotes',
+    'businesses','business_users','super_admins')
 union all
-select 'buckets', count(*)::text, '2'
-from storage.buckets where id in ('panoramas','material-swatches')
+select 'buckets', count(*)::text, '3'
+from storage.buckets where id in ('panoramas','material-swatches','quote-pdfs')
 union all
 select 'handle seeds', count(*)::text, '6' from public.handles
 union all
 select 'fixture seeds', count(*)::text, '10' from public.light_fixture_catalog
 union all
-select 'rate card', count(*)::text, '1' from public.rate_cards;
+select 'rate card', count(*)::text, '1' from public.rate_cards
+union all
+select 'my membership', count(*)::text, '1' from public.business_users
+union all
+select 'my super admin row', count(*)::text, '1' from public.super_admins;
 ```
 
 Every `found` should equal `expected`.
 
-Then in the app: create a customer, draw a room, place a cabinet, save,
-reload the page. If the layout comes back, persistence works. Open
-**Manage Inventory** and confirm the rate card shows ₹150 labour with
-the amber placeholder banner.
+Then in the app: sign in, create a customer, draw a room, place a
+cabinet, save, reload the page. If the layout comes back, persistence
+works. Open **Manage Inventory** and confirm the rate card shows ₹150
+labour with the amber placeholder banner.
 
 ## About your existing data
 
@@ -162,18 +204,19 @@ string is likely safer.
 If the old data is throwaway, skip all of this. Starting clean is the
 simpler path and the seeds give you a working catalogue immediately.
 
-## One thing to decide, now that you're starting fresh
+## Where this now stands on security
 
-**RLS is disabled on every table and both buckets are public.** The
-anon key ships inside browser JavaScript, so anyone who opens the app
-can read and write every row and upload to storage. The comment at the
-top of `Supabaseclient.ts` is explicit that this is a local-dev and demo
-posture.
+**RLS is enabled and scoped per business** (see CLAUDE.md and
+`supabase/schema.sql`'s "BUSINESS ISOLATION (RLS)" block) — the anon
+key still ships inside browser JavaScript, same as always, but it can
+no longer read or write another business's rows, because there isn't
+a second business yet to test that against. Storage buckets still
+allow public read (deliberate — a quote PDF link works with no
+account) but require sign-in to upload.
 
-That is fine while you are the only user. It stops being fine the moment
-this is deployed anywhere reachable, or holds a real customer's name,
-phone number and address — which is exactly what `projects` is for.
-
-Not something to fix today, but the right time to notice it is while
-setting up a new database rather than after it has real client data in
-it. Auth plus RLS policies is the fix; ask when you want to do it.
+**Still not built:** self-serve sign-up for a second business.
+Onboarding another firm today means repeating Step 5 by hand — a new
+`businesses` row, a new Auth user, a new `business_users` row. Fine
+for "you plus maybe one more business you set up yourself"; a real
+second customer signing themselves up is future work, tracked in
+`docs/PRINCIPLES.md`.

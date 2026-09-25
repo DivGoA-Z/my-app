@@ -33,6 +33,11 @@ export interface ProjectRow {
   assigned_to: string | null;
   notes: string | null;
   quote_total: number | null;
+  // Required, no default — see the note on projectToRow's `businessId`
+  // parameter. Not part of CustomerProject (types/customer.ts): this is
+  // purely an RLS/ownership concern, not something the UI reads or
+  // displays, so it's a row-shape-only field.
+  business_id: string;
   created_at: string;
   updated_at: string;
 }
@@ -60,7 +65,11 @@ interface LayoutRow {
   floor_finish_id: string | null;
   floor_concealed_finish_id: string | null;
   ceiling_finish_id: string | null;
+  countertop_finish_id: string | null;
+  price_countertop: boolean | null;
   grid_snap_mm: number;
+  // Same reasoning as ProjectRow.business_id.
+  business_id: string;
   created_at: string;
   updated_at: string;
 }
@@ -70,7 +79,14 @@ interface LayoutRow {
 // Exported — reused by lib/customers.ts (dashboard-level list/create/
 // status-update operations) so there's one place that knows how
 // CustomerProject maps onto the `projects` table.
-export function projectToRow(project: CustomerProject): ProjectRow {
+//
+// `businessId` is REQUIRED and has no default — same reasoning as
+// calculateBOM's PricingContext (CLAUDE.md): a missing value here
+// should be a compile error, not something that silently resolves to
+// the wrong business or to NULL and gets rejected by the NOT NULL
+// constraint at the last possible moment. RLS's `with check` is the
+// server-side backstop, not the source of truth for this value.
+export function projectToRow(project: CustomerProject, businessId: string): ProjectRow {
   return {
     id: project.id,
     client_name: project.clientName,
@@ -82,6 +98,7 @@ export function projectToRow(project: CustomerProject): ProjectRow {
     assigned_to: project.assignedTo ?? null,
     notes: project.notes ?? null,
     quote_total: project.quoteTotal ?? null,
+    business_id: businessId,
     created_at: project.createdAt,
     updated_at: new Date().toISOString(), // bumped on every save
   };
@@ -107,11 +124,13 @@ export function rowToProject(row: ProjectRow): CustomerProject {
 function layoutToRow(
   layout: RoomLayout,
   cabinets: PlacedCabinetItem[],
-  appliances: PlacedApplianceItem[]
+  appliances: PlacedApplianceItem[],
+  businessId: string
 ): LayoutRow {
   return {
     id: layout.id,
     project_id: layout.projectId,
+    business_id: businessId,
     name: layout.name,
     width_mm: layout.dimensions.widthMm,
     depth_mm: layout.dimensions.depthMm,
@@ -128,6 +147,8 @@ function layoutToRow(
     floor_finish_id: layout.floorFinishId ?? null,
     floor_concealed_finish_id: layout.floorConcealedFinishId ?? null,
     ceiling_finish_id: layout.ceilingFinishId ?? null,
+    countertop_finish_id: layout.countertopFinishId ?? null,
+    price_countertop: layout.priceCountertop ?? null,
     grid_snap_mm: layout.gridSnapMm,
     created_at: layout.createdAt,
     updated_at: new Date().toISOString(), // bumped on every save
@@ -162,6 +183,10 @@ function rowToLayout(row: LayoutRow): RoomLayout {
     floorFinishId: row.floor_finish_id ?? undefined,
     floorConcealedFinishId: row.floor_concealed_finish_id ?? undefined,
     ceilingFinishId: row.ceiling_finish_id ?? undefined,
+    countertopFinishId: row.countertop_finish_id ?? undefined,
+    // Same reasoning as priceElectrical — "is the countertop charged?"
+    // has a real answer for every project, and it's usually no.
+    priceCountertop: row.price_countertop ?? false,
     gridSnapMm: row.grid_snap_mm,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -237,6 +262,7 @@ function normalizeObstacle(obstacle: Obstacle): Obstacle {
     ...obstacle,
     heightMm: obstacle.heightMm ?? PARTIAL_OBSTACLE_HEIGHT_MM,
     elevationMm: obstacle.elevationMm ?? 0,
+    rotationDeg: obstacle.rotationDeg ?? 0,
   };
 }
 
@@ -256,6 +282,7 @@ function blankLayout(projectId: string): RoomLayout {
     lightingMode: DEFAULT_LIGHTING_MODE,
     exposure: DEFAULT_EXPOSURE,
     priceElectrical: false,
+    priceCountertop: false,
     gridSnapMm: 50,
     createdAt: now,
     updatedAt: now,
@@ -271,19 +298,19 @@ export interface ProjectBundle {
   appliances: PlacedApplianceItem[];
 }
 
-export async function saveProjectBundle(bundle: ProjectBundle): Promise<void> {
+export async function saveProjectBundle(bundle: ProjectBundle, businessId: string): Promise<void> {
   const { project, layout, cabinets, appliances } = bundle;
 
   const { error: projectError } = await supabase
     .from('projects')
-    .upsert(projectToRow(project));
+    .upsert(projectToRow(project, businessId));
   if (projectError) {
     throw new Error(`Failed to save project: ${projectError.message}`);
   }
 
   const { error: layoutError } = await supabase
     .from('layouts')
-    .upsert(layoutToRow(layout, cabinets, appliances));
+    .upsert(layoutToRow(layout, cabinets, appliances, businessId));
   if (layoutError) {
     throw new Error(`Failed to save layout: ${layoutError.message}`);
   }
@@ -378,5 +405,14 @@ function normalizeAppliance(item: PlacedApplianceItem): PlacedApplianceItem {
   return {
     ...item,
     rotationDeg: item.rotationDeg ?? 0,
+    // Backfill for appliances placed via the tambour picker
+    // (FrontPicker.tsx's pickTambourAppliance) before it started
+    // setting this itself — that overlap with its host cabinet's
+    // footprint is deliberate, not a real collision, and without this
+    // every one of them reads as an unfixable collision warning.
+    // `??` rather than unconditional, so an appliance that already has
+    // an explicit value (including one deliberately un-muted back to
+    // false) keeps it.
+    ignoreOverlap: item.ignoreOverlap ?? item.mount?.kind === 'tambour',
   };
 }

@@ -236,8 +236,13 @@ input rather than more thinking.
 2. **Board sizes and material stock** — what sheets do your suppliers
    actually sell, in what thicknesses? Blocks nesting.
 3. **Edge banding rules** — which edges get banded, at what rate.
-4. **Does a tenant get isolated catalogues, or a shared starter they
-   fork?** Decides the onboarding flow and the seed strategy.
+4. ~~Does a tenant get isolated catalogues, or a shared starter they
+   fork?~~ **Answered, not yet built**: both — isolated by default,
+   with a per-business toggle to also see a shared/global catalogue.
+   Needs an `is_global` column on the catalogue tables and a
+   `business_settings.show_global_catalog` flag; deferred until a
+   second real business exists to need it (see `docs/DECISIONS.md`,
+   the auth/RLS entry).
 5. **Pricing model for the SaaS itself** — per seat, per business, per
    quote? Affects nothing technical yet, everything commercially.
 6. **Who is the first paying customer that isn't you?** The answer
@@ -430,8 +435,11 @@ Ordered by "cheapest now, most expensive later", not by excitement.
 
 Each of these gets more expensive with everything built on top.
 
-1. **Tenant column on all ten tables**, plus auth and RLS. One
-   afternoon of schema work now; a postmortem later.
+1. ~~Tenant column on all ten tables, plus auth and RLS.~~ **Done** —
+   `business_id` + RLS on all ten (now thirteen, with `businesses`/
+   `business_users`/`super_admins`), real sign-in. One business exists;
+   self-serve sign-up for a second is still not built (see
+   `docs/SUPABASE_SETUP.md`).
 2. **The panel model.** Replace area-estimate costing with real panel
    decomposition, so price and cutting list derive from one source.
    *Blocked on:* your carpenter's construction convention.
@@ -445,9 +453,21 @@ Each of these gets more expensive with everything built on top.
    leave the app.
 6. **Real rates**, replacing every placeholder. Commercial blocker, not
    technical.
-7. **Inventory import/export**, per the design above. This is
-   onboarding.
+7. ~~Inventory import/export, per the design above. This is
+   onboarding.~~ **Done** — Excel round trip (download, edit, upload,
+   validate, fix inline, commit) for all five catalogues. Matching is
+   on each row's own id rather than a new business-assigned code
+   column (see `docs/DECISIONS.md`); no in-sheet Excel dropdowns
+   (SheetJS Pro feature), so allowed values live on an Instructions
+   sheet and the review grid's own `<select>` fields instead.
 8. **Component library and the four states.** The professional finish.
+   **In progress** — shadcn/ui adopted (Radix base, 14 primitives) and
+   toasts wired on every previously-silent action (save, freeze,
+   import, delete — including 6 delete paths that had no confirmation
+   or feedback at all before this). Not done yet: migrating existing
+   hand-rolled markup to the new primitives, the four states per
+   screen, consistency rules, first-run checklist. See
+   `docs/DECISIONS.md` §11.
 
 ### Phase 3 — Make it good
 

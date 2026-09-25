@@ -84,7 +84,10 @@ export function getApplianceBounds(item: PlacedApplianceItem): AABB {
   };
 }
 
-// Obstacles don't rotate, so X/Y is just their stored rectangle.
+// Obstacles rotate in quarter turns now, same convention as
+// getCabinetBounds above: x/y is always the UNROTATED top-left corner,
+// rotation happens about the center, and a 90/270 turn swaps which of
+// widthMm/depthMm is the footprint's extent along each axis.
 // Vertically: a floor-to-ceiling obstacle (a structural pillar) blocks
 // every height, so it starts at the floor (minZ 0) and uses +Infinity
 // as its top rather than needing the room's actual ceiling height
@@ -95,11 +98,17 @@ export function getApplianceBounds(item: PlacedApplianceItem): AABB {
 // or a run of exposed pipe start above the floor with nothing below it,
 // the same way a wall cabinet does.
 export function getObstacleBounds(obstacle: Obstacle): AABB {
+  const centerX = obstacle.x + obstacle.widthMm / 2;
+  const centerY = obstacle.y + obstacle.depthMm / 2;
+  const isQuarterTurn = obstacle.rotationDeg === 90 || obstacle.rotationDeg === 270;
+  const footprintWidth = isQuarterTurn ? obstacle.depthMm : obstacle.widthMm;
+  const footprintHeight = isQuarterTurn ? obstacle.widthMm : obstacle.depthMm;
+
   return {
-    minX: obstacle.x,
-    maxX: obstacle.x + obstacle.widthMm,
-    minY: obstacle.y,
-    maxY: obstacle.y + obstacle.depthMm,
+    minX: centerX - footprintWidth / 2,
+    maxX: centerX + footprintWidth / 2,
+    minY: centerY - footprintHeight / 2,
+    maxY: centerY + footprintHeight / 2,
     minZ: obstacle.floorToCeiling ? 0 : obstacle.elevationMm,
     maxZ: obstacle.floorToCeiling
       ? Number.POSITIVE_INFINITY
@@ -107,17 +116,32 @@ export function getObstacleBounds(obstacle: Obstacle): AABB {
   };
 }
 
-// Strict inequalities: two boxes flush against each other (edges
-// touching, zero overlap) are NOT a collision — only true overlap is.
+// A real overlap has to clear this on every axis to count. Two items
+// snapped flush (lib/cabinetSnapping.ts computes an exact touch, e.g.
+// footprintTopMm === neighbor's bottom edge) still each go through an
+// mm -> px -> mm round trip before landing in x/y (the drag's on-screen
+// position, converted back via canvasScale's `scale`, which is
+// essentially never a round number). That round trip lands within
+// ~1e-10mm of the exact value, never exactly on it — and about half
+// the time the rounding error points inward rather than outward. A
+// strict `<`/`>` comparison has no room for that: an intended,
+// pixel-perfect touch could register as a sub-nanometre "overlap" and
+// get flagged red with no visible gap and nothing to fix — confirmed
+// by sweeping realistic room sizes and drag positions through the
+// exact px round trip CabinetLayer's dragBoundFunc/onDragEnd do.
+// 0.5mm is far below manufacturing tolerance (so nothing a business
+// would call "a real overlap" is masked) and many orders of magnitude
+// above the float noise floor.
+const COLLISION_EPSILON_MM = 0.5;
+
+// Strict beyond the epsilon above: two boxes flush against each other
+// (edges touching, zero overlap) are NOT a collision — only true
+// overlap is.
 export function boxesOverlap(a: AABB, b: AABB): boolean {
-  return (
-    a.minX < b.maxX &&
-    a.maxX > b.minX &&
-    a.minY < b.maxY &&
-    a.maxY > b.minY &&
-    a.minZ < b.maxZ &&
-    a.maxZ > b.minZ
-  );
+  const overlapX = Math.min(a.maxX, b.maxX) - Math.max(a.minX, b.minX);
+  const overlapY = Math.min(a.maxY, b.maxY) - Math.max(a.minY, b.minY);
+  const overlapZ = Math.min(a.maxZ, b.maxZ) - Math.max(a.minZ, b.minZ);
+  return overlapX > COLLISION_EPSILON_MM && overlapY > COLLISION_EPSILON_MM && overlapZ > COLLISION_EPSILON_MM;
 }
 
 export type CollisionPartnerType = 'cabinet' | 'obstacle' | 'appliance';
@@ -160,6 +184,7 @@ export function detectCollisions(
   // cabinet <-> cabinet
   for (let i = 0; i < cabinetBoxes.length; i++) {
     for (let j = i + 1; j < cabinetBoxes.length; j++) {
+      if (cabinetBoxes[i].item.ignoreOverlap || cabinetBoxes[j].item.ignoreOverlap) continue;
       if (boxesOverlap(cabinetBoxes[i].box, cabinetBoxes[j].box)) {
         collidingCabinetIds.add(cabinetBoxes[i].item.id);
         collidingCabinetIds.add(cabinetBoxes[j].item.id);
@@ -176,6 +201,7 @@ export function detectCollisions(
   // cabinet <-> obstacle
   for (const { item: cabinet, box: cabinetBox } of cabinetBoxes) {
     for (const { item: obstacle, box: obstacleBox } of obstacleBoxes) {
+      if (cabinet.ignoreOverlap || obstacle.ignoreOverlap) continue;
       if (boxesOverlap(cabinetBox, obstacleBox)) {
         collidingCabinetIds.add(cabinet.id);
         collisions.push({
@@ -191,6 +217,7 @@ export function detectCollisions(
   // appliance <-> appliance
   for (let i = 0; i < applianceBoxes.length; i++) {
     for (let j = i + 1; j < applianceBoxes.length; j++) {
+      if (applianceBoxes[i].item.ignoreOverlap || applianceBoxes[j].item.ignoreOverlap) continue;
       if (boxesOverlap(applianceBoxes[i].box, applianceBoxes[j].box)) {
         collidingApplianceIds.add(applianceBoxes[i].item.id);
         collidingApplianceIds.add(applianceBoxes[j].item.id);
@@ -207,6 +234,7 @@ export function detectCollisions(
   // appliance <-> cabinet
   for (const { item: appliance, box: applianceBox } of applianceBoxes) {
     for (const { item: cabinet, box: cabinetBox } of cabinetBoxes) {
+      if (appliance.ignoreOverlap || cabinet.ignoreOverlap) continue;
       if (boxesOverlap(applianceBox, cabinetBox)) {
         collidingApplianceIds.add(appliance.id);
         collidingCabinetIds.add(cabinet.id);
@@ -223,6 +251,7 @@ export function detectCollisions(
   // appliance <-> obstacle
   for (const { item: appliance, box: applianceBox } of applianceBoxes) {
     for (const { item: obstacle, box: obstacleBox } of obstacleBoxes) {
+      if (appliance.ignoreOverlap || obstacle.ignoreOverlap) continue;
       if (boxesOverlap(applianceBox, obstacleBox)) {
         collidingApplianceIds.add(appliance.id);
         collisions.push({

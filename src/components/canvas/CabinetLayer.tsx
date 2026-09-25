@@ -36,15 +36,20 @@
 // resize, duplicate, and delete from CabinetInspector immediately —
 // there's no separate "recheck" step to wire up.
 
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import type Konva from 'konva';
-import { Layer, Group, Rect, Text } from 'react-konva';
+import { Layer, Group, Rect, Line, Arc, Text } from 'react-konva';
 import { useLayoutStore } from '../../store/layoutStore';
 import { usePickAt } from '../../hooks/usePickAt';
 import { useSelectedCabinetId } from '../../hooks/useSelection';
 import { computeRoomScale } from '../../lib/canvasScale';
 import { useCollisions } from '../../hooks/useCollisions';
+import { useCabinetClearance } from '../../hooks/useCabinetClearance';
 import { detectCollisions } from '../../lib/collision';
+import { detectCabinetReachConflicts, cabinetReachMm, cornerCutSign } from '../../lib/cabinetClearance';
+import { touchesFloor } from '../../lib/surfaceAreas';
+import { currentFootprintRect } from '../../lib/footprint';
+import { defaultFrontLayout } from '../../types/front';
 import { rotateCabinet, getFootprint } from '../../lib/cabinetGeometry';
 import { snapCabinetFootprint } from '../../lib/cabinetSnapping';
 import type { ModuleType } from '../../types/cabinet';
@@ -55,6 +60,25 @@ export interface CabinetLayerProps {
   maxWidthPx?: number;
   maxHeightPx?: number;
   gridSnapMm?: number; // should match the active RoomLayout.gridSnapMm
+  // Hides the width×depth×height text (module type label stays either
+  // way, same as ObstacleLayer/ApplianceLayer always show their own
+  // type label) — a busy layout with several cabinets in a row gets
+  // dense fast. Shared with RemainingSpaceLayer's own toggle in
+  // App.tsx: both are the same category of always-on numeric overlay.
+  showDimensions?: boolean;
+  // Global masters, same session-only shape as showDimensions — OFF
+  // means the same thing here it does for a per-item ignoreOverlap/
+  // ignoreClearance (lib/collision.ts, lib/cabinetClearance.ts): no
+  // red/amber highlight, and for clearance, no zone/arc drawn either,
+  // not just an un-highlighted one. Detection itself keeps running
+  // either way (collidingCabinetIds/blockedCabinetIds are still
+  // correct) — only the display is gated, same as every other
+  // "warn, never block" surface in this app. Each individual item's
+  // own ignoreOverlap/ignoreClearance still applies underneath this;
+  // the global toggle only ever hides MORE, never overrides a mute
+  // back into showing something the item itself asked to suppress.
+  showOverlapWarnings?: boolean;
+  showClearanceWarnings?: boolean;
 }
 
 // Translucent (not solid) on purpose — a wall cabinet placed over a
@@ -69,13 +93,153 @@ const MODULE_COLORS: Record<ModuleType, string> = {
   'tall-unit': 'rgba(253, 230, 138, 0.65)',
   'sink-unit': 'rgba(165, 243, 252, 0.65)',
   'cylinder-trolley': 'rgba(251, 207, 232, 0.65)',
-  'corner-unit': 'rgba(254, 202, 202, 0.65)',
   'drawer-unit': 'rgba(221, 214, 254, 0.65)',
+  // Three distinct reds/pinks rather than one shared 'corner-unit'
+  // shade — they're genuinely different cabinets now, not variations
+  // on a theme.
+  'corner-blind': 'rgba(254, 202, 202, 0.65)',
+  'corner-magic': 'rgba(253, 164, 175, 0.65)',
+  'corner-carousel': 'rgba(252, 165, 165, 0.65)',
 };
 
 const COLLISION_OVERLAY_FILL = 'rgba(220, 38, 38, 0.45)'; // red-600 @ 45%
 const COLLISION_STROKE = '#dc2626';
 const SELECTION_STROKE = '#2563eb'; // blue-600
+// amber-600 — same colour ObstacleLayer already uses for "blocks a
+// door's swing", so the two "warning, not error" clearance concepts
+// read as one visual language rather than two.
+const CLEARANCE_STROKE = '#d97706';
+const CLEARANCE_ZONE_FILL = 'rgba(217, 119, 6, 0.18)';
+
+// Only the CAROUSEL corner unit gets the diagonal cut — a magic
+// corner and a blind corner are both built as a plain rectangular
+// carcass with an ordinary door (the mechanism/shelves are inside),
+// same as any other cabinet, and need no special shape at all. The
+// carousel's rotating lazy-susan tray is what actually wants diagonal
+// access. FOOTPRINT stays a plain rotatable square either way —
+// collision, magnet-snapping and hit-testing all keep working
+// unchanged, since the corner it occupies is real floor space either
+// way (this is how the physical unit is actually built too: a big
+// square carcass with a diagonal DOOR replacing what would otherwise
+// be two perpendicular front faces meeting in a point). Only the
+// on-screen SHAPE changes, cutting the local bottom-right corner —
+// by convention, the same corner rotationDeg's existing ±90° buttons
+// already spin to face whichever wall corner the cabinet actually sits
+// in, so no new field is needed.
+const CORNER_CAROUSEL_CUT_FRACTION = 0.4;
+
+function cornerCarouselPoints(widthPx: number, depthPx: number): number[] {
+  const cutW = widthPx * CORNER_CAROUSEL_CUT_FRACTION;
+  const cutD = depthPx * CORNER_CAROUSEL_CUT_FRACTION;
+  return [
+    0, 0,
+    widthPx, 0,
+    widthPx, depthPx - cutD,
+    widthPx - cutW, depthPx,
+    0, depthPx,
+  ];
+}
+
+// Door swing zones used to be drawn as their own bounding rectangle —
+// reported as looking wrong twice over (once for sitting on the wrong
+// side, once for floating off the cabinet after that got fixed),
+// because a straight-edged box was never going to read as "a door".
+// OpeningLayer.tsx already solved exactly this for room doors: keep
+// the rectangle for the actual clearance CHECK (cheap, exact, and
+// deliberately a bit larger than the true sweep — see
+// lib/cabinetClearance.ts), but draw a real quarter-circle arc plus
+// the leaf itself for what the eye sees. This mirrors that pattern for
+// cabinet doors, including the carousel's diagonal one — the
+// rectangle itself is never drawn for a swinging door; a straight
+// pull-out (drawers/trolley) has no arc to draw and keeps the
+// rectangle, since a rectangle IS the honest shape of a pull-out.
+interface DoorArc {
+  pivotXPx: number;
+  pivotYPx: number;
+  radiusPx: number;
+  rotationDeg: number;
+}
+
+// LOCAL frame (before the Group's own rotation prop reorients it) —
+// mirrors OpeningLayer.tsx's swingGeometry exactly, just pivoting off
+// the cabinet's own front edge (local y = depthPx) instead of a room
+// wall. Both leaves always open toward local +Y (into the room), same
+// as a room door's leaf always opens into the room regardless of
+// which side it's hinged.
+function localDoorArcs(
+  kind: 'single-door' | 'double-door',
+  hinge: 'left' | 'right' | undefined,
+  widthPx: number,
+  depthPx: number
+): DoorArc[] {
+  if (kind === 'single-door') {
+    const hingedLeft = hinge !== 'right';
+    return [
+      {
+        pivotXPx: hingedLeft ? 0 : widthPx,
+        pivotYPx: depthPx,
+        radiusPx: widthPx,
+        rotationDeg: hingedLeft ? 0 : 90,
+      },
+    ];
+  }
+  return [
+    { pivotXPx: 0, pivotYPx: depthPx, radiusPx: widthPx / 2, rotationDeg: 0 },
+    { pivotXPx: widthPx, pivotYPx: depthPx, radiusPx: widthPx / 2, rotationDeg: 90 },
+  ];
+}
+
+interface CarouselDoorArc {
+  pivotXMm: number;
+  pivotYMm: number;
+  radiusMm: number;
+  rotationDeg: number;
+  leafEndXMm: number;
+  leafEndYMm: number;
+}
+
+// ROOM-SPACE (no Group rotation to lean on here — see the note on
+// carouselZone lower down). Pivots at the diagonal edge's own corner
+// nearest (Xcut, Yother) and sweeps 90° to the outward normal, radius
+// = the diagonal edge's own length — "along the diagonal for the
+// length of the carousel's door," per the report this replaced a
+// floating rectangle for. The two boundary angles (the edge's own
+// direction, and its outward normal) are always exactly 90° apart by
+// construction; which one is the Konva `rotation` (sweep START) vs.
+// the far bound flips with rotationDeg — verified numerically across
+// all four rotations rather than assumed, and it always comes down to
+// whether signX and signY carry the SAME sign (0°/180°) or opposite
+// signs (90°/270°).
+function carouselDoorArc(
+  footprint: { x: number; y: number; widthMm: number; depthMm: number },
+  rotationDeg: number
+): CarouselDoorArc {
+  const { signX, signY } = cornerCutSign(rotationDeg);
+  const cutW = footprint.widthMm * CORNER_CAROUSEL_CUT_FRACTION;
+  const cutD = footprint.depthMm * CORNER_CAROUSEL_CUT_FRACTION;
+  const edgeLenMm = Math.hypot(cutW, cutD);
+
+  const xCut = signX > 0 ? footprint.x + footprint.widthMm : footprint.x;
+  const yCut = signY > 0 ? footprint.y + footprint.depthMm : footprint.y;
+  const p3 = { x: xCut, y: yCut - signY * cutD };
+  const p4 = { x: xCut - signX * cutW, y: yCut };
+
+  const edgeAngleDeg = (Math.atan2(p4.y - p3.y, p4.x - p3.x) * 180) / Math.PI;
+  const nx = (signX * cutD) / edgeLenMm;
+  const ny = (signY * cutW) / edgeLenMm;
+  const normalAngleDeg = (Math.atan2(ny, nx) * 180) / Math.PI;
+
+  const rotationDeg2 = signX * signY > 0 ? normalAngleDeg : edgeAngleDeg;
+
+  return {
+    pivotXMm: p3.x,
+    pivotYMm: p3.y,
+    radiusMm: edgeLenMm,
+    rotationDeg: rotationDeg2,
+    leafEndXMm: p3.x + nx * edgeLenMm,
+    leafEndYMm: p3.y + ny * edgeLenMm,
+  };
+}
 
 interface DragState {
   cabinetId: string;
@@ -89,6 +253,9 @@ export function CabinetLayer({
   maxWidthPx = 800,
   maxHeightPx = 600,
   gridSnapMm = 50,
+  showDimensions = true,
+  showOverlapWarnings = true,
+  showClearanceWarnings = true,
 }: CabinetLayerProps) {
   const cabinets = useLayoutStore((state) => state.cabinets);
   const pickAt = usePickAt();
@@ -117,6 +284,17 @@ export function CabinetLayer({
       ).collidingCabinetIds
     : committedCollidingIds;
 
+  // Same live-during-drag treatment as collision above, for the
+  // softer door/drawer-reach warning (lib/cabinetClearance.ts).
+  const { blockedCabinetIds: committedBlockedCabinetIds } = useCabinetClearance();
+  const blockedCabinetIds = dragState
+    ? detectCabinetReachConflicts(
+        cabinets.map((c) =>
+          c.id === dragState.cabinetId ? { ...c, x: dragState.xMm, y: dragState.yMm } : c
+        )
+      ).blockedCabinetIds
+    : committedBlockedCabinetIds;
+
   const { scale, originX, originY } = computeRoomScale(
     widthMm,
     depthMm,
@@ -131,8 +309,59 @@ export function CabinetLayer({
         const depthPx = item.depthMm * scale;
         const centerX = originX + item.x * scale + widthPx / 2;
         const centerY = originY + item.y * scale + depthPx / 2;
-        const isColliding = collidingCabinetIds.has(item.id);
+        // Global masters gate DISPLAY only — collidingCabinetIds/
+        // blockedCabinetIds themselves are unaffected, same "detection
+        // always runs, only the warning can be hidden" split every
+        // per-item ignoreOverlap/ignoreClearance already uses.
+        const isColliding = showOverlapWarnings && collidingCabinetIds.has(item.id);
+        // A physical overlap is the more urgent problem, so it wins
+        // the highlight when both are true for the same cabinet.
+        const isClearanceBlocked =
+          !isColliding && showClearanceWarnings && blockedCabinetIds.has(item.id);
         const isSelected = item.id === selectedCabinetId;
+        const strokeColor = isColliding
+          ? COLLISION_STROKE
+          : isClearanceBlocked
+            ? CLEARANCE_STROKE
+            : '#374151';
+
+        // How far this cabinet's door/drawer reaches into the room —
+        // see lib/cabinetClearance.ts. Wall-mounted cabinets never get
+        // one — a door swinging at ~1450mm up doesn't block the
+        // floor-level space this check protects, same reasoning
+        // detectCabinetReachConflicts filters them out for. Gated on
+        // showClearanceWarnings too: off means no zone/arc drawn at
+        // all, not just an un-highlighted one — same as an item that
+        // muted itself with ignoreClearance.
+        const itemFrontLayout = item.frontLayout ?? defaultFrontLayout(item.moduleType, item.widthMm);
+        const onFloor = showClearanceWarnings && touchesFloor(item.elevationMm);
+
+        // A swinging door gets a real arc (below); only a straight
+        // pull-out (drawers/trolley), or a mixed front (kept simple
+        // rather than picking a row's hinge to arc), falls back to
+        // the plain rectangle a pull-out is honestly shaped like.
+        const isSwingingDoor =
+          item.moduleType !== 'corner-carousel' &&
+          (itemFrontLayout.kind === 'single-door' || itemFrontLayout.kind === 'double-door');
+        const reachMm = onFloor && item.moduleType !== 'corner-carousel' && !isSwingingDoor
+          ? cabinetReachMm(item, itemFrontLayout)
+          : 0;
+        const reachPx = reachMm * scale;
+
+        const localArcs =
+          onFloor &&
+          item.moduleType !== 'corner-carousel' &&
+          (itemFrontLayout.kind === 'single-door' || itemFrontLayout.kind === 'double-door')
+            ? localDoorArcs(itemFrontLayout.kind, itemFrontLayout.hinge, widthPx, depthPx)
+            : [];
+
+        // ROOM-SPACE (not local — see carouselDoorArc's own comment):
+        // drawn as a sibling of this item's Group rather than a child
+        // of it, since it must NOT inherit the Group's rotation.
+        const carouselArc =
+          item.moduleType === 'corner-carousel' && onFloor
+            ? carouselDoorArc(currentFootprintRect(item), item.rotationDeg)
+            : null;
 
         // Effective on-canvas footprint for the CURRENT rotation — used
         // for boundary clamping so a rotated cabinet's true extent is
@@ -144,8 +373,8 @@ export function CabinetLayer({
         );
 
         return (
+          <Fragment key={item.id}>
           <Group
-            key={item.id}
             x={centerX}
             y={centerY}
             offsetX={widthPx / 2}
@@ -253,29 +482,114 @@ export function CabinetLayer({
               to the wrong spot (and out of sync with the stored,
               correctly-clamped x/y).
             */}
-            <Rect
-              x={0}
-              y={0}
-              width={widthPx}
-              height={depthPx}
-              fill={MODULE_COLORS[item.moduleType]}
-              stroke={isColliding ? COLLISION_STROKE : '#374151'}
-              strokeWidth={isColliding ? 2.5 : 1}
-              dash={isColliding ? [5, 3] : undefined}
-              cornerRadius={2}
-            />
+            {item.moduleType === 'corner-carousel' ? (
+              <>
+                <Line
+                  points={cornerCarouselPoints(widthPx, depthPx)}
+                  closed
+                  fill={MODULE_COLORS[item.moduleType]}
+                  stroke={strokeColor}
+                  strokeWidth={isColliding || isClearanceBlocked ? 2.5 : 1}
+                  dash={isColliding || isClearanceBlocked ? [5, 3] : undefined}
+                />
+                {isColliding && (
+                  <Line
+                    points={cornerCarouselPoints(widthPx, depthPx)}
+                    closed
+                    fill={COLLISION_OVERLAY_FILL}
+                    listening={false}
+                  />
+                )}
+              </>
+            ) : (
+              <>
+                <Rect
+                  x={0}
+                  y={0}
+                  width={widthPx}
+                  height={depthPx}
+                  fill={MODULE_COLORS[item.moduleType]}
+                  stroke={strokeColor}
+                  strokeWidth={isColliding || isClearanceBlocked ? 2.5 : 1}
+                  dash={isColliding || isClearanceBlocked ? [5, 3] : undefined}
+                  cornerRadius={2}
+                />
 
-            {isColliding && (
+                {isColliding && (
+                  <Rect
+                    x={0}
+                    y={0}
+                    width={widthPx}
+                    height={depthPx}
+                    fill={COLLISION_OVERLAY_FILL}
+                    listening={false}
+                  />
+                )}
+              </>
+            )}
+
+            {/* Reach zone for a straight PULL-OUT (drawers/trolley) —
+                a rectangle is the honest shape of that, unlike a
+                swinging door. Always drawn when it opens into the
+                room at all, same "see the arc before it's a problem"
+                choice OpeningLayer already makes for a room door's
+                swing zone — light and easy to ignore normally,
+                switching to the stronger amber the moment it's
+                actually crossing another cabinet's own zone or box.
+                listening=false so it never steals the cabinet's own
+                drag/click target. */}
+            {reachPx > 0 && (
               <Rect
                 x={0}
-                y={0}
+                y={depthPx}
                 width={widthPx}
-                height={depthPx}
-                fill={COLLISION_OVERLAY_FILL}
+                height={reachPx}
+                fill={isClearanceBlocked ? CLEARANCE_ZONE_FILL : 'rgba(107, 114, 128, 0.08)'}
+                stroke={isClearanceBlocked ? CLEARANCE_STROKE : 'rgba(107, 114, 128, 0.3)'}
+                strokeWidth={1}
+                dash={[4, 3]}
                 listening={false}
               />
             )}
 
+            {/* A swinging door instead gets a real quarter-circle arc
+                plus the leaf itself at 90° open — same treatment
+                OpeningLayer.tsx already gives a room door's swing,
+                for the same reason: a rectangle never reads as "a
+                door". The CHECK still uses the wider rectangle
+                internally (lib/cabinetClearance.ts) — this is
+                deliberately a bit smaller than that, same "truthful
+                for the eye" trade-off. */}
+            {localArcs.map((arc, arcIndex) => (
+              <Group key={arcIndex} listening={false}>
+                <Arc
+                  x={arc.pivotXPx}
+                  y={arc.pivotYPx}
+                  innerRadius={0}
+                  outerRadius={arc.radiusPx}
+                  angle={90}
+                  rotation={arc.rotationDeg}
+                  fill={isClearanceBlocked ? CLEARANCE_ZONE_FILL : 'rgba(107, 114, 128, 0.08)'}
+                  stroke={isClearanceBlocked ? CLEARANCE_STROKE : 'rgba(107, 114, 128, 0.3)'}
+                  strokeWidth={1}
+                  dash={[4, 3]}
+                />
+                <Line
+                  points={[arc.pivotXPx, arc.pivotYPx, arc.pivotXPx, arc.pivotYPx + arc.radiusPx]}
+                  stroke={isClearanceBlocked ? CLEARANCE_STROKE : 'rgba(107, 114, 128, 0.45)'}
+                  strokeWidth={1.5}
+                />
+              </Group>
+            ))}
+
+            {/* Dimensions on their own line, always visible rather than
+                on hover/click — Principle 5 in docs/PRINCIPLES.md: a
+                designer sitting beside a customer needs to read the
+                kitchen off the screen, not go hunting for a number.
+                showDimensions=false still shows the module type (same
+                as ObstacleLayer/ApplianceLayer always show their own
+                type label) — only the width×depth×height line is
+                what's cluttering a dense layout. */}
             <Text
               x={0}
               y={0}
@@ -283,8 +597,13 @@ export function CabinetLayer({
               height={depthPx}
               align="center"
               verticalAlign="middle"
-              text={item.moduleType}
-              fontSize={10}
+              text={
+                showDimensions
+                  ? `${item.moduleType}\n${item.widthMm}×${item.depthMm}×${item.heightMm}mm`
+                  : item.moduleType
+              }
+              fontSize={9}
+              lineHeight={1.3}
               fill="#1f2937"
               listening={false}
             />
@@ -307,6 +626,40 @@ export function CabinetLayer({
               />
             )}
           </Group>
+
+          {/* Carousel door swing: NOT nested in the Group above — its
+              coordinates are already absolute room-space (see
+              carouselDoorArc's own comment), so it must not inherit
+              that Group's rotation. Same arc-plus-leaf treatment
+              every other swinging door gets, just anchored to the
+              diagonal edge instead of a straight one. */}
+          {carouselArc && (
+            <Group listening={false}>
+              <Arc
+                x={originX + carouselArc.pivotXMm * scale}
+                y={originY + carouselArc.pivotYMm * scale}
+                innerRadius={0}
+                outerRadius={carouselArc.radiusMm * scale}
+                angle={90}
+                rotation={carouselArc.rotationDeg}
+                fill={isClearanceBlocked ? CLEARANCE_ZONE_FILL : 'rgba(107, 114, 128, 0.08)'}
+                stroke={isClearanceBlocked ? CLEARANCE_STROKE : 'rgba(107, 114, 128, 0.3)'}
+                strokeWidth={1}
+                dash={[4, 3]}
+              />
+              <Line
+                points={[
+                  originX + carouselArc.pivotXMm * scale,
+                  originY + carouselArc.pivotYMm * scale,
+                  originX + carouselArc.leafEndXMm * scale,
+                  originY + carouselArc.leafEndYMm * scale,
+                ]}
+                stroke={isClearanceBlocked ? CLEARANCE_STROKE : 'rgba(107, 114, 128, 0.45)'}
+                strokeWidth={1.5}
+              />
+            </Group>
+          )}
+          </Fragment>
         );
       })}
     </Layer>

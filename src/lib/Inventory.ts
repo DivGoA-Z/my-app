@@ -27,6 +27,7 @@ interface CabinetCatalogRow {
   front_layout: CatalogItem['frontLayout'] | null;
   handle_id: string | null;
   unit_price: number;
+  business_id: string;
   created_at: string;
   updated_at: string;
 }
@@ -40,6 +41,7 @@ interface ObstaclePresetRow {
   floor_to_ceiling: boolean;
   height_mm: number;
   elevation_mm: number;
+  business_id: string;
   created_at: string;
   updated_at: string;
 }
@@ -59,7 +61,13 @@ interface ApplianceCatalogRow {
   model_rotation_x_deg: number | null;
   model_rotation_y_deg: number | null;
   model_rotation_z_deg: number | null;
+  // Sink rows only — see the note on sinkCutoutWidthMm/DepthMm in
+  // types/Catalog.ts. Nullable so existing rows need no backfill; null
+  // reads as "no cutout".
+  sink_cutout_width_mm: number | null;
+  sink_cutout_depth_mm: number | null;
   unit_price: number;
+  business_id: string;
   created_at: string;
   updated_at: string;
 }
@@ -83,7 +91,7 @@ function rowToCatalogItem(row: CabinetCatalogRow): CatalogItem {
   };
 }
 
-function catalogItemToRow(item: CatalogItem): CabinetCatalogRow {
+function catalogItemToRow(item: CatalogItem, businessId: string): CabinetCatalogRow {
   return {
     id: item.id,
     category: item.category,
@@ -97,6 +105,7 @@ function catalogItemToRow(item: CatalogItem): CabinetCatalogRow {
     front_layout: item.frontLayout ?? null,
     handle_id: item.handleId ?? null,
     unit_price: item.unitPrice,
+    business_id: businessId,
     created_at: item.createdAt,
     updated_at: new Date().toISOString(), // bumped on every save
   };
@@ -117,7 +126,7 @@ function rowToObstaclePreset(row: ObstaclePresetRow): ObstaclePreset {
   };
 }
 
-function obstaclePresetToRow(preset: ObstaclePreset): ObstaclePresetRow {
+function obstaclePresetToRow(preset: ObstaclePreset, businessId: string): ObstaclePresetRow {
   return {
     id: preset.id,
     label: preset.label,
@@ -127,6 +136,7 @@ function obstaclePresetToRow(preset: ObstaclePreset): ObstaclePresetRow {
     floor_to_ceiling: preset.floorToCeiling,
     height_mm: preset.heightMm,
     elevation_mm: preset.elevationMm,
+    business_id: businessId,
     created_at: preset.createdAt,
     updated_at: new Date().toISOString(), // bumped on every save
   };
@@ -145,13 +155,18 @@ function rowToApplianceCatalogItem(row: ApplianceCatalogRow): ApplianceCatalogIt
     modelRotationXDeg: row.model_rotation_x_deg ?? undefined,
     modelRotationYDeg: row.model_rotation_y_deg ?? undefined,
     modelRotationZDeg: row.model_rotation_z_deg ?? undefined,
+    sinkCutoutWidthMm: row.sink_cutout_width_mm ?? undefined,
+    sinkCutoutDepthMm: row.sink_cutout_depth_mm ?? undefined,
     unitPrice: row.unit_price,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
 
-function applianceCatalogItemToRow(item: ApplianceCatalogItem): ApplianceCatalogRow {
+function applianceCatalogItemToRow(
+  item: ApplianceCatalogItem,
+  businessId: string
+): ApplianceCatalogRow {
   return {
     id: item.id,
     label: item.label,
@@ -164,7 +179,10 @@ function applianceCatalogItemToRow(item: ApplianceCatalogItem): ApplianceCatalog
     model_rotation_x_deg: item.modelRotationXDeg ?? null,
     model_rotation_y_deg: item.modelRotationYDeg ?? null,
     model_rotation_z_deg: item.modelRotationZDeg ?? null,
+    sink_cutout_width_mm: item.sinkCutoutWidthMm ?? null,
+    sink_cutout_depth_mm: item.sinkCutoutDepthMm ?? null,
     unit_price: item.unitPrice,
+    business_id: businessId,
     created_at: item.createdAt,
     updated_at: new Date().toISOString(), // bumped on every save
   };
@@ -186,14 +204,35 @@ export async function fetchCabinetCatalog(): Promise<CatalogItem[]> {
 }
 
 // Upsert — used for both "add new" (caller generates a fresh id) and
-// "edit existing" (same id, new field values).
-export async function saveCabinetCatalogItem(item: CatalogItem): Promise<void> {
+// "edit existing" (same id, new field values). `businessId` required,
+// no default — see projectToRow's comment in lib/Persistence.ts.
+export async function saveCabinetCatalogItem(item: CatalogItem, businessId: string): Promise<void> {
   const { error } = await supabase
     .from('cabinet_catalog_items')
-    .upsert(catalogItemToRow(item));
+    .upsert(catalogItemToRow(item, businessId));
 
   if (error) {
     throw new Error(`Failed to save catalog item: ${error.message}`);
+  }
+}
+
+// One `.upsert()` call with the WHOLE batch, not a loop of one-row
+// saves — Postgres executes a multi-row upsert as a single statement,
+// which is what makes this genuinely atomic: if any row in the batch
+// fails a constraint, the entire batch rolls back rather than leaving
+// a partial import committed. Used by the Excel bulk-import review
+// grid's "Commit" step (src/lib/importExport/cabinetImportExport.ts).
+export async function saveCabinetCatalogItemsBulk(
+  items: CatalogItem[],
+  businessId: string
+): Promise<void> {
+  if (items.length === 0) return;
+  const { error } = await supabase
+    .from('cabinet_catalog_items')
+    .upsert(items.map((item) => catalogItemToRow(item, businessId)));
+
+  if (error) {
+    throw new Error(`Failed to save catalog items: ${error.message}`);
   }
 }
 
@@ -201,6 +240,19 @@ export async function deleteCabinetCatalogItem(id: string): Promise<void> {
   const { error } = await supabase.from('cabinet_catalog_items').delete().eq('id', id);
   if (error) {
     throw new Error(`Failed to delete catalog item: ${error.message}`);
+  }
+}
+
+// One statement deleting every id at once — used by the Excel
+// import's explicit "DELETE" column (see lib/importExport/
+// xlsxHelpers.ts). No businessId needed: RLS's delete policy already
+// restricts this to the caller's own rows regardless of what ids are
+// asked for.
+export async function deleteCabinetCatalogItemsBulk(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const { error } = await supabase.from('cabinet_catalog_items').delete().in('id', ids);
+  if (error) {
+    throw new Error(`Failed to delete catalog items: ${error.message}`);
   }
 }
 
@@ -218,13 +270,30 @@ export async function fetchObstaclePresets(): Promise<ObstaclePreset[]> {
   return (data as ObstaclePresetRow[]).map(rowToObstaclePreset);
 }
 
-export async function saveObstaclePreset(preset: ObstaclePreset): Promise<void> {
+export async function saveObstaclePreset(preset: ObstaclePreset, businessId: string): Promise<void> {
   const { error } = await supabase
     .from('obstacle_presets')
-    .upsert(obstaclePresetToRow(preset));
+    .upsert(obstaclePresetToRow(preset, businessId));
 
   if (error) {
     throw new Error(`Failed to save obstacle preset: ${error.message}`);
+  }
+}
+
+// Same reasoning as saveCabinetCatalogItemsBulk above — one
+// multi-row upsert, genuinely atomic, used by the obstacle preset
+// Excel import's "Commit" step.
+export async function saveObstaclePresetsBulk(
+  presets: ObstaclePreset[],
+  businessId: string
+): Promise<void> {
+  if (presets.length === 0) return;
+  const { error } = await supabase
+    .from('obstacle_presets')
+    .upsert(presets.map((preset) => obstaclePresetToRow(preset, businessId)));
+
+  if (error) {
+    throw new Error(`Failed to save obstacle presets: ${error.message}`);
   }
 }
 
@@ -232,6 +301,15 @@ export async function deleteObstaclePreset(id: string): Promise<void> {
   const { error } = await supabase.from('obstacle_presets').delete().eq('id', id);
   if (error) {
     throw new Error(`Failed to delete obstacle preset: ${error.message}`);
+  }
+}
+
+// Same reasoning as deleteCabinetCatalogItemsBulk above.
+export async function deleteObstaclePresetsBulk(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const { error } = await supabase.from('obstacle_presets').delete().in('id', ids);
+  if (error) {
+    throw new Error(`Failed to delete obstacle presets: ${error.message}`);
   }
 }
 
@@ -250,13 +328,31 @@ export async function fetchApplianceCatalog(): Promise<ApplianceCatalogItem[]> {
   return (data as ApplianceCatalogRow[]).map(rowToApplianceCatalogItem);
 }
 
-export async function saveApplianceCatalogItem(item: ApplianceCatalogItem): Promise<void> {
+export async function saveApplianceCatalogItem(
+  item: ApplianceCatalogItem,
+  businessId: string
+): Promise<void> {
   const { error } = await supabase
     .from('appliance_catalog_items')
-    .upsert(applianceCatalogItemToRow(item));
+    .upsert(applianceCatalogItemToRow(item, businessId));
 
   if (error) {
     throw new Error(`Failed to save appliance catalog item: ${error.message}`);
+  }
+}
+
+// Same reasoning as saveCabinetCatalogItemsBulk above.
+export async function saveApplianceCatalogItemsBulk(
+  items: ApplianceCatalogItem[],
+  businessId: string
+): Promise<void> {
+  if (items.length === 0) return;
+  const { error } = await supabase
+    .from('appliance_catalog_items')
+    .upsert(items.map((item) => applianceCatalogItemToRow(item, businessId)));
+
+  if (error) {
+    throw new Error(`Failed to save appliance catalog items: ${error.message}`);
   }
 }
 
@@ -264,5 +360,14 @@ export async function deleteApplianceCatalogItem(id: string): Promise<void> {
   const { error } = await supabase.from('appliance_catalog_items').delete().eq('id', id);
   if (error) {
     throw new Error(`Failed to delete appliance catalog item: ${error.message}`);
+  }
+}
+
+// Same reasoning as deleteCabinetCatalogItemsBulk above.
+export async function deleteApplianceCatalogItemsBulk(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const { error } = await supabase.from('appliance_catalog_items').delete().in('id', ids);
+  if (error) {
+    throw new Error(`Failed to delete appliance catalog items: ${error.message}`);
   }
 }

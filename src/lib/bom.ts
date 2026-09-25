@@ -19,7 +19,7 @@
 
 import type { PlacedCabinetItem } from '../types/cabinet';
 import { defaultFrontLayout, FRONT_KIND_LABELS, resolveHandle } from '../types/front';
-import type { HandleSpec } from '../types/front';
+import type { FrontLayout, HandleSpec } from '../types/front';
 import { effectiveHardware } from './fronts';
 import type { SurfaceFinish } from '../types/finish';
 import { resolveFinish, findFinish } from '../types/finish';
@@ -27,6 +27,7 @@ import { describeFinish } from './materials3d';
 import type { PlacedApplianceItem, ApplianceType } from '../types/appliance';
 import type { RoomLayout, WallOrientation } from '../types/layout';
 import { computeRoomSurfaceAreas } from './surfaceAreas';
+import { countertopAreaSqM } from './cabinetGeometry';
 import { voidAreaMm2 } from './openings';
 import { OPENING_KIND_LABELS } from '../types/opening';
 import { resolveAllFixtures, fixtureQuantity } from './fixtures';
@@ -139,12 +140,33 @@ export interface FixtureLineItem {
   note?: string;
 }
 
+// The countertop/slab, as ONE line for the whole layout — a kitchen's
+// slab is one continuous material, same reasoning as floor/ceiling
+// being a single finish rather than per-cabinet. Null when no
+// countertop finish has been assigned, or its catalogue row was
+// deleted — same "omit rather than show a misleading zero" rule
+// buildSurfaceLineItems uses for floor/wall/ceiling.
+//
+// Same optional-charge shape as FixtureLineItem/fixtureSpecifiedTotal,
+// for the same market reason: in Delhi NCR the kitchen business usually
+// doesn't supply the slab, the homeowner arranges stone separately. So
+// this always carries its real rate and specifiedTotal even when
+// priceCountertop is off — the global toggle decides whether that
+// number reaches countertopSubtotal, not whether the line exists.
+export interface CountertopLineItem {
+  finish: string;
+  areaSqM: number;
+  rate: number;
+  specifiedTotal: number;
+}
+
 export interface BOMSummary {
   lineItems: BOMLineItem[];
   applianceLineItems: ApplianceLineItem[];
   surfaceLineItems: SurfaceLineItem[];
   openingLineItems: OpeningLineItem[];
   fixtureLineItems: FixtureLineItem[];
+  countertopLineItem: CountertopLineItem | null;
   materialSubtotal: number;
   finishSubtotal: number;
   hardwareSubtotal: number;
@@ -159,6 +181,10 @@ export interface BOMSummary {
   // out by toggling.
   fixtureSubtotal: number;
   fixtureSpecifiedTotal: number;
+  // Same shape as fixtureSubtotal/fixtureSpecifiedTotal — zero unless
+  // layout.priceCountertop is on.
+  countertopSubtotal: number;
+  countertopSpecifiedTotal: number;
   grandTotal: number;
 }
 
@@ -304,6 +330,14 @@ export function calculateBOM(
   // specification with honest numbers next to a zero charge.
   const fixtureSubtotal = layout?.priceElectrical ? fixtureSpecifiedTotal : 0;
 
+  const countertopLineItem = layout
+    ? buildCountertopLineItem(layout, items, finishes)
+    : null;
+  const countertopSpecifiedTotal = countertopLineItem?.specifiedTotal ?? 0;
+  // Same treatment as fixtureSubtotal — the global switch decides
+  // whether the real number reaches the charge, not whether the line
+  // exists or what rate it shows.
+  const countertopSubtotal = layout?.priceCountertop ? countertopSpecifiedTotal : 0;
 
   return {
     lineItems,
@@ -311,6 +345,7 @@ export function calculateBOM(
     surfaceLineItems,
     openingLineItems,
     fixtureLineItems,
+    countertopLineItem,
     materialSubtotal: sum(lineItems, (l) => l.materialCost),
     finishSubtotal: sum(lineItems, (l) => l.finishCost),
     hardwareSubtotal: sum(lineItems, (l) => l.hardwareCost),
@@ -320,12 +355,15 @@ export function calculateBOM(
     openingSubtotal,
     fixtureSubtotal,
     fixtureSpecifiedTotal,
+    countertopSubtotal,
+    countertopSpecifiedTotal,
     grandTotal:
       sum(lineItems, (l) => l.lineTotal) +
       applianceSubtotal +
       surfaceSubtotal +
       openingSubtotal +
-      fixtureSubtotal,
+      fixtureSubtotal +
+      countertopSubtotal,
   };
 }
 
@@ -343,16 +381,28 @@ const HARDWARE_LABELS: Record<string, string> = {
   handle: 'Handles',
   basket: 'Wire baskets',
   shelf: 'Shelves',
+  cornerMagic: 'Magic corner mechanism',
+  cornerCarousel: 'Carousel / lazy susan mechanism',
 };
 
-function describeFront(layout: { kind: keyof typeof FRONT_KIND_LABELS; count?: number }): string {
-  const base = FRONT_KIND_LABELS[layout.kind];
+function describeFrontRow(row: { kind: keyof typeof FRONT_KIND_LABELS; count?: number }): string {
+  const base = FRONT_KIND_LABELS[row.kind];
   // Only the count-driven kinds get a number appended — "Double door
   // x2" would read as two cabinets.
-  if (layout.kind === 'drawers' || layout.kind === 'open-shelf' || layout.kind === 'trolley') {
-    return `${base} x${layout.count ?? 1}`;
+  if (row.kind === 'drawers' || row.kind === 'open-shelf' || row.kind === 'trolley') {
+    return `${base} x${row.count ?? 1}`;
   }
   return base;
+}
+
+function describeFront(layout: FrontLayout): string {
+  // "Open shelves x1 + Drawers x2" — each row named the same way a
+  // plain (non-mixed) front already is, joined in the stored top-to-
+  // bottom order.
+  if (layout.kind === 'mixed') {
+    return (layout.rows ?? []).map(describeFrontRow).join(' + ');
+  }
+  return describeFrontRow(layout);
 }
 
 const WALL_LABELS: Record<WallOrientation, string> = {
@@ -484,4 +534,26 @@ function buildSurfaceLineItems(
   ];
 
   return rows.filter((row): row is SurfaceLineItem => row !== null);
+}
+
+function buildCountertopLineItem(
+  layout: RoomLayout,
+  cabinets: PlacedCabinetItem[],
+  finishes: SurfaceFinish[]
+): CountertopLineItem | null {
+  // No finish assigned, or its catalogue row was since deleted — same
+  // "omit rather than show a misleading number" rule the surface lines
+  // above use.
+  const finish = findFinish(finishes, layout.countertopFinishId);
+  if (!finish) return null;
+
+  const areaSqM = countertopAreaSqM(cabinets);
+  const rate = finish.pricePerSqM ?? 0;
+
+  return {
+    finish: describeFinish(finish),
+    areaSqM,
+    rate,
+    specifiedTotal: areaSqM * rate,
+  };
 }

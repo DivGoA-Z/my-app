@@ -1,7 +1,7 @@
 // src/components/inventory/RateCardManager.tsx
 //
-// Edits the business's rate card: labour per sq ft, and the four
-// consumable hardware rates.
+// Edits the business's rate card: labour per sq ft, and the
+// consumable/mechanism hardware rates.
 //
 // Unlike every other manager in this folder there is no list, no add
 // and no delete — the rate card is one row that is edited. So this is a
@@ -13,6 +13,8 @@
 // Someone will otherwise send one.
 
 import { useState } from 'react';
+import { toast } from 'sonner';
+import { Button } from '../ui/button';
 import { useLayoutStore } from '../../store/layoutStore';
 import {
   PLACEHOLDER_RATES,
@@ -21,7 +23,14 @@ import {
   type RateCard,
 } from '../../types/rates';
 
-const HARDWARE_KEYS: CardPricedHardware[] = ['hinge', 'channel', 'basket', 'shelf'];
+const HARDWARE_KEYS: CardPricedHardware[] = [
+  'hinge',
+  'channel',
+  'basket',
+  'shelf',
+  'cornerMagic',
+  'cornerCarousel',
+];
 
 export function RateCardManager() {
   const rateCard = useLayoutStore((state) => state.rateCard);
@@ -78,8 +87,11 @@ export function RateCardManager() {
     setError(null);
     try {
       await updateRateCard(draft);
+      toast.success('Rates saved');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save rates.');
+      const message = err instanceof Error ? err.message : 'Failed to save rates.';
+      setError(message);
+      toast.error('Failed to save rates', { description: message });
     } finally {
       setSaving(false);
     }
@@ -150,22 +162,19 @@ export function RateCardManager() {
       {error && <p className="text-xs text-red-600">{error}</p>}
 
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={save}
-          disabled={!dirty || saving}
-          className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white disabled:bg-gray-300"
-        >
+        <Button type="button" size="sm" onClick={save} disabled={!dirty || saving}>
           {saving ? 'Saving…' : 'Save rates'}
-        </button>
+        </Button>
         {dirty && !saving && (
-          <button
+          <Button
             type="button"
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-xs text-muted-foreground"
             onClick={() => setDraft(rateCard)}
-            className="text-xs text-gray-500 underline"
           >
             Discard changes
-          </button>
+          </Button>
         )}
       </div>
 

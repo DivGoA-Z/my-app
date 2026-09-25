@@ -15,14 +15,28 @@
 // customer is holding.
 
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { useLayoutStore } from '../../store/layoutStore';
 import { useQuoteStatus } from '../../hooks/useQuoteStatus';
+import { generateQuotePdfBlob } from '../../lib/quotePdf';
+import { uploadQuotePdf } from '../../lib/quotePdfStorage';
+import { buildWhatsAppLink } from '../../lib/whatsapp';
+import { downloadBlob } from '../../lib/downloadBlob';
+import type { FrozenQuote } from '../../types/quote';
+import type { CustomerProject } from '../../types/customer';
 
 const INR = new Intl.NumberFormat('en-IN', {
   style: 'currency',
   currency: 'INR',
   maximumFractionDigits: 0,
 });
+
+function buildWhatsAppMessage(quote: FrozenQuote, project: CustomerProject, pdfUrl: string): string {
+  return (
+    `Hi ${project.clientName}, here's your kitchen quote (v${quote.version}): ` +
+    `${INR.format(quote.grandTotal)} total.\n\nView/download the PDF: ${pdfUrl}`
+  );
+}
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-IN', {
@@ -42,6 +56,17 @@ export function QuoteFreezePanel() {
   const { status, latest } = useQuoteStatus();
   const [note, setNote] = useState('');
   const [showNote, setShowNote] = useState(false);
+  // Which export is in flight, if any — distinct from isFreezingQuote,
+  // since exporting an already-frozen quote is a read of it, not a
+  // write, and shouldn't compete with that button's own disabled state.
+  const [exporting, setExporting] = useState<'pdf' | 'whatsapp' | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+  // Where to send THIS share — never written to the project or
+  // anywhere else, purely a one-off override for this click. Resets
+  // itself for free just by being ordinary component state: switching
+  // projects (or reloading) remounts this panel with fresh defaults.
+  const [sendTarget, setSendTarget] = useState<'stored' | 'other'>('stored');
+  const [otherPhone, setOtherPhone] = useState('');
 
   // Reload whenever the open project changes — quotes are per project,
   // so carrying the previous project's list over would show one
@@ -57,6 +82,57 @@ export function QuoteFreezePanel() {
     if (frozen) {
       setNote('');
       setShowNote(false);
+      toast.success(`Quote v${frozen.version} frozen`);
+    } else {
+      // The inline `quoteError` paragraph below stays as the persistent
+      // detail; the toast is what actually gets NOTICED regardless of
+      // scroll position, per PRINCIPLES.md's "silence after clicking is
+      // the most common reason users click twice."
+      toast.error('Failed to freeze quote', {
+        description: useLayoutStore.getState().quoteError ?? undefined,
+      });
+    }
+  }
+
+  async function downloadPdf() {
+    if (!latest || !currentProject) return;
+    setExportError(null);
+    setExporting('pdf');
+    try {
+      const blob = generateQuotePdfBlob(latest, currentProject);
+      downloadBlob(blob, `${currentProject.clientName} — kitchen quote v${latest.version}.pdf`);
+      toast.success('PDF downloaded');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to generate PDF.';
+      setExportError(message);
+      toast.error('Failed to generate PDF', { description: message });
+    } finally {
+      setExporting(null);
+    }
+  }
+
+  async function shareOnWhatsApp() {
+    if (!latest || !currentProject) return;
+    const targetPhone = sendTarget === 'other' ? otherPhone.trim() : currentProject.phone;
+    if (!targetPhone) return;
+
+    setExportError(null);
+    setExporting('whatsapp');
+    try {
+      const blob = generateQuotePdfBlob(latest, currentProject);
+      const pdfUrl = await uploadQuotePdf(currentProject.id, latest.version, blob);
+      const message = buildWhatsAppMessage(latest, currentProject, pdfUrl);
+      // Opens in a new tab rather than navigating away from the
+      // canvas — a designer sending a quote is usually mid-session,
+      // not done with it.
+      window.open(buildWhatsAppLink(targetPhone, message), '_blank');
+      toast.success('Opening WhatsApp…');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to share quote.';
+      setExportError(errorMessage);
+      toast.error('Failed to share quote', { description: errorMessage });
+    } finally {
+      setExporting(null);
     }
   }
 
@@ -92,6 +168,61 @@ export function QuoteFreezePanel() {
           ) : (
             <p className="mt-1.5">Matches the current design.</p>
           )}
+
+          <div className="mt-2 flex flex-col gap-1 text-[11px] text-gray-600">
+            <span>Send WhatsApp to:</span>
+            <label className="flex items-center gap-1.5">
+              <input
+                type="radio"
+                name="quote-send-target"
+                checked={sendTarget === 'stored'}
+                onChange={() => setSendTarget('stored')}
+              />
+              {currentProject.phone} (on file)
+            </label>
+            <label className="flex items-center gap-1.5">
+              <input
+                type="radio"
+                name="quote-send-target"
+                checked={sendTarget === 'other'}
+                onChange={() => setSendTarget('other')}
+              />
+              A different number, just this once
+            </label>
+            {sendTarget === 'other' && (
+              <input
+                type="tel"
+                value={otherPhone}
+                onChange={(e) => setOtherPhone(e.target.value)}
+                placeholder="+91-XXXXX-XXXXX"
+                autoFocus
+                // Deliberately not persisted anywhere — this is a
+                // one-off override for this share, not saved to the
+                // project, so it's gone the moment this panel unmounts.
+                className="rounded border border-gray-300 px-2 py-1 text-[11px]"
+              />
+            )}
+          </div>
+
+          <div className="mt-2 flex gap-2">
+            <button
+              type="button"
+              onClick={downloadPdf}
+              disabled={exporting !== null}
+              className="flex-1 rounded border border-current px-2 py-1.5 text-[11px] font-medium disabled:opacity-50"
+            >
+              {exporting === 'pdf' ? 'Generating…' : 'Download PDF'}
+            </button>
+            <button
+              type="button"
+              onClick={shareOnWhatsApp}
+              disabled={exporting !== null || (sendTarget === 'other' && otherPhone.trim() === '')}
+              className="flex-1 rounded bg-emerald-600 px-2 py-1.5 text-[11px] font-medium text-white disabled:bg-gray-300"
+            >
+              {exporting === 'whatsapp' ? 'Preparing…' : 'Share on WhatsApp'}
+            </button>
+          </div>
+          {exportError && <p className="mt-1.5 text-[11px] text-red-600">{exportError}</p>}
         </div>
       )}
 

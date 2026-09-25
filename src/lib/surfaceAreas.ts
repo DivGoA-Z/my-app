@@ -133,7 +133,7 @@ function cabinetFootprint(item: PlacedCabinetItem): FootprintRect {
   return currentFootprintRect(item);
 }
 
-function touchesFloor(elevationMm: number): boolean {
+export function touchesFloor(elevationMm: number): boolean {
   return elevationMm <= WALL_CONTACT_TOLERANCE_MM;
 }
 
@@ -252,12 +252,7 @@ function wallAreas(
   const claims: Claim[] = [];
 
   for (const obstacle of layout.obstacles) {
-    const rect = {
-      x: obstacle.x,
-      y: obstacle.y,
-      widthMm: obstacle.widthMm,
-      depthMm: obstacle.depthMm,
-    };
+    const rect = currentFootprintRect(obstacle);
     if (!isAgainstWall(orientation, rect, widthMm, depthMm)) continue;
 
     const heightMm = obstacle.floorToCeiling ? ceilingHeightMm : obstacle.heightMm;
@@ -316,4 +311,234 @@ export function computeRoomSurfaceAreas(
       west: wallAreas('west', layout, cabinets, appliances),
     },
   };
+}
+
+// ---- Remaining floor space along each wall ----
+//
+// "How much room is left to fit another cabinet" — the gaps between
+// floor-touching cabinets/obstacles run along a wall, plus the leftover
+// at each end. Genuinely different from the area functions above, which
+// deliberately let overlapping footprints double-count (see the KNOWN
+// SIMPLIFICATION note at the top of this file): a gap can't tolerate
+// that — two occupants that overlap along the wall's run axis have to
+// be merged into ONE occupied span first, or the "gap" between them
+// would be negative or simply wrong.
+//
+// Which horizontal band along the wall this gap belongs to. A wall
+// cabinet floating above a base run doesn't block anything at floor
+// level and vice versa — they're two independent runs, and a business
+// checking "does this fit" needs the numbers for the one it's actually
+// placing next, not a floor-level number that happens to sit under a
+// wall cabinet on the top-down plan (see the 'wall' band's own doc
+// comment on computeWallGaps below for the bug this was confused with).
+export type WallGapBand = 'floor' | 'wall';
+
+export interface WallGap {
+  orientation: WallOrientation;
+  band: WallGapBand;
+  // Position along the wall's run axis (x for north/south, y for
+  // east/west) where the gap starts, and how long it runs — both in mm,
+  // in the SAME room coordinates cabinets are placed in.
+  startMm: number;
+  lengthMm: number;
+}
+
+// Only excludes true floating-point noise (a "gap" of 0.0001mm from a
+// footprint subtraction), never a real leftover strip. This used to be
+// 20mm, on the reasoning that a small gap was probably snap-tolerance
+// noise rather than something worth labelling — but that's Principle
+// 10 in docs/PRINCIPLES.md backwards: a business trying to verify "does
+// this all fit in 3371mm" by adding up the labelled numbers got 3367mm,
+// because a genuine 4mm gap was silently dropped. Approximation is
+// allowed here (mm-scale slop from a drag is real), but hiding it isn't
+// — every gap that actually exists gets a label, however small.
+const MIN_GAP_MM = 1;
+
+function mergeSpans(spans: { start: number; end: number }[]): { start: number; end: number }[] {
+  if (spans.length === 0) return [];
+  const sorted = [...spans].sort((a, b) => a.start - b.start);
+  const merged = [{ ...sorted[0] }];
+  for (const span of sorted.slice(1)) {
+    const last = merged[merged.length - 1];
+    if (span.start <= last.end) {
+      last.end = Math.max(last.end, span.end);
+    } else {
+      merged.push({ ...span });
+    }
+  }
+  return merged;
+}
+
+// band='floor': gaps between floor-touching items — the original
+// behaviour, and the one RemainingSpaceLayer used to show exclusively.
+// band='wall': gaps between WALL-MOUNTED cabinets (elevationMm above
+// tolerance) along the same wall.
+//
+// These were conflated for a while by accident, not by design: a wall
+// cabinet drawn in top-down plan view sits at the same x/y as whatever
+// is (or isn't) on the floor beneath it, so a floor-band gap label can
+// visually sit right next to a wall cabinet while describing something
+// underneath it that has nothing to do with that cabinet. Reported as
+// "the plan says 18mm, the wall elevation says 7mm for the same
+// cabinet" — both numbers were correct, just for two different bands.
+// Computing them as two explicit, separately-labelled passes instead
+// of one band no one asked to disambiguate is the actual fix.
+//
+// A floor-to-ceiling obstacle occupies BOTH bands (it blocks a wall
+// cabinet run exactly as much as it blocks a base run); anything else
+// belongs to whichever single band its elevationMm puts it in.
+export function computeWallGaps(
+  layout: RoomLayout,
+  cabinets: PlacedCabinetItem[],
+  band: WallGapBand = 'floor'
+): WallGap[] {
+  const { widthMm: roomWidthMm, depthMm: roomDepthMm } = layout.dimensions;
+  const orientations: WallOrientation[] = ['north', 'south', 'east', 'west'];
+  const gaps: WallGap[] = [];
+
+  for (const orientation of orientations) {
+    const wallLengthMm = orientation === 'north' || orientation === 'south' ? roomWidthMm : roomDepthMm;
+
+    const occupiedSpans: { start: number; end: number }[] = [];
+
+    for (const cabinet of cabinets) {
+      const inFloorBand = touchesFloor(cabinet.elevationMm);
+      if (band === 'floor' ? !inFloorBand : inFloorBand) continue;
+      const rect = cabinetFootprint(cabinet);
+      if (!isAgainstWall(orientation, rect, roomWidthMm, roomDepthMm)) continue;
+      const start = orientation === 'north' || orientation === 'south' ? rect.x : rect.y;
+      occupiedSpans.push({ start, end: start + extentAlongWall(orientation, rect) });
+    }
+
+    for (const obstacle of layout.obstacles) {
+      const inFloorBand = obstacle.floorToCeiling || touchesFloor(obstacle.elevationMm);
+      const inWallBand = obstacle.floorToCeiling || !touchesFloor(obstacle.elevationMm);
+      if (band === 'floor' ? !inFloorBand : !inWallBand) continue;
+      const rect = currentFootprintRect(obstacle);
+      if (!isAgainstWall(orientation, rect, roomWidthMm, roomDepthMm)) continue;
+      const start = orientation === 'north' || orientation === 'south' ? rect.x : rect.y;
+      occupiedSpans.push({ start, end: start + extentAlongWall(orientation, rect) });
+    }
+
+    const merged = mergeSpans(occupiedSpans);
+
+    let cursor = 0;
+    for (const span of merged) {
+      if (span.start - cursor >= MIN_GAP_MM) {
+        gaps.push({ orientation, band, startMm: cursor, lengthMm: span.start - cursor });
+      }
+      cursor = Math.max(cursor, span.end);
+    }
+    if (wallLengthMm - cursor >= MIN_GAP_MM) {
+      gaps.push({ orientation, band, startMm: cursor, lengthMm: wallLengthMm - cursor });
+    }
+  }
+
+  return gaps;
+}
+
+// ---- Wall elevation (front-on outline view) ----
+//
+// Everything on one wall, in the wall's own 2D frame: how far along the
+// wall (from its start — see WallOpening.offsetMm's comment, same axis
+// convention) and how high off the floor. This is genuinely different
+// data from the plan's top-down x/y — it's what WallElevationView draws
+// a straight-on outline from, so a wall-mounted cabinet's actual height
+// is something you can SEE rather than infer from two numbers, which is
+// what the top-down "remaining space" labels above structurally can't
+// do (they have no way to express "this gap is only tall-unit-clear if
+// nothing above it is in the way").
+export type WallElevationItemKind = 'cabinet' | 'appliance' | 'obstacle' | 'opening';
+
+export interface WallElevationItem {
+  kind: WallElevationItemKind;
+  id: string;
+  label: string;
+  alongMm: number; // distance from the wall's start to this item's near edge
+  extentMm: number; // size along the wall
+  bottomMm: number; // height of the bottom face off the floor
+  topMm: number; // height of the top face off the floor
+  // How far the item projects OUT from the wall — meaningless for an
+  // opening (a hole has no depth), present for everything else.
+  depthMm?: number;
+}
+
+export function computeWallElevationItems(
+  orientation: WallOrientation,
+  layout: RoomLayout,
+  cabinets: PlacedCabinetItem[],
+  appliances: PlacedApplianceItem[]
+): WallElevationItem[] {
+  const { widthMm: roomWidthMm, depthMm: roomDepthMm } = layout.dimensions;
+  const ceilingHeightMm = layout.dimensions.ceilingHeightMm ?? DEFAULT_CEILING_HEIGHT_MM;
+  const items: WallElevationItem[] = [];
+
+  const alongOf = (rect: { x: number; y: number }): number =>
+    orientation === 'north' || orientation === 'south' ? rect.x : rect.y;
+
+  // How far the item projects OUT from the wall into the room — the
+  // rotated footprint's extent on whichever axis ISN'T the wall's run
+  // axis.
+  const projectionOf = (rect: { widthMm: number; depthMm: number }): number =>
+    orientation === 'north' || orientation === 'south' ? rect.depthMm : rect.widthMm;
+
+  for (const cabinet of cabinets) {
+    const rect = cabinetFootprint(cabinet);
+    if (!isAgainstWall(orientation, rect, roomWidthMm, roomDepthMm)) continue;
+    items.push({
+      kind: 'cabinet',
+      id: cabinet.id,
+      label: cabinet.moduleType,
+      alongMm: alongOf(rect),
+      extentMm: extentAlongWall(orientation, rect),
+      bottomMm: cabinet.elevationMm,
+      topMm: cabinet.elevationMm + cabinet.heightMm,
+      depthMm: projectionOf(rect),
+    });
+  }
+
+  for (const appliance of appliances) {
+    const rect = applianceFootprint(appliance);
+    if (!isAgainstWall(orientation, rect, roomWidthMm, roomDepthMm)) continue;
+    items.push({
+      kind: 'appliance',
+      id: appliance.id,
+      label: appliance.applianceType,
+      alongMm: alongOf(rect),
+      extentMm: extentAlongWall(orientation, rect),
+      bottomMm: appliance.elevationMm,
+      topMm: appliance.elevationMm + appliance.heightMm,
+      depthMm: projectionOf(rect),
+    });
+  }
+
+  for (const obstacle of layout.obstacles) {
+    const rect = currentFootprintRect(obstacle);
+    if (!isAgainstWall(orientation, rect, roomWidthMm, roomDepthMm)) continue;
+    items.push({
+      kind: 'obstacle',
+      id: obstacle.id,
+      label: obstacle.type,
+      alongMm: alongOf(rect),
+      extentMm: extentAlongWall(orientation, rect),
+      bottomMm: obstacle.floorToCeiling ? 0 : obstacle.elevationMm,
+      topMm: obstacle.floorToCeiling ? ceilingHeightMm : obstacle.elevationMm + obstacle.heightMm,
+      depthMm: projectionOf(rect),
+    });
+  }
+
+  const wall = layout.walls.find((w) => w.orientation === orientation);
+  for (const opening of wall?.openings ?? []) {
+    items.push({
+      kind: 'opening',
+      id: opening.id,
+      label: opening.kind,
+      alongMm: opening.offsetMm,
+      extentMm: opening.widthMm,
+      bottomMm: opening.sillMm,
+      topMm: opening.sillMm + opening.heightMm,
+    });
+  }
+
+  return items;
 }

@@ -21,6 +21,7 @@ import type { CameraNode } from '../../types/Camera';
 import { fetchCustomers, createCustomer, updateCustomerStatus } from '../../lib/customers';
 import { fetchCapturedPanoramasByProject } from '../../lib/Persistence';
 import { PanoramaViewerModal } from '../panorama/PanoramaViewerModal';
+import { useAuthStore } from '../../store/authStore';
 
 export interface CustomerDashboardProps {
   onOpenCanvas: (projectId: string) => void;
@@ -58,6 +59,7 @@ interface NewLeadForm {
 const EMPTY_FORM: NewLeadForm = { clientName: '', phone: '', address: '', locality: '' };
 
 export function CustomerDashboard({ onOpenCanvas }: CustomerDashboardProps) {
+  const businessId = useAuthStore((s) => s.businessId);
   const [customers, setCustomers] = useState<CustomerProject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -141,10 +143,14 @@ export function CustomerDashboard({ onOpenCanvas }: CustomerDashboardProps) {
       setCreateError('Client name and phone are required.');
       return;
     }
+    if (!businessId) {
+      setCreateError('No business found for this account — sign out and back in, or check business_users.');
+      return;
+    }
     setIsCreating(true);
     setCreateError(null);
     try {
-      const created = await createCustomer(form);
+      const created = await createCustomer(form, businessId);
       setCustomers((prev) => [created, ...prev]);
       setForm(EMPTY_FORM);
       setIsFormOpen(false);

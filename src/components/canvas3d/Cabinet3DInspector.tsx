@@ -36,8 +36,10 @@ const MODULE_TYPE_LABELS: Record<string, string> = {
   'tall-unit': 'Tall Unit',
   'sink-unit': 'Sink Unit',
   'cylinder-trolley': 'Cylinder Trolley',
-  'corner-unit': 'Corner Unit',
   'drawer-unit': 'Drawer Unit',
+  'corner-blind': 'Corner Unit (blind, fixed shelves)',
+  'corner-magic': 'Corner Unit (magic corner)',
+  'corner-carousel': 'Corner Unit (carousel)',
 };
 
 export interface Cabinet3DInspectorProps {

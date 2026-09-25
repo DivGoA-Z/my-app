@@ -37,7 +37,12 @@ export interface NewLeadInput {
 // Every new customer starts life as a 'Lead' — that's the entry point
 // of the pipeline (Lead -> Layout Drafted -> Quote Sent -> Approved ->
 // In Production), not something the caller chooses.
-export async function createCustomer(input: NewLeadInput): Promise<CustomerProject> {
+//
+// `businessId` required, no default — see projectToRow's own comment.
+export async function createCustomer(
+  input: NewLeadInput,
+  businessId: string
+): Promise<CustomerProject> {
   const now = new Date().toISOString();
   const newProject: CustomerProject = {
     id: crypto.randomUUID(),
@@ -53,7 +58,7 @@ export async function createCustomer(input: NewLeadInput): Promise<CustomerProje
     updatedAt: now,
   };
 
-  const { error } = await supabase.from('projects').insert(projectToRow(newProject));
+  const { error } = await supabase.from('projects').insert(projectToRow(newProject, businessId));
   if (error) {
     throw new Error(`Failed to create customer: ${error.message}`);
   }

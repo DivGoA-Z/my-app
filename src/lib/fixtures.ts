@@ -22,6 +22,7 @@ import type {
 import { findFixtureItem, isLinear, defaultThrowFor } from '../types/fixture';
 import type { ThrowDirection } from '../types/fixture';
 import { defaultFrontLayout, clampCount } from '../types/front';
+import type { FrontKind, FrontRowKind, FrontRowLayout } from '../types/front';
 import { currentFootprintRect } from './footprint';
 import { hasCountertop } from './cabinetGeometry';
 
@@ -583,9 +584,22 @@ export function fixtureQuantity(
 // where a bare "1" is not.
 export function cabinetDrawerCount(cabinet: PlacedCabinetItem): number {
   const layout = cabinet.frontLayout ?? defaultFrontLayout(cabinet.moduleType, cabinet.widthMm);
-  if (layout.kind === 'drawers') return clampCount(layout.count);
+  return drawerCountForRow(layout.kind, layout.count, layout.kind === 'mixed' ? layout.rows : undefined);
+}
+
+// Recurses once for 'mixed' — a row can't itself be 'mixed' (see
+// FrontRowKind in types/front.ts), so this never goes deeper than two
+// levels.
+function drawerCountForRow(
+  kind: FrontKind | FrontRowKind,
+  count: number | undefined,
+  rows: FrontRowLayout[] | undefined
+): number {
   // A trolley's tiers are pull-outs and take a light each in practice.
-  if (layout.kind === 'trolley') return clampCount(layout.count);
+  if (kind === 'drawers' || kind === 'trolley') return clampCount(count);
+  if (kind === 'mixed') {
+    return (rows ?? []).reduce((sum, row) => sum + drawerCountForRow(row.kind, row.count, undefined), 0);
+  }
   return 0;
 }
 

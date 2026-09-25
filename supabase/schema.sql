@@ -19,6 +19,89 @@
 -- in the sample data), so Postgres doesn't need to generate or validate
 -- them as true UUIDs.
 
+-- ============================================================
+-- BUSINESSES + AUTH (multi-tenancy foundation)
+-- ============================================================
+--
+-- Every table below gets a `business_id` column (added right after its
+-- own `create table`) and, near the end of this file, RLS policies
+-- scoped to it. Split across two places rather than one because a
+-- column can only be added AFTER its table exists, but the backfill
+-- that follows needs to run AFTER every table's seed data has been
+-- inserted — otherwise freshly-seeded rows would still be null when
+-- the NOT NULL constraint lands. See the "BUSINESS ISOLATION (RLS)"
+-- block at the end of this file for that half.
+--
+-- One business exists today (seeded below as 'biz_default'). There is
+-- deliberately no self-serve sign-up here — see docs/PRINCIPLES.md's
+-- "honest sequencing problem": building onboarding for OTHER
+-- businesses before one actually exists is exactly the speculative
+-- work that section warns against. Your own login and business
+-- membership are a short manual step — see docs/SUPABASE_SETUP.md.
+create table if not exists public.businesses (
+  id text primary key,
+  name text not null,
+  created_at timestamptz not null default now()
+);
+
+-- Join table, not a single business_id column on auth.users — a user
+-- belonging to a business is a fact that can change (a second person
+-- joins, someone leaves, a role changes) independently of the user's
+-- own identity. `role` exists from day one so adding a second person
+-- to a business later, or giving someone a different level of access,
+-- is a new ROW here, never a schema change — that's the concrete
+-- reason this table exists even though it holds exactly one row today.
+-- Nothing in the app enforces `role` yet (see docs/PRINCIPLES.md); it
+-- is reserved for when a business has more than one login.
+create table if not exists public.business_users (
+  business_id text not null references public.businesses(id),
+  user_id uuid not null references auth.users(id),
+  role text not null default 'owner',
+  created_at timestamptz not null default now(),
+  primary key (business_id, user_id)
+);
+
+alter table public.business_users enable row level security;
+drop policy if exists "Users can read their own membership" on public.business_users;
+create policy "Users can read their own membership" on public.business_users
+  for select using (user_id = auth.uid());
+
+-- The one thing every other table's RLS policy needs to ask: "which
+-- business is the signed-in user in?" A plain (not security definer)
+-- function is enough — it runs as the calling role, and that role
+-- already has read access to its OWN row via the policy just above.
+create or replace function public.current_business_id()
+returns text
+language sql
+stable
+as $$
+  select business_id from public.business_users where user_id = auth.uid() limit 1;
+$$;
+
+insert into public.businesses (id, name) values ('biz_default', 'My Business')
+on conflict (id) do nothing;
+
+-- Support/debugging access for you as the SOFTWARE owner, distinct
+-- from being a member of any one business (that's business_users
+-- above). Locked down harder than every other table here: RLS is
+-- enabled with NO policies at all, so nothing can read this table
+-- directly through the API, not even the row's own user — only the
+-- security-definer function below can, which is what makes it safe to
+-- expose "am I a super admin" without also exposing who else is.
+create table if not exists public.super_admins (
+  user_id uuid primary key references auth.users(id)
+);
+alter table public.super_admins enable row level security;
+
+create or replace function public.is_super_admin()
+returns boolean
+language sql
+stable
+security definer
+as $$
+  select exists (select 1 from public.super_admins where user_id = auth.uid());
+$$;
+
 create table if not exists public.projects (
   id text primary key,
   client_name text not null,
@@ -34,6 +117,8 @@ create table if not exists public.projects (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.projects add column if not exists business_id text references public.businesses(id);
 
 create table if not exists public.layouts (
   id text primary key,
@@ -66,6 +151,9 @@ create table if not exists public.layouts (
   floor_finish_id text,
   floor_concealed_finish_id text,
   ceiling_finish_id text,
+  -- One finish for every countertop in the layout (src/types/layout.ts
+  -- has the reasoning: a kitchen's slab is one continuous material).
+  countertop_finish_id text,
   grid_snap_mm integer not null default 50,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -82,6 +170,8 @@ alter table public.layouts add column if not exists appliances jsonb not null de
 alter table public.layouts add column if not exists floor_finish_id text;
 alter table public.layouts add column if not exists floor_concealed_finish_id text;
 alter table public.layouts add column if not exists ceiling_finish_id text;
+alter table public.layouts add column if not exists countertop_finish_id text;
+alter table public.layouts add column if not exists business_id text references public.businesses(id);
 
 create index if not exists layouts_project_id_idx on public.layouts (project_id);
 
@@ -153,6 +243,8 @@ create table if not exists public.surface_finishes (
   updated_at timestamptz not null default now()
 );
 
+alter table public.surface_finishes add column if not exists business_id text references public.businesses(id);
+
 -- The business's own inventory (src/types/Catalog.ts), managed from
 -- InventoryManager (src/components/inventory/InventoryManager.tsx) and
 -- read by CabinetToolbar/ObstacleToolbar/ApplianceToolbar. Replaces
@@ -160,20 +252,28 @@ create table if not exists public.surface_finishes (
 -- every business now builds and edits its own set instead of sharing
 -- one fixed catalog.
 --
--- NOTE: there's no business_id here (or on projects/layouts above) —
--- this schema currently assumes ONE business per Supabase project/app
--- deployment. If you later serve multiple businesses from one shared
--- database, add a `businesses` table and a `business_id` column to
--- all five tables here, plus real auth + RLS policies scoped to it
--- (see the security note below — this was left for later on purpose).
+-- CORRECTED: this comment used to say there was no business_id here
+-- and that this schema assumed one business per deployment. That is
+-- no longer true — see the BUSINESSES + AUTH block near the top of
+-- this file and BUSINESS ISOLATION (RLS) near the end. Left the
+-- history here rather than silently deleting it, per CLAUDE.md's own
+-- rule about correcting a wrong document in place.
 create table if not exists public.cabinet_catalog_items (
   id text primary key,
   category text not null,
   label text not null,
+  -- 'corner-unit' replaced by three distinct corner solutions — see
+  -- the ModuleType comment in src/types/cabinet.ts and DECISIONS.md's
+  -- "Three corner solutions" entry. `create table if not exists`
+  -- never touches an already-existing table's constraint, so an
+  -- existing database is migrated by the drop/re-add block further
+  -- down this file (search "three-corner-solution change"), not by
+  -- this inline definition.
   module_type text not null
     check (module_type in (
       'base-cabinet', 'wall-cabinet', 'tall-unit', 'sink-unit',
-      'cylinder-trolley', 'corner-unit', 'drawer-unit'
+      'cylinder-trolley', 'drawer-unit',
+      'corner-blind', 'corner-magic', 'corner-carousel'
     )),
   width_mm integer not null,
   depth_mm integer not null,
@@ -188,6 +288,8 @@ create table if not exists public.cabinet_catalog_items (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.cabinet_catalog_items add column if not exists business_id text references public.businesses(id);
 
 create table if not exists public.obstacle_presets (
   id text primary key,
@@ -218,6 +320,7 @@ create table if not exists public.obstacle_presets (
 -- install.
 alter table public.obstacle_presets add column if not exists height_mm integer not null default 900;
 alter table public.obstacle_presets add column if not exists elevation_mm integer not null default 0;
+alter table public.obstacle_presets add column if not exists business_id text references public.businesses(id);
 
 create table if not exists public.appliance_catalog_items (
   id text primary key,
@@ -254,6 +357,7 @@ alter table public.appliance_catalog_items
 alter table public.surface_finishes add column if not exists normal_map_url text;
 alter table public.surface_finishes add column if not exists roughness_map_url text;
 alter table public.appliance_catalog_items add column if not exists model_url text;
+alter table public.appliance_catalog_items add column if not exists business_id text references public.businesses(id);
 
 -- Fixed per-model orientation correction, in degrees, for a .glb that
 -- was exported facing the wrong way — a Blender export is Z-up where
@@ -291,20 +395,21 @@ alter table public.appliance_catalog_items add column if not exists model_rotati
 alter table public.appliance_catalog_items add column if not exists model_rotation_y_deg numeric;
 alter table public.appliance_catalog_items add column if not exists model_rotation_z_deg numeric;
 
--- SECURITY NOTE: the app has no user authentication yet, so there's no
--- concept of "this row belongs to this logged-in user" to write a Row
--- Level Security policy against. RLS is disabled here so the anon key
--- (used from the browser) can read/write freely. This is fine for local
--- development and demos ONLY — before any real deployment, add
--- authentication and RLS policies scoped to the authenticated user/org,
--- or at minimum move writes behind a server-side API route using the
--- service role key instead of the public anon key.
-alter table public.projects disable row level security;
-alter table public.layouts disable row level security;
-alter table public.surface_finishes disable row level security;
-alter table public.cabinet_catalog_items disable row level security;
-alter table public.obstacle_presets disable row level security;
-alter table public.appliance_catalog_items disable row level security;
+-- Sink rows only: the hole cut into the countertop for that sink,
+-- smaller than the sink's own width_mm/depth_mm by whatever rim that
+-- model needs. Nullable, no default — null means "no cutout", the
+-- pre-existing behaviour (basin sits on top of an uncut slab).
+alter table public.appliance_catalog_items add column if not exists sink_cutout_width_mm numeric;
+alter table public.appliance_catalog_items add column if not exists sink_cutout_depth_mm numeric;
+
+-- CORRECTED: this used to disable RLS on these six tables, back when
+-- there was no auth to write a policy against. That's no longer true —
+-- real auth exists now (see BUSINESSES + AUTH above) and these six
+-- tables' business_id backfill + NOT NULL + RLS policies are set up
+-- together with the other four tables in the BUSINESS ISOLATION (RLS)
+-- block at the end of this file, once every table's seed data (below)
+-- has actually run. Left this note in place rather than deleting it
+-- silently, per CLAUDE.md's rule on correcting a wrong document.
 
 
 -- ============================================================
@@ -315,37 +420,57 @@ alter table public.appliance_catalog_items disable row level security;
 -- src/lib/Persistence.ts).
 -- ============================================================
 
+-- business_id is set explicitly to 'biz_default' on every row below,
+-- not left to a column default — a column default would mean an app
+-- code path that forgot to pass businessId fails silently into
+-- 'biz_default' instead of a hard NOT NULL error, exactly the anti-
+-- pattern this file's PRICING RULES section already rejected once for
+-- calculateBOM's context parameter. These 9 seed inserts are the only
+-- place that's meant to write 'biz_default' by name.
+--
+-- Also fixes a real idempotency bug: `on conflict (id) do nothing`
+-- only suppresses a UNIQUE-constraint conflict — it does NOT suppress
+-- a NOT NULL violation, which Postgres checks before conflict
+-- resolution even runs. On a FRESH database this insert used to work
+-- by accident (business_id was still nullable at this point in the
+-- file); re-running the whole file against a database that already
+-- went through BUSINESS ISOLATION (RLS) below — where business_id was
+-- made NOT NULL — failed on every seed insert, even for rows that
+-- already existed and "on conflict do nothing" should have skipped
+-- outright.
 insert into public.projects
-  (id, client_name, phone, email, address, locality, status, assigned_to, notes, quote_total, created_at, updated_at)
+  (id, client_name, phone, email, address, locality, status, assigned_to, notes, quote_total, created_at, updated_at, business_id)
 values
   ('proj_001', 'Ananya Sharma', '+91-98765-43210', 'ananya.sharma@example.com',
    'B-42, Sector 21', 'Dwarka, Delhi', 'Quote Sent', 'designer_rahul',
    'Prefers acrylic finish, wants cylinder trolley near sink.', 61551,
-   '2026-07-10T09:30:00.000Z', '2026-08-20T14:05:00.000Z'),
+   '2026-07-10T09:30:00.000Z', '2026-08-20T14:05:00.000Z', 'biz_default'),
 
   ('proj_002', 'Rohan Mehta', '+91-98110-22334', null,
    'C-14, Sector 9', 'Rohini, Delhi', 'Lead', 'designer_rahul',
    'Called in after a site visit inquiry; layout not started.', null,
-   '2026-08-18T11:00:00.000Z', '2026-08-18T11:00:00.000Z'),
+   '2026-08-18T11:00:00.000Z', '2026-08-18T11:00:00.000Z', 'biz_default'),
 
   ('proj_003', 'Priya Kapoor', '+91-99887-65432', null,
    'Tower 4, DLF Phase 3', 'Gurgaon', 'Layout Drafted', 'designer_meera',
    'L-shaped kitchen, exposed pillar near the window.', null,
-   '2026-08-05T09:15:00.000Z', '2026-08-22T16:40:00.000Z'),
+   '2026-08-05T09:15:00.000Z', '2026-08-22T16:40:00.000Z', 'biz_default'),
 
   ('proj_004', 'Vikram Singh', '+91-97654-32109', null,
    'Sector 62', 'Noida', 'Approved', 'designer_rahul',
    'Approved with PU finish upgrade.', 84200,
-   '2026-07-22T13:20:00.000Z', '2026-08-25T10:05:00.000Z'),
+   '2026-07-22T13:20:00.000Z', '2026-08-25T10:05:00.000Z', 'biz_default'),
 
   ('proj_005', 'Neha Verma', '+91-96501-11223', null,
    'Sector 15', 'Faridabad', 'In Production', 'designer_meera',
    'Production started; cylinder trolley on backorder.', 132500,
-   '2026-06-30T08:00:00.000Z', '2026-08-27T12:00:00.000Z')
+   '2026-06-30T08:00:00.000Z', '2026-08-27T12:00:00.000Z', 'biz_default')
 on conflict (id) do nothing;
 
+-- business_id explicit here too, same reasoning as the projects seed
+-- above (this file's own note on it, just above that insert).
 insert into public.layouts
-  (id, project_id, name, width_mm, depth_mm, ceiling_height_mm, walls, obstacles, cabinets, appliances, cameras, grid_snap_mm, created_at, updated_at)
+  (id, project_id, name, width_mm, depth_mm, ceiling_height_mm, walls, obstacles, cabinets, appliances, cameras, grid_snap_mm, created_at, updated_at, business_id)
 values
   ('layout_001', 'proj_001', 'Kitchen - Ground Floor', 3000, 4000, 2700,
    '[
@@ -374,7 +499,7 @@ values
    '[
      {"id": "cam_001", "layoutId": "layout_001", "label": "Sink View", "x": 1500, "y": 800, "viewAngleDeg": 180, "heightMm": 1600, "createdAt": "2026-08-29T10:00:00.000Z", "updatedAt": "2026-08-29T10:00:00.000Z"}
    ]'::jsonb,
-   50, '2026-07-12T10:00:00.000Z', '2026-08-15T11:20:00.000Z')
+   50, '2026-07-12T10:00:00.000Z', '2026-08-15T11:20:00.000Z', 'biz_default')
 on conflict (id) do update set cameras = excluded.cameras, cabinets = excluded.cabinets, appliances = excluded.appliances;
 
 
@@ -402,21 +527,23 @@ on conflict (id) do update set cameras = excluded.cameras, cabinets = excluded.c
 --
 -- price_per_sq_m reflects the usual ordering in this market (acrylic
 -- dearest, laminate cheapest). Edit to match real rates.
+-- business_id explicit here too, same reasoning as the projects seed
+-- (see the note above that insert).
 insert into public.surface_finishes
   (id, label, finish_type_label, pattern_category, solid_color, procedural_kind,
    relief_strength, roughness, clearcoat, clearcoat_roughness, metalness,
-   swatch_width_mm, swatch_height_mm, tiling_mode, price_per_sq_m, source)
+   swatch_width_mm, swatch_height_mm, tiling_mode, price_per_sq_m, source, business_id)
 values
   ('finish_default_acrylic', 'White Gloss', 'Acrylic', 'solid', '#f2f0ec', null,
-   0, 0.15, 0.9, 0.10, 0.05, 300, 300, 'mirror', 2400, 'bundled'),
+   0, 0.15, 0.9, 0.10, 0.05, 300, 300, 'mirror', 2400, 'bundled', 'biz_default'),
   ('finish_default_pu', 'Ivory Satin', 'PU', 'solid', '#ece7de', null,
-   0, 0.25, 0.6, 0.20, 0.05, 300, 300, 'mirror', 1900, 'bundled'),
+   0, 0.25, 0.6, 0.20, 0.05, 300, 300, 'mirror', 1900, 'bundled', 'biz_default'),
   ('finish_default_laminate', 'Natural Oak', 'Laminate', 'wood', null, 'wood',
-   0.7, 0.45, 0, 0, 0.05, 1000, 1000, 'mirror', 900, 'bundled'),
+   0.7, 0.45, 0, 0, 0.05, 1000, 1000, 'mirror', 900, 'bundled', 'biz_default'),
   ('finish_default_membrane', 'Soft White', 'Membrane', 'solid', '#e8e4dc', null,
-   0, 0.55, 0, 0, 0.05, 300, 300, 'mirror', 1200, 'bundled'),
+   0, 0.55, 0, 0, 0.05, 300, 300, 'mirror', 1200, 'bundled', 'biz_default'),
   ('finish_default_veneer', 'Teak Veneer', 'Veneer', 'wood', null, 'wood',
-   0.7, 0.60, 0, 0, 0.05, 1000, 1000, 'mirror', 2100, 'bundled')
+   0.7, 0.60, 0, 0, 0.05, 1000, 1000, 'mirror', 2100, 'bundled', 'biz_default')
 on conflict (id) do nothing;
 
 -- ------------------------------------------------------------
@@ -485,6 +612,36 @@ begin
   end if;
 end $$;
 
+-- A database created before the three-corner-solution change
+-- (DECISIONS.md, "Three corner solutions, not one generic
+-- corner-unit") still has the OLD module_type check constraint,
+-- allowing 'corner-unit'. `create table if not exists` above is a
+-- no-op against a table that already exists, so it never applies the
+-- tightened constraint by itself — this drop/re-add is what actually
+-- does it. The one seed row that used to carry the old value
+-- (cat_corner_900) is removed first so `validate constraint` below
+-- has nothing left to fail on; a business's OWN catalog rows can't be
+-- affected, since the app's UI has never offered 'corner-unit' as an
+-- option to save one with. Safe to re-run: a database that already
+-- has the new constraint just re-validates the same, already-true one.
+delete from public.cabinet_catalog_items
+  where id = 'cat_corner_900' and module_type = 'corner-unit';
+
+do $$
+begin
+  alter table public.cabinet_catalog_items
+    drop constraint if exists cabinet_catalog_items_module_type_check;
+  alter table public.cabinet_catalog_items
+    add constraint cabinet_catalog_items_module_type_check
+    check (module_type in (
+      'base-cabinet', 'wall-cabinet', 'tall-unit', 'sink-unit',
+      'cylinder-trolley', 'drawer-unit',
+      'corner-blind', 'corner-magic', 'corner-carousel'
+    )) not valid;
+  alter table public.cabinet_catalog_items
+    validate constraint cabinet_catalog_items_module_type_check;
+end $$;
+
 -- NOTE on layouts.cabinets: placed cabinets live inside a JSONB array,
 -- and old entries still carry {"finish": "Acrylic", "color": "..."}.
 -- Those are migrated in the APP rather than here — normalizeCabinet in
@@ -493,47 +650,55 @@ end $$;
 -- Doing it in SQL as well would mean two places to keep in step for no
 -- extra safety.
 
+-- business_id explicit here too, same reasoning as the projects seed
+-- (see the note above that insert).
 insert into public.cabinet_catalog_items
-  (id, category, label, module_type, width_mm, depth_mm, height_mm, material, finish_id, unit_price)
+  (id, category, label, module_type, width_mm, depth_mm, height_mm, material, finish_id, unit_price, business_id)
 values
-  ('cat_base_600', 'Base', 'Base Cabinet (600mm)', 'base-cabinet', 600, 600, 850, 'HDMR', 'finish_default_laminate', 9500),
-  ('cat_sink_900', 'Base', 'Sink Unit (900mm)', 'sink-unit', 900, 600, 850, 'HDMR', 'finish_default_acrylic', 18500),
-  ('cat_cylinder_450', 'Base', 'Cylinder Trolley (450mm)', 'cylinder-trolley', 450, 600, 850, 'Plywood', 'finish_default_laminate', 9200),
-  ('cat_corner_900', 'Base', 'Corner Unit (900mm)', 'corner-unit', 900, 900, 850, 'HDMR', 'finish_default_laminate', 15800),
-  ('cat_drawer_450', 'Base', 'Drawer Unit (450mm)', 'drawer-unit', 450, 600, 850, 'MDF', 'finish_default_pu', 11200),
-  ('cat_wall_600', 'Wall', 'Wall Cabinet (600mm)', 'wall-cabinet', 600, 300, 700, 'MDF', 'finish_default_laminate', 8200),
-  ('cat_wall_900', 'Wall', 'Wall Cabinet (900mm)', 'wall-cabinet', 900, 300, 700, 'MDF', 'finish_default_pu', 12000),
-  ('cat_tall_600', 'Tall', 'Tall Unit (600mm)', 'tall-unit', 600, 600, 2100, 'HDMR', 'finish_default_laminate', 24500),
-  ('cat_tall_900', 'Tall', 'Tall Larder Unit (900mm)', 'tall-unit', 900, 600, 2100, 'HDMR', 'finish_default_pu', 32800)
+  ('cat_base_600', 'Base', 'Base Cabinet (600mm)', 'base-cabinet', 600, 600, 850, 'HDMR', 'finish_default_laminate', 9500, 'biz_default'),
+  ('cat_sink_900', 'Base', 'Sink Unit (900mm)', 'sink-unit', 900, 600, 850, 'HDMR', 'finish_default_acrylic', 18500, 'biz_default'),
+  ('cat_cylinder_450', 'Base', 'Cylinder Trolley (450mm)', 'cylinder-trolley', 450, 600, 850, 'Plywood', 'finish_default_laminate', 9200, 'biz_default'),
+  ('cat_corner_blind_900', 'Base', 'Corner Blind Unit (900mm)', 'corner-blind', 900, 900, 850, 'HDMR', 'finish_default_laminate', 15800, 'biz_default'),
+  ('cat_corner_magic_900', 'Base', 'Corner Magic Unit (900mm)', 'corner-magic', 900, 900, 850, 'HDMR', 'finish_default_laminate', 15800, 'biz_default'),
+  ('cat_corner_carousel_900', 'Base', 'Corner Carousel Unit (900mm)', 'corner-carousel', 900, 900, 850, 'HDMR', 'finish_default_laminate', 15800, 'biz_default'),
+  ('cat_drawer_450', 'Base', 'Drawer Unit (450mm)', 'drawer-unit', 450, 600, 850, 'MDF', 'finish_default_pu', 11200, 'biz_default'),
+  ('cat_wall_600', 'Wall', 'Wall Cabinet (600mm)', 'wall-cabinet', 600, 300, 700, 'MDF', 'finish_default_laminate', 8200, 'biz_default'),
+  ('cat_wall_900', 'Wall', 'Wall Cabinet (900mm)', 'wall-cabinet', 900, 300, 700, 'MDF', 'finish_default_pu', 12000, 'biz_default'),
+  ('cat_tall_600', 'Tall', 'Tall Unit (600mm)', 'tall-unit', 600, 600, 2100, 'HDMR', 'finish_default_laminate', 24500, 'biz_default'),
+  ('cat_tall_900', 'Tall', 'Tall Larder Unit (900mm)', 'tall-unit', 900, 600, 2100, 'HDMR', 'finish_default_pu', 32800, 'biz_default')
 on conflict (id) do nothing;
 
 -- The electrical panel preset demonstrates elevation_mm directly: 300mm
 -- tall, starting 1200mm off the floor (a typical switchboard mounting
 -- height) — nothing below it, unlike the pillar/shaft above which both
 -- start at the floor (elevation 0).
+-- business_id explicit here too, same reasoning as the projects seed
+-- (see the note above that insert).
 insert into public.obstacle_presets
-  (id, label, type, width_mm, depth_mm, floor_to_ceiling, height_mm, elevation_mm)
+  (id, label, type, width_mm, depth_mm, floor_to_ceiling, height_mm, elevation_mm, business_id)
 values
-  ('obs_preset_pillar_300', 'Standard Column', 'pillar', 300, 300, true, 2700, 0),
-  ('obs_preset_shaft_300x450', 'Plumbing Shaft', 'shaft', 300, 450, false, 900, 0),
-  ('obs_preset_elec_mid_wall', 'Mid-Wall Electrical Point', 'electrical-panel', 300, 100, false, 300, 1200)
+  ('obs_preset_pillar_300', 'Standard Column', 'pillar', 300, 300, true, 2700, 0, 'biz_default'),
+  ('obs_preset_shaft_300x450', 'Plumbing Shaft', 'shaft', 300, 450, false, 900, 0, 'biz_default'),
+  ('obs_preset_elec_mid_wall', 'Mid-Wall Electrical Point', 'electrical-panel', 300, 100, false, 300, 1200, 'biz_default')
 on conflict (id) do nothing;
 
 -- default_elevation_mm: stove/OTG/toaster sit flush on an 850mm
 -- countertop; oven is built into a tall unit at a comfortable reach
 -- height; chimney mounts well above the hob. All freely editable per
 -- row in InventoryManager — these are just sensible starting points.
+-- business_id explicit here too, same reasoning as the projects seed
+-- (see the note above that insert).
 insert into public.appliance_catalog_items
-  (id, label, appliance_type, width_mm, depth_mm, height_mm, default_elevation_mm, model_url, unit_price)
+  (id, label, appliance_type, width_mm, depth_mm, height_mm, default_elevation_mm, model_url, unit_price, business_id)
 values
-  ('app_cat_stove_600', '4-Burner Hob (600mm)', 'stove', 600, 550, 100, 850, null, 32000),
-  ('app_cat_chimney_600', 'Slimline Chimney (600mm)', 'chimney', 600, 400, 500, 1650, null, 21000),
-  ('app_cat_oven_600', 'Built-in Oven (600mm)', 'oven', 600, 550, 600, 850, null, 45000),
-  ('app_cat_otg_450', 'OTG (450mm)', 'otg', 450, 400, 450, 850, null, 12000),
-  ('app_cat_toaster_300', 'Toaster (300mm)', 'toaster', 300, 300, 300, 850, null, 3500),
+  ('app_cat_stove_600', '4-Burner Hob (600mm)', 'stove', 600, 550, 100, 850, null, 32000, 'biz_default'),
+  ('app_cat_chimney_600', 'Slimline Chimney (600mm)', 'chimney', 600, 400, 500, 1650, null, 21000, 'biz_default'),
+  ('app_cat_oven_600', 'Built-in Oven (600mm)', 'oven', 600, 550, 600, 850, null, 45000, 'biz_default'),
+  ('app_cat_otg_450', 'OTG (450mm)', 'otg', 450, 400, 450, 850, null, 12000, 'biz_default'),
+  ('app_cat_toaster_300', 'Toaster (300mm)', 'toaster', 300, 300, 300, 850, null, 3500, 'biz_default'),
   -- Sits at counter height inside a sink-unit cabinet's footprint.
   ('app_cat_sink_single', 'Single Bowl Sink (600mm)', 'sink', 600, 450, 200, 850,
-   '/models/kitchen-sink.glb', 8500)
+   '/models/kitchen-sink.glb', 8500, 'biz_default')
 on conflict (id) do nothing;
 
 
@@ -549,15 +714,11 @@ on conflict (id) do nothing;
 -- array column on `layouts` above, so an extra key on that JSON just
 -- shows up automatically.
 --
--- public: true is deliberate even though PanoramaViewerModal is
--- internal-only for now (opened from inside this app) — it means a
--- direct panorama URL will already work from a public/anonymous
--- client-facing route later, with no policy changes needed then.
---
--- Same MVP security posture as the SECURITY NOTE above: no auth yet,
--- so these policies are permissive (any anon request can read/write
--- this ONE bucket) rather than scoped to a logged-in user. Tighten
--- alongside the rest of this file's RLS story before a real launch.
+-- public: true is deliberate and UNCHANGED by the auth work elsewhere
+-- in this file — a panorama/quote-PDF link needs to open for a
+-- customer with no account at all (that's the whole point of the
+-- WhatsApp quote-export feature). Only who can UPLOAD changed: was
+-- fully open to any anon request, now requires being signed in.
 -- ============================================================
 
 insert into storage.buckets (id, name, public)
@@ -570,14 +731,16 @@ on storage.objects for select
 using (bucket_id = 'panoramas');
 
 drop policy if exists "Public upload access to panoramas" on storage.objects;
-create policy "Public upload access to panoramas"
+drop policy if exists "Authenticated upload access to panoramas" on storage.objects;
+create policy "Authenticated upload access to panoramas"
 on storage.objects for insert
-with check (bucket_id = 'panoramas');
+with check (bucket_id = 'panoramas' and auth.role() = 'authenticated');
 
 drop policy if exists "Public overwrite access to panoramas" on storage.objects;
-create policy "Public overwrite access to panoramas"
+drop policy if exists "Authenticated overwrite access to panoramas" on storage.objects;
+create policy "Authenticated overwrite access to panoramas"
 on storage.objects for update
-using (bucket_id = 'panoramas');
+using (bucket_id = 'panoramas' and auth.role() = 'authenticated');
 
 
 -- ============================================================
@@ -585,8 +748,8 @@ using (bucket_id = 'panoramas');
 -- business (src/lib/finishes.ts uploadSwatch). Separate bucket from
 -- `panoramas`: a panorama belongs to one camera node in one layout,
 -- while a swatch is business-wide inventory reused across every
--- project. Same permissive MVP policies and the same caveat as the
--- security note above.
+-- project. Read stays public (same reasoning as panoramas above);
+-- upload now requires being signed in.
 -- ============================================================
 
 insert into storage.buckets (id, name, public)
@@ -599,14 +762,52 @@ on storage.objects for select
 using (bucket_id = 'material-swatches');
 
 drop policy if exists "Public upload access to material swatches" on storage.objects;
-create policy "Public upload access to material swatches"
+drop policy if exists "Authenticated upload access to material swatches" on storage.objects;
+create policy "Authenticated upload access to material swatches"
 on storage.objects for insert
-with check (bucket_id = 'material-swatches');
+with check (bucket_id = 'material-swatches' and auth.role() = 'authenticated');
 
 drop policy if exists "Public overwrite access to material swatches" on storage.objects;
-create policy "Public overwrite access to material swatches"
+drop policy if exists "Authenticated overwrite access to material swatches" on storage.objects;
+create policy "Authenticated overwrite access to material swatches"
 on storage.objects for update
-using (bucket_id = 'material-swatches');
+using (bucket_id = 'material-swatches' and auth.role() = 'authenticated');
+
+-- ============================================================
+-- Quote PDF storage — generated client-side (src/lib/quotePdf.ts) from
+-- a FROZEN quote's own immutable summary/pricingContext, then uploaded
+-- here (src/lib/quotePdfStorage.ts) so a WhatsApp message can carry a
+-- real link instead of asking the designer to attach a file by hand.
+-- Path is `${projectId}/v${version}.pdf` — deterministic and re-
+-- uploaded with upsert on every share click rather than generated once
+-- and cached, because the inputs are frozen (never edited after
+-- freezing — see quotes.note above and types/quote.ts), so regenerating
+-- always reproduces the same document; there is nothing to invalidate.
+-- Read stays public — a customer opens this link from WhatsApp with no
+-- account at all, which is the entire point of that feature. Upload
+-- now requires being signed in.
+-- ============================================================
+
+insert into storage.buckets (id, name, public)
+values ('quote-pdfs', 'quote-pdfs', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Public read access to quote pdfs" on storage.objects;
+create policy "Public read access to quote pdfs"
+on storage.objects for select
+using (bucket_id = 'quote-pdfs');
+
+drop policy if exists "Public upload access to quote pdfs" on storage.objects;
+drop policy if exists "Authenticated upload access to quote pdfs" on storage.objects;
+create policy "Authenticated upload access to quote pdfs"
+on storage.objects for insert
+with check (bucket_id = 'quote-pdfs' and auth.role() = 'authenticated');
+
+drop policy if exists "Public overwrite access to quote pdfs" on storage.objects;
+drop policy if exists "Authenticated overwrite access to quote pdfs" on storage.objects;
+create policy "Authenticated overwrite access to quote pdfs"
+on storage.objects for update
+using (bucket_id = 'quote-pdfs' and auth.role() = 'authenticated');
 
 -- ============================================================
 -- HANDLES
@@ -652,7 +853,7 @@ alter table public.handles
   add constraint handles_pricing_mode_check
   check (pricing_mode in ('per-unit', 'per-metre'));
 
-alter table public.handles disable row level security;
+alter table public.handles add column if not exists business_id text references public.businesses(id);
 
 -- Starter set. `on conflict do nothing` so re-running the schema never
 -- overwrites a business's own edits to these rows — someone who has
@@ -661,18 +862,20 @@ alter table public.handles disable row level security;
 -- handle_bar_steel_128 is DEFAULT_HANDLE_ID in src/types/front.ts:
 -- resolveHandle falls back to it when a cabinet's own handle has been
 -- deleted, so HandleManager blocks deleting this one row.
+-- business_id explicit here too, same reasoning as the projects seed
+-- (see the note above that insert).
 insert into public.handles
-  (id, label, kind, length_mm, color_hex, metalness, roughness, pricing_mode, price)
+  (id, label, kind, length_mm, color_hex, metalness, roughness, pricing_mode, price, business_id)
 values
-  ('handle_bar_steel_128', 'Bar handle 128mm — brushed steel', 'bar', 128, '#b8bcc0', 0.9, 0.35, 'per-unit', 180),
-  ('handle_bar_black_192', 'Bar handle 192mm — matte black', 'bar', 192, '#2a2a2c', 0.6, 0.55, 'per-unit', 240),
-  ('handle_knob_brass', 'Knob 32mm — antique brass', 'knob', 32, '#9a7b3f', 0.85, 0.4, 'per-unit', 150),
-  ('handle_gola_profile', 'Gola profile — anodised aluminium', 'gola', 0, '#8f9296', 0.8, 0.45, 'per-metre', 620),
-  ('handle_edge_profile', 'Edge profile — champagne', 'edge-profile', 0, '#c9b79a', 0.75, 0.4, 'per-metre', 540),
+  ('handle_bar_steel_128', 'Bar handle 128mm — brushed steel', 'bar', 128, '#b8bcc0', 0.9, 0.35, 'per-unit', 180, 'biz_default'),
+  ('handle_bar_black_192', 'Bar handle 192mm — matte black', 'bar', 192, '#2a2a2c', 0.6, 0.55, 'per-unit', 240, 'biz_default'),
+  ('handle_knob_brass', 'Knob 32mm — antique brass', 'knob', 32, '#9a7b3f', 0.85, 0.4, 'per-unit', 150, 'biz_default'),
+  ('handle_gola_profile', 'Gola profile — anodised aluminium', 'gola', 0, '#8f9296', 0.8, 0.45, 'per-metre', 620, 'biz_default'),
+  ('handle_edge_profile', 'Edge profile — champagne', 'edge-profile', 0, '#c9b79a', 0.75, 0.4, 'per-metre', 540, 'biz_default'),
   -- Push-to-open needs a mechanism per front, which is a real cost but
   -- is a mechanism rather than a handle and isn't modelled yet. Left at
   -- 0 so the number is honestly absent instead of quietly wrong.
-  ('handle_none', 'Handleless (push-to-open)', 'handleless', 0, '#000000', 0, 1, 'per-unit', 0)
+  ('handle_none', 'Handleless (push-to-open)', 'handleless', 0, '#000000', 0, 1, 'per-unit', 0, 'biz_default')
 on conflict (id) do nothing;
 
 -- ============================================================
@@ -720,7 +923,21 @@ alter table public.light_fixture_catalog
   add constraint light_fixture_catalog_pricing_mode_check
   check (pricing_mode in ('per-unit', 'per-metre'));
 
-alter table public.light_fixture_catalog disable row level security;
+-- FixtureCatalogItem (src/types/fixture.ts) and lib/fixtureCatalog.ts's
+-- itemToRow have carried these since the pendant GLB was wired in, but
+-- the columns themselves were never actually added here — a real gap,
+-- not something added on purpose and now removed. Every single-row
+-- saveFixtureCatalogItem call would have hit the same "column not
+-- found" error the moment anyone set a model on a fixture; the bulk
+-- import path just happened to be what finally exercised it. Nullable,
+-- same convention as the matching columns on appliance_catalog_items,
+-- so no backfill is needed for existing rows.
+alter table public.light_fixture_catalog add column if not exists model_url text;
+alter table public.light_fixture_catalog add column if not exists model_rotation_x_deg numeric;
+alter table public.light_fixture_catalog add column if not exists model_rotation_y_deg numeric;
+alter table public.light_fixture_catalog add column if not exists model_rotation_z_deg numeric;
+
+alter table public.light_fixture_catalog add column if not exists business_id text references public.businesses(id);
 
 -- Placed fixtures, plus the two presentation/scope flags.
 --
@@ -738,6 +955,11 @@ alter table public.light_fixture_catalog disable row level security;
 alter table public.layouts add column if not exists fixtures jsonb not null default '[]'::jsonb;
 alter table public.layouts add column if not exists lighting_mode text;
 alter table public.layouts add column if not exists price_electrical boolean default false;
+-- Same shape as price_electrical, same market reason: the kitchen
+-- business usually does NOT supply the countertop slab in Delhi NCR —
+-- the homeowner arranges stone separately. The countertop still prints
+-- on the quote as a specification at zero either way.
+alter table public.layouts add column if not exists price_countertop boolean default false;
 
 -- Starter set, at plausible Delhi NCR retail. `on conflict do nothing`
 -- so re-running never overwrites a business's own rates — same as the
@@ -745,22 +967,24 @@ alter table public.layouts add column if not exists price_electrical boolean def
 --
 -- Prices are PLACEHOLDERS in the same sense as HARDWARE_RATES in
 -- src/lib/fronts.ts: right order of magnitude, not a price list.
+-- business_id explicit here too, same reasoning as the projects seed
+-- (see the note above that insert).
 insert into public.light_fixture_catalog
-  (id, label, kind, color_temp_k, lumens, pricing_mode, price)
+  (id, label, kind, color_temp_k, lumens, pricing_mode, price, business_id)
 values
-  ('fix_strip_warm',    'LED strip 3000K warm white',      'strip',   3000,  900, 'per-metre', 340),
-  ('fix_strip_neutral', 'LED strip 4000K neutral white',   'strip',   4000, 1000, 'per-metre', 340),
-  ('fix_strip_cool',    'LED strip 6500K cool white',      'strip',   6500, 1100, 'per-metre', 310),
-  ('fix_profile_warm',  'Aluminium profile + 3000K strip', 'strip',   3000,  950, 'per-metre', 620),
-  ('fix_spot_warm',     'Ceiling spot 8W 3000K',           'spot',    3000,  700, 'per-unit',  480),
-  ('fix_spot_cool',     'Ceiling spot 8W 6500K',           'spot',    6500,  800, 'per-unit',  480),
-  ('fix_cove_warm',     'Cove strip 2700K',                'cove',    2700,  700, 'per-metre', 380),
-  ('fix_pendant',       'Pendant light (shade excluded)',  'pendant', 3000,  600, 'per-unit', 1850),
-  ('fix_plinth',        'Plinth / toe-kick strip 4000K',   'plinth',  4000,  500, 'per-metre', 300),
+  ('fix_strip_warm',    'LED strip 3000K warm white',      'strip',   3000,  900, 'per-metre', 340, 'biz_default'),
+  ('fix_strip_neutral', 'LED strip 4000K neutral white',   'strip',   4000, 1000, 'per-metre', 340, 'biz_default'),
+  ('fix_strip_cool',    'LED strip 6500K cool white',      'strip',   6500, 1100, 'per-metre', 310, 'biz_default'),
+  ('fix_profile_warm',  'Aluminium profile + 3000K strip', 'strip',   3000,  950, 'per-metre', 620, 'biz_default'),
+  ('fix_spot_warm',     'Ceiling spot 8W 3000K',           'spot',    3000,  700, 'per-unit',  480, 'biz_default'),
+  ('fix_spot_cool',     'Ceiling spot 8W 6500K',           'spot',    6500,  800, 'per-unit',  480, 'biz_default'),
+  ('fix_cove_warm',     'Cove strip 2700K',                'cove',    2700,  700, 'per-metre', 380, 'biz_default'),
+  ('fix_pendant',       'Pendant light (shade excluded)',  'pendant', 3000,  600, 'per-unit', 1850, 'biz_default'),
+  ('fix_plinth',        'Plinth / toe-kick strip 4000K',   'plinth',  4000,  500, 'per-metre', 300, 'biz_default'),
   -- No visual in a still render: you only see it with the drawer open,
   -- and drawers are always modelled shut. A real BOM item all the same,
   -- so it's here rather than omitted.
-  ('fix_drawer_sensor', 'In-drawer sensor light',          'drawer',  4000,  200, 'per-unit',  760)
+  ('fix_drawer_sensor', 'In-drawer sensor light',          'drawer',  4000,  200, 'per-unit',  760, 'biz_default')
 on conflict (id) do nothing;
 
 -- Viewing brightness for the 3D view (the renderer's tone-mapping
@@ -812,13 +1036,17 @@ create table if not exists public.rate_cards (
   updated_at timestamptz not null default now()
 );
 
-alter table public.rate_cards disable row level security;
+alter table public.rate_cards add column if not exists business_id text references public.businesses(id);
 
--- The single active row. Its id matches ACTIVE_RATE_CARD_ID in
--- src/types/rates.ts, and its values match PLACEHOLDER_RATES there
--- exactly — deliberately, so that introducing this table does not move
--- any existing quote total by a single rupee. The numbers only change
--- when a business edits them.
+-- The seed row below keeps its historical id ('default') for the one
+-- business this migrated from, purely so the backfill has a row to
+-- attach business_id to without moving any existing quote total by a
+-- single rupee. `lib/rates.ts` no longer looks this id up directly —
+-- once RLS + business_id are live (see the end of this file), a
+-- business's rate card is found by business_id, and a NEW business's
+-- first rate card gets a real crypto.randomUUID() id, same convention
+-- as every other table. Its values match PLACEHOLDER_RATES in
+-- src/types/rates.ts exactly.
 --
 -- `on conflict do nothing` so re-running this file never overwrites a
 -- business's own rates, same as the handles and fixture seeds.
@@ -826,11 +1054,14 @@ alter table public.rate_cards disable row level security;
 -- These are PLACEHOLDERS: right order of magnitude for Delhi NCR
 -- retail, not a price list. They need checking against real purchase
 -- invoices before any quote built on them goes to a customer.
+-- business_id explicit here too, same reasoning as the projects seed
+-- (see the note above that insert).
 insert into public.rate_cards
-  (id, label, labor_rate_per_sqft, hardware_rates)
+  (id, label, labor_rate_per_sqft, hardware_rates, business_id)
 values
   ('default', 'Default rates (placeholder)', 150,
-   '{"hinge": 120, "channel": 450, "basket": 1400, "shelf": 350}'::jsonb)
+   '{"hinge": 120, "channel": 450, "basket": 1400, "shelf": 350, "cornerMagic": 12000, "cornerCarousel": 6000}'::jsonb,
+   'biz_default')
 on conflict (id) do nothing;
 
 -- ============================================================
@@ -895,4 +1126,67 @@ create unique index if not exists quotes_project_version_idx
 create index if not exists quotes_project_idx
   on public.quotes (project_id, version desc);
 
-alter table public.quotes disable row level security;
+alter table public.quotes add column if not exists business_id text references public.businesses(id);
+
+-- ============================================================
+-- BUSINESS ISOLATION (RLS)
+-- ============================================================
+--
+-- Runs last, after every table above has both its business_id column
+-- (added right after each `create table`) AND its seed data (inserted
+-- earlier in this file) — the `update ... where business_id is null`
+-- line below is what backfills BOTH: rows that existed before this
+-- migration, and rows this same run of the file just seeded fresh.
+-- Order matters for exactly that reason; don't move this block earlier.
+--
+-- Same repeated block per table: backfill, then NOT NULL, then RLS
+-- enabled, then four policies (select/insert/update/delete), each
+-- allowing a request through when EITHER it's the caller's own
+-- business (public.current_business_id()) OR the caller is a super
+-- admin (public.is_super_admin() — see BUSINESSES + AUTH at the top of
+-- this file). Idempotent throughout: every `drop policy if exists`
+-- before its `create policy` makes re-running this file safe, same
+-- convention as everywhere else in this file.
+do $$
+declare
+  t text;
+begin
+  foreach t in array array[
+    'projects', 'layouts', 'surface_finishes', 'cabinet_catalog_items',
+    'obstacle_presets', 'appliance_catalog_items', 'handles',
+    'light_fixture_catalog', 'rate_cards', 'quotes'
+  ]
+  loop
+    execute format('update public.%I set business_id = %L where business_id is null', t, 'biz_default');
+    execute format('alter table public.%I alter column business_id set not null', t);
+    execute format('alter table public.%I enable row level security', t);
+
+    -- Policy names are IDENTIFIERS (like a constraint name), not string
+    -- literals — %I (quote_ident, double-quotes) is correct here;
+    -- %L (quote_literal, single-quotes) would produce invalid SQL that
+    -- fails on the very first table.
+    execute format('drop policy if exists %I on public.%I', 'Business can read own ' || t, t);
+    execute format(
+      'create policy %I on public.%I for select using (business_id = public.current_business_id() or public.is_super_admin())',
+      'Business can read own ' || t, t
+    );
+
+    execute format('drop policy if exists %I on public.%I', 'Business can insert own ' || t, t);
+    execute format(
+      'create policy %I on public.%I for insert with check (business_id = public.current_business_id() or public.is_super_admin())',
+      'Business can insert own ' || t, t
+    );
+
+    execute format('drop policy if exists %I on public.%I', 'Business can update own ' || t, t);
+    execute format(
+      'create policy %I on public.%I for update using (business_id = public.current_business_id() or public.is_super_admin()) with check (business_id = public.current_business_id() or public.is_super_admin())',
+      'Business can update own ' || t, t
+    );
+
+    execute format('drop policy if exists %I on public.%I', 'Business can delete own ' || t, t);
+    execute format(
+      'create policy %I on public.%I for delete using (business_id = public.current_business_id() or public.is_super_admin())',
+      'Business can delete own ' || t, t
+    );
+  end loop;
+end $$;

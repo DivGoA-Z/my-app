@@ -19,4 +19,17 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // shadcn/ui's own generated files (src/components/ui/**) export a
+    // component alongside its cva() variants function from the same
+    // file by convention (button.tsx's buttonVariants, badge.tsx's
+    // badgeVariants, etc) — upstream shadcn's own templates disable
+    // this rule for exactly that directory, rather than splitting
+    // vendored files apart in a way that would fight every future
+    // `npx shadcn add`/diff against upstream.
+    files: ['src/components/ui/**/*.{ts,tsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])

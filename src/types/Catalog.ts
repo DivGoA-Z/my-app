@@ -107,6 +107,20 @@ export interface ApplianceCatalogItem {
   modelRotationXDeg?: number;
   modelRotationYDeg?: number;
   modelRotationZDeg?: number;
+  // Sink rows only. The hole cut into the countertop the sink drops
+  // into — deliberately NOT derived from widthMm/depthMm, because the
+  // cutout is smaller than the sink's own outer/rim size by whatever
+  // margin that specific model needs, and that margin varies per
+  // product the way the model itself does. Absent means no cutout is
+  // cut (the pre-existing behaviour: the basin reads as sitting on top
+  // of the slab, right for a drop-in sink with a visible rim, wrong
+  // for an undermount — see the LIMITATION note on ApplianceType in
+  // types/appliance.ts). Resolved at render time via resolveSinkCutout
+  // (lib/applianceGeometry.ts), same catalogItemId-first order
+  // resolveApplianceModel already uses, rather than copied onto every
+  // PlacedApplianceItem.
+  sinkCutoutWidthMm?: number;
+  sinkCutoutDepthMm?: number;
   unitPrice: number;   // ₹ per unit
   createdAt: string;
   updatedAt: string;

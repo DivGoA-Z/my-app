@@ -15,6 +15,7 @@
 import { useBOM } from '../../hooks/useBOM';
 import { APPLIANCE_TYPE_LABELS } from '../../types/appliance';
 import type { ApplianceType } from '../../types/appliance';
+import { QuoteFreezePanel } from './QuoteFreezePanel';
 
 const INR_FORMATTER = new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -212,6 +213,43 @@ export function QuoteSidebar() {
         </div>
       )}
 
+      {bom.countertopLineItem && (
+        <div className="flex flex-col gap-1">
+          <div className="flex items-baseline justify-between">
+            <h4 className="text-xs font-semibold text-gray-700">Countertop / Slab</h4>
+            {/* Same "specified only" treatment as Lighting — in Delhi
+                NCR the kitchen business usually doesn't supply the
+                slab, the homeowner arranges stone separately, so the
+                figure it WOULD come to is still shown even when it
+                isn't being charged. */}
+            {bom.countertopSubtotal === 0 && bom.countertopSpecifiedTotal > 0 && (
+              <span className="text-[10px] text-gray-400">
+                specified only — {formatINR(bom.countertopSpecifiedTotal)} if charged
+              </span>
+            )}
+          </div>
+          <table className="w-full border-collapse text-left text-xs">
+            <tbody>
+              <tr className="border-b border-gray-100">
+                <td className="py-1.5 pr-2 text-gray-800">
+                  {bom.countertopLineItem.finish}
+                  <div className="text-[10px] font-normal text-gray-500">
+                    {bom.countertopLineItem.areaSqM.toFixed(2)} m²
+                  </div>
+                </td>
+                <td className="py-1.5 pl-2 text-right text-gray-800">
+                  {bom.countertopSubtotal > 0 ? (
+                    <span className="font-medium">{formatINR(bom.countertopSubtotal)}</span>
+                  ) : (
+                    <span className="text-[10px] text-gray-500">by homeowner</span>
+                  )}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <div className="flex flex-col gap-1 border-t border-gray-200 pt-3 text-xs text-gray-600">
         <div className="flex justify-between">
           <span>Material</span>
@@ -225,6 +263,12 @@ export function QuoteSidebar() {
           <div className="flex justify-between">
             <span>Floor / walls / ceiling</span>
             <span>{formatINR(bom.surfaceSubtotal)}</span>
+          </div>
+        )}
+        {bom.countertopSubtotal > 0 && (
+          <div className="flex justify-between">
+            <span>Countertop / slab</span>
+            <span>{formatINR(bom.countertopSubtotal)}</span>
           </div>
         )}
         <div className="flex justify-between">
@@ -244,6 +288,15 @@ export function QuoteSidebar() {
           <span>{formatINR(bom.grandTotal)}</span>
         </div>
       </div>
+
+      {/* Kept as its OWN component (QuoteFreezePanel's own header
+          comment explains why: this is the one part of the sidebar
+          that writes), but rendered here so it visually sits where its
+          own comment says it should — at the bottom of the quote
+          sidebar. It was built but never actually composed in here
+          before now, which is why Freeze/Download/Share never
+          appeared. */}
+      <QuoteFreezePanel />
     </aside>
   );
 }

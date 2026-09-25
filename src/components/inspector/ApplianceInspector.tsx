@@ -137,6 +137,22 @@ export function ApplianceInspector() {
         />
       </label>
 
+      <label className="flex items-start gap-2 text-xs text-gray-600">
+        <input
+          type="checkbox"
+          checked={appliance.ignoreOverlap ?? false}
+          onChange={(e) => updateAppliance(appliance.id, { ignoreOverlap: e.target.checked })}
+          className="mt-0.5"
+        />
+        <span>
+          Ignore overlap alerts for this item
+          <br />
+          <span className="text-[10px] text-gray-400">
+            e.g. a chimney duct that's meant to run through a cabinet
+          </span>
+        </span>
+      </label>
+
       <div className="flex flex-col gap-1">
         <button
           onClick={() => setIsEditingDimensions((open) => !open)}

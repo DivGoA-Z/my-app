@@ -19,6 +19,7 @@
 import { useLayoutStore } from '../../store/layoutStore';
 import { computeRoomSurfaceAreas } from '../../lib/surfaceAreas';
 import type { SurfaceAreaBreakdown } from '../../lib/surfaceAreas';
+import { countertopAreaSqM } from '../../lib/cabinetGeometry';
 import type { WallOrientation } from '../../types/layout';
 
 const WALL_ORDER: WallOrientation[] = ['north', 'east', 'south', 'west'];
@@ -89,6 +90,14 @@ export function RoomSurfacesPanel() {
           />
         );
       })}
+
+      <CountertopRow
+        areaSqM={countertopAreaSqM(cabinets)}
+        finishId={currentLayout.countertopFinishId}
+        priceCountertop={currentLayout.priceCountertop ?? false}
+        onFinishChange={(id) => updateRoomSurfaces({ countertopFinishId: id })}
+        onPriceCountertopChange={(priceCountertop) => updateRoomSurfaces({ priceCountertop })}
+      />
 
       <p className="border-t border-gray-200 pt-2 text-[10px] text-gray-400">
         Areas update as you move cabinets. "Blocked" is area taken up by pillars and shafts —
@@ -173,6 +182,69 @@ function SurfaceRow({
       {area.voidSqM > 0 && (
         <span className="text-[10px] tabular-nums text-sky-600">
           {area.voidSqM.toFixed(2)} m² deducted for doors/windows
+        </span>
+      )}
+    </div>
+  );
+}
+
+interface CountertopRowProps {
+  areaSqM: number;
+  finishId?: string;
+  priceCountertop: boolean;
+  onFinishChange: (finishId: string | undefined) => void;
+  onPriceCountertopChange: (priceCountertop: boolean) => void;
+}
+
+// Deliberately not a SurfaceRow: a countertop has no concealed/occupied/
+// void concept (see cabinetGeometry.ts's countertopAreaSqM — it's just
+// slab area over base-height units), and it carries its own charge
+// toggle, which no other surface does. In Delhi NCR the kitchen
+// business usually doesn't supply the slab — the homeowner arranges
+// stone separately — so the finish here drives the RENDER regardless,
+// and the checkbox decides only whether it also reaches the quote.
+function CountertopRow({
+  areaSqM,
+  finishId,
+  priceCountertop,
+  onFinishChange,
+  onPriceCountertopChange,
+}: CountertopRowProps) {
+  const finishes = useLayoutStore((state) => state.finishes);
+
+  return (
+    <div className="flex flex-col gap-1 border-t border-gray-100 pt-2">
+      <div className="flex items-baseline justify-between">
+        <span className="text-xs font-medium text-gray-700">Countertop / slab</span>
+        <span className="text-[10px] tabular-nums text-gray-400">{areaSqM.toFixed(2)} m²</span>
+      </div>
+
+      <select
+        value={finishId ?? ''}
+        onChange={(e) => onFinishChange(e.target.value || undefined)}
+        className={selectClass}
+      >
+        <option value="">Not specified</option>
+        {finishes.map((f) => (
+          <option key={f.id} value={f.id}>
+            {f.brand ? `${f.brand} ${f.label}` : f.label}
+          </option>
+        ))}
+      </select>
+
+      <label className="flex items-center gap-1.5 text-[10px] text-gray-500">
+        <input
+          type="checkbox"
+          checked={priceCountertop}
+          onChange={(e) => onPriceCountertopChange(e.target.checked)}
+          className="h-3 w-3"
+        />
+        Charge for it on the quote
+      </label>
+      {!priceCountertop && (
+        <span className="text-[10px] text-gray-400">
+          Off — usually arranged by the homeowner. The slab still shows in the design and prints
+          on the quote at ₹0.
         </span>
       )}
     </div>

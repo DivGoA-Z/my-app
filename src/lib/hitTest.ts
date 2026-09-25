@@ -110,13 +110,7 @@ export function hitTestAt(xMm: number, yMm: number, input: HitTestInput): HitCan
   }
 
   for (const obstacle of layout.obstacles) {
-    const rect = {
-      x: obstacle.x,
-      y: obstacle.y,
-      widthMm: obstacle.widthMm,
-      depthMm: obstacle.depthMm,
-    };
-    if (!contains(rect, xMm, yMm)) continue;
+    if (!contains(currentFootprintRect(obstacle), xMm, yMm)) continue;
     hits.push({
       type: 'obstacle',
       id: obstacle.id,

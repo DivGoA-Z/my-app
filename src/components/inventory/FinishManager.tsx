@@ -19,6 +19,9 @@
 // uploaded finish rather than being hidden as "advanced".
 
 import { useState } from 'react';
+import { toast } from 'sonner';
+import { Button } from '../ui/button';
+import { confirmDialog } from '../../store/confirmDialogStore';
 import { useLayoutStore } from '../../store/layoutStore';
 import type { SurfaceFinish, PatternCategory, TilingMode } from '../../types/finish';
 import {
@@ -98,12 +101,17 @@ export function FinishManager() {
   }
 
   async function handleDelete(finish: SurfaceFinish) {
+    if (!(await confirmDialog({ title: `Delete "${finish.label}"?`, description: "This can't be undone." })))
+      return;
     setError(null);
     try {
       await removeFinish(finish.id);
       if (editingId === finish.id) cancel();
+      toast.success(`Deleted "${finish.label}"`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete finish.');
+      const message = err instanceof Error ? err.message : 'Failed to delete finish.';
+      setError(message);
+      toast.error('Failed to delete', { description: message });
     }
   }
 
@@ -117,12 +125,9 @@ export function FinishManager() {
             m² feeds the quote.
           </p>
         </div>
-        <button
-          onClick={startNew}
-          className="rounded bg-gray-800 px-3 py-1.5 text-xs text-white hover:bg-gray-700"
-        >
+        <Button size="sm" onClick={startNew}>
           + New Finish
-        </button>
+        </Button>
       </div>
 
       {error && <p className="text-xs text-red-600">{error}</p>}
@@ -214,12 +219,17 @@ function FinishCard({ finish, isEditing, onEdit, onDelete }: FinishCardProps) {
         </span>
         <span className="text-[10px] text-gray-400">₹{finish.pricePerSqM}/m²</span>
         <div className="flex gap-2">
-          <button onClick={onEdit} className="text-[10px] text-blue-600 underline">
+          <Button variant="link" size="xs" className="h-auto p-0 text-[10px]" onClick={onEdit}>
             Edit
-          </button>
-          <button onClick={onDelete} className="text-[10px] text-red-500 underline">
+          </Button>
+          <Button
+            variant="link"
+            size="xs"
+            className="h-auto p-0 text-[10px] text-destructive"
+            onClick={onDelete}
+          >
             Delete
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -373,14 +383,16 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
           {uploadError && <span className="text-[10px] text-red-600">{uploadError}</span>}
 
           {draft.albedoUrl ? (
-            <button
+            <Button
+              variant="link"
+              size="xs"
+              className="h-auto self-start p-0 text-[10px]"
               onClick={() =>
                 patch({ albedoUrl: undefined, solidColor: draft.solidColor ?? '#e8e4dc' })
               }
-              className="self-start text-[10px] text-blue-600 underline"
             >
               Remove photo, use a solid colour instead
-            </button>
+            </Button>
           ) : (
             <label className={labelClass}>
               Solid colour
@@ -536,18 +548,12 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
       </div>
 
       <div className="flex gap-2 border-t border-gray-200 pt-3">
-        <button
-          onClick={onSave}
-          className="rounded bg-gray-800 px-3 py-1.5 text-xs text-white hover:bg-gray-700"
-        >
+        <Button size="sm" onClick={onSave}>
           Save finish
-        </button>
-        <button
-          onClick={onCancel}
-          className="rounded border border-gray-300 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100"
-        >
+        </Button>
+        <Button variant="outline" size="sm" onClick={onCancel}>
           Cancel
-        </button>
+        </Button>
       </div>
     </div>
   );

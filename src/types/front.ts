@@ -38,7 +38,44 @@ export type FrontKind =
   // An open aperture for a built-in oven or microwave to slide into.
   // No shutter at all, so no material, no finish, no hardware — the
   // appliance itself is priced separately as an appliance.
-  | 'appliance-housing';
+  | 'appliance-housing'
+  // A roll-up (garage-style) shutter, the small-appliance-garage front:
+  // a real, priced panel like a false-front (material + finish, cut and
+  // edge-banded), but no hinges and no handle — a tambour slides on its
+  // own track rather than swinging or being pulled by a bar/knob.
+  // Visually distinct in the 3D view (a ridged/slatted panel) so it
+  // doesn't read as a plain flat door.
+  | 'tambour'
+  // A vertical stack of independently-configured rows — a shelf
+  // compartment over a drawer stack, a door over an appliance housing,
+  // whatever the trade actually builds. See `rows` below.
+  | 'mixed';
+
+// What a 'mixed' row can be. Excludes 'mixed' itself — a row is one
+// band of the stack, not another stack — which is what stops this from
+// needing to be a recursive tree for a feature nobody asked for deeper
+// than one level.
+export type FrontRowKind = Exclude<FrontKind, 'mixed'>;
+
+export interface FrontRowLayout {
+  kind: FrontRowKind;
+  // Same meaning as FrontLayout.count below, scoped to this row.
+  count?: number;
+  // Same meaning as FrontLayout.hinge below, scoped to this row.
+  hinge?: 'left' | 'right';
+  // Same meaning as FrontLayout.heightRatios below — a drawers row can
+  // still have its OWN graduated drawer heights, independent of how
+  // tall the row itself is relative to the other rows.
+  heightRatios?: number[];
+  // This row's share of the cabinet's total front height, relative to
+  // the other rows' shares — same "ratio, not millimetres" reasoning
+  // as heightRatios, and normalised the same way (computeFrontBreakdown
+  // reuses normaliseRatios for both).
+  heightRatio: number;
+}
+
+export const MIN_MIXED_ROWS = 2;
+export const MAX_MIXED_ROWS = 4;
 
 export interface FrontLayout {
   kind: FrontKind;
@@ -57,6 +94,27 @@ export interface FrontLayout {
   // survive the cabinet being resized; they're normalised on use, so
   // [1,2,3] and [0.5,1,1.5] mean the same thing.
   heightRatios?: number[];
+  // 'mixed' only: the rows, top to bottom. computeFrontBreakdown
+  // (lib/fronts.ts) splits the face into bands by heightRatio, then
+  // recurses — calling itself once per row with that row's own kind
+  // against that band's own height — and offsets the results back into
+  // place. Nothing downstream (the 3D renderer, the hardware/pricing
+  // counts) needed to change for this: both already just consume
+  // FrontBreakdown's panels/shelves/hardware arrays generically, never
+  // switching on the layout's kind themselves.
+  rows?: FrontRowLayout[];
+}
+
+// A sensible starting point for a freshly-chosen 'mixed' front — one
+// open shelf compartment over a small drawer stack, equal shares. Not
+// a defaultFrontLayout() case: 'mixed' is never a module type's
+// default, only something a designer opts into per cabinet via
+// FrontPicker.
+export function defaultMixedRows(): FrontRowLayout[] {
+  return [
+    { kind: 'open-shelf', count: 1, heightRatio: 1 },
+    { kind: 'drawers', count: 2, heightRatio: 1 },
+  ];
 }
 
 export const MIN_FRONT_COUNT = 1;
@@ -101,9 +159,18 @@ export function defaultFrontLayout(
       // Tall units are almost always a pair of full-height doors.
       return { kind: 'double-door' };
 
+    // All three corner solutions default to a plain door here too — the
+    // mechanism inside (fixed shelves, a magic-corner pull-out, a
+    // carousel) is priced separately (see cornerMechanismHardware in
+    // lib/fronts.ts) and isn't a front kind. A carousel's door is
+    // really diagonal in real cabinetry, but nothing here models a
+    // non-rectangular front panel yet — a flat door is the honest
+    // interim default until that's built, not a wrong one.
     case 'wall-cabinet':
     case 'base-cabinet':
-    case 'corner-unit':
+    case 'corner-blind':
+    case 'corner-magic':
+    case 'corner-carousel':
     default:
       return wide ? { kind: 'double-door' } : { kind: 'single-door', hinge: 'left' };
   }
@@ -116,6 +183,7 @@ export function frontCount(layout: FrontLayout): number {
   switch (layout.kind) {
     case 'single-door':
     case 'false-front':
+    case 'tambour':
       return 1;
     case 'double-door':
       return 2;
@@ -126,12 +194,29 @@ export function frontCount(layout: FrontLayout): number {
     case 'drawers':
     case 'open-shelf':
       return clampCount(layout.count);
+    case 'mixed':
+      return (layout.rows ?? []).reduce(
+        (sum, row) => sum + frontCount({ kind: row.kind, count: row.count }),
+        0
+      );
   }
 }
 
 export function clampCount(count: number | undefined): number {
   if (!Number.isFinite(count)) return MIN_FRONT_COUNT;
   return Math.min(MAX_FRONT_COUNT, Math.max(MIN_FRONT_COUNT, Math.round(count as number)));
+}
+
+// A tambour's shelf count is allowed down to ZERO, unlike every other
+// count-driven kind this shares MIN_FRONT_COUNT with — a drawer unit
+// with 0 drawers or an open-shelf with 0 shelves isn't that kind of
+// cabinet at all, but a tambour appliance garage can reasonably have
+// nothing placed on the cabinet's own floor with no shelf in between.
+// Defaults to 1 (something to rest on) only when genuinely unset, same
+// "sensible default until told otherwise" as clampCount's own fallback.
+export function clampTambourShelfCount(count: number | undefined): number {
+  if (!Number.isFinite(count)) return 1;
+  return Math.min(MAX_FRONT_COUNT, Math.max(0, Math.round(count as number)));
 }
 
 export const FRONT_KIND_LABELS: Record<FrontKind, string> = {
@@ -142,6 +227,8 @@ export const FRONT_KIND_LABELS: Record<FrontKind, string> = {
   'open-shelf': 'Open shelves',
   'false-front': 'False front (sink)',
   'appliance-housing': 'Appliance housing (open)',
+  tambour: 'Tambour (roll-up shutter)',
+  mixed: 'Mixed (stacked rows)',
 };
 
 // ---- Handles ----

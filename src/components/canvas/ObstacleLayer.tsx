@@ -4,9 +4,9 @@
 // electrical panels) from the layout store, on the same mm-to-px scale
 // as RoomCanvas and CabinetLayer — see src/lib/canvasScale.ts.
 //
-// Draggable, so a newly added obstacle can be positioned after creation
-// (see ObstacleToolbar). Not rotatable — structural elements don't
-// rotate in practice, unlike cabinets.
+// Draggable, and rotatable in quarter turns (double-click/tap), same
+// gesture as CabinetLayer — a rectangular duct or shaft against a wall
+// often needs its long side turned to match the wall it's against.
 //
 // Select: click/tap selects the obstacle (selectedObstacleId in the
 // store, mutually exclusive with cabinet selection — see
@@ -21,6 +21,7 @@ import { usePickAt } from '../../hooks/usePickAt';
 import { useSelectedObstacleId } from '../../hooks/useSelection';
 import { detectClearanceIssues } from '../../lib/clearance';
 import { computeRoomScale } from '../../lib/canvasScale';
+import { getFootprint, rotateFootprint } from '../../lib/footprint';
 import type { ObstacleType } from '../../types/layout';
 
 // Amber rather than the collision red: a pillar in a door's swing is a
@@ -95,6 +96,21 @@ export function ObstacleLayer({
         const blocksDoor = blockedObstacleIds.has(obstacle.id);
         const isSelected = obstacle.id === selectedObstacleId;
 
+        // Effective on-canvas footprint for the CURRENT rotation — used
+        // for boundary clamping so a rotated obstacle's true extent is
+        // respected, not its unrotated width/depth. Same split as
+        // CabinetLayer: the Rect below is still drawn at the UNROTATED
+        // widthPx/depthPx, because Konva's rotation prop turns it around
+        // its own center (offsetX/offsetY) for free — only the drag
+        // clamp needs the rotated footprint.
+        const { footprintWidthMm, footprintHeightMm } = getFootprint(
+          obstacle.widthMm,
+          obstacle.depthMm,
+          obstacle.rotationDeg
+        );
+        const footprintWidthPx = footprintWidthMm * scale;
+        const footprintHeightPx = footprintHeightMm * scale;
+
         return (
           <Group
             key={obstacle.id}
@@ -102,12 +118,13 @@ export function ObstacleLayer({
             y={centerY}
             offsetX={widthPx / 2}
             offsetY={depthPx / 2}
+            rotation={obstacle.rotationDeg}
             draggable
             dragBoundFunc={(pos) => {
-              const minX = originX + widthPx / 2;
-              const maxX = originX + widthMm * scale - widthPx / 2;
-              const minY = originY + depthPx / 2;
-              const maxY = originY + depthMm * scale - depthPx / 2;
+              const minX = originX + footprintWidthPx / 2;
+              const maxX = originX + widthMm * scale - footprintWidthPx / 2;
+              const minY = originY + footprintHeightPx / 2;
+              const maxY = originY + depthMm * scale - footprintHeightPx / 2;
               return {
                 x: clamp(pos.x, minX, maxX),
                 y: clamp(pos.y, minY, maxY),
@@ -147,13 +164,16 @@ export function ObstacleLayer({
               // since a finger is bigger than the offset anyway.
               pickAt((pos.x - originX) / scale, (pos.y - originY) / scale, pos.x, pos.y);
             }}
+            onDblClick={() => updateObstacle(obstacle.id, rotateFootprint(obstacle, 1, widthMm, depthMm))}
+            onDblTap={() => updateObstacle(obstacle.id, rotateFootprint(obstacle, 1, widthMm, depthMm))}
           >
             {/*
-              Drawn at local (0,0), not (-widthPx/2,-depthPx/2) — see
-              the same note in CabinetLayer.tsx. Harmless here today
-              since obstacles never rotate, but aligning it now avoids
-              silently reintroducing the same bug if rotation is ever
-              added for obstacles later.
+              Drawn at local (0,0), not (-widthPx/2,-depthPx/2) — see the
+              same note in CabinetLayer.tsx. The Group's offsetX/offsetY
+              above already center it, so a child drawn from (0,0) to
+              (widthPx,depthPx) rotates cleanly around its own center;
+              drawing it pre-offset would double-apply the offset and
+              swing the rotation pivot to a corner.
             */}
             <Rect
               x={0}

@@ -38,6 +38,7 @@ interface SurfaceFinishRow {
   tiling_mode: TilingMode;
   price_per_sq_m: number;
   source: FinishSource;
+  business_id: string;
   created_at: string;
   updated_at: string;
 }
@@ -70,9 +71,10 @@ function rowToFinish(row: SurfaceFinishRow): SurfaceFinish {
   };
 }
 
-function finishToRow(finish: SurfaceFinish): SurfaceFinishRow {
+function finishToRow(finish: SurfaceFinish, businessId: string): SurfaceFinishRow {
   return {
     id: finish.id,
+    business_id: businessId,
     label: finish.label,
     brand: finish.brand ?? null,
     code: finish.code ?? null,
@@ -111,8 +113,10 @@ export async function fetchFinishes(): Promise<SurfaceFinish[]> {
   return (data as SurfaceFinishRow[]).map(rowToFinish);
 }
 
-export async function saveFinish(finish: SurfaceFinish): Promise<void> {
-  const { error } = await supabase.from('surface_finishes').upsert(finishToRow(finish));
+export async function saveFinish(finish: SurfaceFinish, businessId: string): Promise<void> {
+  const { error } = await supabase
+    .from('surface_finishes')
+    .upsert(finishToRow(finish, businessId));
   if (error) {
     throw new Error(`Failed to save finish: ${error.message}`);
   }

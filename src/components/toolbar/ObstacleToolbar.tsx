@@ -116,6 +116,7 @@ export function ObstacleToolbar({ onManageInventory }: ObstacleToolbarProps) {
       floorToCeiling,
       heightMm,
       elevationMm: floorToCeiling ? 0 : elevationMm,
+      rotationDeg: 0,
     });
   }
 

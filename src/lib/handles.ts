@@ -23,6 +23,7 @@ interface HandleRow {
   roughness: number;
   pricing_mode: HandleSpec['pricingMode'];
   price: number;
+  business_id: string;
   created_at: string;
   updated_at: string;
 }
@@ -43,7 +44,7 @@ function rowToHandle(row: HandleRow): HandleSpec {
   };
 }
 
-function handleToRow(handle: HandleSpec): HandleRow {
+function handleToRow(handle: HandleSpec, businessId: string): HandleRow {
   return {
     id: handle.id,
     label: handle.label,
@@ -54,6 +55,7 @@ function handleToRow(handle: HandleSpec): HandleRow {
     roughness: handle.roughness,
     pricing_mode: handle.pricingMode,
     price: handle.price,
+    business_id: businessId,
     created_at: handle.createdAt,
     updated_at: new Date().toISOString(), // bumped on every save
   };
@@ -66,9 +68,20 @@ export async function fetchHandles(): Promise<HandleSpec[]> {
   return (data as HandleRow[]).map(rowToHandle);
 }
 
-export async function saveHandle(handle: HandleSpec): Promise<void> {
-  const { error } = await supabase.from('handles').upsert(handleToRow(handle));
+export async function saveHandle(handle: HandleSpec, businessId: string): Promise<void> {
+  const { error } = await supabase.from('handles').upsert(handleToRow(handle, businessId));
   if (error) throw new Error(`Failed to save handle: ${error.message}`);
+}
+
+// One multi-row upsert, genuinely atomic — used by the handle Excel
+// import's "Commit" step. Same reasoning as
+// saveCabinetCatalogItemsBulk in lib/Inventory.ts.
+export async function saveHandlesBulk(handles: HandleSpec[], businessId: string): Promise<void> {
+  if (handles.length === 0) return;
+  const { error } = await supabase
+    .from('handles')
+    .upsert(handles.map((handle) => handleToRow(handle, businessId)));
+  if (error) throw new Error(`Failed to save handles: ${error.message}`);
 }
 
 // Deleting a handle that placed cabinets still reference is allowed
@@ -79,4 +92,12 @@ export async function saveHandle(handle: HandleSpec): Promise<void> {
 export async function deleteHandle(id: string): Promise<void> {
   const { error } = await supabase.from('handles').delete().eq('id', id);
   if (error) throw new Error(`Failed to delete handle: ${error.message}`);
+}
+
+// Same reasoning as saveHandlesBulk — one statement, used by the
+// Excel import's explicit "DELETE" column.
+export async function deleteHandlesBulk(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  const { error } = await supabase.from('handles').delete().in('id', ids);
+  if (error) throw new Error(`Failed to delete handles: ${error.message}`);
 }

@@ -15,11 +15,18 @@
 // it's reachable from the dashboard as well as from inside a layout
 // (see App.tsx).
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { Button } from '../ui/button';
+import { confirmDialog } from '../../store/confirmDialogStore';
 import { useLayoutStore } from '../../store/layoutStore';
 import { FinishManager } from './FinishManager';
 import { HandleManager } from './HandleManager';
 import { FixtureManager } from './FixtureManager';
+import { RateCardManager } from './RateCardManager';
+import { CabinetCatalogImportExport } from './CabinetCatalogImportExport';
+import { ObstaclePresetImportExport } from './ObstaclePresetImportExport';
+import { ApplianceCatalogImportExport } from './ApplianceCatalogImportExport';
 import type { CatalogItem, ObstaclePreset, ApplianceCatalogItem } from '../../types/Catalog';
 import type { ModuleType, MaterialType } from '../../types/cabinet';
 import { FALLBACK_FINISH_ID } from '../../types/finish';
@@ -43,6 +50,7 @@ const FRONT_KINDS: FrontKind[] = [
   'open-shelf',
   'false-front',
   'appliance-housing',
+  'tambour',
 ];
 
 const MODULE_TYPES: ModuleType[] = [
@@ -51,8 +59,10 @@ const MODULE_TYPES: ModuleType[] = [
   'tall-unit',
   'sink-unit',
   'cylinder-trolley',
-  'corner-unit',
   'drawer-unit',
+  'corner-blind',
+  'corner-magic',
+  'corner-carousel',
 ];
 const MATERIALS: MaterialType[] = ['HDMR', 'Plywood', 'MDF', 'Particle Board'];
 const OBSTACLE_TYPES: ObstacleType[] = ['pillar', 'shaft', 'exposed-pipe', 'electrical-panel'];
@@ -99,7 +109,20 @@ const INR_FORMATTER = new Intl.NumberFormat('en-IN', {
 
 const inputClass = 'rounded border border-gray-300 px-2 py-1 text-xs';
 
-export function InventoryManager() {
+// Which toolbar's "Manage" button was clicked — used only to scroll to
+// that section on open. This is a single scrolling page (see the note
+// at the top of this file), so without this every "Manage" click landed
+// on the same generic top of the page regardless of which catalog you
+// meant, and you had to scroll to find it yourself.
+export type InventorySection = 'cabinets' | 'obstacles' | 'appliances';
+
+const SECTION_ELEMENT_IDS: Record<InventorySection, string> = {
+  cabinets: 'inventory-section-cabinets',
+  obstacles: 'inventory-section-obstacles',
+  appliances: 'inventory-section-appliances',
+};
+
+export function InventoryManager({ initialSection }: { initialSection?: InventorySection } = {}) {
   const cabinetCatalog = useLayoutStore((s) => s.cabinetCatalog);
   const obstaclePresets = useLayoutStore((s) => s.obstaclePresets);
   const applianceCatalog = useLayoutStore((s) => s.applianceCatalog);
@@ -114,9 +137,20 @@ export function InventoryManager() {
 
   const categories = Array.from(new Set(cabinetCatalog.map((c) => c.category)));
 
+  // Re-runs once loading finishes too, in case initialSection's element
+  // wasn't in the DOM yet on the first render (it's inside the
+  // isInventoryLoading ternary below).
+  useEffect(() => {
+    if (!initialSection) return;
+    document.getElementById(SECTION_ELEMENT_IDS[initialSection])?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    });
+  }, [initialSection, isInventoryLoading]);
+
   return (
     <div className="flex flex-col gap-6">
-      <div>
+      <div id={SECTION_ELEMENT_IDS.cabinets}>
         <h2 className="text-sm font-semibold text-gray-700">Your Cabinet Pieces</h2>
         <p className="text-xs text-gray-500">
           These show up as "add" buttons in the cabinet toolbar. Name, resize, reprice, or remove
@@ -134,6 +168,15 @@ export function InventoryManager() {
         <p className="text-sm text-gray-500">Loading inventory...</p>
       ) : (
         <>
+          {/* Rates first — everything below this line is priced off
+              them, and the amber "these are placeholders" banner
+              (RateCardManager's own header comment explains why it
+              must never be removed) should be the first thing a
+              business sees here, not something they have to scroll
+              to find. This was built but never actually rendered
+              anywhere until now — see docs/ISSUES-FIXED.md. */}
+          <RateCardManager />
+
           {/* Finishes first: cabinet rows below reference them, so this
               is the order the data actually depends in. */}
           <FinishManager />
@@ -144,6 +187,8 @@ export function InventoryManager() {
           <HandleManager />
 
           <FixtureManager />
+
+          <CabinetCatalogImportExport />
 
           <div className="overflow-x-auto rounded-lg border border-gray-200">
             <table className="w-full border-collapse text-left text-xs">
@@ -175,7 +220,7 @@ export function InventoryManager() {
             </table>
           </div>
 
-          <div>
+          <div id={SECTION_ELEMENT_IDS.obstacles}>
             <h2 className="text-sm font-semibold text-gray-700">Your Obstacle Presets</h2>
             <p className="text-xs text-gray-500">
               Quick-add buttons in the obstacle toolbar, for the structural elements you run into
@@ -186,6 +231,8 @@ export function InventoryManager() {
               nothing below it.
             </p>
           </div>
+
+          <ObstaclePresetImportExport />
 
           <div className="overflow-x-auto rounded-lg border border-gray-200">
             <table className="w-full border-collapse text-left text-xs">
@@ -214,7 +261,7 @@ export function InventoryManager() {
             </table>
           </div>
 
-          <div>
+          <div id={SECTION_ELEMENT_IDS.appliances}>
             <h2 className="text-sm font-semibold text-gray-700">Your Appliances</h2>
             <p className="text-xs text-gray-500">
               These show up as "add" buttons in the appliance toolbar. defaultElevationMm is how
@@ -228,7 +275,15 @@ export function InventoryManager() {
               in a particular kitchen: for that, double-click the appliance on the floor plan to
               turn it 90° (shift-double-click turns it back).
             </p>
+            <p className="mt-1 text-xs text-gray-500">
+              <span className="font-medium">Sink cutout</span> is the hole cut into the
+              countertop for a sink row — smaller than the sink's own W×D by whatever rim that
+              model needs. Leave both at 0 to keep the old behaviour (the sink sits on top of an
+              uncut slab). Only shown for the "sink" appliance type.
+            </p>
           </div>
+
+          <ApplianceCatalogImportExport />
 
           <div className="overflow-x-auto rounded-lg border border-gray-200">
             <table className="w-full border-collapse text-left text-xs">
@@ -238,6 +293,7 @@ export function InventoryManager() {
                   <th className="px-2 py-2 font-medium">Type</th>
                   <th className="px-2 py-2 font-medium">W×D×H (mm)</th>
                   <th className="px-2 py-2 font-medium">Elevation (mm)</th>
+                  <th className="px-2 py-2 font-medium">Sink cutout W×D (mm)</th>
                   <th className="px-2 py-2 font-medium">3D Model</th>
                   <th className="px-2 py-2 font-medium">Model orientation</th>
                   <th className="px-2 py-2 font-medium">Price</th>
@@ -291,12 +347,17 @@ function CabinetCatalogRow({ item, categorySuggestions, onSave, onDelete }: Cabi
   }
 
   async function handleDelete() {
+    if (!(await confirmDialog({ title: `Delete "${item.label}"?`, description: "This can't be undone." })))
+      return;
     setIsSaving(true);
     setError(null);
     try {
       await onDelete(item.id);
+      toast.success(`Deleted "${item.label}"`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete.');
+      const message = err instanceof Error ? err.message : 'Failed to delete.';
+      setError(message);
+      toast.error('Failed to delete', { description: message });
       setIsSaving(false);
     }
   }
@@ -408,20 +469,12 @@ function CabinetCatalogRow({ item, categorySuggestions, onSave, onDelete }: Cabi
       </td>
       <td className="px-2 py-1.5">
         <div className="flex flex-col gap-1">
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="rounded bg-gray-800 px-2 py-1 text-[10px] text-white hover:bg-gray-700 disabled:opacity-50"
-          >
+          <Button size="xs" onClick={handleSave} disabled={isSaving}>
             Save
-          </button>
-          <button
-            onClick={handleDelete}
-            disabled={isSaving}
-            className="rounded border border-red-300 px-2 py-1 text-[10px] text-red-600 hover:bg-red-50 disabled:opacity-50"
-          >
+          </Button>
+          <Button size="xs" variant="destructive" onClick={handleDelete} disabled={isSaving}>
             Delete
-          </button>
+          </Button>
         </div>
         {error && <p className="mt-1 w-24 text-[10px] text-red-600">{error}</p>}
       </td>
@@ -572,13 +625,9 @@ function NewCabinetItemRow({
         />
       </td>
       <td className="px-2 py-1.5">
-        <button
-          onClick={handleAdd}
-          disabled={isSaving}
-          className="rounded bg-gray-800 px-2 py-1 text-[10px] text-white hover:bg-gray-700 disabled:opacity-50"
-        >
+        <Button size="xs" onClick={handleAdd} disabled={isSaving}>
           + Add
-        </button>
+        </Button>
         {error && <p className="mt-1 w-24 text-[10px] text-red-600">{error}</p>}
       </td>
     </tr>
@@ -611,12 +660,19 @@ function ObstaclePresetRow({ preset, onSave, onDelete }: ObstaclePresetRowProps)
   }
 
   async function handleDelete() {
+    if (
+      !(await confirmDialog({ title: `Delete "${preset.label}"?`, description: "This can't be undone." }))
+    )
+      return;
     setIsSaving(true);
     setError(null);
     try {
       await onDelete(preset.id);
+      toast.success(`Deleted "${preset.label}"`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete.');
+      const message = err instanceof Error ? err.message : 'Failed to delete.';
+      setError(message);
+      toast.error('Failed to delete', { description: message });
       setIsSaving(false);
     }
   }
@@ -688,20 +744,12 @@ function ObstaclePresetRow({ preset, onSave, onDelete }: ObstaclePresetRowProps)
       </td>
       <td className="px-2 py-1.5">
         <div className="flex gap-1">
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="rounded bg-gray-800 px-2 py-1 text-[10px] text-white hover:bg-gray-700 disabled:opacity-50"
-          >
+          <Button size="xs" onClick={handleSave} disabled={isSaving}>
             Save
-          </button>
-          <button
-            onClick={handleDelete}
-            disabled={isSaving}
-            className="rounded border border-red-300 px-2 py-1 text-[10px] text-red-600 hover:bg-red-50 disabled:opacity-50"
-          >
+          </Button>
+          <Button size="xs" variant="destructive" onClick={handleDelete} disabled={isSaving}>
             Delete
-          </button>
+          </Button>
         </div>
         {error && <p className="mt-1 w-24 text-[10px] text-red-600">{error}</p>}
       </td>
@@ -809,13 +857,9 @@ function NewObstaclePresetRow({ onAdd }: { onAdd: (preset: ObstaclePreset) => Pr
         />
       </td>
       <td className="px-2 py-1.5">
-        <button
-          onClick={handleAdd}
-          disabled={isSaving}
-          className="rounded bg-gray-800 px-2 py-1 text-[10px] text-white hover:bg-gray-700 disabled:opacity-50"
-        >
+        <Button size="xs" onClick={handleAdd} disabled={isSaving}>
           + Add
-        </button>
+        </Button>
         {error && <p className="mt-1 w-24 text-[10px] text-red-600">{error}</p>}
       </td>
     </tr>
@@ -848,12 +892,17 @@ function ApplianceCatalogRow({ item, onSave, onDelete }: ApplianceCatalogRowProp
   }
 
   async function handleDelete() {
+    if (!(await confirmDialog({ title: `Delete "${item.label}"?`, description: "This can't be undone." })))
+      return;
     setIsSaving(true);
     setError(null);
     try {
       await onDelete(item.id);
+      toast.success(`Deleted "${item.label}"`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete.');
+      const message = err instanceof Error ? err.message : 'Failed to delete.';
+      setError(message);
+      toast.error('Failed to delete', { description: message });
       setIsSaving(false);
     }
   }
@@ -915,6 +964,30 @@ function ApplianceCatalogRow({ item, onSave, onDelete }: ApplianceCatalogRowProp
         />
       </td>
       <td className="px-2 py-1.5">
+        {draft.applianceType === 'sink' && (
+          <div className="flex gap-1">
+            <input
+              type="number"
+              min={0}
+              value={draft.sinkCutoutWidthMm ?? 0}
+              onChange={(e) =>
+                setDraft({ ...draft, sinkCutoutWidthMm: Number(e.target.value) || undefined })
+              }
+              className={inputClass + ' w-14'}
+            />
+            <input
+              type="number"
+              min={0}
+              value={draft.sinkCutoutDepthMm ?? 0}
+              onChange={(e) =>
+                setDraft({ ...draft, sinkCutoutDepthMm: Number(e.target.value) || undefined })
+              }
+              className={inputClass + ' w-14'}
+            />
+          </div>
+        )}
+      </td>
+      <td className="px-2 py-1.5">
         {/* A path under public/, e.g. /models/hob-600.glb. Left empty the
             appliance keeps rendering as a plain box — see
             components/canvas3d/ApplianceModel.tsx. */}
@@ -946,20 +1019,12 @@ function ApplianceCatalogRow({ item, onSave, onDelete }: ApplianceCatalogRowProp
       </td>
       <td className="px-2 py-1.5">
         <div className="flex flex-col gap-1">
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="rounded bg-gray-800 px-2 py-1 text-[10px] text-white hover:bg-gray-700 disabled:opacity-50"
-          >
+          <Button size="xs" onClick={handleSave} disabled={isSaving}>
             Save
-          </button>
-          <button
-            onClick={handleDelete}
-            disabled={isSaving}
-            className="rounded border border-red-300 px-2 py-1 text-[10px] text-red-600 hover:bg-red-50 disabled:opacity-50"
-          >
+          </Button>
+          <Button size="xs" variant="destructive" onClick={handleDelete} disabled={isSaving}>
             Delete
-          </button>
+          </Button>
         </div>
         {error && <p className="mt-1 w-24 text-[10px] text-red-600">{error}</p>}
       </td>
@@ -1063,6 +1128,30 @@ function NewApplianceCatalogRow({
         />
       </td>
       <td className="px-2 py-1.5">
+        {draft.applianceType === 'sink' && (
+          <div className="flex gap-1">
+            <input
+              type="number"
+              min={0}
+              value={draft.sinkCutoutWidthMm ?? 0}
+              onChange={(e) =>
+                setDraft({ ...draft, sinkCutoutWidthMm: Number(e.target.value) || undefined })
+              }
+              className={inputClass + ' w-14'}
+            />
+            <input
+              type="number"
+              min={0}
+              value={draft.sinkCutoutDepthMm ?? 0}
+              onChange={(e) =>
+                setDraft({ ...draft, sinkCutoutDepthMm: Number(e.target.value) || undefined })
+              }
+              className={inputClass + ' w-14'}
+            />
+          </div>
+        )}
+      </td>
+      <td className="px-2 py-1.5">
         {/* A path under public/, e.g. /models/hob-600.glb. Left empty the
             appliance keeps rendering as a plain box — see
             components/canvas3d/ApplianceModel.tsx. */}
@@ -1092,13 +1181,9 @@ function NewApplianceCatalogRow({
         />
       </td>
       <td className="px-2 py-1.5">
-        <button
-          onClick={handleAdd}
-          disabled={isSaving}
-          className="rounded bg-gray-800 px-2 py-1 text-[10px] text-white hover:bg-gray-700 disabled:opacity-50"
-        >
+        <Button size="xs" onClick={handleAdd} disabled={isSaving}>
           + Add
-        </button>
+        </Button>
         {error && <p className="mt-1 w-24 text-[10px] text-red-600">{error}</p>}
       </td>
     </tr>

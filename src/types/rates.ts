@@ -39,10 +39,11 @@ export type CardPricedHardware = Exclude<HardwareSpec['type'], 'handle'>;
 export type HardwareRates = Record<CardPricedHardware, number>;
 
 export interface RateCard {
-  // Single active row for now — see ACTIVE_RATE_CARD_ID. Kept as a
-  // real primary key rather than a bare settings blob so that going
-  // multi-business later is an added column and a changed lookup,
-  // not a new table.
+  // One row per business now (business_id + RLS — see
+  // supabase/schema.sql and defaultRateCard's own comment below for
+  // how `id` is generated). Kept as a real primary key rather than a
+  // bare settings blob, which is what let that move be an added
+  // column and a changed lookup instead of a new table.
   id: string;
   label: string;
 
@@ -81,6 +82,13 @@ export const PLACEHOLDER_RATES: Omit<RateCard, 'createdAt' | 'updatedAt'> = {
     channel: 450,
     basket: 1400,
     shelf: 350,
+    // Real component costs, one per cabinet regardless of front kind
+    // — see cornerMechanismHardware in lib/fronts.ts. Magic-corner
+    // pull-out systems retail well above a plain lazy susan, which
+    // these placeholders reflect; both still need checking against
+    // real purchase invoices like every other rate here.
+    cornerMagic: 12000,
+    cornerCarousel: 6000,
   },
 };
 
@@ -95,9 +103,20 @@ export const PLACEHOLDER_RATES: Omit<RateCard, 'createdAt' | 'updatedAt'> = {
 // side to err on here only because the numbers are identical to the
 // seeded row — if the seed ever diverges from PLACEHOLDER_RATES, this
 // choice becomes a silent-wrong-price bug and should be revisited.
+//
+// `id` is a FRESH crypto.randomUUID() on every call, not
+// ACTIVE_RATE_CARD_ID — since business_id + RLS landed (see
+// supabase/schema.sql), `id` is no longer a fixed well-known value
+// every business could collide on; it only matters as a genuinely
+// unique primary key. A business with no rate_cards row yet gets this
+// fallback from fetchRateCard() (lib/rates.ts), and if they save, THAT
+// id is what the new row is created with — no separate "does a row
+// exist yet" check needed. The ONE pre-existing seeded row (from
+// before multi-tenancy) keeps its historical id, ACTIVE_RATE_CARD_ID,
+// which is why that constant is still exported below.
 export function defaultRateCard(): RateCard {
   const now = new Date().toISOString();
-  return { ...PLACEHOLDER_RATES, createdAt: now, updatedAt: now };
+  return { ...PLACEHOLDER_RATES, id: crypto.randomUUID(), createdAt: now, updatedAt: now };
 }
 
 // Labels for the rate card editor. Separate from HARDWARE_LABELS in
@@ -109,6 +128,8 @@ export const RATE_LABELS: Record<CardPricedHardware, string> = {
   channel: 'Drawer channel (per pair)',
   basket: 'Wire basket (each)',
   shelf: 'Shelf, cut and edge-banded (each)',
+  cornerMagic: 'Magic corner pull-out mechanism (each)',
+  cornerCarousel: 'Carousel / lazy susan mechanism (each)',
 };
 
 // A rate of 0 is legitimate — a business that does not charge
@@ -125,6 +146,12 @@ export function sanitizeRateCard(card: RateCard): RateCard {
       channel: nonNegative(card.hardware.channel),
       basket: nonNegative(card.hardware.basket),
       shelf: nonNegative(card.hardware.shelf),
+      // nonNegative(undefined) -> 0, so a rate card saved before these
+      // two existed (missing keys in its JSONB) loads as "not priced
+      // yet" rather than throwing — same graceful growth 'shelf' itself
+      // went through.
+      cornerMagic: nonNegative(card.hardware.cornerMagic),
+      cornerCarousel: nonNegative(card.hardware.cornerCarousel),
     },
   };
 }

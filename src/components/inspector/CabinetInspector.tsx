@@ -160,6 +160,38 @@ export function CabinetInspector() {
         </select>
       </label>
 
+      <label className="flex items-start gap-2 text-xs text-gray-600">
+        <input
+          type="checkbox"
+          checked={cabinet.ignoreOverlap ?? false}
+          onChange={(e) => updateCabinet(cabinet.id, { ignoreOverlap: e.target.checked })}
+          className="mt-0.5"
+        />
+        <span>
+          Ignore overlap alerts for this item
+          <br />
+          <span className="text-[10px] text-gray-400">
+            e.g. a chimney duct that's meant to run through this cabinet
+          </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-2 text-xs text-gray-600">
+        <input
+          type="checkbox"
+          checked={cabinet.ignoreClearance ?? false}
+          onChange={(e) => updateCabinet(cabinet.id, { ignoreClearance: e.target.checked })}
+          className="mt-0.5"
+        />
+        <span>
+          Ignore door/drawer clearance alerts for this item
+          <br />
+          <span className="text-[10px] text-gray-400">
+            e.g. an L-corner fit you've already checked fits in practice
+          </span>
+        </span>
+      </label>
+
       <FinishPicker cabinet={cabinet} />
 
       {/* Front (structure) sits under Finish (appearance) deliberately:
@@ -224,7 +256,18 @@ function DimensionsForm({ widthMm, depthMm, heightMm, onSubmit }: DimensionsForm
   const [height, setHeight] = useState(heightMm);
 
   return (
-    <div className="flex flex-col gap-2 rounded border border-gray-200 bg-gray-50 p-2">
+    // A <form>, not a <div>, specifically so Enter in any field submits —
+    // matching ApplianceInspector's DimensionsForm. The plain div+onClick
+    // version this replaced had no way to commit without reaching for the
+    // mouse.
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!(width > 0 && depth > 0 && height > 0)) return;
+        onSubmit(width, depth, height);
+      }}
+      className="flex flex-col gap-2 rounded border border-gray-200 bg-gray-50 p-2"
+    >
       <div className="grid grid-cols-3 gap-1">
         <label className="flex flex-col text-[10px] text-gray-500">
           W (mm)
@@ -258,11 +301,11 @@ function DimensionsForm({ widthMm, depthMm, heightMm, onSubmit }: DimensionsForm
         </label>
       </div>
       <button
-        onClick={() => onSubmit(width, depth, height)}
+        type="submit"
         className="rounded bg-gray-800 px-2 py-1 text-xs text-white hover:bg-gray-700"
       >
         Apply
       </button>
-    </div>
+    </form>
   );
 }

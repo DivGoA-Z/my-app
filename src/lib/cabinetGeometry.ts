@@ -38,7 +38,7 @@ export function getDefaultElevationMm(moduleType: ModuleType): number {
   return moduleType === 'wall-cabinet' ? WALL_CABINET_DEFAULT_ELEVATION_MM : 0;
 }
 
-// ---- Countertop (3D preview only) ----
+// ---- Countertop ----
 //
 // Which module types carry a countertop slab on top. Wall cabinets are
 // mounted above the counter and tall units run floor-to-ceiling, so
@@ -46,16 +46,27 @@ export function getDefaultElevationMm(moduleType: ModuleType): number {
 // Sink units included deliberately — the slab runs over them in reality
 // too, with the basin cut into it (the cut-out isn't modeled).
 //
-// NOTE: this is currently a VISUAL-ONLY addition to Room3DCanvas — a
-// countertop is a real, chargeable material in a kitchen quote, but
-// nothing here feeds lib/bom.ts. Pricing countertops (per running foot
-// or per sq ft, by material) is its own piece of work.
+// UPDATED: this was visual-only in Room3DCanvas, with a note here
+// saying pricing it was "its own piece of work" — nothing fed
+// lib/bom.ts. It's wired in now: one countertop finish for the whole
+// layout (RoomLayout.countertopFinishId, same reasoning as floor/
+// ceiling being singular), priced through countertopAreaSqM below at
+// that finish's own pricePerSqM, same as every other SurfaceFinish.
+// Charging for it is still OPTIONAL though (RoomLayout.priceCountertop,
+// same shape as priceElectrical) — in Delhi NCR the kitchen business
+// usually doesn't supply the slab, the homeowner arranges stone
+// separately, so the countertop is always part of the design but only
+// sometimes part of the price. See lib/bom.ts's buildCountertopLineItem.
 const COUNTERTOP_MODULE_TYPES: ModuleType[] = [
   'base-cabinet',
   'sink-unit',
   'cylinder-trolley',
-  'corner-unit',
   'drawer-unit',
+  // All three corner solutions are base-height, so the slab runs over
+  // them exactly as it does any other base cabinet.
+  'corner-blind',
+  'corner-magic',
+  'corner-carousel',
 ];
 
 export const COUNTERTOP_THICKNESS_MM = 40;
@@ -66,6 +77,29 @@ export const COUNTERTOP_OVERHANG_MM = 20;
 
 export function hasCountertop(moduleType: ModuleType): boolean {
   return COUNTERTOP_MODULE_TYPES.includes(moduleType);
+}
+
+// Countertop area, in m², across every cabinet that carries a slab.
+// Includes the same overhang CountertopMesh renders (Room3DCanvas.tsx)
+// — the finish is charged on the slab as it's actually cut, not the
+// carcass footprint underneath it. Rotation-invariant (width × depth),
+// same as floor area for cabinets/appliances/obstacles in
+// surfaceAreas.ts, so no footprint swap is needed here either.
+//
+// Exported from here rather than computed separately in lib/bom.ts and
+// RoomSurfacesPanel.tsx — one function the price and the on-screen area
+// readout both call, so they can't quietly disagree about how much
+// countertop there is.
+export function countertopAreaSqM(cabinets: PlacedCabinetItem[]): number {
+  const overhangM = COUNTERTOP_OVERHANG_MM / 1000;
+  return cabinets
+    .filter((c) => hasCountertop(c.moduleType))
+    .reduce(
+      (total, c) =>
+        total +
+        (c.widthMm / 1000 + overhangM * 2) * (c.depthMm / 1000 + overhangM * 2) * c.quantity,
+      0
+    );
 }
 
 // Rotates by +-90°, keeping the same center where possible, and

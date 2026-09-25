@@ -82,6 +82,29 @@ export interface PlacedApplianceItem {
   // unit in one layout should render differently from the catalogue
   // row — nothing sets it today, and it takes priority when it is set.
   modelUrl?: string;
+  // Suppresses the red collision highlight/warning for any overlap
+  // involving THIS item — see lib/collision.ts. For a known, accepted
+  // overlap (e.g. a chimney duct that legitimately runs through a wall
+  // cabinet's box) rather than an actual mistake. Never affects
+  // placement itself (Principle 6: warn, never block) — only whether
+  // the warning is shown. Defaults to false/unset.
+  ignoreOverlap?: boolean;
+  // Set only when this appliance was created FROM the tambour picker
+  // in FrontPicker.tsx, rather than dropped onto the canvas by hand —
+  // mirrors FixtureMount's 'cabinet' case (types/fixture.ts): the
+  // appliance MOVES WITH its host cabinet and is cascade-removed if
+  // that cabinet is deleted or its front changes away from tambour.
+  // x/y/elevationMm are still real, ordinary fields (auto-computed
+  // once, on pick, to sit resting on the chosen shelf) — this mount
+  // only marks OWNERSHIP for that cascade, not a live constraint the
+  // way a fixture's cabinet mount is.
+  //
+  // slotIndex: WHICH of the compartment's shelf slots this sits in,
+  // 0 = the bottom slot (floor to the first shelf), counting up —
+  // shelves divide one tambour into several independent slots, each
+  // able to hold its own appliance, so the cabinetId alone isn't
+  // enough to say which one this is.
+  mount?: { kind: 'tambour'; cabinetId: string; slotIndex: number };
 }
 
 /*

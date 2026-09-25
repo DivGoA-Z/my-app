@@ -14,9 +14,13 @@
 // is a visible, required choice, and the price label changes with it.
 
 import { useState } from 'react';
+import { toast } from 'sonner';
+import { Button } from '../ui/button';
+import { confirmDialog } from '../../store/confirmDialogStore';
 import { useLayoutStore } from '../../store/layoutStore';
 import { DEFAULT_HANDLE_ID } from '../../types/front';
 import type { HandleKind, HandleSpec } from '../../types/front';
+import { HandleImportExport } from './HandleImportExport';
 
 const HANDLE_KINDS: HandleKind[] = ['bar', 'knob', 'edge-profile', 'gola', 'handleless'];
 
@@ -57,6 +61,8 @@ export function HandleManager() {
           to the default rather than losing their hardware cost.
         </p>
       </div>
+
+      <HandleImportExport />
 
       <div className="overflow-x-auto rounded-lg border border-gray-200">
         <table className="w-full border-collapse text-left text-xs">
@@ -115,26 +121,38 @@ function HandleRow({
     }
   }
 
+  async function handleDelete() {
+    if (
+      !(await confirmDialog({ title: `Delete "${handle.label}"?`, description: "This can't be undone." }))
+    )
+      return;
+    try {
+      await onDelete(handle.id);
+      toast.success(`Deleted "${handle.label}"`);
+    } catch (err) {
+      toast.error('Failed to delete', {
+        description: err instanceof Error ? err.message : 'Failed to delete.',
+      });
+    }
+  }
+
   return (
     <tr className="border-b border-gray-100">
       <Fields draft={draft} setDraft={setDraft} />
       <td className="px-2 py-1.5">
         <div className="flex flex-col gap-1">
-          <button
-            onClick={handleSave}
-            disabled={isSaving || !isDirty}
-            className="rounded bg-gray-800 px-2 py-1 text-[10px] text-white hover:bg-gray-700 disabled:opacity-40"
-          >
+          <Button size="xs" onClick={handleSave} disabled={isSaving || !isDirty}>
             {isSaving ? '...' : 'Save'}
-          </button>
-          <button
-            onClick={() => onDelete(handle.id)}
+          </Button>
+          <Button
+            size="xs"
+            variant="destructive"
+            onClick={handleDelete}
             disabled={isDefault}
             title={isDefault ? 'The default handle cannot be deleted' : undefined}
-            className="rounded border border-red-300 px-2 py-1 text-[10px] text-red-600 hover:bg-red-50 disabled:opacity-40"
           >
             Delete
-          </button>
+          </Button>
         </div>
       </td>
     </tr>
@@ -179,13 +197,9 @@ function NewHandleRow({ onAdd }: { onAdd: (handle: HandleSpec) => Promise<void> 
     <tr className="bg-gray-50/50">
       <Fields draft={draft} setDraft={setDraft} />
       <td className="px-2 py-1.5">
-        <button
-          onClick={handleAdd}
-          disabled={isSaving || !draft.label.trim()}
-          className="rounded bg-gray-800 px-2 py-1 text-[10px] text-white hover:bg-gray-700 disabled:opacity-40"
-        >
+        <Button size="xs" onClick={handleAdd} disabled={isSaving || !draft.label.trim()}>
           {isSaving ? '...' : 'Add'}
-        </button>
+        </Button>
       </td>
     </tr>
   );
