@@ -22,6 +22,10 @@ import { fetchCustomers, createCustomer, updateCustomerStatus } from '../../lib/
 import { fetchCapturedPanoramasByProject } from '../../lib/Persistence';
 import { PanoramaViewerModal } from '../panorama/PanoramaViewerModal';
 import { useAuthStore } from '../../store/authStore';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Skeleton } from '../ui/skeleton';
+import { Alert, AlertDescription } from '../ui/alert';
 
 export interface CustomerDashboardProps {
   onOpenCanvas: (projectId: string) => void;
@@ -166,80 +170,78 @@ export function CustomerDashboard({ onOpenCanvas }: CustomerDashboardProps) {
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-sm font-semibold text-gray-700">Customer Pipeline</h2>
         <div className="flex items-center gap-2">
-          <input
+          <Input
             type="text"
             placeholder="Search by name, phone, or location..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-64 rounded border border-gray-300 px-3 py-1.5 text-sm"
+            className="w-64"
           />
-          <button
-            onClick={() => setIsFormOpen((open) => !open)}
-            className="rounded bg-gray-800 px-3 py-1.5 text-sm text-white hover:bg-gray-700"
-          >
+          <Button size="sm" onClick={() => setIsFormOpen((open) => !open)}>
             + New Lead
-          </button>
+          </Button>
         </div>
       </div>
 
       {isFormOpen && (
         <div className="flex flex-col gap-2 rounded border border-gray-200 bg-gray-50 p-3">
           <div className="grid grid-cols-2 gap-2">
-            <input
+            <Input
               placeholder="Client name"
               value={form.clientName}
               onChange={(e) => setForm((f) => ({ ...f, clientName: e.target.value }))}
-              className="rounded border border-gray-300 px-2 py-1.5 text-sm"
             />
-            <input
+            <Input
               placeholder="Phone number"
               value={form.phone}
               onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-              className="rounded border border-gray-300 px-2 py-1.5 text-sm"
             />
-            <input
+            <Input
               placeholder="Address"
               value={form.address}
               onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
-              className="rounded border border-gray-300 px-2 py-1.5 text-sm"
             />
-            <input
+            <Input
               placeholder="Locality (e.g. Dwarka, Delhi)"
               value={form.locality}
               onChange={(e) => setForm((f) => ({ ...f, locality: e.target.value }))}
-              className="rounded border border-gray-300 px-2 py-1.5 text-sm"
             />
           </div>
-          {createError && <p className="text-xs text-red-600">{createError}</p>}
+          {createError && (
+            <Alert variant="destructive">
+              <AlertDescription>{createError}</AlertDescription>
+            </Alert>
+          )}
           <div className="flex gap-2">
-            <button
-              onClick={handleCreate}
-              disabled={isCreating}
-              className="rounded bg-gray-800 px-3 py-1.5 text-xs text-white hover:bg-gray-700 disabled:opacity-50"
-            >
+            <Button size="sm" onClick={handleCreate} disabled={isCreating}>
               {isCreating ? 'Creating...' : 'Create Lead'}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => {
                 setIsFormOpen(false);
                 setCreateError(null);
               }}
-              className="rounded border border-gray-300 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100"
             >
               Cancel
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
       {loadError && (
-        <p className="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {loadError}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>{loadError}</AlertDescription>
+        </Alert>
       )}
 
       {isLoading ? (
-        <p className="text-sm text-gray-500">Loading customers...</p>
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-9 w-full" />
+          ))}
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left text-sm">
@@ -286,29 +288,32 @@ export function CustomerDashboard({ onOpenCanvas }: CustomerDashboardProps) {
                     <td className="relative py-2 pr-3">
                       {panoramasByProject[customer.id]?.length ? (
                         <>
-                          <button
+                          <Button
+                            variant="outline"
+                            size="xs"
                             onClick={() =>
                               setPanoramaMenuProjectId((current) =>
                                 current === customer.id ? null : customer.id
                               )
                             }
-                            className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
                           >
                             360° Views ({panoramasByProject[customer.id].length})
-                          </button>
+                          </Button>
                           {panoramaMenuProjectId === customer.id && (
                             <div className="absolute left-0 top-full z-10 mt-1 flex w-48 flex-col gap-1 rounded-lg border border-gray-200 bg-white p-2 shadow-lg">
                               {panoramasByProject[customer.id].map((camera) => (
-                                <button
+                                <Button
                                   key={camera.id}
+                                  variant="ghost"
+                                  size="xs"
+                                  className="justify-start"
                                   onClick={() => {
                                     setViewingPanoramaCamera(camera);
                                     setPanoramaMenuProjectId(null);
                                   }}
-                                  className="rounded px-2 py-1 text-left text-xs text-gray-700 hover:bg-gray-50"
                                 >
                                   {camera.label}
-                                </button>
+                                </Button>
                               ))}
                             </div>
                           )}
@@ -318,12 +323,9 @@ export function CustomerDashboard({ onOpenCanvas }: CustomerDashboardProps) {
                       )}
                     </td>
                     <td className="py-2 pl-3 text-right">
-                      <button
-                        onClick={() => onOpenCanvas(customer.id)}
-                        className="rounded bg-gray-800 px-3 py-1 text-xs font-medium text-white hover:bg-gray-700"
-                      >
+                      <Button size="xs" onClick={() => onOpenCanvas(customer.id)}>
                         Open 2D Canvas
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 );

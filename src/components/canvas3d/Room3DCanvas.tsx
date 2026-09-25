@@ -68,6 +68,7 @@ import {
   Edges,
 } from '@react-three/drei';
 import { useLayoutStore } from '../../store/layoutStore';
+import { Button } from '../ui/button';
 import { useSelectedCabinetId } from '../../hooks/useSelection';
 import { resolveMaterial } from '../../lib/materials3d';
 import { useSurfaceTextures, useFinishTextures, useOpeningBackdrop } from '../../lib/textures3d';
@@ -355,27 +356,17 @@ export function Room3DCanvas({ widthMm, depthMm }: Room3DCanvasProps) {
           {/* Works whether or not the viewport is locked to this node —
               capturePanorama only needs a world position, the on-screen
               camera doesn't need to actually be sitting there. */}
-          <button
-            onClick={handleCapture}
-            disabled={!selectedCamera || isCapturing}
-            className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-          >
+          <Button variant="outline" size="xs" onClick={handleCapture} disabled={!selectedCamera || isCapturing}>
             {isCapturing ? 'Capturing...' : 'Capture 360°'}
-          </button>
+          </Button>
           {selectedCamera?.panoramaUrl && (
             <>
-              <button
-                onClick={() => setIsViewerOpen(true)}
-                className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
-              >
+              <Button variant="outline" size="xs" onClick={() => setIsViewerOpen(true)}>
                 View 360° Street View
-              </button>
-              <button
-                onClick={handleDeletePanorama}
-                className="rounded border border-red-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
-              >
+              </Button>
+              <Button variant="destructive" size="xs" onClick={handleDeletePanorama}>
                 Delete 360°
-              </button>
+              </Button>
             </>
           )}
         </label>

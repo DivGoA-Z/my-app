@@ -30,6 +30,7 @@ import {
   readFirstSheetRows,
   requiredString,
   positiveNumber,
+  nonNegativeNumber,
   enumValue,
   resolveRowId,
   flagDuplicateMatchedIds,
@@ -55,7 +56,7 @@ const MODULE_TYPES: readonly ModuleType[] = [
   'corner-carousel',
 ];
 
-const MATERIALS: readonly MaterialType[] = ['HDMR', 'Plywood', 'MDF', 'Particle Board'];
+const MATERIALS: readonly MaterialType[] = ['HDMR', 'Plywood', 'MDF', 'Particle Board', 'BWP'];
 
 const SHEET_NAME = 'Cabinets';
 const HEADERS = [
@@ -99,7 +100,7 @@ export function exportCabinetCatalogXlsx(items: CatalogItem[], finishes: Surface
     { column: 'height_mm', meaning: 'Cabinet height.', unit: 'mm', allowed_values: 'positive number', example: 850 },
     { column: 'material', meaning: 'Carcass substrate — costing only, never visible.', unit: '—', allowed_values: MATERIALS.join(', '), example: 'HDMR' },
     { column: 'finish', meaning: 'Must match an existing finish\'s name exactly (see Manage Inventory → Finishes).', unit: '—', allowed_values: 'any finish label in your catalogue', example: 'Merino Walnut 4102 (Laminate)' },
-    { column: 'unit_price', meaning: 'Default base price before hardware/labour.', unit: '₹', allowed_values: 'positive number', example: 9500 },
+    { column: 'unit_price', meaning: 'A REFERENCE price only, shown when browsing the catalogue — this no longer feeds the quote at all. Every real cost (material, finish, hardware, fabrication, labour, margin) is computed live from this cabinet\'s own attributes and your rate card. Leave at 0, or fill in an estimate for your own browsing convenience.', unit: '₹', allowed_values: '0 or more', example: 0 },
     { column: 'delete', meaning: 'Type DELETE (any case) to remove this cabinet when you commit. Leave blank to keep/update it. Has no effect on a blank-id (new) row — there\'s nothing yet to delete.', unit: '—', allowed_values: 'DELETE, or blank', example: '(blank)' },
     { column: '(not on this sheet)', meaning: 'Front configuration (doors/drawers) and handle are edited in the app only, from each cabinet\'s Front Picker — not bulk-editable here.', unit: '—', allowed_values: '—', example: '—' },
   ];
@@ -184,7 +185,11 @@ export function parseCabinetCatalogRows(
       errors.push(`finish "${finishLabel}" doesn't match any finish in your catalogue (Manage Inventory → Finishes) — check spelling.`);
     }
 
-    const unitPrice = positiveNumber(row.unit_price ?? '', 'unit_price');
+    // nonNegativeNumber, not positiveNumber: unitPrice no longer feeds
+    // the live quote at all (docs/DECISIONS.md §15) — it's a reference
+    // figure shown when browsing the catalogue, and 0 is the expected,
+    // common case now, not an error.
+    const unitPrice = nonNegativeNumber(row.unit_price ?? '', 'unit_price');
     if (unitPrice.error) errors.push(unitPrice.error);
 
     const markedForDeletion = isMarkedForDeletion(row[DELETE_MARKER_HEADER] ?? '');

@@ -442,7 +442,13 @@ Each of these gets more expensive with everything built on top.
    `docs/SUPABASE_SETUP.md`).
 2. **The panel model.** Replace area-estimate costing with real panel
    decomposition, so price and cutting list derive from one source.
-   *Blocked on:* your carpenter's construction convention.
+   *Blocked on:* your carpenter's construction convention. **The
+   costing-only slice of this is now done** — material substrate cost
+   varies by area and by material (`docs/DECISIONS.md` §13), reusing
+   the same rough area estimate labour already used. That is NOT this
+   item: it produces a price, not a cutting list, and doesn't need the
+   carpenter's convention to do it. The real panel model — exact
+   per-panel dimensions — is still fully blocked on that answer.
 3. **Undo/redo**, while the set of edit actions is still small.
 4. **Autosave**, so nothing is ever lost.
 
@@ -452,7 +458,18 @@ Each of these gets more expensive with everything built on top.
    piece of the original brief, and the reason a quote currently cannot
    leave the app.
 6. **Real rates**, replacing every placeholder. Commercial blocker, not
-   technical.
+   technical. **Partially improved** — hinge/channel hardware rates,
+   material rates by substrate (HDMR/Plywood/BWP; MDF/Particle Board
+   are this app's own guesses, not the business's), two new finishes
+   (basic laminate/acrylic, quartz), and per-cabinet fabrication/others
+   rates now use real or explicitly-flagged-as-guessed Delhi NCR market
+   estimates instead of invented placeholders (see `docs/DECISIONS.md`
+   §12-14). Still placeholders in the sense that matters — a business's
+   own negotiated invoice prices, not a market estimate — so the amber
+   banner stays and this item isn't done. Cost basis vs. selling basis
+   is now a real, separate concept (`marginPercent`, a Cost/Selling
+   toggle in the quote sidebar) rather than margin being implicit
+   inside a guessed catalogue price.
 7. ~~Inventory import/export, per the design above. This is
    onboarding.~~ **Done** — Excel round trip (download, edit, upload,
    validate, fix inline, commit) for all five catalogues. Matching is
@@ -461,13 +478,20 @@ Each of these gets more expensive with everything built on top.
    (SheetJS Pro feature), so allowed values live on an Instructions
    sheet and the review grid's own `<select>` fields instead.
 8. **Component library and the four states.** The professional finish.
-   **In progress** — shadcn/ui adopted (Radix base, 14 primitives) and
-   toasts wired on every previously-silent action (save, freeze,
-   import, delete — including 6 delete paths that had no confirmation
-   or feedback at all before this). Not done yet: migrating existing
-   hand-rolled markup to the new primitives, the four states per
-   screen, consistency rules, first-run checklist. See
-   `docs/DECISIONS.md` §11.
+   **In progress** — shadcn/ui adopted (Radix base, 15 primitives incl.
+   alert-dialog); toasts and an in-app confirm dialog (not the
+   browser's native one) on every save/freeze/import/delete action;
+   every hand-rolled `<button>` in the app migrated to shadcn's Button
+   (one deliberate exception: `ColorPicker`'s colour-swatch cells); the
+   four states (full/empty/loading/error) applied to `CustomerDashboard`
+   and `InventoryManager`; every screen-level hand-rolled error/warning
+   box in the toolbars, inspectors and quote sidebar promoted to the
+   shared `Alert` component (`docs/DECISIONS.md` §16). Not done yet:
+   empty/loading states for the toolbars/inspectors/quote sidebar
+   (their existing plain-text empty states already say the right
+   thing, just not in `Skeleton` markup), native selects/checkboxes/
+   dense forms, consistency rules beyond button colour, first-run
+   checklist. See `docs/DECISIONS.md` §11, §16.
 
 ### Phase 3 — Make it good
 

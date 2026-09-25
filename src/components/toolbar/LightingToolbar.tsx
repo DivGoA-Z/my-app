@@ -16,6 +16,8 @@
 //                    material gets ordered.
 
 import { useLayoutStore } from '../../store/layoutStore';
+import { Button } from '../ui/button';
+import { Alert, AlertDescription } from '../ui/alert';
 import { useSelectedFixtureId } from '../../hooks/useSelection';
 import {
   FIXTURE_KIND_LABELS,
@@ -124,17 +126,19 @@ export function LightingToolbar() {
         <span className="text-xs font-medium text-gray-700">View</span>
         <div className="flex flex-col gap-0.5">
           {MODES.map((m) => (
-            <button
+            <Button
               key={m}
-              onClick={() => setLightingMode(m)}
-              className={`rounded border px-2 py-1 text-left text-[11px] ${
+              variant="outline"
+              size="xs"
+              className={
                 mode === m
-                  ? 'border-blue-400 bg-blue-50 text-blue-800'
-                  : 'border-gray-200 text-gray-700 hover:bg-gray-50'
-              }`}
+                  ? 'h-auto min-h-7 justify-start border-blue-400 bg-blue-50 py-1 text-left font-normal whitespace-normal text-blue-800 hover:bg-blue-50'
+                  : 'h-auto min-h-7 justify-start py-1 text-left font-normal whitespace-normal'
+              }
+              onClick={() => setLightingMode(m)}
             >
               {LIGHTING_MODE_LABELS[m]}
-            </button>
+            </Button>
           ))}
         </div>
         <span className="text-[10px] text-gray-400">{LIGHTING_MODE_HINTS[mode]}</span>
@@ -168,12 +172,14 @@ export function LightingToolbar() {
             Affects the picture only — never the quote.
           </span>
           {exposure !== DEFAULT_EXPOSURE && (
-            <button
+            <Button
+              variant="link"
+              size="xs"
+              className="h-auto p-0 text-[10px]"
               onClick={() => setExposure(DEFAULT_EXPOSURE)}
-              className="text-[10px] text-blue-600 underline"
             >
               Reset
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -186,17 +192,19 @@ export function LightingToolbar() {
         <span className="text-xs font-medium text-gray-700">Light quality</span>
         <div className="flex gap-1">
           {QUALITIES.map((q) => (
-            <button
+            <Button
               key={q}
-              onClick={() => setQuality(q)}
-              className={`flex-1 rounded border px-1 py-1 text-[10px] ${
+              variant="outline"
+              size="xs"
+              className={
                 quality === q
-                  ? 'border-blue-400 bg-blue-50 text-blue-800'
-                  : 'border-gray-200 text-gray-700 hover:bg-gray-50'
-              }`}
+                  ? 'h-auto min-h-7 flex-1 py-1 text-center leading-tight whitespace-normal border-blue-400 bg-blue-50 text-blue-800 hover:bg-blue-50'
+                  : 'h-auto min-h-7 flex-1 py-1 text-center leading-tight whitespace-normal'
+              }
+              onClick={() => setQuality(q)}
             >
               {LIGHT_QUALITY_LABELS[q]}
-            </button>
+            </Button>
           ))}
         </div>
         <span className="text-[10px] text-gray-400">{LIGHT_QUALITY_HINTS[quality]}</span>
@@ -220,8 +228,11 @@ export function LightingToolbar() {
               </span>
               <div className="flex flex-col gap-0.5 pl-1">
                 {items.map((item) => (
-                  <button
+                  <Button
                     key={item.id}
+                    variant="outline"
+                    size="xs"
+                    className="h-auto min-h-7 justify-between py-1 text-left font-normal whitespace-normal"
                     onClick={() =>
                       addFixture(
                         createFixture(
@@ -231,14 +242,13 @@ export function LightingToolbar() {
                         )
                       )
                     }
-                    className="flex items-center justify-between rounded border border-gray-200 px-2 py-1 text-left text-[11px] text-gray-700 hover:border-gray-400 hover:bg-gray-50"
                   >
                     <span>
                       {item.label}
                       <span className="ml-1 text-gray-400">{item.colorTempK}K</span>
                     </span>
-                    <span className="text-gray-400">+</span>
-                  </button>
+                    <span className="shrink-0 text-gray-400">+</span>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -253,30 +263,36 @@ export function LightingToolbar() {
               a bug rather than as the deliberate mobile budget. */}
           {emissiveOnly.length} fixture{emissiveOnly.length > 1 ? 's' : ''} glow but don&apos;t
           light the room at this quality setting — the brightest ones win. Switch to{' '}
-          <button
+          <Button
+            variant="link"
+            size="xs"
+            className="h-auto p-0 text-[10px] text-sky-800"
             onClick={() => setQuality('all')}
-            className="underline underline-offset-2"
           >
             All lights
-          </button>{' '}
+          </Button>{' '}
           on a laptop to light every one. All of them are quoted either way.
         </div>
       )}
 
       {orphaned.length > 0 && (
-        <div className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-[10px] text-amber-800">
-          {orphaned.length} fixture{orphaned.length > 1 ? 's' : ''} lost the cabinet
-          {orphaned.length > 1 ? 's' : ''} they were fixed to and are sitting loose in the middle
-          of the room. Re-mount or delete them.
-        </div>
+        <Alert className="border-amber-300 bg-amber-50">
+          <AlertDescription className="text-amber-800">
+            {orphaned.length} fixture{orphaned.length > 1 ? 's' : ''} lost the cabinet
+            {orphaned.length > 1 ? 's' : ''} they were fixed to and are sitting loose in the
+            middle of the room. Re-mount or delete them.
+          </AlertDescription>
+        </Alert>
       )}
 
       {unresolved > 0 && (
-        <div className="rounded border border-red-300 bg-red-50 px-2 py-1.5 text-[10px] text-red-700">
-          {unresolved} fixture{unresolved > 1 ? 's' : ''} reference a catalogue item that no
-          longer exists, so they aren&apos;t rendered or priced. Delete them or re-add the
-          catalogue row.
-        </div>
+        <Alert variant="destructive">
+          <AlertDescription>
+            {unresolved} fixture{unresolved > 1 ? 's' : ''} reference a catalogue item that no
+            longer exists, so they aren&apos;t rendered or priced. Delete them or re-add the
+            catalogue row.
+          </AlertDescription>
+        </Alert>
       )}
 
       <label className="flex items-center justify-between gap-2 border-t border-gray-200 pt-3 text-xs text-gray-600">
@@ -311,28 +327,34 @@ export function LightingToolbar() {
                       : 'bg-gray-50 text-gray-600'
                   }`}
                 >
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="h-auto min-w-0 flex-1 flex-col items-start justify-start p-0 text-left font-normal whitespace-normal"
                     onClick={() => selectFixture(p.fixture.id)}
-                    className="flex-1 text-left"
                   >
-                    {p.item.label}
-                    <span className="ml-1 text-gray-400">
-                      {isLinear(p.item.kind) ? `${amount.toFixed(2)}m` : `×${amount}`}
+                    <span>
+                      {p.item.label}
+                      <span className="ml-1 text-gray-400">
+                        {isLinear(p.item.kind) ? `${amount.toFixed(2)}m` : `×${amount}`}
+                      </span>
+                      {!p.fixture.enabled && <span className="ml-1 text-gray-400">(off)</span>}
                     </span>
-                    {!p.fixture.enabled && <span className="ml-1 text-gray-400">(off)</span>}
                     {/* Where it is, not just what it is — a list of
                         four identical strips is unusable without it. */}
                     <div className="text-[10px] text-gray-400">
                       {describeMountShort(p.fixture.mount)} · {Math.round(p.zMm)}mm
                     </div>
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
                     onClick={() => removeFixture(p.fixture.id)}
                     aria-label={`Remove ${p.item.label}`}
-                    className="px-1 font-bold text-red-500 hover:text-red-700"
+                    className="text-red-500 hover:text-red-700"
                   >
                     ×
-                  </button>
+                  </Button>
                 </li>
               );
             })}

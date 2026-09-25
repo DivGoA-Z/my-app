@@ -19,6 +19,8 @@
 
 import { useState } from 'react';
 import { useLayoutStore } from '../../store/layoutStore';
+import { Button } from '../ui/button';
+import { Alert, AlertDescription } from '../ui/alert';
 import {
   FRONT_KIND_LABELS,
   MAX_FRONT_COUNT,
@@ -364,13 +366,15 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
                   ))}
                 </select>
                 {(layout.rows?.length ?? 0) > MIN_MIXED_ROWS && (
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
                     onClick={() => removeRow(index)}
                     aria-label="Remove row"
-                    className="px-1 text-xs text-red-600 hover:text-red-800"
+                    className="text-red-600 hover:text-red-800"
                   >
                     ×
-                  </button>
+                  </Button>
                 )}
               </div>
 
@@ -424,9 +428,9 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
           ))}
 
           {(layout.rows?.length ?? 0) < MAX_MIXED_ROWS && (
-            <button onClick={addRow} className="self-start text-[10px] text-blue-600 underline">
+            <Button variant="link" size="xs" className="h-auto self-start p-0 text-[10px]" onClick={addRow}>
               + Add row
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -507,7 +511,9 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
             drag it on the canvas afterwards if you want it positioned differently.
           </span>
           {tambourFitError && (
-            <span className="text-[10px] text-red-600">{tambourFitError}</span>
+            <Alert variant="destructive">
+              <AlertDescription>{tambourFitError}</AlertDescription>
+            </Alert>
           )}
         </div>
       )}

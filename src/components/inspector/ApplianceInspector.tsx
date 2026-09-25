@@ -21,6 +21,7 @@
 
 import { useState } from 'react';
 import { useLayoutStore } from '../../store/layoutStore';
+import { Button } from '../ui/button';
 import { useSelectedApplianceId } from '../../hooks/useSelection';
 import { rotateAppliance } from '../../lib/applianceGeometry';
 import { getFootprint } from '../../lib/footprint';
@@ -87,18 +88,12 @@ export function ApplianceInspector() {
       <div className="flex flex-col gap-1">
         <span className="text-xs text-gray-600">Rotation — {appliance.rotationDeg}°</span>
         <div className="flex gap-2">
-          <button
-            onClick={() => handleRotate(-1)}
-            className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
-          >
+          <Button variant="outline" size="xs" className="h-auto min-h-7 flex-1 py-1 whitespace-normal" onClick={() => handleRotate(-1)}>
             ↺ 90°
-          </button>
-          <button
-            onClick={() => handleRotate(1)}
-            className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
-          >
+          </Button>
+          <Button variant="outline" size="xs" className="h-auto min-h-7 flex-1 py-1 whitespace-normal" onClick={() => handleRotate(1)}>
             ↻ 90°
-          </button>
+          </Button>
         </div>
         {isTurned && (
           <span className="text-[10px] text-gray-400">
@@ -154,12 +149,14 @@ export function ApplianceInspector() {
       </label>
 
       <div className="flex flex-col gap-1">
-        <button
+        <Button
+          variant="link"
+          size="xs"
+          className="h-auto self-start p-0 text-xs"
           onClick={() => setIsEditingDimensions((open) => !open)}
-          className="text-left text-xs text-gray-600 underline hover:text-gray-800"
         >
           {isEditingDimensions ? 'Hide dimensions' : 'Edit dimensions'}
-        </button>
+        </Button>
 
         {isEditingDimensions && (
           // key forces fresh local state when the selection changes
@@ -195,12 +192,9 @@ export function ApplianceInspector() {
         )}
       </div>
 
-      <button
-        onClick={() => removeAppliance(appliance.id)}
-        className="rounded border border-red-300 px-2 py-1.5 text-xs text-red-600 hover:bg-red-50"
-      >
+      <Button variant="destructive" size="xs" onClick={() => removeAppliance(appliance.id)}>
         Delete
-      </button>
+      </Button>
     </div>
   );
 }
@@ -244,12 +238,9 @@ function DimensionsForm({
         <Field label="D" value={d} onChange={setD} />
         <Field label="H" value={h} onChange={setH} />
       </div>
-      <button
-        type="submit"
-        className="rounded bg-gray-800 px-2 py-1 text-[11px] text-white hover:bg-gray-700"
-      >
+      <Button type="submit" size="xs">
         Apply
-      </button>
+      </Button>
     </form>
   );
 }

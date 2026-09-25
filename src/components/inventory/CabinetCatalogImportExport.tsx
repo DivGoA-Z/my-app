@@ -22,6 +22,7 @@ import {
 } from '../../lib/importExport/cabinetImportExport';
 import { requiredString, positiveNumber, finalizeRowErrors } from '../../lib/importExport/xlsxHelpers';
 import { downloadBlob } from '../../lib/downloadBlob';
+import { Button } from '../ui/button';
 import type { CatalogItem } from '../../types/Catalog';
 
 const inputClass = 'w-full rounded border border-gray-300 px-1.5 py-1 text-xs disabled:bg-gray-100 disabled:text-gray-400';
@@ -145,13 +146,15 @@ export function CabinetCatalogImportExport() {
 
   return (
     <div className="rounded-lg border border-gray-200 p-3">
-      <button
+      <Button
         type="button"
+        variant="link"
+        size="xs"
+        className="h-auto self-start p-0 text-xs font-medium"
         onClick={() => setIsOpen((open) => !open)}
-        className="text-left text-xs font-medium text-gray-700 underline"
       >
         {isOpen ? 'Hide bulk edit via Excel' : 'Bulk edit via Excel'}
-      </button>
+      </Button>
 
       {isOpen && (
         <div className="mt-3 flex flex-col gap-3">
@@ -163,23 +166,21 @@ export function CabinetCatalogImportExport() {
           </p>
 
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={handleDownload}
-              className="rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
-            >
+            <Button type="button" variant="outline" size="xs" onClick={handleDownload}>
               Download for editing
-            </button>
-            <label className="cursor-pointer rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50">
-              {isParsing ? 'Reading…' : 'Upload edited file'}
-              <input
-                type="file"
-                accept=".xlsx"
-                onChange={handleFileSelected}
-                disabled={isParsing}
-                className="hidden"
-              />
-            </label>
+            </Button>
+            <Button type="button" variant="outline" size="xs" asChild>
+              <label className="cursor-pointer">
+                {isParsing ? 'Reading…' : 'Upload edited file'}
+                <input
+                  type="file"
+                  accept=".xlsx"
+                  onChange={handleFileSelected}
+                  disabled={isParsing}
+                  className="hidden"
+                />
+              </label>
+            </Button>
           </div>
 
           {error && <p className="text-xs text-red-600">{error}</p>}
@@ -360,14 +361,15 @@ export function CabinetCatalogImportExport() {
                 </table>
               </div>
 
-              <button
+              <Button
                 type="button"
+                size="sm"
+                className="self-start"
                 onClick={handleCommit}
                 disabled={hasErrors || isCommitting}
-                className="self-start rounded bg-blue-600 px-3 py-2 text-xs font-medium text-white disabled:bg-gray-300"
               >
                 {isCommitting ? 'Saving…' : `Commit ${rows.length} change${rows.length === 1 ? '' : 's'}`}
-              </button>
+              </Button>
             </div>
           )}
         </div>

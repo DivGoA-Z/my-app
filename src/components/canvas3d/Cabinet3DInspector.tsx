@@ -23,12 +23,13 @@
 // switching views keeps your place rather than resetting it.
 
 import { useLayoutStore } from '../../store/layoutStore';
+import { Button } from '../ui/button';
 import { FinishPicker } from '../inspector/FinishPicker';
 import { FrontPicker } from '../inspector/FrontPicker';
 import type { MaterialType } from '../../types/cabinet';
 import type { PlacedCabinetItem } from '../../types/cabinet';
 
-const MATERIALS: MaterialType[] = ['HDMR', 'Plywood', 'MDF', 'Particle Board'];
+const MATERIALS: MaterialType[] = ['HDMR', 'Plywood', 'MDF', 'Particle Board', 'BWP'];
 
 const MODULE_TYPE_LABELS: Record<string, string> = {
   'base-cabinet': 'Base Cabinet',
@@ -68,13 +69,14 @@ export function Cabinet3DInspector({ cabinet }: Cabinet3DInspectorProps) {
             {cabinet.widthMm}×{cabinet.depthMm}×{cabinet.heightMm}mm
           </span>
         </div>
-        <button
+        <Button
+          variant="ghost"
+          size="icon-xs"
           onClick={() => selectCabinet(null)}
           aria-label="Deselect"
-          className="text-gray-400 hover:text-gray-600"
         >
           ×
-        </button>
+        </Button>
       </div>
 
       <FinishPicker cabinet={cabinet} />

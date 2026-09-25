@@ -17,6 +17,8 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useLayoutStore } from '../../store/layoutStore';
+import { Button } from '../ui/button';
+import { Alert, AlertDescription } from '../ui/alert';
 import { useQuoteStatus } from '../../hooks/useQuoteStatus';
 import { generateQuotePdfBlob } from '../../lib/quotePdf';
 import { uploadQuotePdf } from '../../lib/quotePdfStorage';
@@ -205,24 +207,31 @@ export function QuoteFreezePanel() {
           </div>
 
           <div className="mt-2 flex gap-2">
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="xs"
+              className="h-auto min-h-7 flex-1 py-1 whitespace-normal border-current"
               onClick={downloadPdf}
               disabled={exporting !== null}
-              className="flex-1 rounded border border-current px-2 py-1.5 text-[11px] font-medium disabled:opacity-50"
             >
               {exporting === 'pdf' ? 'Generating…' : 'Download PDF'}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              size="xs"
+              className="h-auto min-h-7 flex-1 py-1 whitespace-normal bg-emerald-600 hover:bg-emerald-700"
               onClick={shareOnWhatsApp}
               disabled={exporting !== null || (sendTarget === 'other' && otherPhone.trim() === '')}
-              className="flex-1 rounded bg-emerald-600 px-2 py-1.5 text-[11px] font-medium text-white disabled:bg-gray-300"
             >
               {exporting === 'whatsapp' ? 'Preparing…' : 'Share on WhatsApp'}
-            </button>
+            </Button>
           </div>
-          {exportError && <p className="mt-1.5 text-[11px] text-red-600">{exportError}</p>}
+          {exportError && (
+            <Alert variant="destructive" className="mt-1.5">
+              <AlertDescription>{exportError}</AlertDescription>
+            </Alert>
+          )}
         </div>
       )}
 
@@ -236,29 +245,30 @@ export function QuoteFreezePanel() {
           autoFocus
         />
       ) : (
-        <button
+        <Button
           type="button"
+          variant="link"
+          size="xs"
+          className="h-auto self-start p-0 text-[11px] text-muted-foreground"
           onClick={() => setShowNote(true)}
-          className="self-start text-[11px] text-gray-500 underline"
         >
           Add a note
-        </button>
+        </Button>
       )}
 
-      {quoteError && <p className="text-xs text-red-600">{quoteError}</p>}
+      {quoteError && (
+        <Alert variant="destructive">
+          <AlertDescription>{quoteError}</AlertDescription>
+        </Alert>
+      )}
 
-      <button
-        type="button"
-        onClick={freeze}
-        disabled={isFreezing}
-        className="rounded bg-blue-600 px-3 py-2 text-xs font-medium text-white disabled:bg-gray-300"
-      >
+      <Button type="button" size="sm" onClick={freeze} disabled={isFreezing}>
         {isFreezing
           ? 'Freezing…'
           : latest
             ? `Freeze v${latest.version + 1} & send`
             : 'Freeze & send'}
-      </button>
+      </Button>
 
       <p className="text-[11px] text-gray-500">
         A frozen quote is never edited. Revising creates the next version, so what you

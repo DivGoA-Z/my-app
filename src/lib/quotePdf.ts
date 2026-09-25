@@ -91,6 +91,18 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const s = quote.summary;
+  // A PDF is always the SELLING view — there is no toggle here the way
+  // QuoteSidebar has one, a customer only ever sees this. Every line
+  // shown below (itemised rows and the totals block) is marked up by
+  // the same factor, distributed rather than shown as one separate
+  // "Margin" line — confirmed with the business rather than assumed,
+  // so the printed lines sum to the printed total exactly
+  // (docs/DECISIONS.md §15). `s.marginPercent` is undefined for a
+  // quote frozen before margin existed at all — factor is exactly 1
+  // then, which reproduces that quote's own historical total
+  // precisely (a frozen quote never changes, see types/quote.ts).
+  const factor = 1 + (s.marginPercent ?? 0) / 100;
+  const marked = (value: number) => value * factor;
   let y = MARGIN;
 
   doc.setFont('helvetica', 'bold');
@@ -148,7 +160,7 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
         `${line.widthMm} × ${line.depthMm} × ${line.heightMm}`,
         String(line.quantity),
         `${line.material} / ${line.finish}`,
-        formatAmount(line.lineTotal),
+        formatAmount(marked(line.lineTotal)),
       ]),
       styles: { fontSize: 8, cellPadding: 4, valign: 'middle' },
       headStyles: { fillColor: [31, 41, 55] },
@@ -168,7 +180,7 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
         APPLIANCE_TYPE_LABELS[line.applianceType],
         `${line.widthMm} × ${line.depthMm} × ${line.heightMm}`,
         String(line.quantity),
-        formatAmount(line.lineTotal),
+        formatAmount(marked(line.lineTotal)),
       ]),
       styles: { fontSize: 8, cellPadding: 4 },
       headStyles: { fillColor: [31, 41, 55] },
@@ -186,7 +198,7 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
       head: [['Opening', 'Total']],
       body: s.openingLineItems.map((line) => [
         `${line.description}\n${line.surface} · deducts ${line.deductedSqM.toFixed(2)} m² of tiling`,
-        line.suppliedByUs ? formatAmount(line.cost) : 'Existing — by others',
+        line.suppliedByUs ? formatAmount(marked(line.cost)) : 'Existing — by others',
       ]),
       styles: { fontSize: 8, cellPadding: 4 },
       headStyles: { fillColor: [31, 41, 55] },
@@ -205,7 +217,7 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
       body: s.fixtureLineItems.map((line) => [
         `${line.description}\n${line.mountDescription} · ${line.colorTempK}K`,
         line.unit === 'm' ? `${line.amount.toFixed(2)} m` : `${line.amount} pcs`,
-        s.fixtureSubtotal > 0 ? formatAmount(line.cost) : 'by electrician',
+        s.fixtureSubtotal > 0 ? formatAmount(marked(line.cost)) : 'by electrician',
       ]),
       styles: { fontSize: 8, cellPadding: 4 },
       headStyles: { fillColor: [31, 41, 55] },
@@ -237,7 +249,7 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
       y
     );
     doc.text(
-      s.countertopSubtotal > 0 ? formatAmount(s.countertopSubtotal) : 'by homeowner',
+      s.countertopSubtotal > 0 ? formatAmount(marked(s.countertopSubtotal)) : 'by homeowner',
       pageWidth - MARGIN,
       y,
       { align: 'right' }
@@ -251,15 +263,17 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
   y += 18;
 
   const totalsRows: [string, number][] = [
-    ['Material', s.materialSubtotal],
-    ['Finish', s.finishSubtotal],
-    ...(s.surfaceSubtotal > 0 ? ([['Floor / walls / ceiling', s.surfaceSubtotal]] as [string, number][]) : []),
-    ...(s.countertopSubtotal > 0 ? ([['Countertop / slab', s.countertopSubtotal]] as [string, number][]) : []),
-    ['Hardware', s.hardwareSubtotal],
-    ['Labour', s.laborSubtotal],
-    ['Appliances', s.applianceSubtotal],
-    ...(s.openingSubtotal > 0 ? ([['Doors & windows', s.openingSubtotal]] as [string, number][]) : []),
-    ...(s.fixtureSubtotal > 0 ? ([['Lighting', s.fixtureSubtotal]] as [string, number][]) : []),
+    ['Material', marked(s.materialSubtotal)],
+    ['Finish', marked(s.finishSubtotal)],
+    ...(s.surfaceSubtotal > 0 ? ([['Floor / walls / ceiling', marked(s.surfaceSubtotal)]] as [string, number][]) : []),
+    ...(s.countertopSubtotal > 0 ? ([['Countertop / slab', marked(s.countertopSubtotal)]] as [string, number][]) : []),
+    ['Hardware', marked(s.hardwareSubtotal)],
+    ['Labour — installation', marked(s.laborSubtotal)],
+    ['Fabrication', marked(s.fabricationSubtotal ?? 0)],
+    ...(s.othersSubtotal ? ([['Other', marked(s.othersSubtotal)]] as [string, number][]) : []),
+    ['Appliances', marked(s.applianceSubtotal)],
+    ...(s.openingSubtotal > 0 ? ([['Doors & windows', marked(s.openingSubtotal)]] as [string, number][]) : []),
+    ...(s.fixtureSubtotal > 0 ? ([['Lighting', marked(s.fixtureSubtotal)]] as [string, number][]) : []),
   ];
 
   doc.setFont('helvetica', 'normal');

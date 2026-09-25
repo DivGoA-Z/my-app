@@ -67,6 +67,7 @@ interface LayoutRow {
   ceiling_finish_id: string | null;
   countertop_finish_id: string | null;
   price_countertop: boolean | null;
+  margin_percent: number | null;
   grid_snap_mm: number;
   // Same reasoning as ProjectRow.business_id.
   business_id: string;
@@ -149,6 +150,7 @@ function layoutToRow(
     ceiling_finish_id: layout.ceilingFinishId ?? null,
     countertop_finish_id: layout.countertopFinishId ?? null,
     price_countertop: layout.priceCountertop ?? null,
+    margin_percent: layout.marginPercent ?? null,
     grid_snap_mm: layout.gridSnapMm,
     created_at: layout.createdAt,
     updated_at: new Date().toISOString(), // bumped on every save
@@ -187,6 +189,10 @@ function rowToLayout(row: LayoutRow): RoomLayout {
     // Same reasoning as priceElectrical — "is the countertop charged?"
     // has a real answer for every project, and it's usually no.
     priceCountertop: row.price_countertop ?? false,
+    // Left undefined (not defaulted to a number here) when unset —
+    // lib/bom.ts's DEFAULT_MARGIN_PERCENT is the single place that
+    // fallback lives, so this file doesn't need its own copy of it.
+    marginPercent: row.margin_percent ?? undefined,
     gridSnapMm: row.grid_snap_mm,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

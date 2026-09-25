@@ -19,6 +19,7 @@
 // drag them apart same as any other overlap.
 
 import { useLayoutStore } from '../../store/layoutStore';
+import { Button } from '../ui/button';
 import { getDefaultElevationMm } from '../../lib/cabinetGeometry';
 import type { CatalogItem } from '../../types/Catalog';
 import type { PlacedCabinetItem } from '../../types/cabinet';
@@ -83,12 +84,9 @@ export function CabinetToolbar({ onManageInventory }: CabinetToolbarProps) {
     <div className="flex w-64 flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-gray-700">Add Cabinet</h3>
-        <button
-          onClick={onManageInventory}
-          className="text-xs text-blue-600 underline hover:text-blue-800"
-        >
+        <Button variant="link" size="xs" className="h-auto p-0 text-xs" onClick={onManageInventory}>
           Manage
-        </button>
+        </Button>
       </div>
 
       {isInventoryLoading && <p className="text-xs text-gray-400">Loading your pieces...</p>}
@@ -96,9 +94,9 @@ export function CabinetToolbar({ onManageInventory }: CabinetToolbarProps) {
       {!isInventoryLoading && cabinetCatalog.length === 0 && (
         <p className="text-xs text-gray-400">
           No cabinet pieces yet.{' '}
-          <button onClick={onManageInventory} className="text-blue-600 underline">
+          <Button variant="link" size="xs" className="h-auto p-0 text-xs" onClick={onManageInventory}>
             Add your first one
-          </button>
+          </Button>
           .
         </p>
       )}
@@ -110,14 +108,15 @@ export function CabinetToolbar({ onManageInventory }: CabinetToolbarProps) {
           </span>
           <div className="flex flex-col gap-1 pl-1">
             {items.map((item) => (
-              <button
+              <Button
                 key={item.id}
+                variant="outline"
                 onClick={() => handleAdd(item)}
-                className="flex items-center justify-between rounded border border-gray-200 px-2 py-1.5 text-left text-xs text-gray-700 hover:border-gray-400 hover:bg-gray-50"
+                className="h-auto min-h-8 justify-between py-1 text-left text-xs font-normal whitespace-normal"
               >
                 <span>{item.label}</span>
-                <span className="text-gray-400">+</span>
-              </button>
+                <span className="shrink-0 text-gray-400">+</span>
+              </Button>
             ))}
           </div>
         </div>

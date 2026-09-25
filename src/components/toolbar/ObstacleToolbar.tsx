@@ -26,6 +26,7 @@
 
 import { useState } from 'react';
 import { useLayoutStore } from '../../store/layoutStore';
+import { Button } from '../ui/button';
 import { OBSTACLE_TYPE_LABELS } from '../../types/layout';
 import type { ObstacleType } from '../../types/layout';
 import { PARTIAL_OBSTACLE_HEIGHT_MM } from '../../lib/collision';
@@ -124,12 +125,9 @@ export function ObstacleToolbar({ onManageInventory }: ObstacleToolbarProps) {
     <div className="flex flex-col gap-4 rounded-lg border border-gray-200 p-4 w-64">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-sm text-gray-700">Add Obstacle</h3>
-        <button
-          onClick={onManageInventory}
-          className="text-xs text-blue-600 underline hover:text-blue-800"
-        >
+        <Button variant="link" size="xs" className="h-auto p-0 text-xs" onClick={onManageInventory}>
           Manage
-        </button>
+        </Button>
       </div>
 
       <div className="flex flex-col gap-3 border-t border-gray-200 pt-3">
@@ -234,12 +232,9 @@ export function ObstacleToolbar({ onManageInventory }: ObstacleToolbarProps) {
           </>
         )}
 
-        <button
-          onClick={handleAdd}
-          className="bg-gray-800 text-white text-sm rounded px-3 py-1.5 hover:bg-gray-700"
-        >
+        <Button size="sm" className="h-auto min-h-8 py-1.5 whitespace-normal" onClick={handleAdd}>
           + Add {presetLabel ?? OBSTACLE_TYPE_LABELS[type]}
-        </button>
+        </Button>
       </div>
 
       {obstacles.length > 0 && (
@@ -262,13 +257,15 @@ export function ObstacleToolbar({ onManageInventory }: ObstacleToolbarProps) {
                       ? `${o.heightMm}mm tall, ${o.elevationMm}mm off floor`
                       : `${o.heightMm}mm tall`}
                 </span>
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
                   onClick={() => removeObstacle(o.id)}
                   aria-label={`Remove ${OBSTACLE_TYPE_LABELS[o.type]}`}
-                  className="text-red-500 hover:text-red-700 font-bold px-1"
+                  className="text-red-500 hover:text-red-700"
                 >
                   ×
-                </button>
+                </Button>
               </li>
             ))}
           </ul>

@@ -25,6 +25,16 @@ interface RateCardRow {
   // would mean a migration every time it grows again, for data that is
   // never queried or aggregated in SQL.
   hardware_rates: RateCard['hardware'];
+  // Same one-JSONB-column reasoning as hardware_rates above, and same
+  // growth history — MaterialType has already grown once (BWP, added
+  // alongside this column) with more to come as businesses stock more
+  // substrates.
+  material_rates: RateCard['materialRates'] | null;
+  // Plain numeric columns, not JSONB — each is a single scalar, not a
+  // set of keys that grows over time the way hardware/material rates
+  // do, so there's no per-key migration story to design for here.
+  fabrication_rate_per_unit: number;
+  others_rate_per_unit: number;
   business_id: string;
   created_at: string;
   updated_at: string;
@@ -36,6 +46,14 @@ function rowToRateCard(row: RateCardRow): RateCard {
     label: row.label,
     laborRatePerSqFt: row.labor_rate_per_sqft,
     hardware: row.hardware_rates,
+    // Cast, not a lie: this can genuinely be undefined for a row
+    // saved before this column existed, and sanitizeRateCard (always
+    // called right after this, in fetchRateCard) is what actually
+    // supplies the zeros via its own `card.materialRates?.HDMR`
+    // optional-chaining — one fallback path, not two disagreeing ones.
+    materialRates: (row.material_rates ?? undefined) as RateCard['materialRates'],
+    fabricationRatePerUnit: row.fabrication_rate_per_unit,
+    othersRatePerUnit: row.others_rate_per_unit,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -47,6 +65,9 @@ function rateCardToRow(card: RateCard, businessId: string): RateCardRow {
     label: card.label,
     labor_rate_per_sqft: card.laborRatePerSqFt,
     hardware_rates: card.hardware,
+    material_rates: card.materialRates,
+    fabrication_rate_per_unit: card.fabricationRatePerUnit,
+    others_rate_per_unit: card.othersRatePerUnit,
     business_id: businessId,
     created_at: card.createdAt,
     updated_at: new Date().toISOString(), // bumped on every save

@@ -19,6 +19,7 @@
 // module that exports a mix of components and other values.
 
 import { useRef, useState } from 'react';
+import { Button } from '../ui/button';
 import {
   COLOR_FAMILY_LABELS,
   HEX_PATTERN,
@@ -145,24 +146,24 @@ export function ColorPicker({ value, onChange }: ColorPickerProps) {
 
       {/* Family filter + presets */}
       <div className="flex flex-wrap gap-1">
-        <button
+        <Button
+          variant={familyFilter === null ? 'default' : 'secondary'}
+          size="icon-xs"
+          className="h-auto w-auto px-1.5 py-0.5 text-[10px]"
           onClick={() => setFamilyFilter(null)}
-          className={`rounded px-1.5 py-0.5 text-[10px] ${
-            familyFilter === null ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600'
-          }`}
         >
           All
-        </button>
+        </Button>
         {families.map((family) => (
-          <button
+          <Button
             key={family}
+            variant={familyFilter === family ? 'default' : 'secondary'}
+            size="icon-xs"
+            className="h-auto w-auto px-1.5 py-0.5 text-[10px]"
             onClick={() => setFamilyFilter(family === familyFilter ? null : family)}
-            className={`rounded px-1.5 py-0.5 text-[10px] ${
-              familyFilter === family ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600'
-            }`}
           >
             {COLOR_FAMILY_LABELS[family]}
-          </button>
+          </Button>
         ))}
       </div>
 

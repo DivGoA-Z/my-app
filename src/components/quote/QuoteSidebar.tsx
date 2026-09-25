@@ -11,8 +11,20 @@
 // Appliances get their own table + subtotal rather than being merged
 // into the cabinet table — see the note on ApplianceLineItem in
 // lib/bom.ts for why the two don't share a row shape.
+//
+// Also where this project's own margin is edited (per-project, not a
+// business-wide rate — see RoomLayout.marginPercent and
+// docs/DECISIONS.md §15) and where the Cost/Selling toggle lives —
+// the ONLY place either total is shown. The toggle is business-only;
+// the frozen quote and the PDF always print the selling figures.
 
+import { useState } from 'react';
 import { useBOM } from '../../hooks/useBOM';
+import { useLayoutStore } from '../../store/layoutStore';
+import { DEFAULT_MARGIN_PERCENT } from '../../lib/bom';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
 import { APPLIANCE_TYPE_LABELS } from '../../types/appliance';
 import type { ApplianceType } from '../../types/appliance';
 import { QuoteFreezePanel } from './QuoteFreezePanel';
@@ -41,10 +53,73 @@ function formatApplianceType(applianceType: ApplianceType): string {
 
 export function QuoteSidebar() {
   const bom = useBOM();
+  const currentLayout = useLayoutStore((s) => s.currentLayout);
+  const setMarginPercent = useLayoutStore((s) => s.setMarginPercent);
+  // Internal, business-only, session-only (not persisted) — this is
+  // the ONE place either total is shown side by side. A frozen quote,
+  // the PDF, and the WhatsApp link always show the selling total
+  // (bom.grandTotal) regardless of this toggle; a customer never sees
+  // "cost view" exists.
+  const [view, setView] = useState<'selling' | 'cost'>('selling');
+
+  // Applied to EVERY displayed cost figure, not just the grand total —
+  // confirmed with the business rather than assumed: cabinet/appliance/
+  // opening/fixture/countertop rows and every summary subtotal are all
+  // marked up in Selling view, so the rows sum to the Grand Total
+  // exactly (no separate, unexplained "Margin" line to reconcile
+  // against). Identity in Cost view. See docs/DECISIONS.md §15.
+  const markup = (value: number) =>
+    view === 'selling' ? value * (1 + bom.marginPercent / 100) : value;
 
   return (
     <aside className="w-96 shrink-0 flex flex-col gap-4 rounded-lg border border-gray-200 bg-white p-4">
-      <h3 className="font-semibold text-sm text-gray-700">Quote Summary</h3>
+      {/* Cost/Selling toggle and the project's margin box both live at
+          the top, not buried at the bottom of the summary — they
+          change every figure on this panel, so they should be the
+          first thing you see, not the last. Margin is per-project,
+          business-only — see RoomLayout.marginPercent's own comment
+          and docs/DECISIONS.md §15 for why this isn't a business-wide
+          rate card field. */}
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-sm text-gray-700">Quote Summary</h3>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-medium tracking-wide text-gray-400 uppercase">
+            {view === 'cost' ? 'What this costs you' : 'What the customer pays'}
+          </span>
+          <div className="flex gap-1">
+            <Button
+              type="button"
+              variant={view === 'selling' ? 'secondary' : 'ghost'}
+              size="xs"
+              onClick={() => setView('selling')}
+            >
+              Selling
+            </Button>
+            <Button
+              type="button"
+              variant={view === 'cost' ? 'secondary' : 'ghost'}
+              size="xs"
+              onClick={() => setView('cost')}
+            >
+              Cost
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <Label className="flex items-center justify-between gap-2">
+        <span className="text-[11px] font-normal text-gray-500">
+          Margin for this project (%)
+        </span>
+        <Input
+          type="number"
+          min={0}
+          step={1}
+          value={currentLayout?.marginPercent ?? DEFAULT_MARGIN_PERCENT}
+          onChange={(e) => setMarginPercent(Number(e.target.value))}
+          className="h-6 w-16 text-right"
+        />
+      </Label>
 
       {bom.lineItems.length === 0 ? (
         <p className="text-xs text-gray-500">No cabinets placed yet.</p>
@@ -95,7 +170,7 @@ export function QuoteSidebar() {
                     )}
                   </td>
                   <td className="py-1.5 pl-2 text-right font-medium text-gray-800">
-                    {formatINR(line.lineTotal)}
+                    {formatINR(markup(line.lineTotal))}
                   </td>
                 </tr>
               ))}
@@ -124,7 +199,7 @@ export function QuoteSidebar() {
                   </td>
                   <td className="py-1.5 pl-2 text-right text-gray-800">
                     {line.suppliedByUs ? (
-                      <span className="font-medium">{formatINR(line.cost)}</span>
+                      <span className="font-medium">{formatINR(markup(line.cost))}</span>
                     ) : (
                       <span className="text-[10px] text-gray-500">
                         Existing — by others
@@ -149,7 +224,7 @@ export function QuoteSidebar() {
                 schedule. */}
             {bom.fixtureSubtotal === 0 && bom.fixtureSpecifiedTotal > 0 && (
               <span className="text-[10px] text-gray-400">
-                specified only — {formatINR(bom.fixtureSpecifiedTotal)} if charged
+                specified only — {formatINR(markup(bom.fixtureSpecifiedTotal))} if charged
               </span>
             )}
           </div>
@@ -169,7 +244,7 @@ export function QuoteSidebar() {
                   </td>
                   <td className="py-1.5 pl-2 text-right text-gray-800">
                     {bom.fixtureSubtotal > 0 ? (
-                      <span className="font-medium">{formatINR(line.cost)}</span>
+                      <span className="font-medium">{formatINR(markup(line.cost))}</span>
                     ) : (
                       <span className="text-[10px] text-gray-500">by electrician</span>
                     )}
@@ -204,7 +279,7 @@ export function QuoteSidebar() {
                   </td>
                   <td className="py-1.5 pr-2 text-center text-gray-600">{line.quantity}</td>
                   <td className="py-1.5 pl-2 text-right font-medium text-gray-800">
-                    {formatINR(line.lineTotal)}
+                    {formatINR(markup(line.lineTotal))}
                   </td>
                 </tr>
               ))}
@@ -224,7 +299,7 @@ export function QuoteSidebar() {
                 isn't being charged. */}
             {bom.countertopSubtotal === 0 && bom.countertopSpecifiedTotal > 0 && (
               <span className="text-[10px] text-gray-400">
-                specified only — {formatINR(bom.countertopSpecifiedTotal)} if charged
+                specified only — {formatINR(markup(bom.countertopSpecifiedTotal))} if charged
               </span>
             )}
           </div>
@@ -239,7 +314,7 @@ export function QuoteSidebar() {
                 </td>
                 <td className="py-1.5 pl-2 text-right text-gray-800">
                   {bom.countertopSubtotal > 0 ? (
-                    <span className="font-medium">{formatINR(bom.countertopSubtotal)}</span>
+                    <span className="font-medium">{formatINR(markup(bom.countertopSubtotal))}</span>
                   ) : (
                     <span className="text-[10px] text-gray-500">by homeowner</span>
                   )}
@@ -253,40 +328,54 @@ export function QuoteSidebar() {
       <div className="flex flex-col gap-1 border-t border-gray-200 pt-3 text-xs text-gray-600">
         <div className="flex justify-between">
           <span>Material</span>
-          <span>{formatINR(bom.materialSubtotal)}</span>
+          <span>{formatINR(markup(bom.materialSubtotal))}</span>
         </div>
         <div className="flex justify-between">
           <span>Finish</span>
-          <span>{formatINR(bom.finishSubtotal)}</span>
+          <span>{formatINR(markup(bom.finishSubtotal))}</span>
         </div>
         {bom.surfaceSubtotal > 0 && (
           <div className="flex justify-between">
             <span>Floor / walls / ceiling</span>
-            <span>{formatINR(bom.surfaceSubtotal)}</span>
+            <span>{formatINR(markup(bom.surfaceSubtotal))}</span>
           </div>
         )}
         {bom.countertopSubtotal > 0 && (
           <div className="flex justify-between">
             <span>Countertop / slab</span>
-            <span>{formatINR(bom.countertopSubtotal)}</span>
+            <span>{formatINR(markup(bom.countertopSubtotal))}</span>
           </div>
         )}
         <div className="flex justify-between">
           <span>Hardware</span>
-          <span>{formatINR(bom.hardwareSubtotal)}</span>
+          <span>{formatINR(markup(bom.hardwareSubtotal))}</span>
         </div>
         <div className="flex justify-between">
-          <span>Labor</span>
-          <span>{formatINR(bom.laborSubtotal)}</span>
+          <span>Labour — installation</span>
+          <span>{formatINR(markup(bom.laborSubtotal))}</span>
         </div>
+        <div className="flex justify-between">
+          <span>Fabrication</span>
+          <span>{formatINR(markup(bom.fabricationSubtotal))}</span>
+        </div>
+        {bom.othersSubtotal > 0 && (
+          <div className="flex justify-between">
+            <span>Other</span>
+            <span>{formatINR(markup(bom.othersSubtotal))}</span>
+          </div>
+        )}
         <div className="flex justify-between">
           <span>Appliances</span>
-          <span>{formatINR(bom.applianceSubtotal)}</span>
+          <span>{formatINR(markup(bom.applianceSubtotal))}</span>
         </div>
+
         <div className="mt-1 flex justify-between border-t border-gray-200 pt-2 text-sm font-semibold text-gray-900">
-          <span>Grand Total</span>
-          <span>{formatINR(bom.grandTotal)}</span>
+          <span>{view === 'cost' ? 'Total Cost' : 'Grand Total'}</span>
+          <span>{formatINR(view === 'cost' ? bom.costGrandTotal : bom.grandTotal)}</span>
         </div>
+        {view === 'selling' && (
+          <span className="text-[10px] text-gray-400">Includes {bom.marginPercent}% margin.</span>
+        )}
       </div>
 
       {/* Kept as its OWN component (QuoteFreezePanel's own header

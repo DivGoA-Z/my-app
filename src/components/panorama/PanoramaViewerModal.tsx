@@ -20,6 +20,7 @@
 import { useEffect, useRef } from 'react';
 import { Viewer } from '@photo-sphere-viewer/core';
 import '@photo-sphere-viewer/core/index.css';
+import { Button } from '../ui/button';
 
 export interface PanoramaViewerModalProps {
   isOpen: boolean;
@@ -75,13 +76,9 @@ export function PanoramaViewerModal({
       <div className="flex h-full w-full max-w-4xl flex-col gap-3 rounded-lg bg-white p-4 shadow-xl">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold text-gray-700">360° Street View — {cameraLabel}</h3>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="text-gray-400 hover:text-gray-600"
-          >
+          <Button variant="ghost" size="icon-xs" onClick={onClose} aria-label="Close">
             ×
-          </button>
+          </Button>
         </div>
 
         {panoramaUrl ? (

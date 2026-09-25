@@ -19,6 +19,8 @@
 //     built under warmer light, the finish looks wrong on site.
 
 import { useLayoutStore } from '../../store/layoutStore';
+import { Button } from '../ui/button';
+import { Alert, AlertDescription } from '../ui/alert';
 import { useSelectedOpeningId } from '../../hooks/useSelection';
 import { ColorPicker } from '../common/ColorPicker';
 import { openingsOverlap } from '../../lib/openings';
@@ -121,24 +123,28 @@ export function OpeningInspector() {
       </div>
 
       {clashes.length > 0 && (
-        <div className="rounded border border-red-300 bg-red-50 px-2 py-1.5 text-[10px] text-red-700">
-          <span className="font-medium">
-            Overlaps {clashes.length === 1 ? 'another opening' : `${clashes.length} openings`} on
-            this wall.
-          </span>{' '}
-          {clashes
-            .map((c) => `${OPENING_KIND_LABELS[c.kind]} at ${c.offsetMm}mm`)
-            .join(', ')}
-          . Move it along the wall, or raise its sill clear of the other.
-        </div>
+        <Alert variant="destructive">
+          <AlertDescription>
+            <span className="font-medium">
+              Overlaps {clashes.length === 1 ? 'another opening' : `${clashes.length} openings`}{' '}
+              on this wall.
+            </span>{' '}
+            {clashes
+              .map((c) => `${OPENING_KIND_LABELS[c.kind]} at ${c.offsetMm}mm`)
+              .join(', ')}
+            . Move it along the wall, or raise its sill clear of the other.
+          </AlertDescription>
+        </Alert>
       )}
 
       {(overrunsWall || overrunsCeiling) && (
-        <div className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-[10px] text-amber-800">
-          {overrunsWall && <>Extends past the end of the wall. </>}
-          {overrunsCeiling && <>Extends above the ceiling. </>}
-          It will be trimmed to fit, so the quote will deduct less than the size shown.
-        </div>
+        <Alert className="border-amber-300 bg-amber-50">
+          <AlertDescription className="text-amber-800">
+            {overrunsWall && <>Extends past the end of the wall. </>}
+            {overrunsCeiling && <>Extends above the ceiling. </>}
+            It will be trimmed to fit, so the quote will deduct less than the size shown.
+          </AlertDescription>
+        </Alert>
       )}
 
       <label className="flex flex-col gap-1 text-xs text-gray-600">
@@ -290,20 +296,24 @@ export function OpeningInspector() {
                       value={opening.leafColorOverride}
                       onChange={(leafColorOverride) => set({ leafColorOverride })}
                     />
-                    <button
+                    <Button
+                      variant="link"
+                      size="xs"
+                      className="h-auto self-start p-0 text-[10px]"
                       onClick={() => set({ leafColorOverride: undefined })}
-                      className="self-start text-[10px] text-blue-600 underline"
                     >
                       Use the finish's own colour
-                    </button>
+                    </Button>
                   </>
                 ) : (
-                  <button
+                  <Button
+                    variant="link"
+                    size="xs"
+                    className="h-auto self-start p-0 text-[10px]"
                     onClick={() => set({ leafColorOverride: DEFAULT_LEAF_COLOR })}
-                    className="self-start text-[10px] text-blue-600 underline"
                   >
                     Override colour
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
@@ -373,12 +383,9 @@ export function OpeningInspector() {
         </span>
       )}
 
-      <button
-        onClick={() => removeOpening(opening.id)}
-        className="rounded border border-red-300 px-2 py-1.5 text-xs text-red-600 hover:bg-red-50"
-      >
+      <Button variant="destructive" size="xs" onClick={() => removeOpening(opening.id)}>
         Delete
-      </button>
+      </Button>
     </div>
   );
 }

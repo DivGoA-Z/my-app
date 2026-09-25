@@ -35,6 +35,7 @@
 import { useState } from 'react';
 import type Konva from 'konva';
 import { Stage, Layer, Rect, Text, Line, Arrow } from 'react-konva';
+import { Button } from '../ui/button';
 import { useLayoutStore } from '../../store/layoutStore';
 import { computeRoomScale } from '../../lib/canvasScale';
 import { computeWallElevationItems } from '../../lib/surfaceAreas';
@@ -257,44 +258,30 @@ export function WallElevationView({ onClose }: { onClose: () => void }) {
   return (
     <div className="flex flex-col gap-4 p-8">
       <div className="flex flex-wrap items-center gap-3">
-        <button
-          onClick={onClose}
-          className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-        >
+        <Button variant="outline" size="sm" onClick={onClose}>
           ← Back to 2D
-        </button>
+        </Button>
 
         <div className="flex items-center gap-1">
-          <button
-            onClick={() => goToWall(-1)}
-            aria-label="Previous wall"
-            className="rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-          >
+          <Button variant="outline" size="sm" onClick={() => goToWall(-1)} aria-label="Previous wall">
             ‹
-          </button>
+          </Button>
           {WALL_ORDER.map((w) => (
-            <button
+            <Button
               key={w}
+              variant={w === orientation ? 'default' : 'outline'}
+              size="sm"
               onClick={() => {
                 setOrientation(w);
                 setClickInfo(null);
               }}
-              className={
-                w === orientation
-                  ? 'rounded border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-white'
-                  : 'rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50'
-              }
             >
               {WALL_LABELS[w]}
-            </button>
+            </Button>
           ))}
-          <button
-            onClick={() => goToWall(1)}
-            aria-label="Next wall"
-            className="rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-          >
+          <Button variant="outline" size="sm" onClick={() => goToWall(1)} aria-label="Next wall">
             ›
-          </button>
+          </Button>
         </div>
 
         <span className="text-xs text-gray-500">

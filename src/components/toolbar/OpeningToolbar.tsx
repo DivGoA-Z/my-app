@@ -14,6 +14,8 @@
 // in-swinging doors whose arc lands on a cabinet.
 
 import { useLayoutStore } from '../../store/layoutStore';
+import { Button } from '../ui/button';
+import { Alert, AlertDescription } from '../ui/alert';
 import { useSelectedOpeningId } from '../../hooks/useSelection';
 import { createOpening, OPENING_KIND_LABELS } from '../../types/opening';
 import type { OpeningKind } from '../../types/opening';
@@ -88,54 +90,60 @@ export function OpeningToolbar() {
           </span>
           <div className="flex gap-1 pl-1">
             {WALL_ORDER.map((wallId) => (
-              <button
+              <Button
                 key={wallId}
+                variant="outline"
+                size="xs"
+                className="h-auto min-h-6 flex-1 py-1 whitespace-normal font-normal"
                 onClick={() => handleAdd(kind, wallId)}
-                className="flex-1 rounded border border-gray-200 px-1 py-1.5 text-[10px] text-gray-700 hover:border-gray-400 hover:bg-gray-50"
               >
                 {WALL_LABELS[wallId]}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
       ))}
 
       {overlaps.length > 0 && (
-        <div className="rounded border border-red-300 bg-red-50 px-2 py-1.5 text-[10px] text-red-700">
-          {/* A red error, not an amber note. Two openings occupying the
-              same piece of wall is unbuildable — you cannot cut a
-              window through a door — so it belongs with collisions
-              rather than with advisories.
-
-              A window stacked ABOVE a door is no longer flagged: the
-              check compares both axes now, so a transom is correctly
-              legal. */}
-          <span className="font-medium">
-            {overlaps.length} opening{overlaps.length > 1 ? 's' : ''} overlap
-            {overlaps.length > 1 ? '' : 's'} another on the same wall.
-          </span>{' '}
-          Two openings can&apos;t occupy the same piece of wall — move one apart, or stack it
-          clear above the other.
-        </div>
+        // A red error, not an amber note. Two openings occupying the
+        // same piece of wall is unbuildable — you cannot cut a window
+        // through a door — so it belongs with collisions rather than
+        // with advisories.
+        //
+        // A window stacked ABOVE a door is no longer flagged: the
+        // check compares both axes now, so a transom is correctly
+        // legal.
+        <Alert variant="destructive">
+          <AlertDescription>
+            <span className="font-medium">
+              {overlaps.length} opening{overlaps.length > 1 ? 's' : ''} overlap
+              {overlaps.length > 1 ? '' : 's'} another on the same wall.
+            </span>{' '}
+            Two openings can&apos;t occupy the same piece of wall — move one apart, or stack it
+            clear above the other.
+          </AlertDescription>
+        </Alert>
       )}
 
       {clearance.issues.length > 0 && (
-        <div className="rounded border border-red-300 bg-red-50 px-2 py-1.5 text-[10px] text-red-700">
-          A door swing lands on{' '}
-          {clearance.issues.length === 1 ? '1 item' : `${clearance.issues.length} items`}. The
-          door won&apos;t open fully — check the highlighted arc on the plan.
-          {/* Structural conflicts get their own sentence because the
-              remedy is different: a cabinet can be slid along the run,
-              a concrete pillar cannot. The only fixes there are moving
-              the door or changing its swing. */}
-          {structuralCount > 0 && (
-            <div className="mt-1 font-medium">
-              {structuralCount === 1 ? 'One of them is' : `${structuralCount} of them are`}{' '}
-              structural (a pillar or shaft) and cannot be moved — change the door&apos;s swing
-              or its position instead.
-            </div>
-          )}
-        </div>
+        <Alert variant="destructive">
+          <AlertDescription>
+            A door swing lands on{' '}
+            {clearance.issues.length === 1 ? '1 item' : `${clearance.issues.length} items`}. The
+            door won&apos;t open fully — check the highlighted arc on the plan.
+            {/* Structural conflicts get their own sentence because the
+                remedy is different: a cabinet can be slid along the run,
+                a concrete pillar cannot. The only fixes there are moving
+                the door or changing its swing. */}
+            {structuralCount > 0 && (
+              <div className="mt-1 font-medium">
+                {structuralCount === 1 ? 'One of them is' : `${structuralCount} of them are`}{' '}
+                structural (a pillar or shaft) and cannot be moved — change the door&apos;s swing
+                or its position instead.
+              </div>
+            )}
+          </AlertDescription>
+        </Alert>
       )}
 
       {openings.length > 0 && (
@@ -151,17 +159,24 @@ export function OpeningToolbar() {
                     : 'bg-gray-50 text-gray-600'
                 }`}
               >
-                <button onClick={() => selectOpening(o.id)} className="flex-1 text-left">
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="h-auto flex-1 justify-start p-0 font-normal"
+                  onClick={() => selectOpening(o.id)}
+                >
                   {WALL_LABELS[o.wallId]} — {OPENING_KIND_LABELS[o.kind]} {o.widthMm}×
                   {o.heightMm}
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
                   onClick={() => removeOpening(o.id)}
                   aria-label={`Remove ${OPENING_KIND_LABELS[o.kind]}`}
-                  className="px-1 font-bold text-red-500 hover:text-red-700"
+                  className="text-red-500 hover:text-red-700"
                 >
                   ×
-                </button>
+                </Button>
               </li>
             ))}
           </ul>

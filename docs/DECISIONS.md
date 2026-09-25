@@ -1654,11 +1654,567 @@ running from before any of them existed. Confirmed by having you
 fully restart `npm run dev` (not just refresh) — fixed. See
 `docs/ISSUES-FIXED.md` for both of these.
 
+### Button sweep finished, and a first real pass at the four states
+
+Completed the rest of the button migration: `CustomerDashboard`,
+`QuoteSidebar`/`QuoteFreezePanel`, all 6 toolbars, all 5 Excel import/
+export panels (Download/Upload/Commit — scripted with plain literal
+string replacement across the 5 near-identical files rather than
+6 manual edits each; a first attempt used regex and hung on
+catastrophic backtracking, killed and rewritten as literal
+`.replace()` calls, which is O(n) and has no backtracking to blow up),
+all 5 inspectors, `LoginScreen`, `WallElevationView`, `Cabinet3DInspector`,
+`PickChooser`, `FinishPicker`, `PanoramaViewerModal`, `FrontPicker`, and
+`ColorPicker`'s filter chips. Every plain `<button>` in `src/components/`
+is now a shadcn `Button` except one: `ColorPicker`'s colour-swatch
+cells, deliberately left native — they're colour chips rendered via
+`style={{backgroundColor}}`, not really "buttons" in the design-system
+sense, and forcing Button's own padding/radius onto a 20px swatch
+would fight the one thing that row needs to look right.
+
+The upload-file `<input type="file">` pattern (a styled `<label>`
+wrapping a visually-hidden native file input, everywhere across the 5
+import/export panels) is preserved via `Button asChild` wrapping the
+`<label>` — `asChild` lets Button hand its own classes to the label
+via Radix's `Slot` instead of rendering its own `<button>`, so the
+label/hidden-input accessibility pattern survives untouched under
+shadcn's visual treatment.
+
+`variant="destructive"` is now the ONE red-delete-button style
+everywhere (was a hand-picked `border-red-300`/`text-red-600`
+combination, spelled slightly differently in nearly every file it
+appeared in) — literally the "one set of colours with fixed meanings"
+consistency rule from this same roadmap item, arriving as a side
+effect of the button migration rather than a separate pass.
+
+Four states: applied properly to `CustomerDashboard` and
+`InventoryManager`'s three catalogue tables — the two clearest
+"list of records" screens. Loading now renders `Skeleton` bars
+instead of a "Loading…" sentence; each of the three catalogue tables
+in `InventoryManager` gets an explicit "No X yet — add your first one
+below" row instead of silently rendering as an empty table with just
+a header and the add-new-row form; existing inline error text was
+promoted to the `Alert` component. Not attempted for every remaining
+screen — the toolbars' existing "No pieces yet" text and loading
+states were left as-is (they already say the right thing, just not in
+`Skeleton`/`Alert` markup), and this was a deliberate stopping point,
+not an oversight.
+
 ### Not done yet
 
-Excel import/export panels' Download/Upload/Commit buttons, the
-toolbars, the inspectors, `QuoteSidebar`/`QuoteFreezePanel`'s own
-buttons, `LoginScreen`, and `CustomerDashboard` still render hand-rolled
-Tailwind markup. The four states (full/empty/loading/error) per screen.
-Consistency rules beyond button colour. First-run checklist. All still
+Consistency rules beyond button colour (spacing/type scale). Keyboard
+beyond what already existed. First-run checklist. The four states for
+every remaining screen (toolbars, inspectors, quote sidebar). Selects,
+checkboxes and dense multi-field forms (`ObstacleToolbar`,
+`RoomSurfacesPanel`, the inspectors' dimension fields) are still native
+HTML — this pass deliberately scoped to buttons plus the two highest-
+value four-states screens, not a full native-control sweep. All still
 open, per `docs/PRINCIPLES.md` roadmap item 8.
+
+### Real bug the migration introduced: buttons overflowing narrow panels
+
+You caught this by eye — the "Light quality" row's 3 buttons, and
+fixture-picker labels, running past the edge of the (`w-64`, 256px)
+lighting toolbar. Root cause, confirmed by actually testing the `cn`
+package's merge behaviour rather than guessing: shadcn's `Button`
+bakes `whitespace-nowrap` into its base class UNCONDITIONALLY. That's
+a reasonable default for a typical short-label button, but several of
+this app's buttons carry longer, descriptive, multi-word text into
+narrow sidebars where the OLD plain `<button>` (no forced
+`white-space`) would just wrap onto a second line — `LIGHT_QUALITY_LABELS`
+like `"Auto (6 lights)"`/`"Low (2 lights)"`, `LIGHTING_MODE_LABELS`'
+`"True colour (no tint)"`, and every catalogue-item "+ add" button
+whose label is the business's own (arbitrarily long) product name.
+`whitespace-nowrap` also **inherits into children** (it's an inherited
+CSS property) — the fixture placement list's mount-description text,
+rendered inside a `Button`, silently stopped wrapping too, for the
+same underlying reason, well past what you initially pointed at.
+
+Checked (and disproved by directly testing the `cn` package, not by
+inspecting source) whether `shrink-0` — also baked into Button's base
+— was a second contributing cause: `flex-1` on a Button DOES correctly
+remove `shrink-0` via `cn`'s merge logic, confirmed with
+`cn('shrink-0 ... ', 'flex-1')`. So `whitespace-nowrap` was the entire
+story, not two bugs.
+
+Fixed by adding `whitespace-normal` (plus `h-auto` and a `min-h-*`
+matching the button's own size token, since the fixed heights
+`size="xs"`/`"sm"` set also assume single-line content) at every
+call site actually carrying long/dynamic text: `LightingToolbar` (mode
+buttons, quality buttons, fixture-add buttons, the "in this room" list
+button), `CabinetToolbar`/`ApplianceToolbar`'s catalogue "+ add"
+buttons, `ObstacleToolbar` (wall-add buttons, the dynamic "+ Add
+{preset label}" button), and — defensively, since the same pattern
+recurs — every remaining `flex-1` button pair (`CabinetInspector`/
+`ObstacleInspector`/`ApplianceInspector`'s rotate/duplicate/delete,
+`RoomSettingsPanel`'s Cancel/Apply, `QuoteFreezePanel`'s Download/
+Share) even where the label is short enough that wrapping is unlikely
+to ever actually trigger. Did NOT change the shared `button.tsx`
+primitive's default — most of the other ~70 Button call sites in the
+app are short, single-word, adequately-spaced buttons where
+`whitespace-nowrap` is the correct behaviour, and changing the shared
+default risked a different, harder-to-spot regression across all of
+them for a problem that only actually occurs at a handful of specific
+call sites.
+
+---
+
+## 12. Real-market rate estimates, and the RateCardManager UI polish
+
+You gave 6 real Delhi NCR market figures rather than waiting on actual
+purchase invoices (explicitly: seed realistic estimates now, a
+business's own settings dashboard is where its real numbers belong —
+already true architecturally, since `rate_cards` has been per-business
+with RLS since §9). Three of the six mapped cleanly onto existing
+fields; three didn't, and needed a real decision rather than a blind
+paste:
+
+- **"Soft-close Hinge Sets: ₹450/pair" → `hardware.hinge = 225`, not
+  450.** This rate card prices hinges per PIECE, not per pair
+  (`HardwareSpec`'s own comment: a door gets 2-4 individual hinges,
+  unlike a drawer's `channel`, which genuinely is bought and fitted in
+  pairs). Using ₹450 directly would have doubled every hinge line on
+  every quote. Converted, not just copied.
+- **"Tandem Box Drawers: ₹2,500/set" → `hardware.channel = 2500`, not
+  a new hardware type.** A tandem-box system IS what `channel` already
+  prices (a pair of drawer runners) — a specific premium brand/type of
+  it, not a different real-world thing. Adding a `tandemBox` key would
+  have meant extending `HardwareSpec['type']`, `RATE_LABELS`,
+  `sanitizeRateCard`, `RateCardManager`'s field list, AND wiring
+  `lib/fronts.ts` to actually attach it to a drawer front instead of
+  `channel` — real work for a distinction that isn't real.
+- **"Commercial Plywood/HDHMR: ₹1,400/sq.m" and "BWP: ₹2,200/sq.m" —
+  originally left unwired, then wired in the same session.** ~~Checked
+  `lib/bom.ts` before assuming these had a home: `materialCost =
+  item.unitPrice * item.quantity` — a cabinet's `material` field
+  (HDMR/Plywood/etc.) is costing-only DISPLAY metadata today; nothing
+  multiplies it by area. That's Phase 1 item 2 ("the panel model"),
+  explicitly blocked on the carpenter's construction convention and
+  not started. Seeding a per-sq-m substrate rate with no formula or UI
+  to consume it would have been exactly the "half-finished
+  implementation" this repo's own house style rejects.~~ **CORRECTED**:
+  that reasoning conflated two different things — the FULL panel model
+  (an exact, per-panel cutting list, genuinely blocked on the
+  carpenter's convention) and a costing-only estimate (which needs no
+  panel accuracy at all, only an area figure, and `bom.ts` already had
+  one — `estimateAreaSqFt`, previously used for labour only, its own
+  comment already anticipating "material + labor costing" before
+  either the comment or the code caught up to say so). See §13 for
+  what actually got built once that distinction was made explicit.
+- **"Basic Acrylic / Laminate Finish: ₹1,200/sq.m" and "Quartz
+  Countertop: ₹2,800/sq.m" → two new `surface_finishes` rows**
+  (`finish_default_basic`, `finish_default_quartz`), not rate_cards
+  fields at all — finishes are priced per catalogue row, not on the
+  rate card. Quartz uses `procedural_kind: 'quartz'` (a real generator
+  in `lib/textures3d.ts`, same mechanism the wood-look defaults
+  already use) rather than a flat colour guess, so a business's
+  countertop actually renders like quartz instead of a beige box the
+  first time they pick it.
+
+**Idempotency, applied correctly this time**: the `rate_cards` INSERT
+alone would NOT have updated an already-seeded business's row —
+`on conflict (id) do nothing` skips existing rows entirely, per §9's
+own lesson about this exact file. Added a separate, explicit one-time
+`UPDATE ... WHERE hardware_rates->>'hinge' = '120' AND
+hardware_rates->>'channel' = '450'` right after the insert — advances
+a business still sitting on the OLD placeholders, leaves alone a
+business that already edited either value away from the placeholder,
+same "only touch what's still default" rule the corner-unit
+`module_type` cleanup earlier in this file already established.
+**Not verified against a live Postgres run** — reviewed by eye only,
+same standing caveat as every other schema.sql change this session.
+
+**RateCardManager UI**, the actual ask ("focus next on ensuring the
+Rate Card Settings UI is clean"): converted every native `<input>` to
+shadcn's `Input`, wrapped labels in `Label`, the placeholder-rates
+warning and the error message in `Alert` (kept the amber colour and
+kept the banner itself — CLAUDE.md is explicit that it must never be
+removed, and better estimates don't change that these are still
+seed defaults, not this business's negotiated price), and added a
+`Separator` between the labour and hardware sections. No logic
+changed — `isPlaceholder`'s comparison against `PLACEHOLDER_RATES`
+still works correctly since that constant was updated to the same
+`hinge`/`channel` values as the schema.sql seed, kept in sync
+deliberately (see `defaultRateCard()`'s own comment on why the two
+must never diverge).
+
+---
+
+## 13. Material cost by area — the costing-only slice of the "panel model"
+
+You caught a real gap in §12's own reasoning: material substrate cost
+was left out on the theory that nothing in `bom.ts` could consume a
+per-sq-m rate without the full panel model (Phase 1 item 2, blocked on
+the carpenter's construction convention). That conflated two different
+things. The full panel model needs to know EXACTLY how big each panel
+is — is the bottom captured between the sides or under them, is the
+back grooved in or nailed on — because a wrong cutting list is
+actually wrong, not approximately wrong. Pricing doesn't need that:
+`bom.ts` already had a rough area estimate (`estimateAreaSqFt`, used
+for labour) whose own comment already said "used for material + labor
+costing" before the code caught up to match it. Reusing that estimate
+for material is the same accuracy tier this app already trusted for
+labour — an approximation, clearly labelled as one, not a claim that
+this is the real panel model arriving early.
+
+### What changed
+
+- **`lib/bom.ts`**: added `carcassAreaSqM` — the identical formula to
+  `estimateAreaSqFt` (front face + a 0.5-discounted side/back
+  allowance), in sq m instead of sq ft, because material is rated per
+  sq m (plywood/ply sheets are retailed that way) and labour per sq ft
+  (the trade's own billing unit) — one estimate, two unit conversions,
+  not two independently-tuned formulas that could drift apart.
+  `materialCost` is now `carcassAreaSqM(item) * quantity *
+  rates.materialRates[item.material]`, replacing what it used to
+  mean: a bare copy of `item.unitPrice * item.quantity`.
+- **That old meaning didn't just disappear** — it's now `baseCost`
+  (`BOMLineItem.baseCost`, `BOMSummary.baseSubtotal`, shown in
+  `QuoteSidebar`/`quotePdf.ts` as "Fabrication"), still `unitPrice *
+  quantity`, still added into `lineTotal`. `unitPrice` stays a real,
+  priced field rather than becoming dead data now that material has
+  its own line — it represents everything about a cabinet that isn't
+  material, finish, hardware or labour (assembly, margin, whatever
+  else a business folds into one flat catalogue number).
+- **This changes what every existing catalogue row's `unitPrice`
+  should mean.** Before this change, `unitPrice` WAS the cabinet's
+  entire price, material included. After it, material is charged
+  separately, so a business's existing prices are now double-counting
+  material unless they lower them. This is real, unavoidable
+  migration work for every business using this app, not something
+  fixable in code — flagged explicitly in the cabinet Excel export's
+  own Instructions sheet (`unit_price`'s "meaning" column,
+  `cabinetImportExport.ts`) and in `types/Catalog.ts`'s own comment on
+  `CatalogItem.unitPrice`, both corrected in place rather than left to
+  say the old, now-wrong thing.
+- **`MaterialType` gained `'BWP'`** (Boiling Water Proof plywood) — a
+  real, separately-priced product in this market, not a rename of
+  Plywood. Added everywhere `MaterialType` is enumerated: the 4
+  `MATERIALS` const arrays (`CabinetInspector`, `InventoryManager`,
+  `Cabinet3DInspector`, `cabinetImportExport.ts`), and
+  `cabinet_catalog_items`'s check constraint in `schema.sql` (same
+  drop/re-add-as-`not valid`/`validate` pattern the `module_type`
+  constraint already used, since `create table if not exists` is a
+  no-op against an existing table and wouldn't have widened it).
+- **`RateCard` gained `materialRates: Record<MaterialType, number>`**
+  — a new `material_rates` jsonb column (nullable; no placeholder
+  value to detect-and-preserve the way hinge/channel's migration has,
+  since this column never existed before, so the backfill is a plain
+  "fill if NULL" rather than "fill if still equal to the old default").
+  `RateCardManager` gained a third fieldset (Material, ₹ per sq m)
+  after Hardware, same `Input`/`Label` shapes the rest of that screen
+  already uses.
+- **Only 3 of the 5 `MaterialType` values have a real source.** HDMR
+  and Plywood both take the business's own ₹1,400 (they gave one
+  number for "Commercial Plywood / HDHMR", treating the two as the
+  same price tier — not an error, a reflection of how those two are
+  actually bought), BWP takes ₹2,200. **MDF (₹1,100) and Particle
+  Board (₹850) are this session's OWN placeholder guesses** — scaled
+  down from the two real figures in the usual retail ordering (MDF
+  cheaper than plywood-grade boards, particle board cheapest), not
+  given by the business, and carry meaningfully less confidence than
+  the other three numbers on this rate card.
+
+### Verified
+
+A standalone script (not committed — this project's own convention
+for logic worth checking numerically rather than by eye) built a
+600×600×850mm HDMR cabinet with empty finish/handle/fixture catalogues
+(isolating material cost from everything else) and confirmed by hand:
+`carcassAreaSqM` = (600×850 + 600×850×0.5) / 1,000,000 = 0.765 m²;
+`materialCost` = 0.765 × ₹1,400 = ₹1,071; `baseCost` = the cabinet's
+own `unitPrice`; both flow correctly into `lineTotal` and their
+matching `BOMSummary` subtotals. **Not verified**: the actual
+`RateCardManager` UI rendered in a browser, or a live `schema.sql` run
+against Supabase (no DB connection available here — same standing
+caveat as every other schema change this session).
+
+### Still not built
+
+The real panel model — an exact, per-panel cutting list — remains
+exactly as blocked as it was: on your carpenter's construction
+convention (bottom between the sides or under them; back grooved in
+or nailed on). This change makes material COST vary correctly by
+substrate and by size; it does not produce a cutting list, and
+`carcassAreaSqM`'s own comment says so explicitly, so the next person
+reading it doesn't mistake "good enough to price" for "good enough to
+cut boards against."
+
+---
+
+## 14. Fabrication/others rates, and cost basis vs. selling basis
+
+§13 computed material + finish + hardware for real, for every
+existing cabinet, using the app's own `calculateBOM` (not a
+reimplementation) — and the result exposed a real problem: that sum
+came to well under half of what every cabinet's old flat price
+actually was, in every single case, not a few outliers. The gap
+wasn't a bug in §13's formula. It was real cost §13 never claimed to
+capture — building and edge-banding the carcass panels, assembling
+the box — that the old catalogue `unitPrice` had been carrying
+invisibly, plus whatever margin a business runs on top. Setting every
+catalogue `unitPrice` to 0 (§13's own recommendation, to stop
+material double-counting) would have made every quote roughly 40% of
+its old total — probably below what these cabinets cost to make.
+
+### What got added
+
+- **`RateCard.fabricationRatePerUnit`** — ₹ per CABINET, flat
+  regardless of size. Workshop labour: cut, edge-band, assemble the
+  box. Deliberately separate from `laborRatePerSqFt` (unchanged),
+  which is SITE installation billed by area, the trade's own
+  convention for that different job — `RateCardManager`'s label for
+  the existing field was corrected in place to say "site installation"
+  now that there are two different labours to tell apart, per
+  CLAUDE.md's rule on correcting a document rather than leaving it
+  ambiguous next to a new field that would otherwise look like a
+  duplicate.
+- **`RateCard.othersRatePerUnit`** — ₹ per cabinet, defaults to **0**
+  on your explicit instruction — unlike every other rate on this card,
+  no real number exists for it; it's a deliberate empty slot for
+  whatever doesn't fit elsewhere (packing, delivery, a specific job's
+  conditions), not a guess dressed up as a placeholder.
+- **`RateCard.marginPercent`** — cost-plus markup on the WHOLE job's
+  cost (every subtotal, not just cabinets), answering your question
+  about how professional estimating software handles this: cost basis
+  (what the job actually costs) and selling basis (what the customer
+  is charged) are tracked as two different numbers connected by a
+  markup percentage, not conflated into one guessed catalogue price.
+  25% seeded as a common trade margin — a placeholder exactly like
+  every other rate on this card, not this business's real number.
+- **`lib/bom.ts`**: `BOMLineItem` gained `fabricationCost`/`othersCost`
+  (flat per cabinet, same shape as `baseCost`). `BOMSummary` gained
+  `costGrandTotal` (every subtotal summed, before margin — what this
+  job costs), `marginAmount` (`costGrandTotal × marginPercent / 100`),
+  and **`grandTotal` is now `costGrandTotal + marginAmount`** rather
+  than a bare cost figure. This is NOT a new meaning for `grandTotal`
+  — every existing consumer (`saveProject`'s `quoteTotal`,
+  `freezeCurrentQuote`'s stored summary, `quotePdf.ts`'s printed
+  total) has always wanted exactly the number a customer is charged,
+  and until now that number simply had no margin in it because margin
+  had no field to live in. Zero code changes were needed at any of
+  those three call sites — they inherit the corrected meaning for
+  free, which is the whole point of computing margin inside
+  `grandTotal` rather than bolting a separate "selling total" onto
+  the side that every consumer would have had to remember to switch to.
+- **`QuoteSidebar`** gained a Cost/Selling toggle — **internal and
+  session-only, never persisted, and never available anywhere a
+  customer could see it.** Selling view (default) shows the Margin
+  line and `grandTotal`; cost view hides the margin line and shows
+  `costGrandTotal` instead, labelled "Total Cost". `quotePdf.ts` and
+  the freeze path have no toggle at all — they always print the
+  selling breakdown, because a frozen quote is a document a customer
+  receives, and a business's own cost basis is never information for
+  a customer to see.
+- **Relabelled, not just added**: the "Fabrication" line in
+  `QuoteSidebar`/`quotePdf.ts` used to show `baseSubtotal` (a leftover
+  from before this rate existed, back when a catalogue's own
+  `unitPrice` was the closest thing to a fabrication charge) — that
+  was a real mislabel once `fabricationSubtotal` existed too, corrected
+  in place rather than left as two lines both trying to mean
+  "fabrication." `baseSubtotal` now only renders when actually
+  nonzero, labelled "Catalogue price" — a legacy per-row charge a
+  business can still opt into by setting a catalogue row's own
+  `unitPrice`, not a routinely-shown ₹0 line.
+
+### Verified
+
+A standalone script (not committed) built one cabinet through the
+real `calculateBOM`, at the seeded `fabricationRatePerUnit`/
+`othersRatePerUnit`/`marginPercent`, and confirmed by hand:
+`fabricationCost` = the seeded rate exactly; `costGrandTotal` equals
+the line's own `lineTotal` (single cabinet, no appliances/surfaces);
+`marginAmount` = `costGrandTotal × 25 / 100` to within floating-point
+tolerance; `grandTotal` = `costGrandTotal + marginAmount` exactly.
+**Not verified**: the `RateCardManager` UI or the `QuoteSidebar`
+toggle rendered in a browser, or `schema.sql`'s three new columns run
+against a live database.
+
+### What this means for your existing catalogue
+
+`final-catalogues/cabinets-zero-baseprice.xlsx` (§13's output, `unit_price`
+= 0 for all 23 real cabinets) is still the right file to upload,
+unchanged by this section — fabrication/others/margin come from the
+RATE CARD now, applied automatically to every cabinet regardless of
+its catalogue row, not from anything that needs to be typed per row.
+Uploading it plus re-running `schema.sql` (for the new columns) is
+what actually turns on everything in this section for your live data.
+
+### Confirmed, not an oversight: itemized cabinet rows stay cost-only
+
+Asked directly rather than assumed: in Selling view, `QuoteSidebar`'s
+per-cabinet table always shows `line.lineTotal` (cost, no margin),
+while the Grand Total at the bottom includes margin as one separate
+line — meaning the itemized rows do NOT sum to the Grand Total by
+themselves; the "Margin" line is what bridges the gap. Flagged this
+explicitly because most real customer-facing renovation quotes mark
+up each line individually so the rows sum cleanly, and asked whether
+to change it. Confirmed: keep current behaviour. No code change.
+
+**Superseded by §15 below** — after seeing the upload validation
+error this decision led to, and a follow-up conversation about how
+professional software actually structures margin, this was reversed:
+margin is now distributed per line after all, and moved off the rate
+card entirely. Left this entry in place rather than deleting it, per
+this file's own rule — the reasoning that led to the ORIGINAL "keep
+one line" answer wasn't wrong given what was known then; it's what
+changed once §15's three real problems surfaced together.
+
+---
+
+## 15. Unit price becomes decorative; margin distributed and moved to per-project
+
+Three real problems surfaced together, from one bug report:
+
+1. **Uploading the §13 cabinet file with `unit_price = 0` was
+   REJECTED** — `cabinetImportExport.ts` validated `unit_price` with
+   `positiveNumber` (requires > 0), a rule written back when
+   `unitPrice` WAS the cabinet's entire price and 0 would have meant
+   "free." That's no longer true, and the validator hadn't caught up.
+   Fixed: `nonNegativeNumber` instead — 0 is now the expected, common
+   case, not an error.
+2. **"It should be the calculated cost, not zero. No?"** — a fair
+   question that exposed the real design flaw: `baseCost` (from
+   `unitPrice`) was still being ADDED to `lineTotal` alongside the
+   live material/finish/hardware/fabrication calc. Setting
+   `unit_price` to the §13 computed total would have recreated
+   exactly the double-count §13 was built to fix, just via a
+   different field. Fixed properly this time: `item.unitPrice` is no
+   longer read by `calculateBOM` AT ALL — `baseCost`/`baseSubtotal`
+   are removed from `BOMLineItem`/`BOMSummary` entirely, not just
+   zeroed. `unitPrice` becomes a pure REFERENCE figure a business sees
+   when browsing the catalogue — still stored, still shown in
+   `InventoryManager`'s "Price" column — with zero path back into any
+   real total. That makes it safe to fill with a real, non-zero
+   number: regenerated `final-catalogues/cabinets-reference-price.xlsx`
+   (superseding the earlier zero-price file) with `unit_price` set to
+   each cabinet's own `lineTotal` under the new formula — material +
+   finish + hardware + labour + fabrication, computed via the real
+   `calculateBOM`, not re-derived by hand.
+3. **"Don't add the margin line at the end — increase each line item
+   by the margin so it sums to selling price"** — reversing the
+   decision two sections above, once distributing it was understood
+   to be what most real customer-facing renovation quotes actually do
+   (rows that sum cleanly, no separate line to explain). Because
+   `sum(x_i) × k = sum(x_i × k)`, this needed NO change to `bom.ts`'s
+   totals math — `costGrandTotal`/`marginAmount`/`grandTotal` are
+   unchanged. It's a display-layer change: `QuoteSidebar.tsx` and
+   `quotePdf.ts` both gained a `markup()`/`marked()` helper
+   (`value × (1 + marginPercent / 100)`, identity when there's no
+   margin to apply) applied to EVERY shown figure — every cabinet/
+   appliance/opening/fixture/countertop row, and every summary
+   subtotal — not just the grand total. The standalone "Margin" line
+   is gone; a small caption under the total now just says what
+   percentage is included. Verified by hand: the marked-up row for a
+   single cabinet equals `grandTotal` exactly, confirming the
+   distributed figures actually reconcile rather than merely looking
+   plausible.
+
+### Margin moved off the rate card, onto the project
+
+Also confirmed in the same conversation: margin should be a
+per-PROJECT decision, not one number for the whole business — a big
+order and a rush one-off don't have to carry the same margin, unlike
+every other rate (a hinge is the same hinge on every job). This is
+the same shape `RoomLayout.priceElectrical`/`priceCountertop` already
+use for exactly this kind of "per-project pricing choice," so
+`marginPercent` moved there rather than staying a `RateCard` field:
+
+- **`RateCard.marginPercent` removed** — from the type, from
+  `PLACEHOLDER_RATES`, from `sanitizeRateCard`, from `lib/rates.ts`'s
+  row mapping, and from `RateCardManager`'s UI (which never got a
+  chance to be seen rendered with it, and now never will be).
+- **`RoomLayout.marginPercent?: number` added** — optional, so an
+  older layout without one falls back to `DEFAULT_MARGIN_PERCENT`
+  (now exported from `lib/bom.ts`, 25 — the same placeholder value,
+  just relocated) rather than needing a migration. A new
+  `setMarginPercent` store action follows `setPriceElectrical`'s exact
+  shape (`noteDesignEdit` for undo/redo + autosave, then a clamped
+  `set`).
+- **Edited in `QuoteSidebar`, not `RateCardManager`** — right next to
+  the Cost/Selling toggle, visible in both views (you'd want to
+  change it and immediately see the effect by switching views, not
+  hunt for a control that only appears in one). `BOMSummary` now
+  carries `marginPercent` too (the RESOLVED value — layout's own, or
+  the default), so neither `QuoteSidebar` nor `quotePdf.ts` needs to
+  reach past the summary into the layout just to know what percentage
+  is being shown.
+- **`schema.sql` corrected before ever being run**: the `rate_cards.
+  margin_percent` column added in §14 was removed from the file
+  (never deployed to a live database, so this is a clean edit, not a
+  migration to drop real data) and replaced with
+  `layouts.margin_percent numeric` (nullable — the code's own
+  `DEFAULT_MARGIN_PERCENT` is the single fallback, so there's no
+  second default value in SQL that could quietly drift from it).
+
+### Verified
+
+Two standalone scripts (not committed): one confirmed `unitPrice` no
+longer appears on a computed line item at all (`baseCost` is gone,
+not just zeroed) and regenerated the reference-price file against the
+real `calculateBOM`; another built a cabinet under a layout with a
+custom 40% margin (not the 25% default) and confirmed `bom.
+marginPercent` resolves to the LAYOUT's value, and that a row marked
+up by that same percentage equals `grandTotal` exactly for a
+single-cabinet case. **Not verified**: any of this rendered in a
+browser, or `schema.sql`'s `layouts.margin_percent` column run against
+a live database.
+
+## 16. QuoteSidebar layout: toggle and margin box to the top; four
+    states — errors/warnings promoted to `Alert` across the remaining
+    screens
+
+**QuoteSidebar reordering.** The Cost/Selling toggle and the margin
+% input both moved from the bottom of the sidebar (past the whole
+itemised table) to directly under the "Quote Summary" heading. Both
+control every figure on the panel, so seeing them requires scrolling
+past everything they affect if they sit at the bottom — moved up so
+they're the first thing you see, not the last. No behaviour change:
+same `view` state, same `markup()` helper, same `setMarginPercent`
+action, only their position in the JSX.
+
+**Four states, continuing item 8 of `docs/PRINCIPLES.md`'s roadmap.**
+§11's pass covered `CustomerDashboard` and `InventoryManager` and
+explicitly left "toolbars, inspectors, quote sidebar" for later. This
+is that later. Scope: promote every screen-level (not per-row-in-a-
+review-grid) hand-rolled error/warning box — a `<div
+className="rounded border border-red-300 bg-red-50 ...">` or a bare
+`<p className="text-red-600">` — to the shared `Alert`/
+`AlertDescription` component, matching the convention
+`RateCardManager` already established (`variant="destructive"` for
+red; `className="border-amber-300 bg-amber-50"` +
+`AlertDescription className="text-amber-800/900"` for amber, since
+`ui/alert.tsx`'s `alertVariants` only defines `default`/`destructive`
+— amber is layered on `default` via className override, not a third
+CVA variant, so as not to invent a new primitive for one colour that
+already has a working pattern).
+
+Converted: `OpeningToolbar` (overlap + clearance-issue banners),
+`LightingToolbar` (orphaned-fixture amber banner, unresolved-catalogue
+-reference red banner), `CameraToolbar` (panorama-delete error),
+`FixtureInspector` (deleted-catalogue-item error, host-missing amber
+banner ×2 incl. the top-face/countertop case), `OpeningInspector`
+(overlap-clash error, wall/ceiling-overrun amber banner), `FrontPicker`
+(tambour fit error), `QuoteFreezePanel` (export error, freeze error).
+
+**Deliberately NOT touched:**
+- `LightingToolbar`'s sky-coloured "fixtures glow but don't light the
+  room" box — informational, not an error or a needs-attention state;
+  the stated consistency rule only fixes meaning for amber/red/green,
+  so recolouring or Alert-ifying it would be inventing a fourth
+  category nobody asked for.
+- Short inline hint spans sitting mid-sentence in a form (e.g.
+  `FrontPicker`'s and `OpeningInspector`'s single-line amber hints,
+  `RoomSurfacesPanel`'s tabular-nums note) — these aren't block-level
+  alerts, wrapping them in `Alert` would break their inline flow.
+- The 5 Excel import/export panels' per-row validation errors — a
+  deliberately dense review-grid pattern, already documented as its
+  own convention, not a screen-level alert.
+- Canvas overlay banners (`CollisionWarningBanner`,
+  `CabinetClearanceWarningBanner`) — not part of the
+  toolbar/inspector/quote-sidebar scope this item named; still hand-
+  rolled `<div>`s, left open for a future pass.
+
+Verified via `npx tsc --noEmit -p tsconfig.app.json` and `npx eslint .`
+(both clean). **Not verified**: rendered in a browser — same
+limitation as §15.

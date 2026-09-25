@@ -22,6 +22,7 @@
 // preview pick up a move, resize, or turn immediately.
 
 import { useLayoutStore } from '../../store/layoutStore';
+import { Button } from '../ui/button';
 import { useSelectedObstacleId } from '../../hooks/useSelection';
 import { OBSTACLE_TYPE_LABELS } from '../../types/layout';
 import { PARTIAL_OBSTACLE_HEIGHT_MM } from '../../lib/collision';
@@ -67,30 +68,20 @@ export function ObstacleInspector() {
     <div className="flex w-64 shrink-0 flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-gray-700">{OBSTACLE_TYPE_LABELS[obstacle.type]}</h3>
-        <button
-          onClick={() => selectObstacle(null)}
-          aria-label="Deselect"
-          className="text-gray-400 hover:text-gray-600"
-        >
+        <Button variant="ghost" size="icon-xs" onClick={() => selectObstacle(null)} aria-label="Deselect">
           ×
-        </button>
+        </Button>
       </div>
 
       <div className="flex flex-col gap-1">
         <span className="text-xs text-gray-500">Rotation: {obstacle.rotationDeg}°</span>
         <div className="flex gap-2">
-          <button
-            onClick={() => handleRotate(-1)}
-            className="flex-1 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
-          >
+          <Button variant="outline" size="xs" className="h-auto min-h-7 flex-1 py-1 whitespace-normal" onClick={() => handleRotate(-1)}>
             −90°
-          </button>
-          <button
-            onClick={() => handleRotate(1)}
-            className="flex-1 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
-          >
+          </Button>
+          <Button variant="outline" size="xs" className="h-auto min-h-7 flex-1 py-1 whitespace-normal" onClick={() => handleRotate(1)}>
             +90°
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -225,12 +216,9 @@ export function ObstacleInspector() {
       </label>
 
       <div className="flex border-t border-gray-200 pt-3">
-        <button
-          onClick={() => removeObstacle(obstacle.id)}
-          className="flex-1 rounded border border-red-300 px-2 py-1.5 text-xs text-red-600 hover:bg-red-50"
-        >
+        <Button variant="destructive" size="xs" className="flex-1" onClick={() => removeObstacle(obstacle.id)}>
           Delete
-        </button>
+        </Button>
       </div>
     </div>
   );

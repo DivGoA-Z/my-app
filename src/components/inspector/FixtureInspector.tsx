@@ -10,6 +10,8 @@
 // So the mount picker is first and the cabinet list is right under it.
 
 import { useLayoutStore } from '../../store/layoutStore';
+import { Button } from '../ui/button';
+import { Alert, AlertDescription } from '../ui/alert';
 import { useSelectedFixtureId } from '../../hooks/useSelection';
 import {
   CABINET_FACE_LABELS,
@@ -121,17 +123,21 @@ export function FixtureInspector() {
             {placement.item.colorTempK}K · {placement.item.lumens} lm
           </p>
         ) : (
-          <p className="text-[11px] text-red-600">
-            Its catalogue item was deleted — not rendered, not priced.
-          </p>
+          <Alert variant="destructive">
+            <AlertDescription>
+              Its catalogue item was deleted — not rendered, not priced.
+            </AlertDescription>
+          </Alert>
         )}
       </div>
 
       {placement?.hostMissing && (
-        <div className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-[10px] text-amber-800">
-          The cabinet this was fixed to is gone, so it&apos;s sitting loose in the middle of the
-          room. Re-mount it below or delete it.
-        </div>
+        <Alert className="border-amber-300 bg-amber-50">
+          <AlertDescription className="text-amber-800">
+            The cabinet this was fixed to is gone, so it&apos;s sitting loose in the middle of the
+            room. Re-mount it below or delete it.
+          </AlertDescription>
+        </Alert>
       )}
 
       {placement && !isVisibleWhenClosed(placement.item.kind) && (
@@ -204,11 +210,13 @@ export function FixtureInspector() {
               lifted clear and said out loud, because a cove light
               belongs on top of a WALL unit, not under a worktop. */}
           {mount.face === 'top' && topFaceIsUnderCountertop && (
-            <div className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-[10px] text-amber-800">
-              This unit has a countertop, so there is no space on top of it. The fixture is
-              shown above the worktop instead — a cove light normally goes on top of a wall
-              cabinet.
-            </div>
+            <Alert className="border-amber-300 bg-amber-50">
+              <AlertDescription className="text-amber-800">
+                This unit has a countertop, so there is no space on top of it. The fixture is
+                shown above the worktop instead — a cove light normally goes on top of a wall
+                cabinet.
+              </AlertDescription>
+            </Alert>
           )}
         </>
       )}
@@ -342,12 +350,14 @@ export function FixtureInspector() {
             />
           </label>
           {mount.kind === 'cabinet' && fixture.runLengthMm !== undefined && (
-            <button
+            <Button
+              variant="link"
+              size="xs"
+              className="h-auto self-start p-0 text-[10px]"
               onClick={() => set({ runLengthMm: undefined })}
-              className="self-start text-[10px] text-blue-600 underline"
             >
               Match the cabinet automatically
-            </button>
+            </Button>
           )}
         </>
       ) : (
@@ -416,12 +426,9 @@ export function FixtureInspector() {
         </div>
       )}
 
-      <button
-        onClick={() => removeFixture(fixture.id)}
-        className="rounded border border-red-300 px-2 py-1.5 text-xs text-red-600 hover:bg-red-50"
-      >
+      <Button variant="destructive" size="xs" onClick={() => removeFixture(fixture.id)}>
         Delete
-      </button>
+      </Button>
     </div>
   );
 }
@@ -462,12 +469,14 @@ function DrawerQuantityHint({
   }
 
   return (
-    <button
+    <Button
+      variant="link"
+      size="xs"
+      className="-mt-1 h-auto self-start p-0 text-[10px]"
       onClick={() => onUse(drawers)}
-      className="-mt-1 self-start text-[10px] text-blue-600 underline"
     >
       This cabinet has {drawers} drawer{drawers > 1 ? 's' : ''} — use {drawers}
-    </button>
+    </Button>
   );
 }
 

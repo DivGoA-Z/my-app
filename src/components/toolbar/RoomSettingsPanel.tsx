@@ -24,6 +24,7 @@
 
 import { useState } from 'react';
 import { useLayoutStore } from '../../store/layoutStore';
+import { Button } from '../ui/button';
 
 // Mirrors Room3DCanvas's own DEFAULT_CEILING_HEIGHT_MM fallback — kept
 // as a separate local constant rather than a shared import since
@@ -61,24 +62,22 @@ export function RoomSettingsPanel() {
 
   return (
     <div className="relative">
-      <button
-        onClick={handleOpen}
-        className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-      >
+      <Button variant="outline" size="sm" onClick={handleOpen}>
         Room Settings
-      </button>
+      </Button>
 
       {isOpen && (
         <div className="absolute right-0 top-full z-10 mt-2 flex w-56 flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-lg">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-semibold text-gray-700">Room Dimensions</h4>
-            <button
+            <Button
+              variant="ghost"
+              size="icon-xs"
               onClick={() => setIsOpen(false)}
               aria-label="Close"
-              className="text-gray-400 hover:text-gray-600"
             >
               ×
-            </button>
+            </Button>
           </div>
 
           <label className="flex flex-col text-xs text-gray-600 gap-1">
@@ -123,18 +122,12 @@ export function RoomSettingsPanel() {
           </p>
 
           <div className="flex gap-2 border-t border-gray-200 pt-3">
-            <button
-              onClick={() => setIsOpen(false)}
-              className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
-            >
+            <Button variant="outline" size="xs" className="h-auto min-h-7 flex-1 py-1 whitespace-normal" onClick={() => setIsOpen(false)}>
               Cancel
-            </button>
-            <button
-              onClick={handleApply}
-              className="flex-1 rounded bg-gray-800 px-2 py-1.5 text-xs text-white hover:bg-gray-700"
-            >
+            </Button>
+            <Button size="xs" className="h-auto min-h-7 flex-1 py-1 whitespace-normal" onClick={handleApply}>
               Apply
-            </button>
+            </Button>
           </div>
         </div>
       )}

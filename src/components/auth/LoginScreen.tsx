@@ -8,6 +8,10 @@
 
 import { useState } from 'react';
 import { useAuthStore } from '../../store/authStore';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Alert, AlertDescription } from '../ui/alert';
 
 export function LoginScreen() {
   const signIn = useAuthStore((s) => s.signIn);
@@ -30,38 +34,36 @@ export function LoginScreen() {
       >
         <h1 className="text-sm font-semibold text-gray-700">Sign in</h1>
 
-        <label className="flex flex-col gap-1 text-xs text-gray-600">
+        <Label className="flex flex-col items-stretch gap-1 text-xs font-normal text-gray-600">
           Email
-          <input
+          <Input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
             autoFocus
-            className="rounded border border-gray-300 px-2 py-1.5 text-sm"
           />
-        </label>
+        </Label>
 
-        <label className="flex flex-col gap-1 text-xs text-gray-600">
+        <Label className="flex flex-col items-stretch gap-1 text-xs font-normal text-gray-600">
           Password
-          <input
+          <Input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="rounded border border-gray-300 px-2 py-1.5 text-sm"
           />
-        </label>
+        </Label>
 
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="rounded bg-gray-800 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-        >
+        <Button type="submit" disabled={isLoading}>
           {isLoading ? 'Signing in…' : 'Sign in'}
-        </button>
+        </Button>
       </form>
     </div>
   );

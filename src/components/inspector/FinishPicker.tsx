@@ -10,6 +10,7 @@
 
 import { useState } from 'react';
 import { useLayoutStore } from '../../store/layoutStore';
+import { Button } from '../ui/button';
 import { describeFinish } from '../../lib/materials3d';
 import { ColorPicker } from '../common/ColorPicker';
 import type { PlacedCabinetItem } from '../../types/cabinet';
@@ -67,19 +68,22 @@ export function FinishPicker({ cabinet }: FinishPickerProps) {
       <div className="flex flex-col gap-1 text-xs text-gray-600">
         <span>Colour override</span>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsPickingColor((open) => !open)}
-            className="h-7 w-12 rounded border border-gray-300"
+          <Button
+            variant="outline"
+            className="h-7 w-12 p-0"
             style={{ backgroundColor: swatchColor }}
+            onClick={() => setIsPickingColor((open) => !open)}
             aria-label="Pick colour"
           />
           {cabinet.colorOverride ? (
-            <button
+            <Button
+              variant="link"
+              size="xs"
+              className="h-auto p-0 text-[10px]"
               onClick={() => updateCabinet(cabinet.id, { colorOverride: undefined })}
-              className="text-[10px] text-blue-600 underline hover:text-blue-800"
             >
               Reset to finish
-            </button>
+            </Button>
           ) : (
             <span className="text-[10px] text-gray-400">Using the finish's own colour</span>
           )}

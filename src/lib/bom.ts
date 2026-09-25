@@ -59,10 +59,22 @@ export interface BOMLineItem {
   // Itemised so the quote can show WHY hardware costs what it does.
   // Every one of these was silently empty before parametric fronts.
   hardwareDetail: { label: string; count: number; unitCost: number; cost: number }[];
+  // Carcass area the SUBSTRATE is priced on — see carcassAreaSqM's own
+  // comment for why this is a different (larger) area than
+  // finishedAreaSqM, and why both are still estimates, not the exact
+  // panel-by-panel figure the still-blocked panel model would give.
+  materialArea: number;
   materialCost: number;
   finishCost: number;
   hardwareCost: number;
   laborCost: number;
+  // Flat per-cabinet workshop labour (cut/edge-band/assemble the box)
+  // and a deliberate catch-all — see RateCard.fabricationRatePerUnit/
+  // othersRatePerUnit. Both flat regardless of cabinet size, unlike
+  // material/finish (area) or the existing per-sqft labour (site
+  // fitting) — a simplification the rate card's own fields document.
+  fabricationCost: number;
+  othersCost: number;
   lineTotal: number;
 }
 
@@ -168,6 +180,9 @@ export interface BOMSummary {
   fixtureLineItems: FixtureLineItem[];
   countertopLineItem: CountertopLineItem | null;
   materialSubtotal: number;
+  // See BOMLineItem.fabricationCost/othersCost.
+  fabricationSubtotal: number;
+  othersSubtotal: number;
   finishSubtotal: number;
   hardwareSubtotal: number;
   laborSubtotal: number;
@@ -185,6 +200,22 @@ export interface BOMSummary {
   // layout.priceCountertop is on.
   countertopSubtotal: number;
   countertopSpecifiedTotal: number;
+  // What this job actually costs the business — every subtotal above,
+  // summed, before margin. Never shown to a customer; see grandTotal.
+  costGrandTotal: number;
+  // The percentage actually used to compute marginAmount below —
+  // layout.marginPercent if the project set one, DEFAULT_MARGIN_PERCENT
+  // otherwise. Carried here so a caller never has to re-derive it (or
+  // reach past this summary into the layout) just to display it.
+  marginPercent: number;
+  // costGrandTotal × marginPercent / 100 — the business's own
+  // cost-plus markup, as a real number rather than implicit in a
+  // guessed catalogue price. 0 if marginPercent is 0.
+  marginAmount: number;
+  // What the customer is charged — costGrandTotal + marginAmount. This
+  // is what has ALWAYS flowed into the sidebar, the frozen quote and
+  // the PDF; that didn't change, only how it's built did (see
+  // docs/DECISIONS.md §14).
   grandTotal: number;
 }
 
@@ -225,6 +256,12 @@ export interface PricingContext {
 const MM2_PER_SQFT = 304.8 * 304.8;
 const MM2_PER_SQM = 1000 * 1000;
 
+// Used when a layout hasn't set its own margin yet (a fresh project)
+// or when a caller has no layout at all (a bare cabinet-list price
+// check). Margin is per-PROJECT now, not on the rate card — see
+// RoomLayout.marginPercent's own comment and docs/DECISIONS.md §15.
+export const DEFAULT_MARGIN_PERCENT = 25;
+
 // Area the FINISH is charged on. Deliberately front-face only, not
 // the same estimate used for material/labor above: laminate, acrylic
 // and veneer are bought and priced as shutter area, and carcass
@@ -235,14 +272,35 @@ function finishedAreaSqM(item: PlacedCabinetItem): number {
   return (item.widthMm * item.heightMm) / MM2_PER_SQM;
 }
 
-// Simplified surface-area estimate used for material + labor costing:
-// front face area, plus a discounted allowance for carcass sides/back.
-// Computed in mm² (matching the stored dimensions), then converted to
-// sq ft for costing.
+// Simplified surface-area estimate used for labor costing: front face
+// area, plus a discounted allowance for carcass sides/back. Computed
+// in mm² (matching the stored dimensions), then converted to sq ft —
+// labour is billed per sq ft, matching the trade's own convention.
 function estimateAreaSqFt(item: PlacedCabinetItem): number {
   const frontFaceMm2 = item.widthMm * item.heightMm;
   const sideAllowanceMm2 = item.depthMm * item.heightMm * 0.5;
   return (frontFaceMm2 + sideAllowanceMm2) / MM2_PER_SQFT;
+}
+
+// The SAME estimate as estimateAreaSqFt above (front face + a
+// discounted side/back allowance), reused for the cabinet's own
+// SUBSTRATE cost rather than a second, independently-tuned formula —
+// one rough area estimate, not two that could quietly drift apart. In
+// sq M rather than sq ft: material is bought and rated per sq m
+// (plywood/ply sheets are retailed that way), unlike labour.
+//
+// This is still an ESTIMATE, not the panel model (docs/PRINCIPLES.md
+// Phase 1 item 2, blocked on the carpenter's construction convention)
+// — it doesn't know whether the bottom panel is captured between the
+// sides or sits under them, so it can't produce an exact cutting
+// list, only a costing-grade approximation. Good enough to price
+// substrate by how much of it a cabinet actually uses instead of a
+// flat catalogue number that doesn't vary by material at all; not
+// good enough to cut boards against.
+function carcassAreaSqM(item: PlacedCabinetItem): number {
+  const frontFaceMm2 = item.widthMm * item.heightMm;
+  const sideAllowanceMm2 = item.depthMm * item.heightMm * 0.5;
+  return (frontFaceMm2 + sideAllowanceMm2) / MM2_PER_SQM;
 }
 
 export function calculateBOM(
@@ -253,7 +311,18 @@ export function calculateBOM(
   const { finishes, handles, fixtureCatalog, rates, layout } = ctx;
   const lineItems: BOMLineItem[] = items.map((item) => {
     const areaSqFt = estimateAreaSqFt(item) * item.quantity;
-    const materialCost = item.unitPrice * item.quantity;
+    const materialArea = carcassAreaSqM(item) * item.quantity;
+    const materialCost = materialArea * (rates.materialRates?.[item.material] ?? 0);
+    // item.unitPrice is deliberately NOT read here — see
+    // docs/DECISIONS.md §15. It's a reference figure a business sees
+    // when browsing the catalogue, not a cost this function counts;
+    // every real cost is computed fresh from this cabinet's own
+    // material/finish/hardware plus the rate card, so there's nothing
+    // left for a flat per-row number to add without double-counting.
+    // Flat per-cabinet, not area-based — see RateCard.
+    // fabricationRatePerUnit/othersRatePerUnit's own comments for why.
+    const fabricationCost = rates.fabricationRatePerUnit * item.quantity;
+    const othersCost = rates.othersRatePerUnit * item.quantity;
     const finish = resolveFinish(finishes, item.finishId);
     const finishArea = finishedAreaSqM(item) * item.quantity;
     const finishCost = finishArea * (finish?.pricePerSqM ?? 0);
@@ -292,11 +361,14 @@ export function calculateBOM(
       frontDescription: describeFront(frontLayout),
       handleDescription: handle?.label ?? 'No handle',
       hardwareDetail,
+      materialArea,
       materialCost,
       finishCost,
       hardwareCost,
       laborCost,
-      lineTotal: materialCost + finishCost + hardwareCost + laborCost,
+      fabricationCost,
+      othersCost,
+      lineTotal: materialCost + finishCost + hardwareCost + laborCost + fabricationCost + othersCost,
     };
   });
 
@@ -339,6 +411,22 @@ export function calculateBOM(
   // exists or what rate it shows.
   const countertopSubtotal = layout?.priceCountertop ? countertopSpecifiedTotal : 0;
 
+  // Cost-plus markup applied to the WHOLE job, not per cabinet — see
+  // RoomLayout.marginPercent's own comment (docs/DECISIONS.md §15 for
+  // why this moved off the rate card). costGrandTotal is what this job
+  // costs the business; grandTotal (below) is what the customer is
+  // charged, and is the only one of the two either the frozen quote or
+  // the PDF has ever read.
+  const costGrandTotal =
+    sum(lineItems, (l) => l.lineTotal) +
+    applianceSubtotal +
+    surfaceSubtotal +
+    openingSubtotal +
+    fixtureSubtotal +
+    countertopSubtotal;
+  const marginPercent = layout?.marginPercent ?? DEFAULT_MARGIN_PERCENT;
+  const marginAmount = costGrandTotal * (marginPercent / 100);
+
   return {
     lineItems,
     applianceLineItems,
@@ -347,6 +435,8 @@ export function calculateBOM(
     fixtureLineItems,
     countertopLineItem,
     materialSubtotal: sum(lineItems, (l) => l.materialCost),
+    fabricationSubtotal: sum(lineItems, (l) => l.fabricationCost),
+    othersSubtotal: sum(lineItems, (l) => l.othersCost),
     finishSubtotal: sum(lineItems, (l) => l.finishCost),
     hardwareSubtotal: sum(lineItems, (l) => l.hardwareCost),
     laborSubtotal: sum(lineItems, (l) => l.laborCost),
@@ -357,13 +447,10 @@ export function calculateBOM(
     fixtureSpecifiedTotal,
     countertopSubtotal,
     countertopSpecifiedTotal,
-    grandTotal:
-      sum(lineItems, (l) => l.lineTotal) +
-      applianceSubtotal +
-      surfaceSubtotal +
-      openingSubtotal +
-      fixtureSubtotal +
-      countertopSubtotal,
+    costGrandTotal,
+    marginPercent,
+    marginAmount,
+    grandTotal: costGrandTotal + marginAmount,
   };
 }
 

@@ -50,7 +50,13 @@ export interface CatalogItem {
   frontLayout?: FrontLayout;
   // FK -> HandleSpec.id (types/front.ts).
   handleId?: string;
-  unitPrice: number;   // ₹ default base price before hardware/labor
+  // ₹ fabrication/assembly price — NOT material, finish, hardware or
+  // labour, all priced separately (material/labour by the cabinet's
+  // own estimated area, on the rate card; finish/hardware by their
+  // own rates). See lib/bom.ts's BOMLineItem.baseCost and
+  // docs/DECISIONS.md §13 — this used to be the cabinet's ENTIRE
+  // price, material included, until material became area-priced.
+  unitPrice: number;
   createdAt: string;
   updatedAt: string;
 }

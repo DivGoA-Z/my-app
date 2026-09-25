@@ -279,6 +279,7 @@ interface LayoutStore {
   removeFixture: (id: string) => void;
   setLightingMode: (mode: LightingMode) => void;
   setPriceElectrical: (priceElectrical: boolean) => void;
+  setMarginPercent: (marginPercent: number) => void;
   setExposure: (exposure: number) => void;
 
   upsertFixtureCatalogItem: (item: FixtureCatalogItem) => Promise<void>;
@@ -690,6 +691,21 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
     set((state) =>
       state.currentLayout
         ? { currentLayout: { ...state.currentLayout, priceElectrical } }
+        : {}
+    );
+  },
+
+  // Per-project margin, not a business-wide rate card field — see
+  // RoomLayout.marginPercent's own comment and docs/DECISIONS.md §15.
+  // Clamped here, same reasoning as setExposure's clampExposure just
+  // above: a value typed straight into a saved layout, or restored
+  // from an older row, can't put the quote at a negative margin.
+  setMarginPercent: (marginPercent) => {
+    noteDesignEdit('setMarginPercent');
+    const safeMarginPercent = Number.isFinite(marginPercent) && marginPercent > 0 ? marginPercent : 0;
+    set((state) =>
+      state.currentLayout
+        ? { currentLayout: { ...state.currentLayout, marginPercent: safeMarginPercent } }
         : {}
     );
   },

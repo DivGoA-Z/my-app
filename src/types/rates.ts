@@ -23,7 +23,7 @@
 // a table nobody maintains. The rate card is edited in place; the
 // snapshots are the history.
 
-import type { HardwareSpec } from './cabinet';
+import type { HardwareSpec, MaterialType } from './cabinet';
 
 // The hardware types the rate card prices. Deliberately derived from
 // HardwareSpec rather than written out, and deliberately excluding
@@ -37,6 +37,17 @@ import type { HardwareSpec } from './cabinet';
 export type CardPricedHardware = Exclude<HardwareSpec['type'], 'handle'>;
 
 export type HardwareRates = Record<CardPricedHardware, number>;
+
+// ₹ per sq m of a cabinet's own estimated CARCASS area (lib/bom.ts's
+// carcassAreaSqM — the same rough front-face-plus-side-allowance
+// estimate already used for labour, not an accurate per-panel figure;
+// see docs/DECISIONS.md §13 for why that distinction matters and what
+// it would take to make this exact instead of estimated). Added
+// alongside real material-cost estimates so materialCost stops being
+// a stand-in for the catalogue's own unitPrice and becomes what its
+// name says: the substrate, priced by how much of it the cabinet
+// actually uses.
+export type MaterialRates = Record<MaterialType, number>;
 
 export interface RateCard {
   // One row per business now (business_id + RLS — see
@@ -56,6 +67,39 @@ export interface RateCard {
   // piece — 'channel' is a PAIR of runners, which is how they are sold
   // and fitted. See HardwareSpec in types/cabinet.ts.
   hardware: HardwareRates;
+
+  // See MaterialRates above.
+  materialRates: MaterialRates;
+
+  // ₹ per CABINET (flat, regardless of size) — box construction/
+  // assembly labour: cutting, edge-banding and assembling the carcass
+  // panels. Deliberately separate from `laborRatePerSqFt` above, which
+  // is SITE installation/fitting labour, billed by area per the
+  // trade's own convention — this one is workshop labour, billed flat
+  // per unit because a workshop quotes "so much to build a box", not
+  // by its surface area. See docs/DECISIONS.md §14 for why this field
+  // exists: material+finish+hardware alone came to well under half of
+  // what a real cabinet was priced at — this is the missing piece,
+  // named rather than left invisible inside a catalogue's own
+  // unitPrice the way it used to be.
+  fabricationRatePerUnit: number;
+
+  // ₹ per cabinet — a deliberate catch-all for whatever doesn't fit
+  // the categories above (packing, delivery, a specific job's site
+  // conditions, anything). Defaults to 0, unlike every other rate on
+  // this card, because unlike them it has no real-world number behind
+  // it at all — it exists so a business has somewhere to put one
+  // without it silently vanishing into "fabrication."
+  othersRatePerUnit: number;
+
+  // Cost-plus margin used to live here as `marginPercent` — a single
+  // business-wide number. Moved to `RoomLayout.marginPercent`
+  // (types/layout.ts) instead, per-project rather than per-business:
+  // a big order and a rush one-off don't have to carry the same
+  // margin, and unlike every rate above (which price a real, physical
+  // thing the same way regardless of which job it's for), margin is a
+  // business decision about THIS job specifically. See
+  // docs/DECISIONS.md §15.
 
   createdAt: string;
   updatedAt: string;
@@ -78,8 +122,18 @@ export const PLACEHOLDER_RATES: Omit<RateCard, 'createdAt' | 'updatedAt'> = {
   label: 'Default rates (placeholder)',
   laborRatePerSqFt: 150,
   hardware: {
-    hinge: 120,
-    channel: 450,
+    // A soft-close hinge SET (a pair) runs about ₹450 in the local
+    // market, but this rate is priced per PIECE (see this file's own
+    // comment on HardwareRates, and HardwareSpec in types/cabinet.ts —
+    // a door gets 2-4 individual hinges, unlike 'channel' below which
+    // really is priced per pair) — so ₹450 / 2 = ₹225 per piece, not
+    // ₹450. Using ₹450 directly would double every hinge line.
+    hinge: 225,
+    // "Tandem Box Drawers: ₹2,500/set" is the SAME real-world thing
+    // this key already prices (a pair of drawer runners) — a tandem-
+    // box system is a specific premium type/brand of channel, not a
+    // new hardware category, so this is a value update, not a new key.
+    channel: 2500,
     basket: 1400,
     shelf: 350,
     // Real component costs, one per cabinet regardless of front kind
@@ -90,6 +144,32 @@ export const PLACEHOLDER_RATES: Omit<RateCard, 'createdAt' | 'updatedAt'> = {
     cornerMagic: 12000,
     cornerCarousel: 6000,
   },
+  // Real Delhi NCR market estimates (2026-09-25) for HDMR/Plywood and
+  // BWP; MDF and Particle Board are MY OWN placeholder guesses (not
+  // given by the business), scaled down from the given figures in the
+  // usual retail ordering (MDF cheaper than plywood-grade boards,
+  // particle board cheapest) — flagged separately because they carry
+  // less confidence than the other four numbers on this object, all
+  // of which came from a real local-market source. See
+  // docs/DECISIONS.md §13.
+  materialRates: {
+    HDMR: 1400,
+    Plywood: 1400,
+    BWP: 2200,
+    MDF: 1100,
+    'Particle Board': 850,
+  },
+  // A genuine placeholder in the fullest sense — unlike hinge/channel/
+  // material above, nobody gave a real number for this one. ₹2,500 is
+  // a round, plausible Delhi NCR workshop estimate for cutting,
+  // edge-banding and assembling one cabinet box, picked so a fresh
+  // quote isn't obviously broken (₹0 fabrication reads as "free to
+  // build," which is a worse first impression than an order-of-
+  // magnitude guess). Needs checking against a real workshop invoice
+  // before any quote built on it goes to a customer, same as every
+  // other rate on this card.
+  fabricationRatePerUnit: 2500,
+  othersRatePerUnit: 0,
 };
 
 // Used when the rate card has not loaded yet, or when a caller builds a
@@ -132,6 +212,17 @@ export const RATE_LABELS: Record<CardPricedHardware, string> = {
   cornerCarousel: 'Carousel / lazy susan mechanism (each)',
 };
 
+// Same reasoning as RATE_LABELS above — names the RATE, not the
+// substrate itself (that's just the bare MaterialType string, shown
+// on a catalogue row's own "Material" field).
+export const MATERIAL_RATE_LABELS: Record<MaterialType, string> = {
+  HDMR: 'HDMR',
+  Plywood: 'Commercial Plywood',
+  BWP: 'BWP (boiling water proof) Plywood',
+  MDF: 'MDF',
+  'Particle Board': 'Particle Board',
+};
+
 // A rate of 0 is legitimate — a business that does not charge
 // separately for shelves should be able to say so. A NEGATIVE rate is
 // not, and neither is a missing one, which is what a blank input
@@ -153,6 +244,18 @@ export function sanitizeRateCard(card: RateCard): RateCard {
       cornerMagic: nonNegative(card.hardware.cornerMagic),
       cornerCarousel: nonNegative(card.hardware.cornerCarousel),
     },
+    materialRates: {
+      // Same graceful-growth reasoning as cornerMagic/cornerCarousel
+      // above — a rate card saved before materialRates existed loads
+      // as "not priced yet" (0) for every key rather than throwing.
+      HDMR: nonNegative(card.materialRates?.HDMR),
+      Plywood: nonNegative(card.materialRates?.Plywood),
+      BWP: nonNegative(card.materialRates?.BWP),
+      MDF: nonNegative(card.materialRates?.MDF),
+      'Particle Board': nonNegative(card.materialRates?.['Particle Board']),
+    },
+    fabricationRatePerUnit: nonNegative(card.fabricationRatePerUnit),
+    othersRatePerUnit: nonNegative(card.othersRatePerUnit),
   };
 }
 

@@ -26,7 +26,12 @@ export type ModuleType =
 // The carcass board. Drives price and durability — and NOT appearance:
 // a finished cabinet never shows its substrate. Appearance now comes
 // entirely from the referenced SurfaceFinish (types/finish.ts).
-export type MaterialType = 'HDMR' | 'Plywood' | 'MDF' | 'Particle Board';
+//
+// 'BWP' (Boiling Water Proof plywood — moisture-resistant, priced
+// above plain Plywood/HDMR) added 2026-09-25 alongside real material
+// rates (docs/DECISIONS.md §13) — a real, separately-priced product
+// in this market, not a rename of an existing option.
+export type MaterialType = 'HDMR' | 'Plywood' | 'MDF' | 'Particle Board' | 'BWP';
 
 // FinishType used to live here as an enum ('Acrylic' | 'Laminate' | ...).
 // It's gone: finishes are now catalogue rows (types/finish.ts), because

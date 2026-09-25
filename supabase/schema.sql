@@ -543,7 +543,17 @@ values
   ('finish_default_membrane', 'Soft White', 'Membrane', 'solid', '#e8e4dc', null,
    0, 0.55, 0, 0, 0.05, 300, 300, 'mirror', 1200, 'bundled', 'biz_default'),
   ('finish_default_veneer', 'Teak Veneer', 'Veneer', 'wood', null, 'wood',
-   0.7, 0.60, 0, 0, 0.05, 1000, 1000, 'mirror', 2100, 'bundled', 'biz_default')
+   0.7, 0.60, 0, 0, 0.05, 1000, 1000, 'mirror', 2100, 'bundled', 'biz_default'),
+  -- Two more, added when the placeholder rates below were replaced
+  -- with real Delhi NCR market estimates (2026-09-25) — a business's
+  -- entry-grade shutter option, and a countertop-grade stone. Quartz
+  -- uses procedural_kind 'quartz' (real generator in lib/textures3d.ts,
+  -- same as the wood ones above), not a flat solid_color guess — the
+  -- countertop slab actually looks like quartz instead of a beige box.
+  ('finish_default_basic', 'Basic Laminate / Acrylic', 'Laminate', 'solid', '#e5e0d8', null,
+   0, 0.40, 0.3, 0.15, 0.05, 300, 300, 'mirror', 1200, 'bundled', 'biz_default'),
+  ('finish_default_quartz', 'Quartz', 'Quartz', 'stone', null, 'quartz',
+   0.3, 0.25, 0.3, 0.15, 0.05, 600, 600, 'mirror', 2800, 'bundled', 'biz_default')
 on conflict (id) do nothing;
 
 -- ------------------------------------------------------------
@@ -640,6 +650,22 @@ begin
     )) not valid;
   alter table public.cabinet_catalog_items
     validate constraint cabinet_catalog_items_module_type_check;
+end $$;
+
+-- Same situation, same fix, for 'BWP' joining the material enum
+-- (docs/DECISIONS.md §13) — `create table if not exists` above is a
+-- no-op against an already-existing table, so this drop/re-add is
+-- what actually widens the constraint on one.
+do $$
+begin
+  alter table public.cabinet_catalog_items
+    drop constraint if exists cabinet_catalog_items_material_check;
+  alter table public.cabinet_catalog_items
+    add constraint cabinet_catalog_items_material_check
+    check (material in ('HDMR', 'Plywood', 'MDF', 'Particle Board', 'BWP'))
+    not valid;
+  alter table public.cabinet_catalog_items
+    validate constraint cabinet_catalog_items_material_check;
 end $$;
 
 -- NOTE on layouts.cabinets: placed cabinets live inside a JSONB array,
@@ -960,6 +986,15 @@ alter table public.layouts add column if not exists price_electrical boolean def
 -- the homeowner arranges stone separately. The countertop still prints
 -- on the quote as a specification at zero either way.
 alter table public.layouts add column if not exists price_countertop boolean default false;
+-- Cost-plus margin (%) for THIS project's own quote — per-project
+-- rather than a business-wide rate card field (docs/DECISIONS.md
+-- §15): a big order and a rush one-off don't have to carry the same
+-- margin. Nullable, not `not null default 25` — `lib/bom.ts`'s own
+-- DEFAULT_MARGIN_PERCENT constant is the fallback for a layout that
+-- hasn't set one, so a real NULL genuinely means "not set yet" rather
+-- than the column silently disagreeing with the code's own default if
+-- one of the two is ever changed without the other.
+alter table public.layouts add column if not exists margin_percent numeric;
 
 -- Starter set, at plausible Delhi NCR retail. `on conflict do nothing`
 -- so re-running never overwrites a business's own rates — same as the
@@ -1038,6 +1073,40 @@ create table if not exists public.rate_cards (
 
 alter table public.rate_cards add column if not exists business_id text references public.businesses(id);
 
+-- Same one-JSONB-column reasoning as hardware_rates above, added
+-- alongside real material-cost estimates (docs/DECISIONS.md §13) —
+-- `materialCost` in lib/bom.ts stops being a stand-in for the
+-- catalogue's own unitPrice and becomes area (the same rough estimate
+-- already used for labour) times the cabinet's own material's rate
+-- here. `create table if not exists` above no-ops on a database that
+-- already has this table, so this ALTER is what actually adds the
+-- column to one.
+alter table public.rate_cards add column if not exists material_rates jsonb;
+
+-- Two plain scalar columns, not JSONB — each is one number, not a
+-- set of keys that grows over time the way hardware/material rates
+-- do (docs/DECISIONS.md §14):
+--   fabrication_rate_per_unit  workshop labour to build one cabinet
+--     box (cut, edge-band, assemble) — flat per cabinet, unlike
+--     labor_rate_per_sqft above, which is SITE installation billed by
+--     area, the trade's own convention for that separate job.
+--   others_rate_per_unit       a deliberate catch-all, ₹0 by default —
+--     unlike every other rate here, no real number exists for it.
+-- `numeric not null default X` backfills every existing row with X in
+-- the same ALTER (unlike the jsonb columns above, which need a
+-- separate UPDATE to backfill — a plain scalar default does it as
+-- part of adding the column).
+alter table public.rate_cards add column if not exists fabrication_rate_per_unit numeric not null default 2500;
+alter table public.rate_cards add column if not exists others_rate_per_unit numeric not null default 0;
+-- CORRECTED: this block briefly also added a `margin_percent` column
+-- here — a business-wide margin. Moved to `layouts.margin_percent`
+-- instead (below, near that table's own price_electrical/
+-- price_countertop) before this was ever run against a live database
+-- (§14 → §15, same session): margin is a decision about ONE project,
+-- not a rate that prices a physical thing the same way for every job,
+-- so it lives per-layout, not on the rate card. See
+-- docs/DECISIONS.md §15.
+
 -- The seed row below keeps its historical id ('default') for the one
 -- business this migrated from, purely so the backfill has a row to
 -- attach business_id to without moving any existing quote total by a
@@ -1054,15 +1123,66 @@ alter table public.rate_cards add column if not exists business_id text referenc
 -- These are PLACEHOLDERS: right order of magnitude for Delhi NCR
 -- retail, not a price list. They need checking against real purchase
 -- invoices before any quote built on them goes to a customer.
+--
+-- hinge/channel updated 2026-09-25 to real local-market estimates
+-- (still placeholders, just better-informed ones): a soft-close hinge
+-- SET (a pair) runs about ₹450, and this table prices hinges per
+-- PIECE (see HardwareSpec's own comment in types/cabinet.ts — a door
+-- gets 2-4 individual hinges, not "pairs" of them the way a drawer
+-- gets pairs of channels), so the per-piece rate here is ₹450 / 2 =
+-- ₹225, not ₹450 — using ₹450 directly would silently double every
+-- hinge line on every quote. "Tandem Box Drawers: ₹2,500/set" maps
+-- straight onto the EXISTING `channel` rate — a tandem-box runner
+-- system is what `channel` already prices (a pair of drawer runners),
+-- just a specific premium brand/type of it, not a new hardware
+-- category.
+--
+-- CORRECTED (was wrong above, in this same comment, until
+-- docs/DECISIONS.md §13): this used to say the two material costs
+-- given alongside these (Commercial Plywood/HDMR, BWP) were
+-- deliberately left out because nothing consumed a per-sq-m substrate
+-- rate. That was true at the time, but wrong to leave unrevisited —
+-- `material_rates` below and `carcassAreaSqM` in lib/bom.ts now do
+-- exactly that, using the SAME rough area estimate labour already
+-- used, not the accurate panel-by-panel one the still-blocked panel
+-- model (Phase 1 item 2) would give. MDF and Particle Board did not
+-- come from the business — they're this session's own placeholder
+-- guesses, scaled down from the two real figures in the usual retail
+-- ordering, and carry less confidence than the other rates here.
 -- business_id explicit here too, same reasoning as the projects seed
 -- (see the note above that insert).
 insert into public.rate_cards
-  (id, label, labor_rate_per_sqft, hardware_rates, business_id)
+  (id, label, labor_rate_per_sqft, hardware_rates, material_rates, business_id)
 values
   ('default', 'Default rates (placeholder)', 150,
-   '{"hinge": 120, "channel": 450, "basket": 1400, "shelf": 350, "cornerMagic": 12000, "cornerCarousel": 6000}'::jsonb,
+   '{"hinge": 225, "channel": 2500, "basket": 1400, "shelf": 350, "cornerMagic": 12000, "cornerCarousel": 6000}'::jsonb,
+   '{"HDMR": 1400, "Plywood": 1400, "BWP": 2200, "MDF": 1100, "Particle Board": 850}'::jsonb,
    'biz_default')
 on conflict (id) do nothing;
+
+-- One-time forward migration for a database seeded before this
+-- change: a business still sitting on the OLD hinge/channel
+-- placeholders (120/450) gets advanced to the new estimates above
+-- automatically. A business that already edited either away from the
+-- placeholder is left alone — same "only touch what's still default"
+-- rule the corner-unit module_type cleanup earlier in this file uses.
+-- Safe to re-run: a database already on the new values, or with
+-- either value edited, matches neither `where` clause a second time.
+update public.rate_cards
+   set hardware_rates = jsonb_set(jsonb_set(hardware_rates, '{hinge}', '225'), '{channel}', '2500')
+ where hardware_rates->>'hinge' = '120'
+   and hardware_rates->>'channel' = '450';
+
+-- Separate backfill for the brand-new material_rates column: every
+-- row that predates it is NULL, not "already has some other value" —
+-- there is no placeholder to detect and preserve here the way the
+-- hinge/channel migration above has to, so this is a plain
+-- fill-if-empty rather than a fill-if-still-default. A business that
+-- saves ANY material rate (even 0 for one substrate) gets a real
+-- jsonb object and drops out of this `where` clause on the next run.
+update public.rate_cards
+   set material_rates = '{"HDMR": 1400, "Plywood": 1400, "BWP": 2200, "MDF": 1100, "Particle Board": 850}'::jsonb
+ where material_rates is null;
 
 -- ============================================================
 -- QUOTES (frozen snapshots)

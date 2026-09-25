@@ -18,6 +18,8 @@
 
 import { useState } from 'react';
 import { useLayoutStore } from '../../store/layoutStore';
+import { Button } from '../ui/button';
+import { Alert, AlertDescription } from '../ui/alert';
 import { DEFAULT_CAMERA_HEIGHT_MM } from '../../types/Camera';
 import { PanoramaViewerModal } from '../panorama/PanoramaViewerModal';
 
@@ -69,12 +71,9 @@ export function CameraToolbar() {
     <div className="flex w-64 flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-gray-700">Camera Nodes</h3>
-        <button
-          onClick={handleAdd}
-          className="rounded bg-gray-800 px-2 py-1 text-xs text-white hover:bg-gray-700"
-        >
+        <Button size="xs" onClick={handleAdd}>
           + Add
-        </button>
+        </Button>
       </div>
 
       <p className="text-xs text-gray-500">
@@ -82,7 +81,11 @@ export function CameraToolbar() {
         the Phase 2 panorama viewer at {DEFAULT_CAMERA_HEIGHT_MM}mm eye height.
       </p>
 
-      {panoramaDeleteError && <p className="text-xs text-red-600">{panoramaDeleteError}</p>}
+      {panoramaDeleteError && (
+        <Alert variant="destructive">
+          <AlertDescription>{panoramaDeleteError}</AlertDescription>
+        </Alert>
+      )}
 
       {cameras.length === 0 ? (
         <p className="text-xs text-gray-400">No camera nodes yet.</p>
@@ -98,27 +101,33 @@ export function CameraToolbar() {
               <span className="text-[10px] text-gray-400">{Math.round(camera.viewAngleDeg)}°</span>
               {camera.panoramaUrl && (
                 <>
-                  <button
+                  <Button
+                    variant="link"
+                    size="xs"
+                    className="h-auto whitespace-nowrap p-0 text-[10px]"
                     onClick={() => setViewingCameraId(camera.id)}
-                    className="whitespace-nowrap text-[10px] text-blue-600 underline hover:text-blue-800"
                   >
                     View 360°
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="link"
+                    size="xs"
+                    className="h-auto whitespace-nowrap p-0 text-[10px] text-destructive"
                     onClick={() => handleDeletePanorama(camera.id)}
-                    className="whitespace-nowrap text-[10px] text-red-500 underline hover:text-red-700"
                   >
                     Delete 360°
-                  </button>
+                  </Button>
                 </>
               )}
-              <button
+              <Button
+                variant="ghost"
+                size="icon-xs"
                 onClick={() => removeCamera(camera.id)}
                 aria-label={`Remove ${camera.label}`}
-                className="px-1 text-xs font-bold text-red-500 hover:text-red-700"
+                className="text-red-500 hover:text-red-700"
               >
                 ×
-              </button>
+              </Button>
             </li>
           ))}
         </ul>

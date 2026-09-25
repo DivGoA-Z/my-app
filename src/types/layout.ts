@@ -188,6 +188,13 @@ export interface RoomLayout {
   // specification at zero, same as an unpriced fixture — not supplying
   // it is different from it being free.
   priceCountertop?: boolean;
+  // Cost-plus markup (%) applied to this PROJECT's own quote —
+  // deliberately per-project, not a single business-wide number on
+  // the rate card (docs/DECISIONS.md §15): a big order and a rush
+  // one-off job don't have to carry the same margin. Optional so an
+  // older layout without one falls back to DEFAULT_MARGIN_PERCENT
+  // (lib/bom.ts) rather than needing a migration.
+  marginPercent?: number;
   gridSnapMm: number;        // e.g. 50 — controls drag-and-drop snapping
   createdAt: string;
   updatedAt: string;

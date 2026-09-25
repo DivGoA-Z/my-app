@@ -18,6 +18,8 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
+import { Skeleton } from '../ui/skeleton';
+import { Alert, AlertDescription } from '../ui/alert';
 import { confirmDialog } from '../../store/confirmDialogStore';
 import { useLayoutStore } from '../../store/layoutStore';
 import { FinishManager } from './FinishManager';
@@ -64,7 +66,7 @@ const MODULE_TYPES: ModuleType[] = [
   'corner-magic',
   'corner-carousel',
 ];
-const MATERIALS: MaterialType[] = ['HDMR', 'Plywood', 'MDF', 'Particle Board'];
+const MATERIALS: MaterialType[] = ['HDMR', 'Plywood', 'MDF', 'Particle Board', 'BWP'];
 const OBSTACLE_TYPES: ObstacleType[] = ['pillar', 'shaft', 'exposed-pipe', 'electrical-panel'];
 // 'sink' was missing here after the sink moved out of the cabinet
 // module types and became an appliance — the union and the DB check
@@ -159,13 +161,17 @@ export function InventoryManager({ initialSection }: { initialSection?: Inventor
       </div>
 
       {inventoryError && (
-        <p className="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {inventoryError}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>{inventoryError}</AlertDescription>
+        </Alert>
       )}
 
       {isInventoryLoading ? (
-        <p className="text-sm text-gray-500">Loading inventory...</p>
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-10 w-full" />
+          ))}
+        </div>
       ) : (
         <>
           {/* Rates first — everything below this line is priced off
@@ -206,6 +212,13 @@ export function InventoryManager({ initialSection }: { initialSection?: Inventor
                 </tr>
               </thead>
               <tbody>
+                {cabinetCatalog.length === 0 && (
+                  <tr>
+                    <td colSpan={9} className="py-4 text-center text-xs text-gray-400">
+                      No cabinet pieces yet — add your first one below.
+                    </td>
+                  </tr>
+                )}
                 {cabinetCatalog.map((item) => (
                   <CabinetCatalogRow
                     key={item.id}
@@ -248,6 +261,13 @@ export function InventoryManager({ initialSection }: { initialSection?: Inventor
                 </tr>
               </thead>
               <tbody>
+                {obstaclePresets.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="py-4 text-center text-xs text-gray-400">
+                      No obstacle presets yet — add your first one below.
+                    </td>
+                  </tr>
+                )}
                 {obstaclePresets.map((preset) => (
                   <ObstaclePresetRow
                     key={preset.id}
@@ -301,6 +321,13 @@ export function InventoryManager({ initialSection }: { initialSection?: Inventor
                 </tr>
               </thead>
               <tbody>
+                {applianceCatalog.length === 0 && (
+                  <tr>
+                    <td colSpan={9} className="py-4 text-center text-xs text-gray-400">
+                      No appliances yet — add your first one below.
+                    </td>
+                  </tr>
+                )}
                 {applianceCatalog.map((item) => (
                   <ApplianceCatalogRow
                     key={item.id}

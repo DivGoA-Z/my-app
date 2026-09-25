@@ -16,6 +16,7 @@
 
 import { useEffect } from 'react';
 import { useLayoutStore } from '../../store/layoutStore';
+import { Button } from '../ui/button';
 import { usePickerStore } from '../../store/pickerStore';
 import { SELECTABLE_TYPE_LABELS } from '../../types/selection';
 
@@ -65,13 +66,14 @@ export function PickChooser() {
         </div>
 
         {open.candidates.map((candidate) => (
-          <button
+          <Button
             key={`${candidate.type}-${candidate.id}`}
+            variant="ghost"
+            className="h-auto w-full items-center justify-start gap-2 rounded-none px-3 py-1.5 font-normal hover:bg-blue-50"
             onClick={() => {
               select({ type: candidate.type, id: candidate.id });
               closePicker();
             }}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-blue-50"
           >
             <span
               className={`inline-block h-2 w-2 shrink-0 rounded-full ${
@@ -85,7 +87,7 @@ export function PickChooser() {
                 off floor
               </span>
             </span>
-          </button>
+          </Button>
         ))}
       </div>
     </>

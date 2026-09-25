@@ -20,13 +20,14 @@
 
 import { useState } from 'react';
 import { useLayoutStore } from '../../store/layoutStore';
+import { Button } from '../ui/button';
 import { useSelectedCabinetId, useSelectedObstacleId } from '../../hooks/useSelection';
 import { rotateCabinet, resizeCabinet, duplicateCabinet } from '../../lib/cabinetGeometry';
 import type { MaterialType } from '../../types/cabinet';
 import { FinishPicker } from './FinishPicker';
 import { FrontPicker } from './FrontPicker';
 
-const MATERIALS: MaterialType[] = ['HDMR', 'Plywood', 'MDF', 'Particle Board'];
+const MATERIALS: MaterialType[] = ['HDMR', 'Plywood', 'MDF', 'Particle Board', 'BWP'];
 
 // Mirrors the fallback used in App.tsx/CabinetToolbar — only matters
 // before any project/layout has loaded.
@@ -103,30 +104,20 @@ export function CabinetInspector() {
         <h3 className="text-sm font-semibold text-gray-700">
           {formatModuleType(cabinet.moduleType)}
         </h3>
-        <button
-          onClick={() => selectCabinet(null)}
-          aria-label="Deselect"
-          className="text-gray-400 hover:text-gray-600"
-        >
+        <Button variant="ghost" size="icon-xs" onClick={() => selectCabinet(null)} aria-label="Deselect">
           ×
-        </button>
+        </Button>
       </div>
 
       <div className="flex flex-col gap-1">
         <span className="text-xs text-gray-500">Rotation: {cabinet.rotationDeg}°</span>
         <div className="flex gap-2">
-          <button
-            onClick={() => handleRotate(-1)}
-            className="flex-1 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
-          >
+          <Button variant="outline" size="xs" className="h-auto min-h-7 flex-1 py-1 whitespace-normal" onClick={() => handleRotate(-1)}>
             −90°
-          </button>
-          <button
-            onClick={() => handleRotate(1)}
-            className="flex-1 rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
-          >
+          </Button>
+          <Button variant="outline" size="xs" className="h-auto min-h-7 flex-1 py-1 whitespace-normal" onClick={() => handleRotate(1)}>
             +90°
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -200,14 +191,16 @@ export function CabinetInspector() {
       <FrontPicker cabinet={cabinet} />
 
       <div className="flex flex-col gap-1">
-        <button
+        <Button
+          variant="link"
+          size="xs"
+          className="h-auto self-start p-0 text-xs"
           onClick={() => setIsEditingDimensions((open) => !open)}
-          className="text-left text-xs text-gray-600 underline hover:text-gray-800"
         >
           {isEditingDimensions
             ? 'Hide dimensions'
             : `Edit dimensions (${cabinet.widthMm}×${cabinet.depthMm}×${cabinet.heightMm}mm)`}
-        </button>
+        </Button>
 
         {isEditingDimensions && (
           // key={cabinet.id} forces a fresh instance (and therefore
@@ -226,18 +219,12 @@ export function CabinetInspector() {
       </div>
 
       <div className="flex gap-2 border-t border-gray-200 pt-3">
-        <button
-          onClick={handleDuplicate}
-          className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
-        >
+        <Button variant="outline" size="xs" className="h-auto min-h-7 flex-1 py-1 whitespace-normal" onClick={handleDuplicate}>
           Duplicate
-        </button>
-        <button
-          onClick={handleDelete}
-          className="flex-1 rounded border border-red-300 px-2 py-1.5 text-xs text-red-600 hover:bg-red-50"
-        >
+        </Button>
+        <Button variant="destructive" size="xs" className="h-auto min-h-7 flex-1 py-1 whitespace-normal" onClick={handleDelete}>
           Delete
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -300,12 +287,9 @@ function DimensionsForm({ widthMm, depthMm, heightMm, onSubmit }: DimensionsForm
           />
         </label>
       </div>
-      <button
-        type="submit"
-        className="rounded bg-gray-800 px-2 py-1 text-xs text-white hover:bg-gray-700"
-      >
+      <Button type="submit" size="xs">
         Apply
-      </button>
+      </Button>
     </form>
   );
 }
