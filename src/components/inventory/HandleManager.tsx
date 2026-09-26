@@ -16,6 +16,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { confirmDialog } from '../../store/confirmDialogStore';
 import { useLayoutStore } from '../../store/layoutStore';
 import { DEFAULT_HANDLE_ID } from '../../types/front';
@@ -228,10 +229,10 @@ function Fields({
       </td>
 
       <td className="px-2 py-1.5">
-        <select
+        <Select
           value={draft.kind}
-          onChange={(e) => {
-            const kind = e.target.value as HandleKind;
+          onValueChange={(value) => {
+            const kind = value as HandleKind;
             setDraft({
               ...draft,
               kind,
@@ -242,14 +243,18 @@ function Fields({
               pricingMode: PER_METRE_KINDS.includes(kind) ? 'per-metre' : 'per-unit',
             });
           }}
-          className={inputClass + ' w-36'}
         >
-          {HANDLE_KINDS.map((k) => (
-            <option key={k} value={k}>
-              {KIND_LABELS[k]}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger size="sm" className="w-36">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {HANDLE_KINDS.map((k) => (
+              <SelectItem key={k} value={k}>
+                {KIND_LABELS[k]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </td>
 
       <td className="px-2 py-1.5">
@@ -285,16 +290,20 @@ function Fields({
       </td>
 
       <td className="px-2 py-1.5">
-        <select
+        <Select
           value={draft.pricingMode}
-          onChange={(e) =>
-            setDraft({ ...draft, pricingMode: e.target.value as HandleSpec['pricingMode'] })
+          onValueChange={(value) =>
+            setDraft({ ...draft, pricingMode: value as HandleSpec['pricingMode'] })
           }
-          className={inputClass + ' w-24'}
         >
-          <option value="per-unit">Per piece</option>
-          <option value="per-metre">Per metre</option>
-        </select>
+          <SelectTrigger size="sm" className="w-24">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="per-unit">Per piece</SelectItem>
+            <SelectItem value="per-metre">Per metre</SelectItem>
+          </SelectContent>
+        </Select>
       </td>
 
       <td className="px-2 py-1.5">

@@ -20,6 +20,8 @@ import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
 import { Alert, AlertDescription } from '../ui/alert';
+import { Checkbox } from '../ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { confirmDialog } from '../../store/confirmDialogStore';
 import { useLayoutStore } from '../../store/layoutStore';
 import { FinishManager } from './FinishManager';
@@ -110,6 +112,13 @@ const INR_FORMATTER = new Intl.NumberFormat('en-IN', {
 });
 
 const inputClass = 'rounded border border-gray-300 px-2 py-1 text-xs';
+
+// Radix Select rejects an empty-string item value, so "no override,
+// fall through to the automatic default" / "no handle chosen" need
+// real sentinels, mapped back to `undefined` in CatalogFrontFields'
+// own handlers.
+const AUTO_FRONT_VALUE = '__auto__';
+const DEFAULT_HANDLE_VALUE = '__default__';
 
 // Which toolbar's "Manage" button was clicked — used only to scroll to
 // that section on open. This is a single scrolling page (see the note
@@ -412,17 +421,21 @@ function CabinetCatalogRow({ item, categorySuggestions, onSave, onDelete }: Cabi
         />
       </td>
       <td className="px-2 py-1.5">
-        <select
+        <Select
           value={draft.moduleType}
-          onChange={(e) => setDraft({ ...draft, moduleType: e.target.value as ModuleType })}
-          className={inputClass}
+          onValueChange={(value) => setDraft({ ...draft, moduleType: value as ModuleType })}
         >
-          {MODULE_TYPES.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {MODULE_TYPES.map((m) => (
+              <SelectItem key={m} value={m}>
+                {m}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </td>
       <td className="px-2 py-1.5">
         <div className="flex gap-1">
@@ -450,30 +463,35 @@ function CabinetCatalogRow({ item, categorySuggestions, onSave, onDelete }: Cabi
         </div>
       </td>
       <td className="px-2 py-1.5">
-        <select
+        <Select
           value={draft.material}
-          onChange={(e) => setDraft({ ...draft, material: e.target.value as MaterialType })}
-          className={inputClass}
+          onValueChange={(value) => setDraft({ ...draft, material: value as MaterialType })}
         >
-          {MATERIALS.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {MATERIALS.map((m) => (
+              <SelectItem key={m} value={m}>
+                {m}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </td>
       <td className="px-2 py-1.5">
-        <select
-          value={draft.finishId}
-          onChange={(e) => setDraft({ ...draft, finishId: e.target.value })}
-          className={inputClass}
-        >
-          {finishes.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.brand ? `${f.brand} ${f.label}` : f.label} ({f.finishTypeLabel})
-            </option>
-          ))}
-        </select>
+        <Select value={draft.finishId} onValueChange={(value) => setDraft({ ...draft, finishId: value })}>
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {finishes.map((f) => (
+              <SelectItem key={f.id} value={f.id}>
+                {f.brand ? `${f.brand} ${f.label}` : f.label} ({f.finishTypeLabel})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </td>
       <td className="px-2 py-1.5">
         <CatalogFrontFields
@@ -570,17 +588,21 @@ function NewCabinetItemRow({
         />
       </td>
       <td className="px-2 py-1.5">
-        <select
+        <Select
           value={draft.moduleType}
-          onChange={(e) => setDraft({ ...draft, moduleType: e.target.value as ModuleType })}
-          className={inputClass}
+          onValueChange={(value) => setDraft({ ...draft, moduleType: value as ModuleType })}
         >
-          {MODULE_TYPES.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {MODULE_TYPES.map((m) => (
+              <SelectItem key={m} value={m}>
+                {m}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </td>
       <td className="px-2 py-1.5">
         <div className="flex gap-1">
@@ -608,30 +630,35 @@ function NewCabinetItemRow({
         </div>
       </td>
       <td className="px-2 py-1.5">
-        <select
+        <Select
           value={draft.material}
-          onChange={(e) => setDraft({ ...draft, material: e.target.value as MaterialType })}
-          className={inputClass}
+          onValueChange={(value) => setDraft({ ...draft, material: value as MaterialType })}
         >
-          {MATERIALS.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {MATERIALS.map((m) => (
+              <SelectItem key={m} value={m}>
+                {m}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </td>
       <td className="px-2 py-1.5">
-        <select
-          value={draft.finishId}
-          onChange={(e) => setDraft({ ...draft, finishId: e.target.value })}
-          className={inputClass}
-        >
-          {finishes.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.brand ? `${f.brand} ${f.label}` : f.label} ({f.finishTypeLabel})
-            </option>
-          ))}
-        </select>
+        <Select value={draft.finishId} onValueChange={(value) => setDraft({ ...draft, finishId: value })}>
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {finishes.map((f) => (
+              <SelectItem key={f.id} value={f.id}>
+                {f.brand ? `${f.brand} ${f.label}` : f.label} ({f.finishTypeLabel})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </td>
       <td className="px-2 py-1.5">
         <CatalogFrontFields
@@ -714,17 +741,18 @@ function ObstaclePresetRow({ preset, onSave, onDelete }: ObstaclePresetRowProps)
         />
       </td>
       <td className="px-2 py-1.5">
-        <select
-          value={draft.type}
-          onChange={(e) => setDraft({ ...draft, type: e.target.value as ObstacleType })}
-          className={inputClass}
-        >
-          {OBSTACLE_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
+        <Select value={draft.type} onValueChange={(value) => setDraft({ ...draft, type: value as ObstacleType })}>
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {OBSTACLE_TYPES.map((t) => (
+              <SelectItem key={t} value={t}>
+                {t}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </td>
       <td className="px-2 py-1.5">
         <div className="flex gap-1">
@@ -745,10 +773,9 @@ function ObstaclePresetRow({ preset, onSave, onDelete }: ObstaclePresetRowProps)
         </div>
       </td>
       <td className="px-2 py-1.5">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={draft.floorToCeiling}
-          onChange={(e) => setDraft({ ...draft, floorToCeiling: e.target.checked })}
+          onCheckedChange={(checked) => setDraft({ ...draft, floorToCeiling: checked === true })}
         />
       </td>
       <td className="px-2 py-1.5">
@@ -828,17 +855,18 @@ function NewObstaclePresetRow({ onAdd }: { onAdd: (preset: ObstaclePreset) => Pr
         />
       </td>
       <td className="px-2 py-1.5">
-        <select
-          value={draft.type}
-          onChange={(e) => setDraft({ ...draft, type: e.target.value as ObstacleType })}
-          className={inputClass}
-        >
-          {OBSTACLE_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
+        <Select value={draft.type} onValueChange={(value) => setDraft({ ...draft, type: value as ObstacleType })}>
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {OBSTACLE_TYPES.map((t) => (
+              <SelectItem key={t} value={t}>
+                {t}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </td>
       <td className="px-2 py-1.5">
         <div className="flex gap-1">
@@ -859,10 +887,9 @@ function NewObstaclePresetRow({ onAdd }: { onAdd: (preset: ObstaclePreset) => Pr
         </div>
       </td>
       <td className="px-2 py-1.5">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={draft.floorToCeiling}
-          onChange={(e) => setDraft({ ...draft, floorToCeiling: e.target.checked })}
+          onCheckedChange={(checked) => setDraft({ ...draft, floorToCeiling: checked === true })}
         />
       </td>
       <td className="px-2 py-1.5">
@@ -944,17 +971,21 @@ function ApplianceCatalogRow({ item, onSave, onDelete }: ApplianceCatalogRowProp
         />
       </td>
       <td className="px-2 py-1.5">
-        <select
+        <Select
           value={draft.applianceType}
-          onChange={(e) => setDraft({ ...draft, applianceType: e.target.value as ApplianceType })}
-          className={inputClass}
+          onValueChange={(value) => setDraft({ ...draft, applianceType: value as ApplianceType })}
         >
-          {APPLIANCE_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {APPLIANCE_TYPES.map((t) => (
+              <SelectItem key={t} value={t}>
+                {t}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </td>
       <td className="px-2 py-1.5">
         <div className="flex gap-1">
@@ -1108,17 +1139,21 @@ function NewApplianceCatalogRow({
         />
       </td>
       <td className="px-2 py-1.5">
-        <select
+        <Select
           value={draft.applianceType}
-          onChange={(e) => setDraft({ ...draft, applianceType: e.target.value as ApplianceType })}
-          className={inputClass}
+          onValueChange={(value) => setDraft({ ...draft, applianceType: value as ApplianceType })}
         >
-          {APPLIANCE_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {APPLIANCE_TYPES.map((t) => (
+              <SelectItem key={t} value={t}>
+                {t}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </td>
       <td className="px-2 py-1.5">
         <div className="flex gap-1">
@@ -1245,33 +1280,33 @@ function ModelOrientationFields({
 
   return (
     <div className="flex flex-col gap-1">
-      <select
-        value={xDeg}
-        onChange={(e) => onChange(Number(e.target.value), yDeg)}
-        className={inputClass + ' w-40'}
-        aria-label="Model up axis"
-      >
-        {UP_AXIS_OPTIONS.map((o) => (
-          <option key={o.xDeg} value={o.xDeg}>
-            {o.label}
-          </option>
-        ))}
-        {!upAxisKnown && <option value={xDeg}>{`Custom (${xDeg}°)`}</option>}
-      </select>
+      <Select value={String(xDeg)} onValueChange={(value) => onChange(Number(value), yDeg)}>
+        <SelectTrigger size="sm" className="w-40" aria-label="Model up axis">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {UP_AXIS_OPTIONS.map((o) => (
+            <SelectItem key={o.xDeg} value={String(o.xDeg)}>
+              {o.label}
+            </SelectItem>
+          ))}
+          {!upAxisKnown && <SelectItem value={String(xDeg)}>{`Custom (${xDeg}°)`}</SelectItem>}
+        </SelectContent>
+      </Select>
 
-      <select
-        value={yDeg}
-        onChange={(e) => onChange(xDeg, Number(e.target.value))}
-        className={inputClass + ' w-40'}
-        aria-label="Model facing direction"
-      >
-        {FACING_OPTIONS.map((o) => (
-          <option key={o.yDeg} value={o.yDeg}>
-            {`Faces ${o.label.toLowerCase()}`}
-          </option>
-        ))}
-        {!facingKnown && <option value={yDeg}>{`Custom (${yDeg}°)`}</option>}
-      </select>
+      <Select value={String(yDeg)} onValueChange={(value) => onChange(xDeg, Number(value))}>
+        <SelectTrigger size="sm" className="w-40" aria-label="Model facing direction">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {FACING_OPTIONS.map((o) => (
+            <SelectItem key={o.yDeg} value={String(o.yDeg)}>
+              {`Faces ${o.label.toLowerCase()}`}
+            </SelectItem>
+          ))}
+          {!facingKnown && <SelectItem value={String(yDeg)}>{`Custom (${yDeg}°)`}</SelectItem>}
+        </SelectContent>
+      </Select>
     </div>
   );
 }
@@ -1309,26 +1344,29 @@ function CatalogFrontFields({
 
   return (
     <div className="flex flex-col gap-1">
-      <select
-        value={frontLayout?.kind ?? ''}
-        onChange={(e) =>
+      <Select
+        value={frontLayout?.kind ?? AUTO_FRONT_VALUE}
+        onValueChange={(value) =>
           onChange(
-            e.target.value
-              ? { kind: e.target.value as FrontKind, count: auto.count ?? 3 }
-              : undefined,
+            value === AUTO_FRONT_VALUE
+              ? undefined
+              : { kind: value as FrontKind, count: auto.count ?? 3 },
             handleId
           )
         }
-        className={inputClass + ' w-44'}
-        aria-label="Default front configuration"
       >
-        <option value="">Automatic ({FRONT_KIND_LABELS[auto.kind]})</option>
-        {FRONT_KINDS.map((k) => (
-          <option key={k} value={k}>
-            {FRONT_KIND_LABELS[k]}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger size="sm" className="w-44" aria-label="Default front configuration">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={AUTO_FRONT_VALUE}>Automatic ({FRONT_KIND_LABELS[auto.kind]})</SelectItem>
+          {FRONT_KINDS.map((k) => (
+            <SelectItem key={k} value={k}>
+              {FRONT_KIND_LABELS[k]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
       {countLabel && (
         <input
@@ -1347,19 +1385,24 @@ function CatalogFrontFields({
         />
       )}
 
-      <select
-        value={handleId ?? ''}
-        onChange={(e) => onChange(frontLayout, e.target.value || undefined)}
-        className={inputClass + ' w-44'}
-        aria-label="Default handle"
+      <Select
+        value={handleId ?? DEFAULT_HANDLE_VALUE}
+        onValueChange={(value) =>
+          onChange(frontLayout, value === DEFAULT_HANDLE_VALUE ? undefined : value)
+        }
       >
-        <option value="">Default handle</option>
-        {handles.map((h) => (
-          <option key={h.id} value={h.id}>
-            {h.label}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger size="sm" className="w-44" aria-label="Default handle">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={DEFAULT_HANDLE_VALUE}>Default handle</SelectItem>
+          {handles.map((h) => (
+            <SelectItem key={h.id} value={h.id}>
+              {h.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

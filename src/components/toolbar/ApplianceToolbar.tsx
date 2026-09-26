@@ -17,6 +17,7 @@
 
 import { useLayoutStore } from '../../store/layoutStore';
 import { Button } from '../ui/button';
+import { Skeleton } from '../ui/skeleton';
 import type { ApplianceCatalogItem } from '../../types/Catalog';
 import { APPLIANCE_TYPE_LABELS } from '../../types/appliance';
 import type { ApplianceType, PlacedApplianceItem } from '../../types/appliance';
@@ -85,7 +86,13 @@ export function ApplianceToolbar({ onManageInventory }: ApplianceToolbarProps) {
         </Button>
       </div>
 
-      {isInventoryLoading && <p className="text-xs text-gray-400">Loading your pieces...</p>}
+      {isInventoryLoading && (
+        <div className="flex flex-col gap-1.5">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-8 w-full" />
+          ))}
+        </div>
+      )}
 
       {!isInventoryLoading && applianceCatalog.length === 0 && (
         <p className="text-xs text-gray-400">

@@ -199,7 +199,7 @@ function App() {
             Sign out
           </Button>
         </div>
-        <CustomerDashboard onOpenCanvas={handleOpenCanvas} />
+        <CustomerDashboard onOpenCanvas={handleOpenCanvas} onManageInventory={handleManageInventory} />
       </div>
     );
   } else {

@@ -271,6 +271,7 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
     ['Labour — installation', marked(s.laborSubtotal)],
     ['Fabrication', marked(s.fabricationSubtotal ?? 0)],
     ...(s.othersSubtotal ? ([['Other', marked(s.othersSubtotal)]] as [string, number][]) : []),
+    ...(s.glassSubtotal ? ([['Glass doors', marked(s.glassSubtotal)]] as [string, number][]) : []),
     ['Appliances', marked(s.applianceSubtotal)],
     ...(s.openingSubtotal > 0 ? ([['Doors & windows', marked(s.openingSubtotal)]] as [string, number][]) : []),
     ...(s.fixtureSubtotal > 0 ? ([['Lighting', marked(s.fixtureSubtotal)]] as [string, number][]) : []),

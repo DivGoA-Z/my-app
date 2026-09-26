@@ -2,7 +2,8 @@
 //
 // Edits the business's rate card: site installation labour (per sq
 // ft), consumable/mechanism hardware rates, material rates by
-// substrate, and per-cabinet fabrication/other rates.
+// substrate, per-cabinet fabrication/other rates, and a glass-door
+// front's rate by tint.
 //
 // Margin does NOT live here, deliberately — it's edited in
 // QuoteSidebar instead, per PROJECT rather than one business-wide
@@ -27,24 +28,15 @@ import { Separator } from '../ui/separator';
 import { Alert, AlertDescription } from '../ui/alert';
 import { useLayoutStore } from '../../store/layoutStore';
 import {
-  PLACEHOLDER_RATES,
   RATE_LABELS,
   MATERIAL_RATE_LABELS,
-  type CardPricedHardware,
+  HARDWARE_RATE_KEYS as HARDWARE_KEYS,
+  MATERIAL_RATE_KEYS as MATERIAL_KEYS,
+  GLASS_RATE_KEYS as GLASS_KEYS,
+  isPlaceholderRateCard,
   type RateCard,
 } from '../../types/rates';
-import type { MaterialType } from '../../types/cabinet';
-
-const HARDWARE_KEYS: CardPricedHardware[] = [
-  'hinge',
-  'channel',
-  'basket',
-  'shelf',
-  'cornerMagic',
-  'cornerCarousel',
-];
-
-const MATERIAL_KEYS: MaterialType[] = ['HDMR', 'Plywood', 'BWP', 'MDF', 'Particle Board'];
+import { GLASS_TINT_LABELS } from '../../types/front';
 
 export function RateCardManager() {
   const rateCard = useLayoutStore((state) => state.rateCard);
@@ -89,18 +81,14 @@ export function RateCardManager() {
     draft.fabricationRatePerUnit !== rateCard.fabricationRatePerUnit ||
     draft.othersRatePerUnit !== rateCard.othersRatePerUnit ||
     HARDWARE_KEYS.some((k) => draft.hardware[k] !== rateCard.hardware[k]) ||
-    MATERIAL_KEYS.some((k) => draft.materialRates[k] !== rateCard.materialRates[k]);
+    MATERIAL_KEYS.some((k) => draft.materialRates[k] !== rateCard.materialRates[k]) ||
+    GLASS_KEYS.some((k) => draft.glassRates[k] !== rateCard.glassRates[k]);
 
-  // Whether the business is still on the seeded numbers. Compared by
-  // value rather than by a flag, so editing a rate back to 150 honestly
-  // counts as still-placeholder — the point is what the number IS, not
-  // whether someone has visited this screen.
-  const isPlaceholder =
-    draft.laborRatePerSqFt === PLACEHOLDER_RATES.laborRatePerSqFt &&
-    draft.fabricationRatePerUnit === PLACEHOLDER_RATES.fabricationRatePerUnit &&
-    draft.othersRatePerUnit === PLACEHOLDER_RATES.othersRatePerUnit &&
-    HARDWARE_KEYS.every((k) => draft.hardware[k] === PLACEHOLDER_RATES.hardware[k]) &&
-    MATERIAL_KEYS.every((k) => draft.materialRates[k] === PLACEHOLDER_RATES.materialRates[k]);
+  // Whether the business is still on the seeded numbers. Shared with
+  // FirstRunChecklist's "add your rates" step — see isPlaceholderRateCard's
+  // own comment in types/rates.ts for why this is a value comparison,
+  // not a flag.
+  const isPlaceholder = isPlaceholderRateCard(draft);
 
   async function save() {
     setSaving(true);
@@ -250,6 +238,36 @@ export function RateCardManager() {
           labour is charged on) times its substrate's rate here — a Plywood cabinet and a
           BWP one of the same size now cost differently, instead of both quietly costing
           whatever the catalogue's flat price happened to be.
+        </p>
+      </fieldset>
+
+      <Separator />
+
+      <fieldset className="flex flex-col gap-3">
+        <legend className="text-xs font-medium text-gray-600">Glass door (₹ per sq ft)</legend>
+        {GLASS_KEYS.map((key) => (
+          <Label key={key} className="flex items-center justify-between gap-3 font-normal">
+            <span className="text-xs text-gray-600">{GLASS_TINT_LABELS[key]}</span>
+            <Input
+              type="number"
+              min={0}
+              step={1}
+              value={draft.glassRates[key]}
+              onChange={(e) =>
+                setDraft({
+                  ...draft,
+                  glassRates: { ...draft.glassRates, [key]: Number(e.target.value) },
+                })
+              }
+              className="w-28 text-right"
+            />
+          </Label>
+        ))}
+        <p className="text-[11px] text-gray-500">
+          An open-shelf front's optional glass door (Front Picker, on a cabinet), charged by
+          the glass panel's own area — sq ft, not sq m, matching site labour's unit rather
+          than the substrate rates above. Priced separately from Material: glass is bought
+          and cut as glass, not the cabinet's own board.
         </p>
       </fieldset>
 

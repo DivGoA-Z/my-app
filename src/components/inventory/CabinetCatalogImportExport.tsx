@@ -23,13 +23,20 @@ import {
 import { requiredString, positiveNumber, finalizeRowErrors } from '../../lib/importExport/xlsxHelpers';
 import { downloadBlob } from '../../lib/downloadBlob';
 import { Button } from '../ui/button';
+import { Checkbox } from '../ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import type { CatalogItem } from '../../types/Catalog';
+
+// Radix Select rejects an empty-string item value, so "no finish
+// chosen yet" needs a real sentinel, mapped back to '' in the handler
+// (revalidate already treats '' as "finish must be selected").
+const NO_FINISH_VALUE = '__none__';
 
 const inputClass = 'w-full rounded border border-gray-300 px-1.5 py-1 text-xs disabled:bg-gray-100 disabled:text-gray-400';
 
 // Re-checks only the fields this grid actually lets someone edit
 // (label/category/dimensions/price via plain inputs; module_type/
-// material/finish via <select>, which can't produce an invalid value
+// material/finish via a dropdown, which can't produce an invalid value
 // at all). Reuses the exact same string-in validators the parser
 // itself calls, rather than a second copy of "what counts as valid",
 // with values coerced back to strings the way a spreadsheet cell's
@@ -231,12 +238,11 @@ export function CabinetCatalogImportExport() {
                           </div>
                         </td>
                         <td className="px-2 py-1.5">
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             checked={row.markedForDeletion}
                             disabled={row.isNew}
                             title={row.isNew ? "New rows can't be deleted" : 'Delete this row on commit'}
-                            onChange={(e) => toggleDelete(index, e.target.checked)}
+                            onCheckedChange={(checked) => toggleDelete(index, checked === true)}
                           />
                         </td>
                         <td className="px-2 py-1.5">
@@ -256,20 +262,24 @@ export function CabinetCatalogImportExport() {
                           />
                         </td>
                         <td className="px-2 py-1.5">
-                          <select
-                            className={inputClass}
+                          <Select
                             disabled={row.markedForDeletion}
                             value={row.data.moduleType}
-                            onChange={(e) =>
-                              updateRow(index, { moduleType: e.target.value as CatalogItem['moduleType'] })
+                            onValueChange={(value) =>
+                              updateRow(index, { moduleType: value as CatalogItem['moduleType'] })
                             }
                           >
-                            {MODULE_TYPES.map((m) => (
-                              <option key={m} value={m}>
-                                {m}
-                              </option>
-                            ))}
-                          </select>
+                            <SelectTrigger size="sm" className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {MODULE_TYPES.map((m) => (
+                                <SelectItem key={m} value={m}>
+                                  {m}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </td>
                         <td className="px-2 py-1.5">
                           <div className="flex gap-1">
@@ -297,35 +307,45 @@ export function CabinetCatalogImportExport() {
                           </div>
                         </td>
                         <td className="px-2 py-1.5">
-                          <select
-                            className={inputClass}
+                          <Select
                             disabled={row.markedForDeletion}
                             value={row.data.material}
-                            onChange={(e) =>
-                              updateRow(index, { material: e.target.value as CatalogItem['material'] })
+                            onValueChange={(value) =>
+                              updateRow(index, { material: value as CatalogItem['material'] })
                             }
                           >
-                            {MATERIALS.map((m) => (
-                              <option key={m} value={m}>
-                                {m}
-                              </option>
-                            ))}
-                          </select>
+                            <SelectTrigger size="sm" className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {MATERIALS.map((m) => (
+                                <SelectItem key={m} value={m}>
+                                  {m}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </td>
                         <td className="px-2 py-1.5">
-                          <select
-                            className={inputClass}
+                          <Select
                             disabled={row.markedForDeletion}
-                            value={row.data.finishId}
-                            onChange={(e) => updateRow(index, { finishId: e.target.value })}
+                            value={row.data.finishId || NO_FINISH_VALUE}
+                            onValueChange={(value) =>
+                              updateRow(index, { finishId: value === NO_FINISH_VALUE ? '' : value })
+                            }
                           >
-                            <option value="">— select —</option>
-                            {finishes.map((f) => (
-                              <option key={f.id} value={f.id}>
-                                {f.label}
-                              </option>
-                            ))}
-                          </select>
+                            <SelectTrigger size="sm" className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={NO_FINISH_VALUE}>— select —</SelectItem>
+                              {finishes.map((f) => (
+                                <SelectItem key={f.id} value={f.id}>
+                                  {f.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </td>
                         <td className="px-2 py-1.5">
                           <input

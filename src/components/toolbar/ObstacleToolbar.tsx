@@ -27,6 +27,17 @@
 import { useState } from 'react';
 import { useLayoutStore } from '../../store/layoutStore';
 import { Button } from '../ui/button';
+import { Checkbox } from '../ui/checkbox';
+import { Label } from '../ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select';
 import { OBSTACLE_TYPE_LABELS } from '../../types/layout';
 import type { ObstacleType } from '../../types/layout';
 import { PARTIAL_OBSTACLE_HEIGHT_MM } from '../../lib/collision';
@@ -133,36 +144,39 @@ export function ObstacleToolbar({ onManageInventory }: ObstacleToolbarProps) {
       <div className="flex flex-col gap-3 border-t border-gray-200 pt-3">
         <span className="text-xs font-medium text-gray-600">Custom Size</span>
 
-        <label className="flex flex-col text-xs text-gray-600 gap-1">
+        <div className="flex flex-col text-xs text-gray-600 gap-1">
           Type
-          <select
-            value={selection}
-            onChange={(e) => handleSelectionChange(e.target.value)}
-            className="border border-gray-300 rounded px-2 py-1 text-sm"
-          >
-            {obstaclePresets.length > 0 && (
-              <optgroup label="Your Presets">
-                {obstaclePresets.map((preset) => (
-                  <option key={preset.id} value={`${PRESET_OPTION_PREFIX}${preset.id}`}>
-                    {preset.label} ({preset.widthMm}×{preset.depthMm}mm)
-                  </option>
+          <Select value={selection} onValueChange={handleSelectionChange}>
+            <SelectTrigger size="sm" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {obstaclePresets.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel>Your Presets</SelectLabel>
+                  {obstaclePresets.map((preset) => (
+                    <SelectItem key={preset.id} value={`${PRESET_OPTION_PREFIX}${preset.id}`}>
+                      {preset.label} ({preset.widthMm}×{preset.depthMm}mm)
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
+              <SelectGroup>
+                <SelectLabel>Generic Type</SelectLabel>
+                {ADDABLE_TYPES.map((t) => (
+                  <SelectItem key={t} value={`${TYPE_OPTION_PREFIX}${t}`}>
+                    {OBSTACLE_TYPE_LABELS[t]}
+                  </SelectItem>
                 ))}
-              </optgroup>
-            )}
-            <optgroup label="Generic Type">
-              {ADDABLE_TYPES.map((t) => (
-                <option key={t} value={`${TYPE_OPTION_PREFIX}${t}`}>
-                  {OBSTACLE_TYPE_LABELS[t]}
-                </option>
-              ))}
-            </optgroup>
-          </select>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
           {presetLabel && (
             <span className="text-[10px] font-normal text-gray-400">
               Loaded from "{presetLabel}" — tweak any field below before adding.
             </span>
           )}
-        </label>
+        </div>
 
         <label className="flex flex-col text-xs text-gray-600 gap-1">
           Width (mm)
@@ -188,18 +202,14 @@ export function ObstacleToolbar({ onManageInventory }: ObstacleToolbarProps) {
           />
         </label>
 
-        <label className="flex items-center justify-between gap-2 text-xs text-gray-600">
+        <Label className="flex items-center justify-between gap-2 text-xs font-normal text-gray-600">
           <span>
             Floor to ceiling
             <br />
             <span className="text-[10px] text-gray-400">blocks every height, like a column</span>
           </span>
-          <input
-            type="checkbox"
-            checked={floorToCeiling}
-            onChange={(e) => setFloorToCeiling(e.target.checked)}
-          />
-        </label>
+          <Checkbox checked={floorToCeiling} onCheckedChange={(checked) => setFloorToCeiling(checked === true)} />
+        </Label>
 
         {!floorToCeiling && (
           <>

@@ -98,6 +98,7 @@ import type { WallOpening } from '../../types/opening';
 import { cabinetFrontBreakdown, FRONT_THICKNESS_MM, carcassBands } from '../../lib/fronts';
 import type { HandlePlacement } from '../../lib/fronts';
 import { defaultFrontLayout, resolveHandle } from '../../types/front';
+import type { GlassTint } from '../../types/front';
 import { DEFAULT_CAMERA_HEIGHT_MM } from '../../types/Camera';
 import type { CameraNode } from '../../types/Camera';
 import type { PlacedCabinetItem } from '../../types/cabinet';
@@ -948,6 +949,26 @@ interface FinishedSurfaceProps {
 }
 
 const PLASTER_COLOR = '#f5f3ef';
+
+// Approximate colours for a glass-doored open-shelf front's tint
+// options (types/front.ts's GlassTint) — a business browsing tint
+// SAMPLES would recognise these, not a physically-measured spectral
+// tint. Opacity is per-tint too: clear glass should read as mostly
+// see-through (the whole point of it), while the coloured tints need
+// enough opacity that the colour actually reads rather than washing
+// out to grey.
+const GLASS_TINT_COLORS: Record<GlassTint, string> = {
+  clear: '#dce6ea',
+  black: '#1c1c1e',
+  brown: '#4a2f1f',
+  yellow: '#8a6a10',
+};
+const GLASS_TINT_OPACITY: Record<GlassTint, number> = {
+  clear: 0.25,
+  black: 0.65,
+  brown: 0.55,
+  yellow: 0.5,
+};
 
 function FinishedSurface({
   finishId,
@@ -2386,6 +2407,34 @@ function CabinetMesh({ item, isSelected, onSelect }: CabinetMeshProps) {
                     />
                   </mesh>
                 ))}
+              </group>
+            ) : panel.glassTint ? (
+              // A glass door over open shelves — transparent/tinted
+              // rather than the cabinet's own finish, so the shelves
+              // (and whatever's on them) stay visible through it. See
+              // GLASS_TINT_COLORS/GLASS_TINT_OPACITY above.
+              <group
+                key={panel.index}
+                position={[
+                  mmToWorld(panel.centerXMm),
+                  mmToWorld(panel.centerYMm),
+                  faceZ - frontThicknessM / 2,
+                ]}
+              >
+                <mesh castShadow receiveShadow>
+                  <boxGeometry
+                    args={[mmToWorld(panel.widthMm), mmToWorld(panel.heightMm), frontThicknessM]}
+                  />
+                  <meshPhysicalMaterial
+                    color={GLASS_TINT_COLORS[panel.glassTint]}
+                    transparent
+                    opacity={GLASS_TINT_OPACITY[panel.glassTint]}
+                    roughness={0.05}
+                    metalness={0}
+                    clearcoat={1}
+                    clearcoatRoughness={0.05}
+                  />
+                </mesh>
               </group>
             ) : (
               <group

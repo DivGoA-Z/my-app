@@ -21,6 +21,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { confirmDialog } from '../../store/confirmDialogStore';
 import { useLayoutStore } from '../../store/layoutStore';
 import type { SurfaceFinish, PatternCategory, TilingMode } from '../../types/finish';
@@ -331,20 +332,21 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
           </datalist>
         </label>
 
-        <label className={labelClass}>
+        <div className={labelClass}>
           Pattern
-          <select
-            value={draft.patternCategory}
-            onChange={(e) => handleCategoryChange(e.target.value as PatternCategory)}
-            className={inputClass}
-          >
-            {PATTERN_CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {PATTERN_CATEGORY_LABELS[c]}
-              </option>
-            ))}
-          </select>
-        </label>
+          <Select value={draft.patternCategory} onValueChange={(value) => handleCategoryChange(value as PatternCategory)}>
+            <SelectTrigger size="sm" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PATTERN_CATEGORIES.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {PATTERN_CATEGORY_LABELS[c]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         <label className={labelClass}>
           Price (₹ per m²)
@@ -466,20 +468,21 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
               className={inputClass}
             />
           </label>
-          <label className={labelClass}>
+          <div className={labelClass}>
             Tiling
-            <select
-              value={draft.tilingMode}
-              onChange={(e) => patch({ tilingMode: e.target.value as TilingMode })}
-              className={inputClass}
-            >
-              {TILING_MODES.map((m) => (
-                <option key={m} value={m}>
-                  {m === 'mirror' ? 'Mirror (hides seams)' : 'Repeat'}
-                </option>
-              ))}
-            </select>
-          </label>
+            <Select value={draft.tilingMode} onValueChange={(value) => patch({ tilingMode: value as TilingMode })}>
+              <SelectTrigger size="sm" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TILING_MODES.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {m === 'mirror' ? 'Mirror (hides seams)' : 'Repeat'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <p className="col-span-3 text-[10px] text-gray-400">
             Swatch size is the real area the photo covers — get this wrong and the pattern renders
             at the wrong scale. Mirror tiling flips alternate copies so photographed edges match;

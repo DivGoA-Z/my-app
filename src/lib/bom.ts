@@ -18,9 +18,9 @@
 // several fields that never apply.
 
 import type { PlacedCabinetItem } from '../types/cabinet';
-import { defaultFrontLayout, FRONT_KIND_LABELS, resolveHandle } from '../types/front';
-import type { FrontLayout, HandleSpec } from '../types/front';
-import { effectiveHardware } from './fronts';
+import { defaultFrontLayout, FRONT_KIND_LABELS, GLASS_TINT_LABELS, resolveHandle } from '../types/front';
+import type { FrontLayout, FrontRowLayout, HandleSpec } from '../types/front';
+import { cabinetFrontBreakdown, effectiveHardware } from './fronts';
 import type { SurfaceFinish } from '../types/finish';
 import { resolveFinish, findFinish } from '../types/finish';
 import { describeFinish } from './materials3d';
@@ -75,6 +75,12 @@ export interface BOMLineItem {
   // fitting) — a simplification the rate card's own fields document.
   fabricationCost: number;
   othersCost: number;
+  // Non-zero only for a cabinet whose front has a glass door (an
+  // open-shelf front with FrontLayout.glass set) — the glass panel's
+  // own area (lib/fronts.ts's FrontBreakdown.glassAreaMm2), priced by
+  // TINT via RateCard.glassRates. Separate from materialCost: glass is
+  // bought and cut as glass, not the cabinet's own board substrate.
+  glassCost: number;
   lineTotal: number;
 }
 
@@ -183,6 +189,10 @@ export interface BOMSummary {
   // See BOMLineItem.fabricationCost/othersCost.
   fabricationSubtotal: number;
   othersSubtotal: number;
+  // See BOMLineItem.glassCost. Zero on a layout with no glass-doored
+  // open-shelf cabinets, same as fixtureSubtotal/countertopSubtotal
+  // are zero when nothing of that kind exists.
+  glassSubtotal: number;
   finishSubtotal: number;
   hardwareSubtotal: number;
   laborSubtotal: number;
@@ -268,8 +278,16 @@ export const DEFAULT_MARGIN_PERCENT = 25;
 // interiors are either unfinished or use a much cheaper liner. Sides
 // of end-of-run units do get finished in practice, so this slightly
 // under-counts on those — refine once real rates are in.
-function finishedAreaSqM(item: PlacedCabinetItem): number {
-  return (item.widthMm * item.heightMm) / MM2_PER_SQM;
+//
+// `glassAreaMm2` (0 for a board front) is subtracted from the front
+// face before charging — a glass front isn't LAMINATED, the glass
+// rate (RateCard.glassRates) already covers the glass itself, cut and
+// tinted, so charging the ordinary finish rate on top of the same
+// area as well would double-charge it. See lib/fronts.ts's
+// GLASSABLE_FRONT_KINDS and FrontLayout.glass's own comment.
+function finishedAreaSqM(item: PlacedCabinetItem, glassAreaMm2: number): number {
+  const frontFaceMm2 = Math.max(0, item.widthMm * item.heightMm - glassAreaMm2);
+  return frontFaceMm2 / MM2_PER_SQM;
 }
 
 // Simplified surface-area estimate used for labor costing: front face
@@ -297,8 +315,16 @@ function estimateAreaSqFt(item: PlacedCabinetItem): number {
 // substrate by how much of it a cabinet actually uses instead of a
 // flat catalogue number that doesn't vary by material at all; not
 // good enough to cut boards against.
-function carcassAreaSqM(item: PlacedCabinetItem): number {
-  const frontFaceMm2 = item.widthMm * item.heightMm;
+//
+// Same `glassAreaMm2` subtraction as finishedAreaSqM above, and for
+// the same reason — a glass front's shutter isn't cut from the
+// cabinet's own board substrate at all, so charging materialRates on
+// that area too would double-charge it alongside RateCard.glassRates.
+// Only the FRONT FACE term is reduced; sideAllowanceMm2 (the carcass
+// sides/back) is untouched — those are still real board regardless of
+// what the front is made of.
+function carcassAreaSqM(item: PlacedCabinetItem, glassAreaMm2: number): number {
+  const frontFaceMm2 = Math.max(0, item.widthMm * item.heightMm - glassAreaMm2);
   const sideAllowanceMm2 = item.depthMm * item.heightMm * 0.5;
   return (frontFaceMm2 + sideAllowanceMm2) / MM2_PER_SQM;
 }
@@ -310,8 +336,28 @@ export function calculateBOM(
 ): BOMSummary {
   const { finishes, handles, fixtureCatalog, rates, layout } = ctx;
   const lineItems: BOMLineItem[] = items.map((item) => {
+    // NOT named `layout` — that's the RoomLayout parameter of this
+    // function, and shadowing it here would make a later edit reach for
+    // the wrong one silently.
+    const frontLayout = item.frontLayout ?? defaultFrontLayout(item.moduleType, item.widthMm);
+    const handle = resolveHandle(handles, item.handleId);
+
+    // Computed up front, once, because BOTH the material/finish costing
+    // below AND the hardware/glass costing further down need it — a
+    // glass front's panel isn't cut from the cabinet's own board
+    // substrate or laminated with its finish, so its area has to come
+    // OUT of both before those are charged (see carcassAreaSqM/
+    // finishedAreaSqM's own glassAreaMm2 parameter). Independent of
+    // effectiveHardware's own item.hardware-override handling below —
+    // an override replaces the DERIVED hardware list, but says nothing
+    // about glass, so glass is read from the front layout regardless of
+    // whether hardware was hand-entered for this cabinet.
+    const frontBreakdown = cabinetFrontBreakdown(item, frontLayout, handle, rates.hardware);
+    const glassTint = frontBreakdown.panels.find((p) => p.glassTint)?.glassTint;
+    const glassAreaMm2 = frontBreakdown.glassAreaMm2;
+
     const areaSqFt = estimateAreaSqFt(item) * item.quantity;
-    const materialArea = carcassAreaSqM(item) * item.quantity;
+    const materialArea = carcassAreaSqM(item, glassAreaMm2) * item.quantity;
     const materialCost = materialArea * (rates.materialRates?.[item.material] ?? 0);
     // item.unitPrice is deliberately NOT read here — see
     // docs/DECISIONS.md §15. It's a reference figure a business sees
@@ -324,7 +370,7 @@ export function calculateBOM(
     const fabricationCost = rates.fabricationRatePerUnit * item.quantity;
     const othersCost = rates.othersRatePerUnit * item.quantity;
     const finish = resolveFinish(finishes, item.finishId);
-    const finishArea = finishedAreaSqM(item) * item.quantity;
+    const finishArea = finishedAreaSqM(item, glassAreaMm2) * item.quantity;
     const finishCost = finishArea * (finish?.pricePerSqM ?? 0);
 
     // Hardware is DERIVED from the front layout now (lib/fronts.ts),
@@ -332,11 +378,6 @@ export function calculateBOM(
     // saved before fronts existed. Reading item.hardware directly, as
     // this used to, meant reading a field nothing ever wrote — so
     // hardwareCost was ₹0 for every cabinet in every quote.
-    // NOT named `layout` — that's the RoomLayout parameter of this
-    // function, and shadowing it here would make a later edit reach for
-    // the wrong one silently.
-    const frontLayout = item.frontLayout ?? defaultFrontLayout(item.moduleType, item.widthMm);
-    const handle = resolveHandle(handles, item.handleId);
     const hardware = effectiveHardware(item, frontLayout, handle, rates.hardware);
     const hardwareDetail = hardware.map((h) => ({
       label: HARDWARE_LABELS[h.type],
@@ -346,6 +387,14 @@ export function calculateBOM(
     }));
     const hardwareCost = sum(hardwareDetail, (h) => h.cost);
     const laborCost = areaSqFt * rates.laborRatePerSqFt;
+
+    // Labour (site installation) is charged on the FULL front-face
+    // area regardless of glass — fitting a glass door isn't less
+    // work than fitting a board one, so estimateAreaSqFt is
+    // deliberately NOT reduced by glassAreaMm2 the way material/finish
+    // above are.
+    const glassAreaSqFt = (glassAreaMm2 / MM2_PER_SQFT) * item.quantity;
+    const glassCost = glassTint ? glassAreaSqFt * rates.glassRates[glassTint] : 0;
 
     return {
       cabinetId: item.id,
@@ -368,7 +417,9 @@ export function calculateBOM(
       laborCost,
       fabricationCost,
       othersCost,
-      lineTotal: materialCost + finishCost + hardwareCost + laborCost + fabricationCost + othersCost,
+      glassCost,
+      lineTotal:
+        materialCost + finishCost + hardwareCost + laborCost + fabricationCost + othersCost + glassCost,
     };
   });
 
@@ -437,6 +488,7 @@ export function calculateBOM(
     materialSubtotal: sum(lineItems, (l) => l.materialCost),
     fabricationSubtotal: sum(lineItems, (l) => l.fabricationCost),
     othersSubtotal: sum(lineItems, (l) => l.othersCost),
+    glassSubtotal: sum(lineItems, (l) => l.glassCost),
     finishSubtotal: sum(lineItems, (l) => l.finishCost),
     hardwareSubtotal: sum(lineItems, (l) => l.hardwareCost),
     laborSubtotal: sum(lineItems, (l) => l.laborCost),
@@ -472,14 +524,24 @@ const HARDWARE_LABELS: Record<string, string> = {
   cornerCarousel: 'Carousel / lazy susan mechanism',
 };
 
-function describeFrontRow(row: { kind: keyof typeof FRONT_KIND_LABELS; count?: number }): string {
+function describeFrontRow(
+  row: { kind: keyof typeof FRONT_KIND_LABELS; count?: number } & Pick<FrontRowLayout, 'glass'>
+): string {
   const base = FRONT_KIND_LABELS[row.kind];
   // Only the count-driven kinds get a number appended — "Double door
   // x2" would read as two cabinets.
-  if (row.kind === 'drawers' || row.kind === 'open-shelf' || row.kind === 'trolley') {
-    return `${base} x${row.count ?? 1}`;
-  }
-  return base;
+  const withCount =
+    row.kind === 'drawers' || row.kind === 'open-shelf' || row.kind === 'trolley'
+      ? `${base} x${row.count ?? 1}`
+      : base;
+  // Glass is worth naming on the quote itself — it's a visible choice
+  // the client is paying for (RateCard.glassRates), not an
+  // implementation detail of how the front is built. "Front", not
+  // "door", for drawers — a drawer doesn't hinge open the way a door
+  // does, even when its face is glass.
+  if (!row.glass) return withCount;
+  const glassNoun = row.kind === 'drawers' ? 'glass front' : 'glass door';
+  return `${withCount}, ${GLASS_TINT_LABELS[row.glass.tint]} ${glassNoun}`;
 }
 
 function describeFront(layout: FrontLayout): string {

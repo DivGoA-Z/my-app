@@ -11,6 +11,15 @@
 import { useState } from 'react';
 import { useLayoutStore } from '../../store/layoutStore';
 import { Button } from '../ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select';
 import { describeFinish } from '../../lib/materials3d';
 import { ColorPicker } from '../common/ColorPicker';
 import type { PlacedCabinetItem } from '../../types/cabinet';
@@ -41,26 +50,33 @@ export function FinishPicker({ cabinet }: FinishPickerProps) {
 
   return (
     <div className="flex flex-col gap-2">
-      <label className="flex flex-col gap-1 text-xs text-gray-600">
+      <div className="flex flex-col gap-1 text-xs text-gray-600">
         Finish
-        <select
+        <Select
           value={cabinet.finishId}
-          onChange={(e) => updateCabinet(cabinet.id, { finishId: e.target.value })}
-          className="rounded border border-gray-300 px-2 py-1.5 text-sm"
+          onValueChange={(value) => updateCabinet(cabinet.id, { finishId: value })}
         >
-          {finishes.length === 0 && <option value={cabinet.finishId}>No finishes yet</option>}
-          {finishTypeGroups.map(([typeLabel, group]) => (
-            <optgroup key={typeLabel} label={typeLabel}>
-              {group.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.brand ? `${f.brand} ${f.label}` : f.label}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+          <SelectTrigger size="sm" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {finishes.length === 0 && (
+              <SelectItem value={cabinet.finishId}>No finishes yet</SelectItem>
+            )}
+            {finishTypeGroups.map(([typeLabel, group]) => (
+              <SelectGroup key={typeLabel}>
+                <SelectLabel>{typeLabel}</SelectLabel>
+                {group.map((f) => (
+                  <SelectItem key={f.id} value={f.id}>
+                    {f.brand ? `${f.brand} ${f.label}` : f.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            ))}
+          </SelectContent>
+        </Select>
         <span className="text-[10px] text-gray-400">{describeFinish(selectedFinish)}</span>
-      </label>
+      </div>
 
       {/* Per-cabinet colour, separate from the shared finish row so
           recolouring one cabinet doesn't repaint every cabinet using

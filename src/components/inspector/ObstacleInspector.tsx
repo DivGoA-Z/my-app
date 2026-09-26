@@ -23,6 +23,8 @@
 
 import { useLayoutStore } from '../../store/layoutStore';
 import { Button } from '../ui/button';
+import { Checkbox } from '../ui/checkbox';
+import { Label } from '../ui/label';
 import { useSelectedObstacleId } from '../../hooks/useSelection';
 import { OBSTACLE_TYPE_LABELS } from '../../types/layout';
 import { PARTIAL_OBSTACLE_HEIGHT_MM } from '../../lib/collision';
@@ -138,17 +140,16 @@ export function ObstacleInspector() {
         />
       </div>
 
-      <label className="flex items-center justify-between gap-2 text-xs text-gray-600">
+      <Label className="flex items-center justify-between gap-2 text-xs font-normal text-gray-600">
         <span>
           Floor to ceiling
           <br />
           <span className="text-[10px] text-gray-400">blocks every height, like a structural column</span>
         </span>
-        <input
-          type="checkbox"
+        <Checkbox
           checked={obstacle.floorToCeiling ?? false}
-          onChange={(e) => {
-            const floorToCeiling = e.target.checked;
+          onCheckedChange={(checked) => {
+            const floorToCeiling = checked === true;
             // Give height a sane starting value the first time this
             // becomes a partial-height obstacle, rather than leaving
             // whatever stale number was there (or 0) — mirrors
@@ -165,7 +166,7 @@ export function ObstacleInspector() {
             });
           }}
         />
-      </label>
+      </Label>
 
       {!obstacle.floorToCeiling && (
         <>
@@ -199,11 +200,12 @@ export function ObstacleInspector() {
         </>
       )}
 
-      <label className="flex items-start gap-2 text-xs text-gray-600">
-        <input
-          type="checkbox"
+      <Label className="flex items-start gap-2 text-xs font-normal text-gray-600">
+        <Checkbox
           checked={obstacle.ignoreOverlap ?? false}
-          onChange={(e) => updateObstacle(obstacle.id, { ignoreOverlap: e.target.checked })}
+          onCheckedChange={(checked) =>
+            updateObstacle(obstacle.id, { ignoreOverlap: checked === true })
+          }
           className="mt-0.5"
         />
         <span>
@@ -213,7 +215,7 @@ export function ObstacleInspector() {
             e.g. a chimney duct that's meant to run through this obstacle
           </span>
         </span>
-      </label>
+      </Label>
 
       <div className="flex border-t border-gray-200 pt-3">
         <Button variant="destructive" size="xs" className="flex-1" onClick={() => removeObstacle(obstacle.id)}>

@@ -21,6 +21,9 @@
 import { useLayoutStore } from '../../store/layoutStore';
 import { Button } from '../ui/button';
 import { Alert, AlertDescription } from '../ui/alert';
+import { Checkbox } from '../ui/checkbox';
+import { Label } from '../ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useSelectedOpeningId } from '../../hooks/useSelection';
 import { ColorPicker } from '../common/ColorPicker';
 import { openingsOverlap } from '../../lib/openings';
@@ -60,6 +63,12 @@ const BACKDROP_PRESETS: { label: string; url: string }[] = [
   { label: 'Plain sky', url: '/backdrops/plain-sky.jpg' },
 ];
 const CUSTOM_BACKDROP_VALUE = '__custom__';
+// Radix Select rejects an empty-string item value outright, so "no
+// finish specified" / "no handle shown" need a real sentinel string,
+// same idea as CUSTOM_BACKDROP_VALUE above — mapped back to `undefined`
+// on the way out in the handlers below.
+const NO_FINISH_VALUE = '__none__';
+const NO_HANDLE_VALUE = '__none__';
 
 const INR = new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -72,7 +81,6 @@ const INR = new Intl.NumberFormat('en-IN', {
 const DEFAULT_LEAF_COLOR = '#e8e4dc';
 
 const inputClass = 'rounded border border-gray-300 px-2 py-1 text-sm';
-const selectClass = 'w-full rounded border border-gray-300 px-2 py-1.5 text-sm';
 
 export function OpeningInspector() {
   const selectedOpeningId = useSelectedOpeningId();
@@ -147,27 +155,31 @@ export function OpeningInspector() {
         </Alert>
       )}
 
-      <label className="flex flex-col gap-1 text-xs text-gray-600">
+      <div className="flex flex-col gap-1 text-xs text-gray-600">
         Wall
-        <select
+        <Select
           value={opening.wallId}
-          onChange={(e) => {
-            const wallId = e.target.value as WallOrientation;
+          onValueChange={(value) => {
+            const wallId = value as WallOrientation;
             // Daylight is re-derived on the new wall, because which way
             // a window faces is the whole basis of its default light —
             // moving a window from south to north and keeping hard
             // direct sun would be wrong (see defaultDaylightFor).
             set({ wallId, daylight: defaultDaylightFor(opening.kind, wallId) });
           }}
-          className={selectClass}
         >
-          {WALL_ORDER.map((w) => (
-            <option key={w} value={w}>
-              {WALL_LABELS[w]}
-            </option>
-          ))}
-        </select>
-      </label>
+          <SelectTrigger size="sm" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {WALL_ORDER.map((w) => (
+              <SelectItem key={w} value={w}>
+                {WALL_LABELS[w]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       <label className="flex items-center justify-between gap-2 text-xs text-gray-600">
         Along wall (mm)
@@ -204,20 +216,24 @@ export function OpeningInspector() {
 
       {opening.kind === 'door' && (
         <>
-          <label className="flex flex-col gap-1 text-xs text-gray-600">
+          <div className="flex flex-col gap-1 text-xs text-gray-600">
             Swing
-            <select
+            <Select
               value={opening.swing ?? 'in-right'}
-              onChange={(e) => set({ swing: e.target.value as DoorSwing })}
-              className={selectClass}
+              onValueChange={(value) => set({ swing: value as DoorSwing })}
             >
-              {SWINGS.map((sw) => (
-                <option key={sw} value={sw}>
-                  {DOOR_SWING_LABELS[sw]}
-                </option>
-              ))}
-            </select>
-          </label>
+              <SelectTrigger size="sm" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SWINGS.map((sw) => (
+                  <SelectItem key={sw} value={sw}>
+                    {DOOR_SWING_LABELS[sw]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <span className="-mt-1 text-[10px] text-gray-400">
             {swingBlocksFloor(opening.swing ?? 'in-right') ? (
               <span className="text-amber-700">
@@ -229,60 +245,76 @@ export function OpeningInspector() {
             )}
           </span>
 
-          <label className="flex flex-col gap-1 text-xs text-gray-600">
+          <div className="flex flex-col gap-1 text-xs text-gray-600">
             Shown as
-            <select
+            <Select
               value={opening.doorState ?? 'closed'}
-              onChange={(e) => set({ doorState: e.target.value as DoorState })}
-              className={selectClass}
+              onValueChange={(value) => set({ doorState: value as DoorState })}
             >
-              {DOOR_STATES.map((st) => (
-                <option key={st} value={st}>
-                  {DOOR_STATE_LABELS[st]}
-                </option>
-              ))}
-            </select>
-          </label>
+              <SelectTrigger size="sm" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DOOR_STATES.map((st) => (
+                  <SelectItem key={st} value={st}>
+                    {DOOR_STATE_LABELS[st]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           {(opening.doorState ?? 'closed') === 'closed' && (
             <div className="flex flex-col gap-2 rounded border border-gray-200 p-2">
               <span className="text-xs font-medium text-gray-700">Door leaf</span>
 
-              <label className="flex flex-col gap-1 text-xs text-gray-600">
+              <div className="flex flex-col gap-1 text-xs text-gray-600">
                 Finish
-                <select
-                  value={opening.leafFinishId ?? ''}
-                  onChange={(e) => set({ leafFinishId: e.target.value || undefined })}
-                  className={selectClass}
+                <Select
+                  value={opening.leafFinishId ?? NO_FINISH_VALUE}
+                  onValueChange={(value) =>
+                    set({ leafFinishId: value === NO_FINISH_VALUE ? undefined : value })
+                  }
                 >
-                  <option value="">Plain (unspecified)</option>
-                  {finishes.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.brand ? `${f.brand} ${f.label}` : f.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  <SelectTrigger size="sm" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_FINISH_VALUE}>Plain (unspecified)</SelectItem>
+                    {finishes.map((f) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {f.brand ? `${f.brand} ${f.label}` : f.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-              <label className="flex flex-col gap-1 text-xs text-gray-600">
+              <div className="flex flex-col gap-1 text-xs text-gray-600">
                 Handle
-                <select
-                  value={opening.leafHandleId ?? ''}
-                  onChange={(e) => set({ leafHandleId: e.target.value || undefined })}
-                  className={selectClass}
+                <Select
+                  value={opening.leafHandleId ?? NO_HANDLE_VALUE}
+                  onValueChange={(value) =>
+                    set({ leafHandleId: value === NO_HANDLE_VALUE ? undefined : value })
+                  }
                 >
-                  {/* Same catalogue cabinets use — a door knob and a
-                      cabinet knob come from the same supplier, so a
-                      parallel list would just be two places to
-                      maintain the same hardware. */}
-                  <option value="">No handle shown</option>
-                  {handles.map((h) => (
-                    <option key={h.id} value={h.id}>
-                      {h.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  <SelectTrigger size="sm" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {/* Same catalogue cabinets use — a door knob and a
+                        cabinet knob come from the same supplier, so a
+                        parallel list would just be two places to
+                        maintain the same hardware. */}
+                    <SelectItem value={NO_HANDLE_VALUE}>No handle shown</SelectItem>
+                    {handles.map((h) => (
+                      <SelectItem key={h.id} value={h.id}>
+                        {h.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
               {/* Colour override, the same one cabinets carry, and for
                   the same reason: a kitchen door is usually painted to
@@ -323,25 +355,29 @@ export function OpeningInspector() {
 
       <div className="flex flex-col gap-1 border-t border-gray-100 pt-2">
         <span className="text-xs font-medium text-gray-700">Seen through it</span>
-        <select
+        <Select
           value={
             BACKDROP_PRESETS.some((p) => p.url === opening.backdropUrl)
-              ? opening.backdropUrl
+              ? (opening.backdropUrl ?? CUSTOM_BACKDROP_VALUE)
               : CUSTOM_BACKDROP_VALUE
           }
-          onChange={(e) => {
-            if (e.target.value === CUSTOM_BACKDROP_VALUE) return;
-            set({ backdropUrl: e.target.value });
+          onValueChange={(value) => {
+            if (value === CUSTOM_BACKDROP_VALUE) return;
+            set({ backdropUrl: value });
           }}
-          className={selectClass}
         >
-          {BACKDROP_PRESETS.map((p) => (
-            <option key={p.url} value={p.url}>
-              {p.label}
-            </option>
-          ))}
-          <option value={CUSTOM_BACKDROP_VALUE}>Custom URL…</option>
-        </select>
+          <SelectTrigger size="sm" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {BACKDROP_PRESETS.map((p) => (
+              <SelectItem key={p.url} value={p.url}>
+                {p.label}
+              </SelectItem>
+            ))}
+            <SelectItem value={CUSTOM_BACKDROP_VALUE}>Custom URL…</SelectItem>
+          </SelectContent>
+        </Select>
         <input
           value={opening.backdropUrl ?? ''}
           onChange={(e) => set({ backdropUrl: e.target.value || undefined })}
@@ -357,15 +393,13 @@ export function OpeningInspector() {
 
       <DaylightFields opening={opening} onChange={set} />
 
-      <label className="flex items-center justify-between gap-2 border-t border-gray-100 pt-2 text-xs text-gray-600">
+      <Label className="flex items-center justify-between gap-2 border-t border-gray-100 pt-2 text-xs font-normal text-gray-600">
         Supplied by you
-        <input
-          type="checkbox"
+        <Checkbox
           checked={opening.suppliedByUs}
-          onChange={(e) => set({ suppliedByUs: e.target.checked })}
-          className="h-4 w-4"
+          onCheckedChange={(checked) => set({ suppliedByUs: checked === true })}
         />
-      </label>
+      </Label>
       {opening.suppliedByUs ? (
         <label className="flex items-center justify-between gap-2 text-xs text-gray-600">
           Price
@@ -401,31 +435,35 @@ function DaylightFields({
 
   return (
     <div className="flex flex-col gap-1 border-t border-gray-100 pt-2">
-      <label className="flex items-center justify-between gap-2 text-xs font-medium text-gray-700">
+      <Label className="flex items-center justify-between gap-2 text-xs font-medium text-gray-700">
         Light from outside
-        <input
-          type="checkbox"
+        <Checkbox
           checked={daylight.enabled}
-          onChange={(e) => onChange({ daylight: { ...daylight, enabled: e.target.checked } })}
-          className="h-4 w-4"
+          onCheckedChange={(checked) =>
+            onChange({ daylight: { ...daylight, enabled: checked === true } })
+          }
         />
-      </label>
+      </Label>
 
       {daylight.enabled && (
         <>
-          <select
+          <Select
             value={daylight.mode}
-            onChange={(e) =>
-              onChange({ daylight: { ...daylight, mode: e.target.value as DaylightMode } })
+            onValueChange={(value) =>
+              onChange({ daylight: { ...daylight, mode: value as DaylightMode } })
             }
-            className={selectClass}
           >
-            {DAYLIGHT_MODES.map((m) => (
-              <option key={m} value={m}>
-                {DAYLIGHT_MODE_LABELS[m]}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger size="sm" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DAYLIGHT_MODES.map((m) => (
+                <SelectItem key={m} value={m}>
+                  {DAYLIGHT_MODE_LABELS[m]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           <label className="flex items-center justify-between gap-2 text-[11px] text-gray-600">
             Brightness

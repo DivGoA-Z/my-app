@@ -30,6 +30,9 @@ interface RateCardRow {
   // alongside this column) with more to come as businesses stock more
   // substrates.
   material_rates: RateCard['materialRates'] | null;
+  // Same one-JSONB-column reasoning as material_rates above — priced
+  // by TINT, which is a set of keys just like MaterialType is.
+  glass_rates: RateCard['glassRates'] | null;
   // Plain numeric columns, not JSONB — each is a single scalar, not a
   // set of keys that grows over time the way hardware/material rates
   // do, so there's no per-key migration story to design for here.
@@ -52,6 +55,7 @@ function rowToRateCard(row: RateCardRow): RateCard {
     // supplies the zeros via its own `card.materialRates?.HDMR`
     // optional-chaining — one fallback path, not two disagreeing ones.
     materialRates: (row.material_rates ?? undefined) as RateCard['materialRates'],
+    glassRates: (row.glass_rates ?? undefined) as RateCard['glassRates'],
     fabricationRatePerUnit: row.fabrication_rate_per_unit,
     othersRatePerUnit: row.others_rate_per_unit,
     createdAt: row.created_at,
@@ -66,6 +70,7 @@ function rateCardToRow(card: RateCard, businessId: string): RateCardRow {
     labor_rate_per_sqft: card.laborRatePerSqFt,
     hardware_rates: card.hardware,
     material_rates: card.materialRates,
+    glass_rates: card.glassRates,
     fabrication_rate_per_unit: card.fabricationRatePerUnit,
     others_rate_per_unit: card.othersRatePerUnit,
     business_id: businessId,

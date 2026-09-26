@@ -23,6 +23,8 @@ import {
 } from '../../lib/importExport/xlsxHelpers';
 import { downloadBlob } from '../../lib/downloadBlob';
 import { Button } from '../ui/button';
+import { Checkbox } from '../ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import type { ApplianceCatalogItem } from '../../types/Catalog';
 
 const inputClass = 'w-full rounded border border-gray-300 px-1.5 py-1 text-xs disabled:bg-gray-100 disabled:text-gray-400';
@@ -208,28 +210,31 @@ export function ApplianceCatalogImportExport() {
                           <div className="text-[10px]">{row.markedForDeletion ? 'delete' : row.isNew ? 'new' : 'update'}</div>
                         </td>
                         <td className="px-2 py-1.5">
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             checked={row.markedForDeletion}
                             disabled={row.isNew}
                             title={row.isNew ? "New rows can't be deleted" : 'Delete this row on commit'}
-                            onChange={(e) => toggleDelete(index, e.target.checked)}
+                            onCheckedChange={(checked) => toggleDelete(index, checked === true)}
                           />
                         </td>
                         <td className="px-2 py-1.5">
                           <input className={inputClass} disabled={row.markedForDeletion} value={row.data.label} onChange={(e) => updateRow(index, { label: e.target.value })} />
                         </td>
                         <td className="px-2 py-1.5">
-                          <select
-                            className={inputClass}
+                          <Select
                             disabled={row.markedForDeletion}
                             value={row.data.applianceType}
-                            onChange={(e) => updateRow(index, { applianceType: e.target.value as ApplianceCatalogItem['applianceType'] })}
+                            onValueChange={(value) => updateRow(index, { applianceType: value as ApplianceCatalogItem['applianceType'] })}
                           >
-                            {APPLIANCE_TYPES.map((t) => (
-                              <option key={t} value={t}>{t}</option>
-                            ))}
-                          </select>
+                            <SelectTrigger size="sm" className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {APPLIANCE_TYPES.map((t) => (
+                                <SelectItem key={t} value={t}>{t}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </td>
                         <td className="px-2 py-1.5">
                           <div className="flex gap-1">

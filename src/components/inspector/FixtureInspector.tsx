@@ -12,6 +12,9 @@
 import { useLayoutStore } from '../../store/layoutStore';
 import { Button } from '../ui/button';
 import { Alert, AlertDescription } from '../ui/alert';
+import { Checkbox } from '../ui/checkbox';
+import { Label } from '../ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useSelectedFixtureId } from '../../hooks/useSelection';
 import {
   CABINET_FACE_LABELS,
@@ -45,7 +48,6 @@ const INR = new Intl.NumberFormat('en-IN', {
 });
 
 const inputClass = 'rounded border border-gray-300 px-2 py-1 text-sm';
-const selectClass = 'w-full rounded border border-gray-300 px-2 py-1.5 text-sm';
 
 // 'base-cabinet' -> 'Base Cabinet'
 function moduleLabel(moduleType: string): string {
@@ -147,59 +149,68 @@ export function FixtureInspector() {
         </div>
       )}
 
-      <label className="flex flex-col gap-1 text-xs text-gray-600">
+      <div className="flex flex-col gap-1 text-xs text-gray-600">
         Mounted on
-        <select
-          value={mount.kind}
-          onChange={(e) => setMountKind(e.target.value as FixtureMount['kind'])}
-          className={selectClass}
-        >
-          {MOUNT_KINDS.map((k) => (
-            <option key={k} value={k} disabled={k === 'cabinet' && cabinets.length === 0}>
-              {MOUNT_KIND_LABELS[k]}
-              {k === 'cabinet' && cabinets.length === 0 ? ' (no cabinets yet)' : ''}
-            </option>
-          ))}
-        </select>
-      </label>
+        <Select value={mount.kind} onValueChange={(value) => setMountKind(value as FixtureMount['kind'])}>
+          <SelectTrigger size="sm" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {MOUNT_KINDS.map((k) => (
+              <SelectItem key={k} value={k} disabled={k === 'cabinet' && cabinets.length === 0}>
+                {MOUNT_KIND_LABELS[k]}
+                {k === 'cabinet' && cabinets.length === 0 ? ' (no cabinets yet)' : ''}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       {mount.kind === 'cabinet' && (
         <>
-          <label className="flex flex-col gap-1 text-xs text-gray-600">
+          <div className="flex flex-col gap-1 text-xs text-gray-600">
             Cabinet
-            <select
+            <Select
               value={mount.cabinetId}
-              onChange={(e) => set({ mount: { ...mount, cabinetId: e.target.value } })}
-              className={selectClass}
+              onValueChange={(value) => set({ mount: { ...mount, cabinetId: value } })}
             >
-              {/* Position included on purpose: three identical 600mm
-                  base units are indistinguishable by name, and picking
-                  the wrong one silently puts the light on the wrong
-                  cabinet. */}
-              {cabinets.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {moduleLabel(c.moduleType)} {c.widthMm}mm — at {Math.round(c.x)},
-                  {Math.round(c.y)}
-                  {c.elevationMm > 0 ? ` (${c.elevationMm}mm up)` : ''}
-                </option>
-              ))}
-            </select>
-          </label>
+              <SelectTrigger size="sm" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {/* Position included on purpose: three identical 600mm
+                    base units are indistinguishable by name, and picking
+                    the wrong one silently puts the light on the wrong
+                    cabinet. */}
+                {cabinets.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {moduleLabel(c.moduleType)} {c.widthMm}mm — at {Math.round(c.x)},
+                    {Math.round(c.y)}
+                    {c.elevationMm > 0 ? ` (${c.elevationMm}mm up)` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <label className="flex flex-col gap-1 text-xs text-gray-600">
+          <div className="flex flex-col gap-1 text-xs text-gray-600">
             Face
-            <select
+            <Select
               value={mount.face}
-              onChange={(e) => set({ mount: { ...mount, face: e.target.value as CabinetFace } })}
-              className={selectClass}
+              onValueChange={(value) => set({ mount: { ...mount, face: value as CabinetFace } })}
             >
-              {FACES.map((f) => (
-                <option key={f} value={f}>
-                  {CABINET_FACE_LABELS[f]}
-                </option>
-              ))}
-            </select>
-          </label>
+              <SelectTrigger size="sm" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {FACES.map((f) => (
+                  <SelectItem key={f} value={f}>
+                    {CABINET_FACE_LABELS[f]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <span className="-mt-1 text-[10px] text-gray-400">
             Moves and resizes with the cabinet, and is removed if the cabinet is deleted.
           </span>
@@ -223,22 +234,26 @@ export function FixtureInspector() {
 
       {mount.kind === 'wall' && (
         <>
-          <label className="flex flex-col gap-1 text-xs text-gray-600">
+          <div className="flex flex-col gap-1 text-xs text-gray-600">
             Wall
-            <select
+            <Select
               value={mount.wallId}
-              onChange={(e) =>
-                set({ mount: { ...mount, wallId: e.target.value as WallOrientation } })
+              onValueChange={(value) =>
+                set({ mount: { ...mount, wallId: value as WallOrientation } })
               }
-              className={selectClass}
             >
-              {WALLS.map((w) => (
-                <option key={w} value={w}>
-                  {w.charAt(0).toUpperCase() + w.slice(1)} wall
-                </option>
-              ))}
-            </select>
-          </label>
+              <SelectTrigger size="sm" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {WALLS.map((w) => (
+                  <SelectItem key={w} value={w}>
+                    {w.charAt(0).toUpperCase() + w.slice(1)} wall
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex gap-1">
             <NumField
               label="Along (mm)"
@@ -297,20 +312,24 @@ export function FixtureInspector() {
 
       {placement && isVisibleWhenClosed(placement.item.kind) && (
         <>
-          <label className="flex flex-col gap-1 text-xs text-gray-600">
+          <div className="flex flex-col gap-1 text-xs text-gray-600">
             Throws
-            <select
+            <Select
               value={fixture.throwDirection ?? defaultThrowFor(placement.item.kind)}
-              onChange={(e) => set({ throwDirection: e.target.value as ThrowDirection })}
-              className={selectClass}
+              onValueChange={(value) => set({ throwDirection: value as ThrowDirection })}
             >
-              {THROWS.map((t) => (
-                <option key={t} value={t}>
-                  {THROW_LABELS[t]}
-                </option>
-              ))}
-            </select>
-          </label>
+              <SelectTrigger size="sm" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {THROWS.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {THROW_LABELS[t]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <span className="-mt-1 text-[10px] text-gray-400">
             {THROW_HINTS[fixture.throwDirection ?? defaultThrowFor(placement.item.kind)]}
           </span>
@@ -321,19 +340,21 @@ export function FixtureInspector() {
           strip under a cabinet runs along that cabinet; turning it
           independently would mean nothing. */}
       {linear && (mount.kind === 'ceiling' || mount.kind === 'free') && (
-        <label className="flex items-center justify-between gap-2 text-xs text-gray-600">
+        <div className="flex items-center justify-between gap-2 text-xs text-gray-600">
           Run direction
-          <select
-            value={fixture.runRotationDeg ?? 0}
-            onChange={(e) =>
-              set({ runRotationDeg: Number(e.target.value) === 90 ? 90 : 0 })
-            }
-            className={inputClass + ' w-28'}
+          <Select
+            value={String(fixture.runRotationDeg ?? 0)}
+            onValueChange={(value) => set({ runRotationDeg: value === '90' ? 90 : 0 })}
           >
-            <option value={0}>East–west</option>
-            <option value={90}>North–south</option>
-          </select>
-        </label>
+            <SelectTrigger size="sm" className="w-28">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">East–west</SelectItem>
+              <SelectItem value="90">North–south</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       )}
 
       {linear ? (
@@ -387,15 +408,10 @@ export function FixtureInspector() {
         </>
       )}
 
-      <label className="flex items-center justify-between gap-2 text-xs text-gray-600">
+      <Label className="flex items-center justify-between gap-2 text-xs font-normal text-gray-600">
         Switched on
-        <input
-          type="checkbox"
-          checked={fixture.enabled}
-          onChange={(e) => set({ enabled: e.target.checked })}
-          className="h-4 w-4"
-        />
-      </label>
+        <Checkbox checked={fixture.enabled} onCheckedChange={(checked) => set({ enabled: checked === true })} />
+      </Label>
       <span className="-mt-1 text-[10px] text-gray-400">
         Affects the render only — it&apos;s still installed, and still quoted.
       </span>

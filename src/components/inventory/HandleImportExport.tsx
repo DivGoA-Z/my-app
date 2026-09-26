@@ -17,6 +17,8 @@ import {
 import { requiredString, nonNegativeNumber, finalizeRowErrors } from '../../lib/importExport/xlsxHelpers';
 import { downloadBlob } from '../../lib/downloadBlob';
 import { Button } from '../ui/button';
+import { Checkbox } from '../ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import type { HandleSpec } from '../../types/front';
 
 const inputClass = 'w-full rounded border border-gray-300 px-1.5 py-1 text-xs disabled:bg-gray-100 disabled:text-gray-400';
@@ -187,28 +189,31 @@ export function HandleImportExport() {
                           <div className="text-[10px]">{row.markedForDeletion ? 'delete' : row.isNew ? 'new' : 'update'}</div>
                         </td>
                         <td className="px-2 py-1.5">
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             checked={row.markedForDeletion}
                             disabled={row.isNew}
                             title={row.isNew ? "New rows can't be deleted" : 'Delete this row on commit'}
-                            onChange={(e) => toggleDelete(index, e.target.checked)}
+                            onCheckedChange={(checked) => toggleDelete(index, checked === true)}
                           />
                         </td>
                         <td className="px-2 py-1.5">
                           <input className={inputClass} disabled={row.markedForDeletion} value={row.data.label} onChange={(e) => updateRow(index, { label: e.target.value })} />
                         </td>
                         <td className="px-2 py-1.5">
-                          <select
-                            className={inputClass}
+                          <Select
                             disabled={row.markedForDeletion}
                             value={row.data.kind}
-                            onChange={(e) => updateRow(index, { kind: e.target.value as HandleSpec['kind'] })}
+                            onValueChange={(value) => updateRow(index, { kind: value as HandleSpec['kind'] })}
                           >
-                            {HANDLE_KINDS.map((k) => (
-                              <option key={k} value={k}>{k}</option>
-                            ))}
-                          </select>
+                            <SelectTrigger size="sm" className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {HANDLE_KINDS.map((k) => (
+                                <SelectItem key={k} value={k}>{k}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </td>
                         <td className="px-2 py-1.5">
                           <input type="number" className={inputClass} disabled={row.markedForDeletion} value={row.data.lengthMm} onChange={(e) => updateRow(index, { lengthMm: Number(e.target.value) })} />
@@ -217,16 +222,20 @@ export function HandleImportExport() {
                           <input type="color" className="h-7 w-full rounded border border-gray-300 disabled:opacity-50" disabled={row.markedForDeletion} value={row.data.colorHex} onChange={(e) => updateRow(index, { colorHex: e.target.value })} />
                         </td>
                         <td className="px-2 py-1.5">
-                          <select
-                            className={inputClass}
+                          <Select
                             disabled={row.markedForDeletion}
                             value={row.data.pricingMode}
-                            onChange={(e) => updateRow(index, { pricingMode: e.target.value as HandleSpec['pricingMode'] })}
+                            onValueChange={(value) => updateRow(index, { pricingMode: value as HandleSpec['pricingMode'] })}
                           >
-                            {PRICING_MODES.map((m) => (
-                              <option key={m} value={m}>{m}</option>
-                            ))}
-                          </select>
+                            <SelectTrigger size="sm" className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {PRICING_MODES.map((m) => (
+                                <SelectItem key={m} value={m}>{m}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </td>
                         <td className="px-2 py-1.5">
                           <input type="number" className={inputClass} disabled={row.markedForDeletion} value={row.data.price} onChange={(e) => updateRow(index, { price: Number(e.target.value) })} />

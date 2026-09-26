@@ -364,6 +364,12 @@ export function QuoteSidebar() {
             <span>{formatINR(markup(bom.othersSubtotal))}</span>
           </div>
         )}
+        {bom.glassSubtotal > 0 && (
+          <div className="flex justify-between">
+            <span>Glass doors</span>
+            <span>{formatINR(markup(bom.glassSubtotal))}</span>
+          </div>
+        )}
         <div className="flex justify-between">
           <span>Appliances</span>
           <span>{formatINR(markup(bom.applianceSubtotal))}</span>

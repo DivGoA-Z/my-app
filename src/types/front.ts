@@ -51,6 +51,19 @@ export type FrontKind =
   // whatever the trade actually builds. See `rows` below.
   | 'mixed';
 
+// Glass tints available for an open-shelf front's glass door (see
+// FrontLayout.glass below). 'clear' is plain transparent toughened
+// glass; the other three are tinted/lacquered glass, which the trade
+// prices higher than clear (see RateCard.glassRates).
+export type GlassTint = 'clear' | 'black' | 'brown' | 'yellow';
+
+export const GLASS_TINT_LABELS: Record<GlassTint, string> = {
+  clear: 'Clear (transparent)',
+  black: 'Black tint',
+  brown: 'Brown tint',
+  yellow: 'Yellow tint',
+};
+
 // What a 'mixed' row can be. Excludes 'mixed' itself — a row is one
 // band of the stack, not another stack — which is what stops this from
 // needing to be a recursive tree for a feature nobody asked for deeper
@@ -63,6 +76,10 @@ export interface FrontRowLayout {
   count?: number;
   // Same meaning as FrontLayout.hinge below, scoped to this row.
   hinge?: 'left' | 'right';
+  // Same meaning as FrontLayout.glass below, scoped to this row — a
+  // 'mixed' front can have an open-shelf ROW with its own glass door,
+  // same as a plain open-shelf front can.
+  glass?: { tint: GlassTint };
   // Same meaning as FrontLayout.heightRatios below — a drawers row can
   // still have its OWN graduated drawer heights, independent of how
   // tall the row itself is relative to the other rows.
@@ -83,9 +100,34 @@ export interface FrontLayout {
   // shelves. Ignored by the door kinds. Clamped when read, so a bad
   // stored value can't produce zero or a thousand fronts.
   count?: number;
-  // single-door only: which edge the hinges are on, which is also what
-  // decides the side the handle goes.
+  // single-door only, AND a narrow (single-leaf) glassed open-shelf —
+  // see `glass` below: which edge the hinges are on, which is also
+  // what decides the side the handle goes.
   hinge?: 'left' | 'right';
+  // Makes this front's panel(s) GLASS instead of the cabinet's own
+  // board + finish — see lib/fronts.ts's GLASSABLE_FRONT_KINDS for
+  // exactly which kinds support it (single-door, double-door, drawers,
+  // open-shelf) and why the others don't. All-or-nothing per front:
+  // "double-door, brown-tint glass" means BOTH leaves are that glass,
+  // not one leaf glass and one board.
+  //
+  // On open-shelf specifically, this ADDS a hinged glass door in front
+  // of shelves that otherwise have no door at all — a display-cabinet
+  // look, the shelves and whatever's on them stay visible THROUGH the
+  // glass. On single-door/double-door/drawers, it REPLACES what would
+  // otherwise be a board panel. Either way it splits into a single or
+  // double leaf the same way a plain door front does
+  // (DOUBLE_DOOR_MIN_WIDTH_MM) and gets the same hinge/handle hardware
+  // as any door (drawers keep their own channel hardware instead, same
+  // as a board drawer front would).
+  //
+  // Absent means the traditional board front. The glass itself is
+  // priced separately from the cabinet's own board substrate AND its
+  // finish (RateCard.glassRates, by TINT) — see carcassAreaSqM/
+  // finishedAreaSqM in lib/bom.ts, which subtract a glass panel's own
+  // area from what material/finish charge on, so a glass front is
+  // never charged for board or lamination it doesn't have.
+  glass?: { tint: GlassTint };
   // drawers only: relative heights, TOP to BOTTOM. Absent means equal.
   //
   // Graduated is the norm rather than the exception here — a shallow

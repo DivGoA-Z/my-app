@@ -22,6 +22,8 @@
 import { useState } from 'react';
 import { useLayoutStore } from '../../store/layoutStore';
 import { Button } from '../ui/button';
+import { Checkbox } from '../ui/checkbox';
+import { Label } from '../ui/label';
 import { useSelectedApplianceId } from '../../hooks/useSelection';
 import { rotateAppliance } from '../../lib/applianceGeometry';
 import { getFootprint } from '../../lib/footprint';
@@ -132,11 +134,12 @@ export function ApplianceInspector() {
         />
       </label>
 
-      <label className="flex items-start gap-2 text-xs text-gray-600">
-        <input
-          type="checkbox"
+      <Label className="flex items-start gap-2 text-xs font-normal text-gray-600">
+        <Checkbox
           checked={appliance.ignoreOverlap ?? false}
-          onChange={(e) => updateAppliance(appliance.id, { ignoreOverlap: e.target.checked })}
+          onCheckedChange={(checked) =>
+            updateAppliance(appliance.id, { ignoreOverlap: checked === true })
+          }
           className="mt-0.5"
         />
         <span>
@@ -146,7 +149,7 @@ export function ApplianceInspector() {
             e.g. a chimney duct that's meant to run through a cabinet
           </span>
         </span>
-      </label>
+      </Label>
 
       <div className="flex flex-col gap-1">
         <Button

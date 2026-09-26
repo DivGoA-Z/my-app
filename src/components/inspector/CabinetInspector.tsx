@@ -21,6 +21,9 @@
 import { useState } from 'react';
 import { useLayoutStore } from '../../store/layoutStore';
 import { Button } from '../ui/button';
+import { Checkbox } from '../ui/checkbox';
+import { Label } from '../ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useSelectedCabinetId, useSelectedObstacleId } from '../../hooks/useSelection';
 import { rotateCabinet, resizeCabinet, duplicateCabinet } from '../../lib/cabinetGeometry';
 import type { MaterialType } from '../../types/cabinet';
@@ -136,26 +139,29 @@ export function CabinetInspector() {
         />
       </label>
 
-      <label className="flex flex-col gap-1 text-xs text-gray-600">
+      <div className="flex flex-col gap-1 text-xs text-gray-600">
         Material
-        <select
+        <Select
           value={cabinet.material}
-          onChange={(e) => updateCabinet(cabinet.id, { material: e.target.value as MaterialType })}
-          className="rounded border border-gray-300 px-2 py-1.5 text-sm"
+          onValueChange={(value) => updateCabinet(cabinet.id, { material: value as MaterialType })}
         >
-          {MATERIALS.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
-      </label>
+          <SelectTrigger size="sm" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {MATERIALS.map((m) => (
+              <SelectItem key={m} value={m}>
+                {m}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-      <label className="flex items-start gap-2 text-xs text-gray-600">
-        <input
-          type="checkbox"
+      <Label className="flex items-start gap-2 text-xs font-normal text-gray-600">
+        <Checkbox
           checked={cabinet.ignoreOverlap ?? false}
-          onChange={(e) => updateCabinet(cabinet.id, { ignoreOverlap: e.target.checked })}
+          onCheckedChange={(checked) => updateCabinet(cabinet.id, { ignoreOverlap: checked === true })}
           className="mt-0.5"
         />
         <span>
@@ -165,13 +171,14 @@ export function CabinetInspector() {
             e.g. a chimney duct that's meant to run through this cabinet
           </span>
         </span>
-      </label>
+      </Label>
 
-      <label className="flex items-start gap-2 text-xs text-gray-600">
-        <input
-          type="checkbox"
+      <Label className="flex items-start gap-2 text-xs font-normal text-gray-600">
+        <Checkbox
           checked={cabinet.ignoreClearance ?? false}
-          onChange={(e) => updateCabinet(cabinet.id, { ignoreClearance: e.target.checked })}
+          onCheckedChange={(checked) =>
+            updateCabinet(cabinet.id, { ignoreClearance: checked === true })
+          }
           className="mt-0.5"
         />
         <span>
@@ -181,7 +188,7 @@ export function CabinetInspector() {
             e.g. an L-corner fit you've already checked fits in practice
           </span>
         </span>
-      </label>
+      </Label>
 
       <FinishPicker cabinet={cabinet} />
 

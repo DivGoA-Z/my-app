@@ -1083,6 +1083,15 @@ alter table public.rate_cards add column if not exists business_id text referenc
 -- column to one.
 alter table public.rate_cards add column if not exists material_rates jsonb;
 
+-- Same one-JSONB-column reasoning as material_rates above, added
+-- alongside glass-door open-shelf fronts — priced by TINT (clear/
+-- black/brown/yellow), a set of keys just like MaterialType is, and
+-- deliberately a SEPARATE column rather than another key inside
+-- material_rates: glass is bought and cut as glass, not the cabinet's
+-- own board substrate, so it's a different rate entirely, not another
+-- substrate option.
+alter table public.rate_cards add column if not exists glass_rates jsonb;
+
 -- Two plain scalar columns, not JSONB — each is one number, not a
 -- set of keys that grows over time the way hardware/material rates
 -- do (docs/DECISIONS.md §14):
@@ -1152,11 +1161,12 @@ alter table public.rate_cards add column if not exists others_rate_per_unit nume
 -- business_id explicit here too, same reasoning as the projects seed
 -- (see the note above that insert).
 insert into public.rate_cards
-  (id, label, labor_rate_per_sqft, hardware_rates, material_rates, business_id)
+  (id, label, labor_rate_per_sqft, hardware_rates, material_rates, glass_rates, business_id)
 values
   ('default', 'Default rates (placeholder)', 150,
    '{"hinge": 225, "channel": 2500, "basket": 1400, "shelf": 350, "cornerMagic": 12000, "cornerCarousel": 6000}'::jsonb,
    '{"HDMR": 1400, "Plywood": 1400, "BWP": 2200, "MDF": 1100, "Particle Board": 850}'::jsonb,
+   '{"clear": 180, "black": 230, "brown": 230, "yellow": 240}'::jsonb,
    'biz_default')
 on conflict (id) do nothing;
 
@@ -1183,6 +1193,12 @@ update public.rate_cards
 update public.rate_cards
    set material_rates = '{"HDMR": 1400, "Plywood": 1400, "BWP": 2200, "MDF": 1100, "Particle Board": 850}'::jsonb
  where material_rates is null;
+
+-- Same fill-if-empty backfill as material_rates above, for the
+-- brand-new glass_rates column.
+update public.rate_cards
+   set glass_rates = '{"clear": 180, "black": 230, "brown": 230, "yellow": 240}'::jsonb
+ where glass_rates is null;
 
 -- ============================================================
 -- QUOTES (frozen snapshots)

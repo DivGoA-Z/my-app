@@ -2218,3 +2218,359 @@ banner ×2 incl. the top-face/countertop case), `OpeningInspector`
 Verified via `npx tsc --noEmit -p tsconfig.app.json` and `npx eslint .`
 (both clean). **Not verified**: rendered in a browser — same
 limitation as §15.
+
+## 17. First-run checklist
+
+The last unbuilt piece of roadmap item 8 (per `docs/PRINCIPLES.md`'s
+"First-run experience" section): a new business signs in to an empty
+dashboard with no indication of what to do first. Three steps, in the
+order they actually matter: add your rates → import your cabinet
+catalogue → create your first customer.
+
+**Each step's "done" is computed from real state, not a flag some
+action sets.** Rates: `!isPlaceholderRateCard(rateCard)` — the exact
+same value comparison `RateCardManager`'s own amber banner already
+used, now extracted to `types/rates.ts` (`isPlaceholderRateCard`,
+`HARDWARE_RATE_KEYS`, `MATERIAL_RATE_KEYS`) so both places share one
+definition of "still on the seed" rather than drifting if a rate key
+is ever added and only one copy gets updated. Catalogue:
+`cabinetCatalog.length > 0`. First customer:
+`customers.length > 0` — from `CustomerDashboard`'s OWN
+`fetchCustomers()` state, not the Zustand store (customers were never
+moved into the store), which is also why the checklist is rendered
+INSIDE `CustomerDashboard` rather than in `App.tsx` above it: threading
+that count up to `App.tsx` just to render a checklist would have been
+a bigger change than the checklist itself.
+
+**Dismiss is per-business, in `localStorage`** (`firstRunChecklist:
+dismissed:<businessId>`) — a genuine per-viewer convenience (which
+teammate dismissed it from which browser doesn't matter to anyone
+else at the business), not state that needs to survive a lost laptop
+or sync across devices. Auto-hides once every step is done, with no
+`localStorage` involved in that path at all — only an explicit "Skip"
+click touches storage.
+
+New: `src/components/dashboard/FirstRunChecklist.tsx`, using the
+shadcn `Card` primitive for the first time in this app (it existed in
+`src/components/ui/` unused since the shadcn adoption). `Manage
+Inventory` and `Add a lead` buttons reuse `App.tsx`'s existing
+`handleManageInventory` (now threaded into `CustomerDashboard` as a
+new `onManageInventory` prop) and `CustomerDashboard`'s own
+`setIsFormOpen`, rather than inventing new navigation.
+
+Verified via `npx tsc --noEmit -p tsconfig.app.json` and
+`npx eslint .` (both clean). **Not verified**: rendered in a browser.
+
+## 18. Native selects/checkboxes migrated in the inspectors and
+    toolbars; Skeleton loading added to the 3 catalog-driven toolbars
+
+Item 8's last two pieces, scoped deliberately (confirmed with you
+rather than assumed, given the size): **inspectors and toolbars only**.
+`InventoryManager`'s catalogue tables and the 5 Excel import/export
+review grids keep their native `<select>`/checkbox controls — those
+are dense, spreadsheet-like editing surfaces where a popover-based
+`Select` may genuinely be worse UX, not merely unconverted, and
+converting them was never asked for. Raw number/text `<input>`s were
+also left alone everywhere, including in the converted files — this
+pass targeted selects and checkboxes specifically, per your own
+scoping answer; a compact `py-1` inline dimension field vs. shadcn's
+default-height `Input` is a separate design call nobody has made yet.
+
+**Converted** (7 inspectors, 5 toolbars —
+`ApplianceInspector/CabinetInspector/FinishPicker/FixtureInspector/
+FrontPicker/ObstacleInspector/OpeningInspector`,
+`ObstacleToolbar/RoomSurfacesPanel/LightingToolbar`, plus the plain
+`<optgroup>`s in `FinishPicker`/`ObstacleToolbar` → shadcn
+`SelectGroup`/`SelectLabel`): every native `<select>` → `Select`/
+`SelectTrigger`/`SelectContent`/`SelectItem`, every native checkbox →
+`Checkbox` wrapped in `Label` (`checked`/`onCheckedChange`, with
+`checked === true` at each call site since Radix's `CheckedState` also
+allows `"indeterminate"`, which none of these checkboxes use).
+
+**The one real trap**: Radix `Select.Item` throws if given an
+empty-string `value` — several native selects used `""` to mean "not
+specified" (`FinishPicker`'s "unspecified" cabinet finish,
+`OpeningInspector`'s leaf finish/handle, `RoomSurfacesPanel`'s "Not
+specified"/"Behind units: not finished", `FrontPicker`'s tambour-slot
+"None" and "No handles in catalogue"). Each needed a real sentinel
+string (`'__none__'`, locally scoped per file) mapped back to
+`undefined`/`''` in the `onValueChange` handler — same pattern
+`OpeningInspector`'s pre-existing `CUSTOM_BACKDROP_VALUE` already used
+for its backdrop picker, just applied everywhere else this shape
+showed up. Numeric-valued selects (`FixtureInspector`'s run-direction
+0°/90° toggle) needed the same `String(...)`/parse-back treatment,
+since `Select`'s `value` is always a string.
+
+**Loading states**: `CabinetToolbar` and `ApplianceToolbar` already
+had a real `isInventoryLoading` branch (a plain "Loading your
+pieces..." sentence) — promoted both to `Skeleton` bars, matching
+`CustomerDashboard`/`InventoryManager`'s existing convention.
+`LightingToolbar` had NO loading branch at all — its fixture-catalogue
+list could flash "No fixtures in your catalogue yet" for a moment
+before `fixtureCatalog` actually arrived, so a matching `Skeleton`
+branch was added (a real gap, not just a markup inconsistency).
+`ObstacleToolbar` deliberately left alone: obstacle presets are
+optional decoration on top of always-available generic types, so
+there's nothing genuinely blocked while they load.
+
+**Left as-is, on purpose**: every toolbar/inspector's plain-text "no
+selection" / "no items yet" empty state (already flagged in §16 as
+saying the right thing, just not in `Skeleton`/`Alert` markup — empty
+states aren't loading states, and there was nothing to promote them
+TO here). `QuoteSidebar`'s "No cabinets placed yet" is the same
+pattern and was left the same way.
+
+Verified via `npx tsc --noEmit -p tsconfig.app.json`, `npx eslint .`,
+and a full `npm run build` (all clean). **Not verified**: rendered in
+a browser — the Select/Checkbox swap changes real interaction
+mechanics (a popover instead of a native dropdown, keyboard handling
+via Radix instead of the browser), so this is the one place in this
+whole pricing/UI work where browser verification matters most before
+calling it done.
+
+## 19. Glass doors over open shelves, priced by tint
+
+New feature (not a fix/consistency pass like §16-18): a business can
+now put a hinged glass door in front of an open-shelf cabinet — a
+display-cabinet look, shelves and whatever's on them stay visible
+THROUGH the glass — in four tints: clear (plain transparent), black,
+brown, yellow.
+
+**Scoped to open-shelf only**, not every front kind, matching exactly
+what was asked ("glass doors over open shelves"). Available both as a
+plain open-shelf front's own `glass` field and as a `glass` field on
+an open-shelf ROW inside a 'mixed' front (a shelf compartment over a
+drawer stack can have its own glass door) — the data model
+(`FrontRowLayout` already mirrors `FrontLayout` field-for-field) made
+supporting both essentially free, and leaving mixed unsupported would
+have been a surprising, hard-to-explain gap rather than a deliberate
+scope line.
+
+**Structural, not just visual — reuses the exact door-swing machinery
+a plain door front already has.** A glass door splits into a single
+or double leaf by the SAME `DOUBLE_DOOR_MIN_WIDTH_MM` threshold a
+plain door front uses, gets the same hinge count
+(`hingesPerLeaf(heightMm)`) and the same handle placement/hardware as
+any door — `FrontLayout.hinge` is now reused for a narrow glassed
+open-shelf's hinge side too (its own comment updated to say so), same
+field, no new one needed. The shelves behind it are computed exactly
+as before (`shelfBoards`) — the carcass stays a genuine open box
+(`OPEN_CARCASS_KINDS` still includes `'open-shelf'` unconditionally);
+only a glass panel now sits in front of that opening when `glass` is
+set.
+
+**Priced as its own thing, not folded into Material or Hardware.**
+Glass is bought and cut as glass, not the cabinet's own board
+substrate, so it gets its own rate-card dimension:
+`RateCard.glassRates: Record<GlassTint, number>` (₹ per sq ft — the
+same unit as `laborRatePerSqFt`, deliberately NOT sq m like
+`materialRates`, since a glass door isn't priced the way a sheet
+substrate is; `RateCardManager`'s new fieldset says so). Keyed by
+TINT because tinted/lacquered glass genuinely costs more than clear
+in the local market — same "different products, different rates"
+reasoning `MaterialRates` already established, not a flat number with
+tint as pure decoration. Placeholders (all genuine guesses, no real
+invoice behind any of them): clear ₹180, black/brown ₹230, yellow
+₹240 per sq ft.
+
+`FrontBreakdown` (lib/fronts.ts) gained `glassAreaMm2` (0 unless a
+glass door exists) and `FrontPanel` gained `glassTint?: GlassTint` —
+deliberately NOT reusing `panelAreaMm2`/`HardwareSpec`, both of which
+already have documented reasons they don't fit (panelAreaMm2 is
+explicitly NOT wired into costing; HardwareSpec's `type` union would
+have forced a single flat `glass` key onto `HardwareRates` when what
+was needed was one rate PER TINT — see the type's own updated
+comment). `bom.ts` calls `cabinetFrontBreakdown` a SECOND time
+(`effectiveHardware` already calls it once internally and discards
+everything but `.hardware`) specifically so a hand-entered hardware
+override on a cabinet — which replaces the DERIVED hardware list —
+can't also silently swallow that cabinet's glass cost; the override
+is documented as being about hardware, not glass. Accepted as
+deliberate, harmless duplication (pure arithmetic on a handful of
+numbers) rather than reshaping `effectiveHardware`'s signature for
+every other caller.
+
+**3D rendering** (`Room3DCanvas.tsx`): a third branch in the
+panel-rendering ternary (tambour / glass / everything else) — glass
+panels get a `meshPhysicalMaterial` with a per-tint `color` +
+`opacity` (`GLASS_TINT_COLORS`/`GLASS_TINT_OPACITY`, approximate
+tint-sample colours, not a physically-measured spectral tint) instead
+of the cabinet's own finish. No `transmission`/refraction — kept to
+plain transparency, consistent with how nothing else in this renderer
+uses physically-based glass, so this doesn't introduce a materially
+different rendering technique for one feature.
+
+**Verified numerically** (a standalone script, deleted after, per
+this project's own convention) against the REAL `calculateBOM` and
+`computeFrontBreakdown`: a narrow (600mm, single-leaf, black tint) and
+a wide (900mm, double-leaf, clear tint) glassed open-shelf both
+produced `glassCost` exactly matching `glassAreaMm2 / MM2_PER_SQFT ×
+glassRates[tint]` computed by hand from the SAME breakdown; a plain
+open-shelf with no `glass` field produced `glassCost: 0`; a `mixed`
+front with a glassed open-shelf row correctly isolated that row's
+glass cost while still combining its shelf/hinge hardware with the
+other row's drawer channels; hinge counts matched
+`hingesPerLeaf(heightMm)` × (1 or 2 leaves) exactly as a plain door
+front's would.
+
+Every touch point updated: `types/front.ts` (`GlassTint`,
+`GLASS_TINT_LABELS`, `FrontLayout.glass`/`FrontRowLayout.glass`),
+`lib/fronts.ts` (breakdown + panel geometry), `types/rates.ts`/
+`lib/rates.ts`/`supabase/schema.sql` (`glassRates` column, seeded,
+backfilled), `lib/bom.ts` (`glassCost`/`glassSubtotal`,
+`describeFront` now names the tint), `FrontPicker.tsx` (glass
+toggle + tint picker, top-level and per mixed-row, a live cost
+preview), `RateCardManager.tsx` (new fieldset), `QuoteSidebar.tsx`/
+`quotePdf.ts` (a "Glass doors" summary line, only shown when
+non-zero — old frozen quotes with no `glassSubtotal` in their stored
+summary simply don't show the row, same pattern `othersSubtotal`
+already used), `Room3DCanvas.tsx` (glass rendering).
+
+Verified via `npx tsc --noEmit -p tsconfig.app.json`, `npx eslint .`,
+and a full `npm run build` (all clean), plus the numeric script above.
+**Not verified**: rendered in a browser — this is a genuinely new
+visual (transparent/tinted material) and a new form (the glass
+toggle + tint picker in Front Picker), not a markup swap on an
+existing control, so it's worth a real look before trusting it.
+
+## 20. Glass extended to single-door, double-door and drawers; a
+    double-charge in §19 corrected along the way
+
+Your follow-up, same session: glass + tint on open drawers, and on
+regular door fronts ("double door of brown-tint glass"). Both now
+supported, plus a real bug in §19 caught and fixed BEFORE it was ever
+committed.
+
+**Which kinds, and why not the rest.** `lib/fronts.ts` now exports
+`GLASSABLE_FRONT_KINDS = ['single-door', 'double-door', 'drawers',
+'open-shelf']` — one list, shared by the pricing engine and
+`FrontPicker`'s UI, so they can't drift. Left out on purpose: trolley
+(a single shutter hiding baskets, not something shown through glass),
+tambour (rolls on a track — glass doesn't roll), false-front (never
+opens) and appliance-housing (no panel exists to be glass). All-or-
+nothing per front: "double-door, brown tint" means BOTH leaves are
+that glass, not one leaf glass and one board — the simpler, more
+honest model of the one choice a business actually makes, and it
+falls out of the code for free (both leaves already share one
+`layout.glass`).
+
+**A real double-charge in §19, caught while extending this.**
+`finishedAreaSqM`/`carcassAreaSqM` (lib/bom.ts) charge material and
+finish over the cabinet's FULL front face, regardless of front kind —
+true before this feature existed, and it was ALREADY true for the
+already-shipped open-shelf-with-glass case: a glass-doored open-shelf
+was being charged full board substrate AND full finish on the same
+area the glass door now also covers, on top of the new
+`RateCard.glassRates` charge. That was a real over-charge, not just
+this app's usual "estimate, not exact" imprecision — the difference
+between rounding error and double-billing a customer for a shutter
+that was never bought. Caught only because generalising to single/
+double-door/drawers made it impossible to ignore (those kinds' panels
+dominate the WHOLE estimated area, so the double-charge would have
+been large and obvious, whereas open-shelf's is being flagged here
+retroactively before anyone saw a wrong number). Not yet committed
+when found, so this is a clean correction, not a migration — see
+this project's own "correct in place, say what was wrong" convention
+in CLAUDE.md.
+
+Fixed by giving both functions a `glassAreaMm2` parameter: `frontFaceMm2
+= max(0, widthMm × heightMm − glassAreaMm2)`, so a glass front's own
+panel area comes OUT of what material/finish charge on, while
+`carcassAreaSqM`'s `sideAllowanceMm2` (the carcass sides/back) stays
+untouched — those are still real board no matter what the front is
+made of. `bom.ts`'s per-cabinet loop was reordered so
+`cabinetFrontBreakdown` runs ONCE, early (glass area needed for
+material/finish, not just for `glassCost` later) — this also removed
+the "deliberate duplicate call" §19 had accepted, a genuine
+simplification alongside the fix. `estimateAreaSqFt` (site
+installation labour) is deliberately NOT reduced — fitting a glass
+door isn't less work than fitting a board one.
+
+**`describeFrontRow` (lib/bom.ts)** now says "glass front" for drawers
+and "glass door" for everything else — a drawer doesn't hinge open
+the way a door does, even with a glass face, so calling it a "door"
+would misdescribe the product on the quote itself.
+
+**Verified numerically** (a second standalone script, deleted after):
+a plain single-door control cabinet vs. an otherwise-identical
+brown-tint glass one — hinge count IDENTICAL (2, unaffected by
+material), `materialArea` dropped by exactly the glass panel's own
+area (0.4241 sq m, matching the earlier script's independently-
+computed `glassAreaMm2` for that exact geometry to the metre), and
+`glassCost` present and correctly priced by tint. Same check repeated
+for a wide double-door (4 hinges, unaffected) and for drawers (channel
+count unaffected). A `mixed` front combining a glass double-door row
+with a plain drawers row correctly isolated the glass row's own
+reduced material/finish share while the drawer row's hardware and full
+area charge were untouched.
+
+**Known, deliberate simplification, not fixed here**: the carcass
+BEHIND a glass single-door/double-door/drawers front stays the sealed,
+opaque box it already was (unlike open-shelf, which gets a genuine
+open carcass — see `OPEN_CARCASS_KINDS`, unchanged). Through a dark
+tint (black/brown/yellow, all fairly opaque per `GLASS_TINT_OPACITY`)
+this reads as a plausible tinted panel; through CLEAR glass on a
+single/double-door front, you would see the sealed carcass's own
+exterior finish directly behind it rather than an open, shelved
+interior — a real visual gap, but "should choosing glass on a door
+front also hollow out and shelve the carcass, and if so how" is a
+genuinely open design question (it would start to make "double-door +
+glass" visually indistinguishable from "open-shelf + glass, wide"),
+not something with an obvious right answer, and wasn't asked for.
+Flagging it here rather than silently deciding a larger scope
+expansion.
+
+Verified via `npx tsc --noEmit -p tsconfig.app.json`, `npx eslint .`,
+and a full `npm run build` (all clean), plus the numeric script above.
+**Not verified**: rendered in a browser, same as §19.
+
+## 21. The rest of item 8: native controls in InventoryManager and the
+    5 Excel import/export panels
+
+§18 deliberately left these out — "dense, spreadsheet-like editing
+surfaces where a popover-based `Select` may genuinely be worse UX, not
+merely unconverted." Asked for explicitly now that the inspector/
+toolbar pass proved the pattern out, so the remaining ~35 native
+selects/checkboxes across `InventoryManager.tsx` (the three catalogue
+tables' own row editors — cabinets, obstacle presets, appliances —
+plus the shared `CatalogFrontFields`/`ModelOrientationFields` helpers),
+`FinishManager.tsx`, `HandleManager.tsx`, `FixtureManager.tsx`, and all
+5 Excel review-grid panels (`CabinetCatalogImportExport`,
+`ApplianceCatalogImportExport`, `FixtureCatalogImportExport`,
+`HandleImportExport`, `ObstaclePresetImportExport`) are now shadcn
+`Select`/`Checkbox`, same mechanical conversion §18 already
+established: `SelectTrigger size="sm"` in place of the shared
+`inputClass` string, `disabled` passed straight to the `Select`/
+`Checkbox` root (both forward it to Radix, same as any other prop),
+and a `'__sentinel__'` value wherever a native `<option value="">`
+meant "nothing chosen yet" — `CatalogFrontFields`' "Automatic" front
+override and "Default handle", and `CabinetCatalogImportExport`'s
+"— select —" finish placeholder, all mapped back to `undefined`/`''`
+in their handlers, same pattern as §18's `NO_FINISH_VALUE` etc.
+
+**One deliberate non-conversion, for consistency with what's already
+there, not an oversight**: `ObstaclePresetImportExport`'s
+floor-to-ceiling column is a yes/no `<select>` in the review grid
+(unlike `InventoryManager`'s own obstacle-preset row, which uses a
+real checkbox for the same field) — kept as a `Select` with the same
+two string values rather than switched to a `Checkbox` to match the
+other row, because this pass is a mechanical native-to-shadcn
+conversion, not a redesign of which control type each field uses;
+changing the CONTROL, not just its implementation, is a separate,
+unrequested decision.
+
+**Numeric `ModelOrientationFields`** (appliance model up-axis/facing,
+in `InventoryManager.tsx`) needed the same `String(...)`/parse-back
+treatment as §18's fixture run-direction select, since `Select`'s
+`value` is always a string — including its "Custom (N°)" fallback
+option for a hand-edited angle that doesn't match any preset, which
+needed no sentinel (the fallback's value IS the exact unmatched
+number, already unique against the presets by construction).
+
+Verified via `npx tsc --noEmit -p tsconfig.app.json`, `npx eslint .`,
+and a full `npm run build` (all clean); confirmed zero native
+`<select>`/`type="checkbox"` remain anywhere under
+`src/components/inventory/`. **Not verified**: rendered in a browser —
+same caveat as §18, more so here since these are the densest, most
+edited-in-anger screens in the app (every catalogue row, every bulk
+Excel review grid).

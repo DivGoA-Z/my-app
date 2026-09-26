@@ -24,6 +24,7 @@
 // snapshots are the history.
 
 import type { HardwareSpec, MaterialType } from './cabinet';
+import type { GlassTint } from './front';
 
 // The hardware types the rate card prices. Deliberately derived from
 // HardwareSpec rather than written out, and deliberately excluding
@@ -49,6 +50,16 @@ export type HardwareRates = Record<CardPricedHardware, number>;
 // actually uses.
 export type MaterialRates = Record<MaterialType, number>;
 
+// ₹ per sq ft of a glass door's own area (lib/fronts.ts's 'open-shelf'
+// case, when FrontLayout.glass is set) — keyed by TINT rather than one
+// flat number, because tinted/lacquered glass genuinely costs more
+// than plain clear toughened glass in the local market, same
+// "different products, different rates" reasoning MaterialRates above
+// already uses for substrates. Priced separately from materialRates:
+// glass is bought and cut as glass, not the cabinet's own board
+// substrate.
+export type GlassRates = Record<GlassTint, number>;
+
 export interface RateCard {
   // One row per business now (business_id + RLS — see
   // supabase/schema.sql and defaultRateCard's own comment below for
@@ -70,6 +81,9 @@ export interface RateCard {
 
   // See MaterialRates above.
   materialRates: MaterialRates;
+
+  // See GlassRates above.
+  glassRates: GlassRates;
 
   // ₹ per CABINET (flat, regardless of size) — box construction/
   // assembly labour: cutting, edge-banding and assembling the carcass
@@ -170,7 +184,55 @@ export const PLACEHOLDER_RATES: Omit<RateCard, 'createdAt' | 'updatedAt'> = {
   // other rate on this card.
   fabricationRatePerUnit: 2500,
   othersRatePerUnit: 0,
+  // Genuine placeholders, same footing as fabricationRatePerUnit above
+  // — no business has given a real number for glass yet. Ordered
+  // clear < brown/black < yellow, the usual local retail pattern for
+  // toughened lacquered glass (yellow/gold-tint stock tends to run a
+  // shade above brown/black), and picked so a fresh glass door isn't
+  // obviously broken at ₹0. Needs checking against a real glass
+  // supplier's invoice before any quote built on it goes to a
+  // customer, same as every other rate on this card.
+  glassRates: {
+    clear: 180,
+    black: 230,
+    brown: 230,
+    yellow: 240,
+  },
 };
+
+// Shared with RateCardManager (which renders one input per key) and
+// with FirstRunChecklist's "add your rates" step (which only needs to
+// know if EVERY key still matches the seed) — one list rather than two
+// so a hardware/material type added to HardwareSpec/MaterialType only
+// needs updating here.
+export const HARDWARE_RATE_KEYS: CardPricedHardware[] = [
+  'hinge',
+  'channel',
+  'basket',
+  'shelf',
+  'cornerMagic',
+  'cornerCarousel',
+];
+
+export const MATERIAL_RATE_KEYS: MaterialType[] = ['HDMR', 'Plywood', 'BWP', 'MDF', 'Particle Board'];
+
+export const GLASS_RATE_KEYS: GlassTint[] = ['clear', 'black', 'brown', 'yellow'];
+
+// Whether a rate card is still on every seeded number. Compared by
+// value rather than a flag, same reasoning as RateCardManager's own
+// original comment: editing a rate back to its placeholder value
+// honestly counts as still-placeholder, because the point is what the
+// number IS, not whether someone has visited the rates screen.
+export function isPlaceholderRateCard(card: RateCard): boolean {
+  return (
+    card.laborRatePerSqFt === PLACEHOLDER_RATES.laborRatePerSqFt &&
+    card.fabricationRatePerUnit === PLACEHOLDER_RATES.fabricationRatePerUnit &&
+    card.othersRatePerUnit === PLACEHOLDER_RATES.othersRatePerUnit &&
+    HARDWARE_RATE_KEYS.every((k) => card.hardware[k] === PLACEHOLDER_RATES.hardware[k]) &&
+    MATERIAL_RATE_KEYS.every((k) => card.materialRates[k] === PLACEHOLDER_RATES.materialRates[k]) &&
+    GLASS_RATE_KEYS.every((k) => card.glassRates[k] === PLACEHOLDER_RATES.glassRates[k])
+  );
+}
 
 // Used when the rate card has not loaded yet, or when a caller builds a
 // BOM outside the app (tests, scripts).
@@ -253,6 +315,15 @@ export function sanitizeRateCard(card: RateCard): RateCard {
       BWP: nonNegative(card.materialRates?.BWP),
       MDF: nonNegative(card.materialRates?.MDF),
       'Particle Board': nonNegative(card.materialRates?.['Particle Board']),
+    },
+    glassRates: {
+      // Same graceful-growth reasoning as materialRates above — a rate
+      // card saved before glassRates existed loads as "not priced yet"
+      // (0) for every tint rather than throwing.
+      clear: nonNegative(card.glassRates?.clear),
+      black: nonNegative(card.glassRates?.black),
+      brown: nonNegative(card.glassRates?.brown),
+      yellow: nonNegative(card.glassRates?.yellow),
     },
     fabricationRatePerUnit: nonNegative(card.fabricationRatePerUnit),
     othersRatePerUnit: nonNegative(card.othersRatePerUnit),

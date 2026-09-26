@@ -14,6 +14,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { confirmDialog } from '../../store/confirmDialogStore';
 import { useLayoutStore } from '../../store/layoutStore';
 import { FIXTURE_KIND_LABELS, isLinear } from '../../types/fixture';
@@ -201,10 +202,10 @@ function Fields({
       </td>
 
       <td className="px-2 py-1.5">
-        <select
+        <Select
           value={draft.kind}
-          onChange={(e) => {
-            const kind = e.target.value as FixtureKind;
+          onValueChange={(value) => {
+            const kind = value as FixtureKind;
             // Preselect the mode the kind is actually sold in, so the
             // common case is right without anyone knowing the rule.
             setDraft({
@@ -213,14 +214,18 @@ function Fields({
               pricingMode: isLinear(kind) ? 'per-metre' : 'per-unit',
             });
           }}
-          className={inputClass + ' w-36'}
         >
-          {KINDS.map((k) => (
-            <option key={k} value={k}>
-              {FIXTURE_KIND_LABELS[k]}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger size="sm" className="w-36">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {KINDS.map((k) => (
+              <SelectItem key={k} value={k}>
+                {FIXTURE_KIND_LABELS[k]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </td>
 
       <td className="px-2 py-1.5">
@@ -253,19 +258,23 @@ function Fields({
       </td>
 
       <td className="px-2 py-1.5">
-        <select
+        <Select
           value={draft.pricingMode}
-          onChange={(e) =>
+          onValueChange={(value) =>
             setDraft({
               ...draft,
-              pricingMode: e.target.value as FixtureCatalogItem['pricingMode'],
+              pricingMode: value as FixtureCatalogItem['pricingMode'],
             })
           }
-          className={inputClass + ' w-24'}
         >
-          <option value="per-metre">Per metre</option>
-          <option value="per-unit">Per piece</option>
-        </select>
+          <SelectTrigger size="sm" className="w-24">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="per-metre">Per metre</SelectItem>
+            <SelectItem value="per-unit">Per piece</SelectItem>
+          </SelectContent>
+        </Select>
       </td>
 
       <td className="px-2 py-1.5">

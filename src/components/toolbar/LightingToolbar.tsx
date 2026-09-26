@@ -18,6 +18,9 @@
 import { useLayoutStore } from '../../store/layoutStore';
 import { Button } from '../ui/button';
 import { Alert, AlertDescription } from '../ui/alert';
+import { Checkbox } from '../ui/checkbox';
+import { Label } from '../ui/label';
+import { Skeleton } from '../ui/skeleton';
 import { useSelectedFixtureId } from '../../hooks/useSelection';
 import {
   FIXTURE_KIND_LABELS,
@@ -78,6 +81,7 @@ export function LightingToolbar() {
   const currentLayout = useLayoutStore((s) => s.currentLayout);
   const cabinets = useLayoutStore((s) => s.cabinets);
   const fixtureCatalog = useLayoutStore((s) => s.fixtureCatalog);
+  const isInventoryLoading = useLayoutStore((s) => s.isInventoryLoading);
   const addFixture = useLayoutStore((s) => s.addFixture);
   const removeFixture = useLayoutStore((s) => s.removeFixture);
   const selectFixture = useLayoutStore((s) => s.selectFixture);
@@ -210,7 +214,13 @@ export function LightingToolbar() {
         <span className="text-[10px] text-gray-400">{LIGHT_QUALITY_HINTS[quality]}</span>
       </div>
 
-      {fixtureCatalog.length === 0 ? (
+      {isInventoryLoading ? (
+        <div className="flex flex-col gap-1.5 border-t border-gray-200 pt-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-7 w-full" />
+          ))}
+        </div>
+      ) : fixtureCatalog.length === 0 ? (
         <p className="text-xs text-gray-400">No fixtures in your catalogue yet.</p>
       ) : (
         <div className="flex flex-col gap-2 border-t border-gray-200 pt-3">
@@ -295,15 +305,10 @@ export function LightingToolbar() {
         </Alert>
       )}
 
-      <label className="flex items-center justify-between gap-2 border-t border-gray-200 pt-3 text-xs text-gray-600">
+      <Label className="flex items-center justify-between gap-2 border-t border-gray-200 pt-3 text-xs font-normal text-gray-600">
         Charge electrical work
-        <input
-          type="checkbox"
-          checked={priceElectrical}
-          onChange={(e) => setPriceElectrical(e.target.checked)}
-          className="h-4 w-4"
-        />
-      </label>
+        <Checkbox checked={priceElectrical} onCheckedChange={(checked) => setPriceElectrical(checked === true)} />
+      </Label>
       <span className="-mt-1 text-[10px] text-gray-400">
         {priceElectrical
           ? `Lighting adds ${INR.format(total)} to the quote.`

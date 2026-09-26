@@ -372,8 +372,9 @@ work fast; a mouse-only tool feels like a toy.
 
 A new business signs in to nothing. They need: a short setup checklist
 (add your rates → import your catalogue → create your first customer),
-and the ability to skip it. This is the highest-leverage screen in a
-multi-tenant product and it does not exist yet.
+and the ability to skip it. **Built** — `FirstRunChecklist` on the
+dashboard, each step computed from real state rather than a flag, and
+dismissible per business. See `docs/DECISIONS.md` §17.
 
 ---
 
@@ -486,12 +487,18 @@ Each of these gets more expensive with everything built on top.
    four states (full/empty/loading/error) applied to `CustomerDashboard`
    and `InventoryManager`; every screen-level hand-rolled error/warning
    box in the toolbars, inspectors and quote sidebar promoted to the
-   shared `Alert` component (`docs/DECISIONS.md` §16). Not done yet:
-   empty/loading states for the toolbars/inspectors/quote sidebar
-   (their existing plain-text empty states already say the right
-   thing, just not in `Skeleton` markup), native selects/checkboxes/
-   dense forms, consistency rules beyond button colour, first-run
-   checklist. See `docs/DECISIONS.md` §11, §16.
+   shared `Alert` component (`docs/DECISIONS.md` §16); a first-run
+   checklist on the dashboard (add rates → import catalogue → create
+   first customer, each computed from real state, dismissible per
+   business — `docs/DECISIONS.md` §17); every native select/checkbox in
+   the inspectors, toolbars, `InventoryManager`'s catalogue tables and
+   all 5 Excel import/export review grids migrated to shadcn
+   `Select`/`Checkbox`, plus real `Skeleton` loading states for the 3
+   catalog-driven toolbars (`docs/DECISIONS.md` §18, §21). **Done**.
+   Not done: raw number/text inputs everywhere were left native (a
+   separate design call nobody has made), and consistency rules
+   beyond button colour (spacing/type scale) are still open. See
+   `docs/DECISIONS.md` §11, §16, §17, §18, §21.
 
 ### Phase 3 — Make it good
 
@@ -499,6 +506,16 @@ Each of these gets more expensive with everything built on top.
    change, but it does not block selling, so it sits here.
 10. **Cabinet library breadth** — tandem, pantry, tambour, corner
     carousel, wicker baskets. Mostly data entry, which makes it cheap.
+    **Glass fronts, done** — single-door, double-door, drawers and
+    open-shelf fronts can all have their panel(s) made of glass
+    instead of board (clear/black/brown/yellow tint), all-or-nothing
+    per front (a "double door, brown-tint glass" cabinet has both
+    leaves in that glass), priced separately by tint
+    (`RateCard.glassRates`, ₹ per sq ft, with material/finish reduced
+    by the same area so it isn't double-charged) and rendered as real
+    transparent/tinted glass in the 3D view. Same door-swing hardware
+    (hinges, handle) as a board front of the same kind; drawers keep
+    their own channel hardware. See `docs/DECISIONS.md` §19-20.
 11. **Appliance dimensions first, appearance second.** Appliances are
     usually customer-supplied in India, so the dimension drives cabinet
     cutouts and clearances. Photoreal models are the last 10% of appeal

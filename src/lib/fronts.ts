@@ -19,8 +19,8 @@
 // origin, so its front face is exactly this rectangle at
 // z = +depthMm/2). The renderer converts to metres at the last moment.
 
-import type { FrontKind, FrontLayout, FrontRowKind, HandleSpec } from '../types/front';
-import { clampCount, clampTambourShelfCount } from '../types/front';
+import type { FrontKind, FrontLayout, FrontRowKind, GlassTint, HandleSpec } from '../types/front';
+import { clampCount, clampTambourShelfCount, DOUBLE_DOOR_MIN_WIDTH_MM } from '../types/front';
 import type { HardwareSpec, PlacedCabinetItem } from '../types/cabinet';
 import type { HardwareRates } from '../types/rates';
 
@@ -95,6 +95,12 @@ export interface FrontPanel {
   // flat door) without re-deriving "what kind of front is this" from
   // the panel's shape alone, which a plain rectangle can't answer.
   kind: FrontRowKind;
+  // Set only for a glass door in front of open shelves (see
+  // FrontLayout.glass) — tells the 3D renderer to draw transparent/
+  // tinted glass instead of the cabinet's own finish, and tells
+  // bom.ts this panel's area is priced via RateCard.glassRates, not
+  // the substrate. Undefined for every other panel.
+  glassTint?: GlassTint;
 }
 
 export interface FrontBreakdown {
@@ -112,6 +118,13 @@ export interface FrontBreakdown {
   // would under-charge; recorded here so the eventual sheet-yield
   // calculation has the number it needs.
   panelAreaMm2: number;
+  // Total area of any GLASS door panel(s) — 0 unless this front has
+  // FrontLayout.glass set. Unlike panelAreaMm2 above, this IS wired
+  // into costing (bom.ts), because glass is bought and cut as glass by
+  // the sq ft, not the cabinet's own board substrate — there's no
+  // separate "sheet yield" step to model the way there is for a board
+  // shutter.
+  glassAreaMm2: number;
 }
 
 function normaliseRatios(count: number, ratios: number[] | undefined): number[] {
@@ -132,6 +145,21 @@ function normaliseRatios(count: number, ratios: number[] | undefined): number[] 
 // CARCASS behind them needs a real opening rather than a sealed box —
 // see carcassBands below.
 const OPEN_CARCASS_KINDS: FrontKind[] = ['open-shelf', 'appliance-housing'];
+
+// Which front kinds can have their panel(s) made of glass instead of
+// the cabinet's own board — exported so FrontPicker.tsx shows the
+// glass toggle for exactly these and no others, one list rather than
+// two that could drift apart. Deliberately excludes trolley (a single
+// shutter hiding baskets — not the kind of thing shown through glass),
+// tambour (rolls on a track; glass doesn't roll), false-front (never
+// opens; a sink panel behind glass is a real product nobody asked
+// for) and appliance-housing (no panel exists at all).
+export const GLASSABLE_FRONT_KINDS: FrontKind[] = [
+  'single-door',
+  'double-door',
+  'drawers',
+  'open-shelf',
+];
 
 export interface CarcassBand {
   centerYMm: number;
@@ -374,12 +402,12 @@ export function computeFrontBreakdown(
     case 'appliance-housing':
       // An open aperture. No panel, no hardware — the oven that goes
       // in it is priced as an appliance.
-      return { panels: [], shelves: [], hardware: [], panelAreaMm2: 0 };
+      return { panels: [], shelves: [], hardware: [], panelAreaMm2: 0, glassAreaMm2: 0 };
 
     case 'mixed': {
       const rowSpecs = layout.rows ?? [];
       if (rowSpecs.length === 0) {
-        return { panels: [], shelves: [], hardware: [], panelAreaMm2: 0 };
+        return { panels: [], shelves: [], hardware: [], panelAreaMm2: 0, glassAreaMm2: 0 };
       }
 
       const bands = rowBands(
@@ -392,6 +420,7 @@ export function computeFrontBreakdown(
       const panels: FrontPanel[] = [];
       const shelves: Rect[] = [];
       let panelAreaMm2 = 0;
+      let glassAreaMm2 = 0;
       // Merged by type rather than left as one entry per row, so two
       // drawer rows read as one "Drawer channels x5" line instead of
       // two separate lines that would also collide as React keys
@@ -405,6 +434,7 @@ export function computeFrontBreakdown(
           count: rowSpec.count,
           hinge: rowSpec.hinge,
           heightRatios: rowSpec.heightRatios,
+          glass: rowSpec.glass,
         };
         const sub = computeFrontBreakdown(subLayout, band.widthMm, band.heightMm, handle, rates);
 
@@ -429,6 +459,7 @@ export function computeFrontBreakdown(
           shelves.push({ ...shelf, centerYMm: band.centerYMm + shelf.centerYMm });
         }
         panelAreaMm2 += sub.panelAreaMm2;
+        glassAreaMm2 += sub.glassAreaMm2;
 
         for (const hw of sub.hardware) {
           const existing = hardwareByType.get(hw.type);
@@ -439,7 +470,13 @@ export function computeFrontBreakdown(
         }
       });
 
-      return { panels, shelves, hardware: Array.from(hardwareByType.values()), panelAreaMm2 };
+      return {
+        panels,
+        shelves,
+        hardware: Array.from(hardwareByType.values()),
+        panelAreaMm2,
+        glassAreaMm2,
+      };
     }
 
     case 'open-shelf': {
@@ -448,7 +485,56 @@ export function computeFrontBreakdown(
       // themselves are real cut-and-edge-banded boards that nothing
       // was charging for.
       hardware.push({ type: 'shelf', count, unitCost: rates.shelf });
-      return { panels: [], shelves: shelfBoards(widthMm, heightMm, count), hardware, panelAreaMm2: 0 };
+      const shelves = shelfBoards(widthMm, heightMm, count);
+
+      if (!layout.glass) {
+        return { panels: [], shelves, hardware, panelAreaMm2: 0, glassAreaMm2: 0 };
+      }
+
+      // A glass door in front of the shelves — same door-swing
+      // hardware as an ordinary door (hinges, a handle) and the same
+      // single/double split by width, but priced and rendered as GLASS
+      // (RateCard.glassRates, by tint) rather than the cabinet's own
+      // board substrate. The shelves behind it are unchanged — the
+      // whole point is that they stay visible through the glass.
+      const wide = widthMm >= DOUBLE_DOOR_MIN_WIDTH_MM;
+      const doorRects = wide
+        ? (() => {
+            const [left, right] = columns(widthMm, heightMm, 2);
+            return [
+              { rect: left, side: 'right' as const },
+              { rect: right, side: 'left' as const },
+            ];
+          })()
+        : (() => {
+            const rect = columns(widthMm, heightMm, 1)[0];
+            const side: 'left' | 'right' = layout.hinge === 'right' ? 'left' : 'right';
+            return [{ rect, side }];
+          })();
+
+      hardware.push({
+        type: 'hinge',
+        count: hingesPerLeaf(heightMm) * doorRects.length,
+        unitCost: rates.hinge,
+      });
+
+      const tint = layout.glass.tint;
+      const panels: FrontPanel[] = doorRects.map(({ rect, side }, index) => ({
+        index,
+        ...rect,
+        handle: placeHandle(rect, handle, side),
+        kind: 'open-shelf' as const,
+        glassTint: tint,
+      }));
+
+      const handleLine = handleHardware(
+        panels.map((p) => p.handle).filter((h): h is HandlePlacement => h !== null)
+      );
+      if (handleLine) hardware.push(handleLine);
+
+      const glassAreaMm2 = panels.reduce((sum, p) => sum + p.widthMm * p.heightMm, 0);
+
+      return { panels, shelves, hardware, panelAreaMm2: 0, glassAreaMm2 };
     }
 
     case 'false-front': {
@@ -460,6 +546,7 @@ export function computeFrontBreakdown(
         shelves: [],
         hardware: [],
         panelAreaMm2: rect.widthMm * rect.heightMm,
+        glassAreaMm2: 0,
       };
     }
 
@@ -489,6 +576,7 @@ export function computeFrontBreakdown(
         shelves: shelfBoards(widthMm, heightMm, shelfCount),
         hardware,
         panelAreaMm2: rect.widthMm * rect.heightMm,
+        glassAreaMm2: 0,
       };
     }
 
@@ -550,11 +638,18 @@ export function computeFrontBreakdown(
   // other kind returns directly above — so this cast just names what
   // TypeScript can't see across the switch's early returns.
   const rectsKind = layout.kind as FrontRowKind;
+  // Trolley falls through to this shared tail too but isn't in
+  // GLASSABLE_FRONT_KINDS — its single shutter never gets a
+  // glassTint even if `layout.glass` were somehow set on one, same
+  // "not every kind that reaches here supports it" reasoning
+  // GLASSABLE_FRONT_KINDS' own comment gives.
+  const glass = GLASSABLE_FRONT_KINDS.includes(layout.kind) ? layout.glass : undefined;
   const panels: FrontPanel[] = rects.map(({ rect, side }, index) => ({
     index,
     ...rect,
     handle: placeHandle(rect, handle, side),
     kind: rectsKind,
+    glassTint: glass?.tint,
   }));
 
   const handleLine = handleHardware(
@@ -562,11 +657,20 @@ export function computeFrontBreakdown(
   );
   if (handleLine) hardware.push(handleLine);
 
+  // All-or-nothing per front, not a per-leaf mix: a double door with
+  // `glass` set means BOTH leaves are that glass, not one glass and
+  // one board — the same single binary "what is this front made of"
+  // choice a business would actually make. So the panels' total area
+  // goes entirely to one bucket or the other, never split between
+  // panelAreaMm2 and glassAreaMm2 for the SAME front.
+  const totalPanelAreaMm2 = panels.reduce((sum, p) => sum + p.widthMm * p.heightMm, 0);
+
   return {
     panels,
     shelves: [],
     hardware,
-    panelAreaMm2: panels.reduce((sum, p) => sum + p.widthMm * p.heightMm, 0),
+    panelAreaMm2: glass ? 0 : totalPanelAreaMm2,
+    glassAreaMm2: glass ? totalPanelAreaMm2 : 0,
   };
 }
 

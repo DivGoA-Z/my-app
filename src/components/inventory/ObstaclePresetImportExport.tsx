@@ -22,6 +22,8 @@ import {
 } from '../../lib/importExport/xlsxHelpers';
 import { downloadBlob } from '../../lib/downloadBlob';
 import { Button } from '../ui/button';
+import { Checkbox } from '../ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import type { ObstaclePreset } from '../../types/Catalog';
 
 const inputClass = 'w-full rounded border border-gray-300 px-1.5 py-1 text-xs disabled:bg-gray-100 disabled:text-gray-400';
@@ -191,28 +193,31 @@ export function ObstaclePresetImportExport() {
                           <div className="text-[10px]">{row.markedForDeletion ? 'delete' : row.isNew ? 'new' : 'update'}</div>
                         </td>
                         <td className="px-2 py-1.5">
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             checked={row.markedForDeletion}
                             disabled={row.isNew}
                             title={row.isNew ? "New rows can't be deleted" : 'Delete this row on commit'}
-                            onChange={(e) => toggleDelete(index, e.target.checked)}
+                            onCheckedChange={(checked) => toggleDelete(index, checked === true)}
                           />
                         </td>
                         <td className="px-2 py-1.5">
                           <input className={inputClass} disabled={row.markedForDeletion} value={row.data.label} onChange={(e) => updateRow(index, { label: e.target.value })} />
                         </td>
                         <td className="px-2 py-1.5">
-                          <select
-                            className={inputClass}
+                          <Select
                             disabled={row.markedForDeletion}
                             value={row.data.type}
-                            onChange={(e) => updateRow(index, { type: e.target.value as ObstaclePreset['type'] })}
+                            onValueChange={(value) => updateRow(index, { type: value as ObstaclePreset['type'] })}
                           >
-                            {OBSTACLE_TYPES.map((t) => (
-                              <option key={t} value={t}>{t}</option>
-                            ))}
-                          </select>
+                            <SelectTrigger size="sm" className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {OBSTACLE_TYPES.map((t) => (
+                                <SelectItem key={t} value={t}>{t}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </td>
                         <td className="px-2 py-1.5">
                           <div className="flex gap-1">
@@ -221,15 +226,19 @@ export function ObstaclePresetImportExport() {
                           </div>
                         </td>
                         <td className="px-2 py-1.5">
-                          <select
-                            className={inputClass}
+                          <Select
                             disabled={row.markedForDeletion}
                             value={row.data.floorToCeiling ? 'yes' : 'no'}
-                            onChange={(e) => updateRow(index, { floorToCeiling: e.target.value === 'yes' })}
+                            onValueChange={(value) => updateRow(index, { floorToCeiling: value === 'yes' })}
                           >
-                            <option value="yes">yes</option>
-                            <option value="no">no</option>
-                          </select>
+                            <SelectTrigger size="sm" className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="yes">yes</SelectItem>
+                              <SelectItem value="no">no</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </td>
                         <td className="px-2 py-1.5">
                           <input type="number" className={inputClass} disabled={row.markedForDeletion} value={row.data.heightMm} onChange={(e) => updateRow(index, { heightMm: Number(e.target.value) })} />

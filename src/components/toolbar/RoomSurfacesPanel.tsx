@@ -21,6 +21,9 @@ import { computeRoomSurfaceAreas } from '../../lib/surfaceAreas';
 import type { SurfaceAreaBreakdown } from '../../lib/surfaceAreas';
 import { countertopAreaSqM } from '../../lib/cabinetGeometry';
 import type { WallOrientation } from '../../types/layout';
+import { Checkbox } from '../ui/checkbox';
+import { Label } from '../ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 const WALL_ORDER: WallOrientation[] = ['north', 'east', 'south', 'west'];
 
@@ -31,7 +34,9 @@ const WALL_LABELS: Record<WallOrientation, string> = {
   west: 'West wall',
 };
 
-const selectClass = 'w-full rounded border border-gray-300 px-2 py-1 text-xs';
+// Radix Select rejects an empty-string item value, so "not specified"
+// needs a real sentinel, mapped back to `undefined` in each handler.
+const NO_FINISH_VALUE = '__none__';
 
 export function RoomSurfacesPanel() {
   const currentLayout = useLayoutStore((state) => state.currentLayout);
@@ -135,33 +140,43 @@ function SurfaceRow({
         </span>
       </div>
 
-      <select
-        value={finishId ?? ''}
-        onChange={(e) => onFinishChange(e.target.value || undefined)}
-        className={selectClass}
+      <Select
+        value={finishId ?? NO_FINISH_VALUE}
+        onValueChange={(value) => onFinishChange(value === NO_FINISH_VALUE ? undefined : value)}
       >
-        <option value="">Not specified</option>
-        {finishes.map((f) => (
-          <option key={f.id} value={f.id}>
-            {f.brand ? `${f.brand} ${f.label}` : f.label}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger size="sm" className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NO_FINISH_VALUE}>Not specified</SelectItem>
+          {finishes.map((f) => (
+            <SelectItem key={f.id} value={f.id}>
+              {f.brand ? `${f.brand} ${f.label}` : f.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
       {onConcealedChange && area.concealedSqM > 0 && (
         <>
-          <select
-            value={concealedFinishId ?? ''}
-            onChange={(e) => onConcealedChange(e.target.value || undefined)}
-            className={selectClass}
+          <Select
+            value={concealedFinishId ?? NO_FINISH_VALUE}
+            onValueChange={(value) =>
+              onConcealedChange(value === NO_FINISH_VALUE ? undefined : value)
+            }
           >
-            <option value="">Behind units: not finished</option>
-            {finishes.map((f) => (
-              <option key={f.id} value={f.id}>
-                Behind units: {f.brand ? `${f.brand} ${f.label}` : f.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger size="sm" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_FINISH_VALUE}>Behind units: not finished</SelectItem>
+              {finishes.map((f) => (
+                <SelectItem key={f.id} value={f.id}>
+                  Behind units: {f.brand ? `${f.brand} ${f.label}` : f.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <span className="text-[10px] tabular-nums text-gray-400">
             {area.concealedSqM.toFixed(2)} m² hidden behind units
           </span>
@@ -219,28 +234,31 @@ function CountertopRow({
         <span className="text-[10px] tabular-nums text-gray-400">{areaSqM.toFixed(2)} m²</span>
       </div>
 
-      <select
-        value={finishId ?? ''}
-        onChange={(e) => onFinishChange(e.target.value || undefined)}
-        className={selectClass}
+      <Select
+        value={finishId ?? NO_FINISH_VALUE}
+        onValueChange={(value) => onFinishChange(value === NO_FINISH_VALUE ? undefined : value)}
       >
-        <option value="">Not specified</option>
-        {finishes.map((f) => (
-          <option key={f.id} value={f.id}>
-            {f.brand ? `${f.brand} ${f.label}` : f.label}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger size="sm" className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NO_FINISH_VALUE}>Not specified</SelectItem>
+          {finishes.map((f) => (
+            <SelectItem key={f.id} value={f.id}>
+              {f.brand ? `${f.brand} ${f.label}` : f.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
-      <label className="flex items-center gap-1.5 text-[10px] text-gray-500">
-        <input
-          type="checkbox"
+      <Label className="flex items-center gap-1.5 text-[10px] font-normal text-gray-500">
+        <Checkbox
           checked={priceCountertop}
-          onChange={(e) => onPriceCountertopChange(e.target.checked)}
-          className="h-3 w-3"
+          onCheckedChange={(checked) => onPriceCountertopChange(checked === true)}
+          className="size-3"
         />
         Charge for it on the quote
-      </label>
+      </Label>
       {!priceCountertop && (
         <span className="text-[10px] text-gray-400">
           Off — usually arranged by the homeowner. The slab still shows in the design and prints

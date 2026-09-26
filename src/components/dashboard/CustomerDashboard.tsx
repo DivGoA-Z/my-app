@@ -21,14 +21,19 @@ import type { CameraNode } from '../../types/Camera';
 import { fetchCustomers, createCustomer, updateCustomerStatus } from '../../lib/customers';
 import { fetchCapturedPanoramasByProject } from '../../lib/Persistence';
 import { PanoramaViewerModal } from '../panorama/PanoramaViewerModal';
+import { FirstRunChecklist } from './FirstRunChecklist';
 import { useAuthStore } from '../../store/authStore';
+import { useLayoutStore } from '../../store/layoutStore';
+import { isPlaceholderRateCard } from '../../types/rates';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Skeleton } from '../ui/skeleton';
 import { Alert, AlertDescription } from '../ui/alert';
+import type { InventorySection } from '../inventory/InventoryManager';
 
 export interface CustomerDashboardProps {
   onOpenCanvas: (projectId: string) => void;
+  onManageInventory: (section?: InventorySection) => void;
 }
 
 const STATUS_STYLES: Record<LeadStatus, { label: string; className: string }> = {
@@ -62,8 +67,10 @@ interface NewLeadForm {
 
 const EMPTY_FORM: NewLeadForm = { clientName: '', phone: '', address: '', locality: '' };
 
-export function CustomerDashboard({ onOpenCanvas }: CustomerDashboardProps) {
+export function CustomerDashboard({ onOpenCanvas, onManageInventory }: CustomerDashboardProps) {
   const businessId = useAuthStore((s) => s.businessId);
+  const rateCard = useLayoutStore((s) => s.rateCard);
+  const cabinetCatalog = useLayoutStore((s) => s.cabinetCatalog);
   const [customers, setCustomers] = useState<CustomerProject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -166,191 +173,202 @@ export function CustomerDashboard({ onOpenCanvas }: CustomerDashboardProps) {
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-gray-200 bg-white p-4">
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="text-sm font-semibold text-gray-700">Customer Pipeline</h2>
-        <div className="flex items-center gap-2">
-          <Input
-            type="text"
-            placeholder="Search by name, phone, or location..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="w-64"
-          />
-          <Button size="sm" onClick={() => setIsFormOpen((open) => !open)}>
-            + New Lead
-          </Button>
-        </div>
-      </div>
+    <div className="flex flex-col gap-4">
+      <FirstRunChecklist
+        businessId={businessId}
+        isRatesDone={!isPlaceholderRateCard(rateCard)}
+        isCatalogueDone={cabinetCatalog.length > 0}
+        isFirstCustomerDone={customers.length > 0}
+        onManageInventory={onManageInventory}
+        onAddLead={() => setIsFormOpen(true)}
+      />
 
-      {isFormOpen && (
-        <div className="flex flex-col gap-2 rounded border border-gray-200 bg-gray-50 p-3">
-          <div className="grid grid-cols-2 gap-2">
+      <div className="flex flex-col gap-4 rounded-lg border border-gray-200 bg-white p-4">
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-sm font-semibold text-gray-700">Customer Pipeline</h2>
+          <div className="flex items-center gap-2">
             <Input
-              placeholder="Client name"
-              value={form.clientName}
-              onChange={(e) => setForm((f) => ({ ...f, clientName: e.target.value }))}
+              type="text"
+              placeholder="Search by name, phone, or location..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="w-64"
             />
-            <Input
-              placeholder="Phone number"
-              value={form.phone}
-              onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-            />
-            <Input
-              placeholder="Address"
-              value={form.address}
-              onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
-            />
-            <Input
-              placeholder="Locality (e.g. Dwarka, Delhi)"
-              value={form.locality}
-              onChange={(e) => setForm((f) => ({ ...f, locality: e.target.value }))}
-            />
-          </div>
-          {createError && (
-            <Alert variant="destructive">
-              <AlertDescription>{createError}</AlertDescription>
-            </Alert>
-          )}
-          <div className="flex gap-2">
-            <Button size="sm" onClick={handleCreate} disabled={isCreating}>
-              {isCreating ? 'Creating...' : 'Create Lead'}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setIsFormOpen(false);
-                setCreateError(null);
-              }}
-            >
-              Cancel
+            <Button size="sm" onClick={() => setIsFormOpen((open) => !open)}>
+              + New Lead
             </Button>
           </div>
         </div>
-      )}
 
-      {loadError && (
-        <Alert variant="destructive">
-          <AlertDescription>{loadError}</AlertDescription>
-        </Alert>
-      )}
+        {isFormOpen && (
+          <div className="flex flex-col gap-2 rounded border border-gray-200 bg-gray-50 p-3">
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                placeholder="Client name"
+                value={form.clientName}
+                onChange={(e) => setForm((f) => ({ ...f, clientName: e.target.value }))}
+              />
+              <Input
+                placeholder="Phone number"
+                value={form.phone}
+                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              />
+              <Input
+                placeholder="Address"
+                value={form.address}
+                onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+              />
+              <Input
+                placeholder="Locality (e.g. Dwarka, Delhi)"
+                value={form.locality}
+                onChange={(e) => setForm((f) => ({ ...f, locality: e.target.value }))}
+              />
+            </div>
+            {createError && (
+              <Alert variant="destructive">
+                <AlertDescription>{createError}</AlertDescription>
+              </Alert>
+            )}
+            <div className="flex gap-2">
+              <Button size="sm" onClick={handleCreate} disabled={isCreating}>
+                {isCreating ? 'Creating...' : 'Create Lead'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setIsFormOpen(false);
+                  setCreateError(null);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
 
-      {isLoading ? (
-        <div className="flex flex-col gap-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-9 w-full" />
-          ))}
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 text-xs text-gray-500">
-                <th className="py-2 pr-3 font-medium">Client Name</th>
-                <th className="py-2 pr-3 font-medium">Phone Number</th>
-                <th className="py-2 pr-3 font-medium">Location</th>
-                <th className="py-2 pr-3 font-medium">Status</th>
-                <th className="py-2 pr-3 text-right font-medium">Total Quote</th>
-                <th className="py-2 pr-3 font-medium">360° Views</th>
-                <th className="py-2 pl-3 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((customer) => {
-                const status = STATUS_STYLES[customer.status];
-                return (
-                  <tr key={customer.id} className="border-b border-gray-100">
-                    <td className="py-2 pr-3 text-gray-800">{customer.clientName}</td>
-                    <td className="py-2 pr-3 text-gray-600">{customer.phone}</td>
-                    <td className="py-2 pr-3 text-gray-600">{customer.locality}</td>
-                    <td className="py-2 pr-3">
-                      <select
-                        value={customer.status}
-                        disabled={statusUpdatingId === customer.id}
-                        onChange={(e) =>
-                          handleStatusChange(customer.id, e.target.value as LeadStatus)
-                        }
-                        className={`rounded-full border-0 px-2 py-0.5 text-xs font-medium ${status.className}`}
-                      >
-                        {ALL_STATUSES.map((s) => (
-                          <option key={s} value={s}>
-                            {STATUS_STYLES[s].label}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="py-2 pr-3 text-right text-gray-800">
-                      {customer.quoteTotal != null
-                        ? INR_FORMATTER.format(customer.quoteTotal)
-                        : '—'}
-                    </td>
-                    <td className="relative py-2 pr-3">
-                      {panoramasByProject[customer.id]?.length ? (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="xs"
-                            onClick={() =>
-                              setPanoramaMenuProjectId((current) =>
-                                current === customer.id ? null : customer.id
-                              )
-                            }
-                          >
-                            360° Views ({panoramasByProject[customer.id].length})
-                          </Button>
-                          {panoramaMenuProjectId === customer.id && (
-                            <div className="absolute left-0 top-full z-10 mt-1 flex w-48 flex-col gap-1 rounded-lg border border-gray-200 bg-white p-2 shadow-lg">
-                              {panoramasByProject[customer.id].map((camera) => (
-                                <Button
-                                  key={camera.id}
-                                  variant="ghost"
-                                  size="xs"
-                                  className="justify-start"
-                                  onClick={() => {
-                                    setViewingPanoramaCamera(camera);
-                                    setPanoramaMenuProjectId(null);
-                                  }}
-                                >
-                                  {camera.label}
-                                </Button>
-                              ))}
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-xs text-gray-300">—</span>
-                      )}
-                    </td>
-                    <td className="py-2 pl-3 text-right">
-                      <Button size="xs" onClick={() => onOpenCanvas(customer.id)}>
-                        Open 2D Canvas
-                      </Button>
+        {loadError && (
+          <Alert variant="destructive">
+            <AlertDescription>{loadError}</AlertDescription>
+          </Alert>
+        )}
+
+        {isLoading ? (
+          <div className="flex flex-col gap-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-9 w-full" />
+            ))}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 text-xs text-gray-500">
+                  <th className="py-2 pr-3 font-medium">Client Name</th>
+                  <th className="py-2 pr-3 font-medium">Phone Number</th>
+                  <th className="py-2 pr-3 font-medium">Location</th>
+                  <th className="py-2 pr-3 font-medium">Status</th>
+                  <th className="py-2 pr-3 text-right font-medium">Total Quote</th>
+                  <th className="py-2 pr-3 font-medium">360° Views</th>
+                  <th className="py-2 pl-3 font-medium" />
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((customer) => {
+                  const status = STATUS_STYLES[customer.status];
+                  return (
+                    <tr key={customer.id} className="border-b border-gray-100">
+                      <td className="py-2 pr-3 text-gray-800">{customer.clientName}</td>
+                      <td className="py-2 pr-3 text-gray-600">{customer.phone}</td>
+                      <td className="py-2 pr-3 text-gray-600">{customer.locality}</td>
+                      <td className="py-2 pr-3">
+                        <select
+                          value={customer.status}
+                          disabled={statusUpdatingId === customer.id}
+                          onChange={(e) =>
+                            handleStatusChange(customer.id, e.target.value as LeadStatus)
+                          }
+                          className={`rounded-full border-0 px-2 py-0.5 text-xs font-medium ${status.className}`}
+                        >
+                          {ALL_STATUSES.map((s) => (
+                            <option key={s} value={s}>
+                              {STATUS_STYLES[s].label}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="py-2 pr-3 text-right text-gray-800">
+                        {customer.quoteTotal != null
+                          ? INR_FORMATTER.format(customer.quoteTotal)
+                          : '—'}
+                      </td>
+                      <td className="relative py-2 pr-3">
+                        {panoramasByProject[customer.id]?.length ? (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="xs"
+                              onClick={() =>
+                                setPanoramaMenuProjectId((current) =>
+                                  current === customer.id ? null : customer.id
+                                )
+                              }
+                            >
+                              360° Views ({panoramasByProject[customer.id].length})
+                            </Button>
+                            {panoramaMenuProjectId === customer.id && (
+                              <div className="absolute left-0 top-full z-10 mt-1 flex w-48 flex-col gap-1 rounded-lg border border-gray-200 bg-white p-2 shadow-lg">
+                                {panoramasByProject[customer.id].map((camera) => (
+                                  <Button
+                                    key={camera.id}
+                                    variant="ghost"
+                                    size="xs"
+                                    className="justify-start"
+                                    onClick={() => {
+                                      setViewingPanoramaCamera(camera);
+                                      setPanoramaMenuProjectId(null);
+                                    }}
+                                  >
+                                    {camera.label}
+                                  </Button>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-xs text-gray-300">—</span>
+                        )}
+                      </td>
+                      <td className="py-2 pl-3 text-right">
+                        <Button size="xs" onClick={() => onOpenCanvas(customer.id)}>
+                          Open 2D Canvas
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="py-6 text-center text-sm text-gray-400">
+                      {customers.length === 0
+                        ? 'No customers yet — add your first lead.'
+                        : `No clients match "${query}".`}
                     </td>
                   </tr>
-                );
-              })}
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="py-6 text-center text-sm text-gray-400">
-                    {customers.length === 0
-                      ? 'No customers yet — add your first lead.'
-                      : `No clients match "${query}".`}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <PanoramaViewerModal
-        isOpen={viewingPanoramaCamera !== null}
-        onClose={() => setViewingPanoramaCamera(null)}
-        cameraLabel={viewingPanoramaCamera?.label ?? ''}
-        panoramaUrl={viewingPanoramaCamera?.panoramaUrl}
-      />
+        <PanoramaViewerModal
+          isOpen={viewingPanoramaCamera !== null}
+          onClose={() => setViewingPanoramaCamera(null)}
+          cameraLabel={viewingPanoramaCamera?.label ?? ''}
+          panoramaUrl={viewingPanoramaCamera?.panoramaUrl}
+        />
+      </div>
     </div>
   );
 }
