@@ -327,7 +327,7 @@ create table if not exists public.appliance_catalog_items (
   id text primary key,
   label text not null,
   appliance_type text not null
-    check (appliance_type in ('stove', 'chimney', 'oven', 'otg', 'toaster', 'sink')),
+    check (appliance_type in ('stove', 'chimney', 'oven', 'otg', 'toaster', 'sink', 'fridge', 'microwave', 'dishwasher', 'water-purifier')),
   width_mm integer not null,
   depth_mm integer not null,
   height_mm integer not null,
@@ -349,11 +349,13 @@ create table if not exists public.appliance_catalog_items (
 -- 'sink' was added to ApplianceType after this table shipped. A CHECK
 -- constraint isn't altered by `create table if not exists`, so an
 -- existing database would reject sink rows without this.
+-- Widened again for 'fridge'/'microwave'/'dishwasher'/'water-purifier'
+-- (docs/DECISIONS.md, appliance-dimensions-first).
 alter table public.appliance_catalog_items
   drop constraint if exists appliance_catalog_items_appliance_type_check;
 alter table public.appliance_catalog_items
   add constraint appliance_catalog_items_appliance_type_check
-  check (appliance_type in ('stove', 'chimney', 'oven', 'otg', 'toaster', 'sink'));
+  check (appliance_type in ('stove', 'chimney', 'oven', 'otg', 'toaster', 'sink', 'fridge', 'microwave', 'dishwasher', 'water-purifier'));
 
 alter table public.surface_finishes add column if not exists normal_map_url text;
 alter table public.surface_finishes add column if not exists roughness_map_url text;
@@ -1027,6 +1029,39 @@ values
   -- and drawers are always modelled shut. A real BOM item all the same,
   -- so it's here rather than omitted.
   ('fix_drawer_sensor', 'In-drawer sensor light',          'drawer',  4000,  200, 'per-unit',  760, 'biz_default')
+on conflict (id) do nothing;
+
+-- A second, distinct pendant option — 'fix_pendant' above is
+-- deliberately priced with the shade excluded (customer supplies
+-- their own); this one comes with a real modelled industrial shade,
+-- via the .glb already sitting at
+-- public/models/lighting/pendant-industrial.glb (CC0 Poly Haven
+-- hanging_industrial_lamp — see public/models/CREDITS_SOURCED.md).
+-- Own insert statement, own `on conflict (id) do nothing`, rather than
+-- widening the values list above — same reasoning as every other
+-- additive block in this file: never touch what a business may have
+-- already edited.
+--
+-- Was scripts/seed_pendant_fixture.sql, a standalone file never folded
+-- in here — that script also used `on conflict do update`, which
+-- would have overwritten a business's own edits to this row on every
+-- re-run, unlike every other seed in this file. Folded in with the
+-- correct `do nothing` instead, and dropping the UUID-shaped id in
+-- favour of this file's human-readable convention.
+--
+-- UNVERIFIED ORIENTATION: model_rotation_x/y/z_deg are left at 0/0/0,
+-- a starting guess carried over from that script, NOT a confirmed-
+-- correct orientation — there is still no way to render this GLB and
+-- check which way it faces from this environment. If the lamp renders
+-- sideways or upside-down, adjust these three columns (see the
+-- ORIENTATION note in src/components/canvas3d/ApplianceModel.tsx for
+-- what each axis corrects).
+insert into public.light_fixture_catalog
+  (id, label, kind, color_temp_k, lumens, pricing_mode, price, model_url,
+   model_rotation_x_deg, model_rotation_y_deg, model_rotation_z_deg, business_id)
+values
+  ('fix_pendant_industrial', 'Industrial Pendant', 'pendant', 3000, 800, 'per-unit', 2200,
+   '/models/lighting/pendant-industrial.glb', 0, 0, 0, 'biz_default')
 on conflict (id) do nothing;
 
 -- Viewing brightness for the 3D view (the renderer's tone-mapping

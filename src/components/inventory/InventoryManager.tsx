@@ -83,6 +83,10 @@ const APPLIANCE_TYPES: ApplianceType[] = [
   'oven',
   'otg',
   'toaster',
+  'fridge',
+  'microwave',
+  'dishwasher',
+  'water-purifier',
 ];
 
 // The two axes a wrongly-exported .glb actually needs fixing on, named

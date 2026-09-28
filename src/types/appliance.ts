@@ -31,10 +31,35 @@
 // height inside that cabinet's footprint — structurally identical to
 // how every other appliance behaves, so it inherits model rendering,
 // Z-aware collision and per-unit pricing for free.
-// LIMITATION: countertops aren't cut, so a basin reads as sitting ON
-// the worktop rather than inset. Right for a drop-in sink with a
-// visible rim, wrong for an undermount.
-export type ApplianceType = 'stove' | 'chimney' | 'oven' | 'otg' | 'toaster' | 'sink';
+// CORRECTED: this used to say the countertop is never cut for a sink,
+// which stopped being true once sinkCutoutWidthMm/sinkCutoutDepthMm
+// (types/Catalog.ts) and the CountertopMesh cutout rendering
+// (Room3DCanvas.tsx) were built — a catalogue row that sets those
+// dimensions DOES get a real cut, framed as up to 4 boxes rather than
+// a boolean-subtracted hole. Absent cutout dimensions still fall back
+// to the old "basin sits on top of the slab" look, which stays right
+// for a drop-in sink with a visible rim, just no longer the only case.
+//
+// 'fridge', 'dishwasher' and 'water-purifier' added alongside
+// 'microwave' — Delhi NCR modular kitchens commonly need a reserved
+// footprint for all four, even though a fridge is usually customer-
+// supplied and freestanding rather than built in. Adding 'fridge'
+// specifically unblocks a real sink/hob/fridge work triangle later —
+// see the KNOWN GAP comment in lib/kitchenChecks.ts, which is not
+// extended to use it in this pass (deliberately out of scope; that's
+// a kitchen-checks change, not an appliance-catalogue one — see
+// docs/DECISIONS.md).
+export type ApplianceType =
+  | 'stove'
+  | 'chimney'
+  | 'oven'
+  | 'otg'
+  | 'toaster'
+  | 'sink'
+  | 'fridge'
+  | 'microwave'
+  | 'dishwasher'
+  | 'water-purifier';
 
 // Single source of truth for display labels — ApplianceToolbar,
 // InventoryManager, and QuoteSidebar all show appliance types to the
@@ -47,6 +72,10 @@ export const APPLIANCE_TYPE_LABELS: Record<ApplianceType, string> = {
   otg: 'OTG',
   toaster: 'Toaster',
   sink: 'Sink',
+  fridge: 'Refrigerator',
+  microwave: 'Microwave',
+  dishwasher: 'Dishwasher',
+  'water-purifier': 'Water Purifier (RO)',
 };
 
 export interface PlacedApplianceItem {

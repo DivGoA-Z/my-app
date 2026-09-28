@@ -483,27 +483,37 @@ Each of these gets more expensive with everything built on top.
    item: it produces a price, not a cutting list, and doesn't need the
    carpenter's convention to do it. The real panel model — exact
    per-panel dimensions — is still fully blocked on that answer.
-3. **Undo/redo**, while the set of edit actions is still small.
-4. **Autosave**, so nothing is ever lost.
+3. ~~Undo/redo, while the set of edit actions is still small.~~ **Done**
+   — was already built and documented (`docs/DECISIONS.md`, "Undo/redo
+   + autosave" in §6 Interaction) but this list was never updated to
+   say so; corrected here rather than silently. Debounced by
+   edit-signature (500ms), scoped to the open design only (not
+   catalogues/rates/quotes, which persist immediately per-row, or
+   panorama capture, an irreversible storage side effect).
+4. ~~Autosave, so nothing is ever lost.~~ **Done** — same entry as
+   above, same debounce mechanism reused for a 2s-debounced silent
+   `saveProject` call.
 
 ### Phase 2 — Make it sellable
 
-5. **Quote export** — PDF and WhatsApp link. Still the last unbuilt
-   piece of the original brief, and the reason a quote currently cannot
-   leave the app.
-6. **Real rates**, replacing every placeholder. Commercial blocker, not
-   technical. **Partially improved** — hinge/channel hardware rates,
-   material rates by substrate (HDMR/Plywood/BWP; MDF/Particle Board
-   are this app's own guesses, not the business's), two new finishes
-   (basic laminate/acrylic, quartz), and per-cabinet fabrication/others
-   rates now use real or explicitly-flagged-as-guessed Delhi NCR market
-   estimates instead of invented placeholders (see `docs/DECISIONS.md`
-   §12-14). Still placeholders in the sense that matters — a business's
-   own negotiated invoice prices, not a market estimate — so the amber
-   banner stays and this item isn't done. Cost basis vs. selling basis
-   is now a real, separate concept (`marginPercent`, a Cost/Selling
-   toggle in the quote sidebar) rather than margin being implicit
-   inside a guessed catalogue price.
+5. ~~Quote export — PDF and WhatsApp link.~~ **Done** — also already
+   built and undocumented-here; corrected for the same reason as 3/4
+   above. A hosted PDF (`lib/quotePdf.ts`, frozen-quote data only,
+   never the live BOM) uploaded to the `quote-pdfs` bucket
+   (`lib/quotePdfStorage.ts`), opened as a `wa.me` deep link
+   pre-filled with that URL (`lib/whatsapp.ts`) — the customer gets a
+   real tappable document, not a manual attachment. See
+   `docs/DECISIONS.md`, "Quote export" in §6.
+6. **Real rates**, replacing every placeholder. **Marked not required
+   for now — explicit product call, 28 Sep 2026.** Partial work exists
+   (hinge/channel hardware rates, material rates by substrate, cost
+   basis vs. selling basis as a separate concept — `docs/DECISIONS.md`
+   §12-15) but bringing in the business's own negotiated invoice
+   prices to replace the market-estimate placeholders is deprioritized
+   rather than pursued further right now. The amber placeholder-rates
+   banner stays either way (principle 10: approximation is allowed,
+   but never hidden) — this item being deprioritized doesn't mean the
+   disclosure goes away.
 7. ~~Inventory import/export, per the design above. This is
    onboarding.~~ **Done** — Excel round trip (download, edit, upload,
    validate, fix inline, commit) for all five catalogues. Matching is
@@ -536,7 +546,14 @@ Each of these gets more expensive with everything built on top.
 ### Phase 3 — Make it good
 
 9. **Rectilinear room geometry** — arbitrary 90° shapes. A foundation
-   change, but it does not block selling, so it sits here.
+   change, but it does not block selling, so it sits here. **Deferred,
+   28 Sep 2026** — scoped in full (touches ~15-20 files: every wall-
+   relative geometry function, all 8 2D canvas layers, the 3D room
+   shell, persistence) but a multi-session foundation rewrite for a
+   feature whose customer value isn't validated yet. Revisit after
+   real market feedback, or sooner if the panel model (Phase 1 item 2)
+   unblocks first, since that touches walls too. Full scope kept in
+   the plan file rather than lost. See `docs/DECISIONS.md` §27.
 10. **Cabinet library breadth** — tandem, pantry, tambour, corner
     carousel, wicker baskets. Mostly data entry, which makes it cheap.
     **Glass fronts, done** — single-door, double-door, drawers and
@@ -561,7 +578,15 @@ Each of these gets more expensive with everything built on top.
 11. **Appliance dimensions first, appearance second.** Appliances are
     usually customer-supplied in India, so the dimension drives cabinet
     cutouts and clearances. Photoreal models are the last 10% of appeal
-    at most of the cost.
+    at most of the cost. **In progress** — `ApplianceType` widened from
+    6 to 10 values (added `fridge`, `microwave`, `dishwasher`,
+    `water-purifier`), with 5 new starter-catalogue rows at realistic
+    Delhi NCR dimensions. `fridge` specifically unblocks a real
+    sink/hob/fridge work triangle in `checkSinkHobDistance` — not built
+    in this pass, a deliberate follow-up rather than an oversight. The
+    larger version of this item (cabinet cutouts actually sized to a
+    placed appliance, beyond the sink cutout that already exists) is
+    still open. See `docs/DECISIONS.md` §27.
 12. **Kitchen-specific checks** — aisle width, work triangle,
     sink-to-hob distance, hob not under a window, counter run beside the
     hob, chimney centred on the hob. This is what makes the software
@@ -572,9 +597,29 @@ Each of these gets more expensive with everything built on top.
     other checks are advisory-only (`lib/kitchenChecks.ts`), a third
     banner alongside the collision/clearance ones. See
     `docs/DECISIONS.md` §24.
-13. **Present mode** — the customer-facing view.
-14. **The visual assets work** in `VISUAL_ASSETS_PROMPT.md` — HDRI
-    first, then finish scale, then metals on hardware.
+13. ~~Present mode — the customer-facing view.~~ **Done** — a new
+    `'present'` screen (`PresentMode.tsx`), not a stripped copy of the
+    editing one: 3D walkthrough (reuses the existing 3D Preview
+    unchanged) plus a new floor-plan sub-view (no grid/dimensions/
+    warnings/toolbars/inspectors, pointer-events disabled so a stray
+    click can't drag a cabinet mid-presentation), and a designer-
+    tapped price reveal showing the same total the PDF/WhatsApp quote
+    already sends a customer. See `docs/DECISIONS.md` §28. **Not
+    verified in a browser** — no browser automation this session.
+14. ~~The visual assets work in `VISUAL_ASSETS_PROMPT.md` — HDRI
+    first, then finish scale, then metals on hardware.~~ **Done**, and
+    turned out to need far less work than that brief assumed — finish
+    scale/relief, window backdrops, and asset weight/lazy-loading were
+    already fully done in an earlier session that never got folded
+    back into the brief. Real remaining work closed this pass: the
+    already-fetched HDRI is now wired in (alongside the existing
+    Lightformer rig, not replacing it), the sink/chimney box fallback
+    now uses real brushed-steel maps, and the pendant fixture's `.glb`
+    is now actually rendered (`FixtureModel.tsx` existed but was never
+    called). Handle texture maps deliberately skipped — no browser
+    available to make the brief's own "does it look convincing enough
+    already" call, so no schema change on a guess. See
+    `docs/DECISIONS.md` §29.
 
 ### Phase 4 — Production
 

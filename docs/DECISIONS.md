@@ -2971,3 +2971,345 @@ a `mixed` front with a vertical single-door row and a default
 Verified via `npx tsc --noEmit -p tsconfig.app.json`, `npx eslint .`,
 and a full `npm run build` (all clean), plus the script above. **Not
 verified**: rendered in a browser.
+
+## 27. Rectilinear room geometry deferred; appliance-dimensions-first:
+    four new ApplianceTypes, and a stale LIMITATION comment corrected
+
+**Rectilinear room geometry (Phase 3 item 9) — deferred, 28 Sep 2026,
+your call.** Before starting, three parallel research passes mapped
+every rectangle-specific site: the room is stored as exactly two
+scalars (`RoomDimensions.widthMm`/`depthMm`), and "which wall" is a
+hardcoded 4-case switch on `WallOrientation` repeated across
+`surfaceAreas.ts`, `footprint.ts`'s `clampFootprintCenter`,
+`openings.ts`, `kitchenChecks.ts`'s `nearestWall`, all 8 2D canvas
+layers, and `Room3DCanvas.tsx`'s room shell — around 15-20 files with
+real geometry math, several of them (the drag-clamp across a concave
+corner especially) genuinely tricky, verified only by hand-written
+scratch scripts since there's no test runner. That's a multi-session
+foundation rewrite for a feature whose customer value is unvalidated —
+reasonable to defer until either real market feedback says
+non-rectangular rooms matter, or the panel/cutting-list model (Phase 1
+item 2, still blocked on the carpenter's construction convention) gets
+unblocked, since that work touches walls too and is the one thing that
+would make waiting more expensive than it is today. Full scope kept in
+the plan file (`golden-herding-raven.md`) rather than re-derived from
+scratch whenever this is picked back up — two useful pieces of prior
+art already found: `scene3d.ts`'s coordinate helpers are already
+shape-agnostic (no rectangle assumption to undo), and
+`cornerCarouselGeometry` in `Room3DCanvas.tsx` already proves the exact
+`THREE.Shape`+`ExtrudeGeometry` technique a polygon room floor/ceiling
+would reuse.
+
+**Appliance-dimensions-first (Phase 3 item 11) — your call on scope:
+add missing `ApplianceType`s + a dimension-accuracy pass, not the
+larger "cabinet cutouts driven by appliance dimensions" feature.**
+Added `'fridge'`, `'microwave'`, `'dishwasher'`, `'water-purifier'` to
+the 6-value enum (`types/appliance.ts`), plus the same 7 hand-synced
+sites the `pantry-unit` `ModuleType` addition touched earlier this
+session (`APPLIANCE_TYPE_LABELS`, `ApplianceLayer.tsx`'s
+`APPLIANCE_COLORS`, `Room3DCanvas.tsx`'s `APPLIANCE_MESH_COLORS`,
+`InventoryManager.tsx`'s and `applianceImportExport.ts`'s hand-synced
+`APPLIANCE_TYPES` arrays, and the `appliance_type` check constraint in
+`schema.sql`, both the inline definition and the migration block).
+Starter catalogue got 5 new rows (2 fridge sizes, 1 each of microwave/
+dishwasher/water-purifier) with realistic Delhi NCR dimensions —
+`scripts/generate-starter-catalogues.ts`, regenerated
+`appliances-starter.xlsx` (16 rows, up from 11). Verified the new
+types round-trip through the real `exportApplianceCatalogXlsx`/
+`parseApplianceCatalogRows` with zero validation errors (script written
+and deleted, same discipline as the pantry-unit round-trip check).
+
+`fridge` was added specifically because `kitchenChecks.ts`'s own header
+comment already named this exact gap: *"a real work triangle is
+sink/hob/refrigerator, and this app has no fridge ApplianceType...
+presumably why it was never modelled."* **Deliberately not done in this
+pass**: extending `checkSinkHobDistance` into a genuine 3-point work
+triangle now that a fridge type exists. That's a `kitchen-checks.ts`
+change, not an appliance-catalogue one, and it would need new
+ergonomic distance thresholds (fridge-to-hob, fridge-to-sink) invented
+with no more real basis than the existing `MIN_SINK_HOB_MM`/
+`MAX_SINK_HOB_MM` constants already have — not something to add
+without being asked. `kitchenChecks.ts`'s header comment still
+accurately describes the current 2-leg check; only the fact that no
+fridge type exists is now stale, and that's flagged in
+`types/appliance.ts`'s own comment on `fridge` instead of silently
+left wrong.
+
+**Also corrected**: `types/appliance.ts`'s comment on `sink` claimed
+*"LIMITATION: countertops aren't cut, so a basin reads as sitting ON
+the worktop... wrong for an undermount"* — stale. `Catalog.ts`'s
+`sinkCutoutWidthMm`/`sinkCutoutDepthMm` fields and `Room3DCanvas.tsx`'s
+`CountertopMesh` (whose own comment says *"see the LIMITATION note...
+this replaces"*) show the cutout was actually built later and the
+original comment never got corrected — a real instance of one code
+comment going stale while a different file's comment already knew it.
+Fixed in place per this file's own convention: said what was wrong
+rather than silently rewriting it.
+
+Verified via `npx tsc --noEmit -p tsconfig.app.json` and `npx eslint .`
+(both clean) plus the round-trip script above. **Not verified**: the
+new types rendered/placed in a browser (colors chosen for the 2D/3D
+`Record`s are new and unseen).
+
+## 28. Present mode (Phase 3 item 13) — a new screen, not a stripped
+    copy of the editing one
+
+New `PresentMode` component (`src/components/present/PresentMode.tsx`),
+reached via a new "Present" button next to "3D Preview"/"Wall
+Elevation" in the canvas toolbar row (`App.tsx`, new `'present'` view).
+Principle 8 ("two audiences, two views" — no grid, no warnings, no
+inspector panels, price revealed only when the designer chooses) taken
+literally rather than as a checklist to bolt onto the existing editing
+screen.
+
+**Two sub-views, your call**: 3D walkthrough (reuses `Room3DCanvas`
+completely unchanged — the existing "3D Preview" screen was already a
+pure viewer with no editing capability, so nothing needed stripping
+there) and a floor plan (new — `RoomCanvas` + `CabinetLayer`/
+`ObstacleLayer`/`ApplianceLayer`/`OpeningLayer`/`FixtureLayer` only,
+`showDimensions`/`showOverlapWarnings`/`showClearanceWarnings` forced
+`false`, no toolbars/inspectors/banners/`PickChooser`/`CameraLayer`/
+`RemainingSpaceLayer`).
+
+**The floor plan is wrapped in a `pointer-events-none` div rather than
+given a new read-only prop.** `CabinetLayer`'s Konva `draggable` is a
+hardcoded literal, not conditional on any prop — threading a
+`readOnly`/`interactive` flag through 5 layer components just to
+suppress dragging during a presentation was more invasive than the
+problem needed. Blocking pointer events at the DOM level, one div,
+gets the same result (a stray click during a live presentation can't
+move a cabinet) without touching any layer's internals. The 3D branch
+needed no equivalent: `Room3DCanvas` never supported dragging an item
+in the first place.
+
+**Price reveal**: a designer-tapped "Reveal Price"/"Hide Price"
+button, default hidden, shows `useBOM().grandTotal` — the exact number
+the PDF/WhatsApp quote already sends a customer (§6's "Quote export"),
+never the cost-basis view `QuoteSidebar`'s Cost/Selling toggle can
+show. Worth stating plainly: "designer-only" here means a control the
+designer operates, not something hidden from the customer's eyes —
+this is a laptop-first, same-physical-screen product (Principle: "the
+one merciful constraint"), so there is no separate customer display to
+hide it on. The reveal is a deliberate moment, not a secret button.
+
+Own local `INR_FORMATTER`, not imported from `QuoteSidebar.tsx` (not
+exported) or unified with `quotePdf.ts`'s separate formatter — matches
+the pre-existing pattern of each display context having its own,
+rather than a drive-by dedup refactor unrelated to this task.
+
+Verified via `npx tsc --noEmit -p tsconfig.app.json`, `npx eslint .`,
+and `npm run build` (all clean). **Not verified in a browser** — no
+browser automation available this session (see CLAUDE.md's
+verification-limits section); the dev server was started once to
+confirm it serves without a startup error, then stopped. You'll need
+to click through both sub-views and the price reveal yourself before
+trusting this in front of an actual customer.
+
+## 29. Visual assets pass — much less scope than the original brief,
+    because most of it was already done
+
+`public/VISUAL_ASSETS_PROMPT.md` (6 tasks, written in an earlier
+session) explicitly warns its own paths/assumptions may be stale.
+Before touching anything, three parallel research passes verified the
+CURRENT state against that brief. Real finding: **Tasks 2, 5, and 6
+were already fully done** in a session after the brief was written,
+never folded back into it — finish scale/relief (no double-stacking,
+`stone-concrete` already fixed at 512×256 with matching swatch mm),
+window backdrops (real images + a working preset dropdown in
+`OpeningInspector.tsx`), and asset weight (lazy per-finish texture
+loading with real disposal, `pendant-industrial.glb` already
+downscaled to 567KB). None of that was touched this pass — verifying
+it was already correct IS the work, not a reason to redo it.
+
+**Task 1 — HDRI, wired in alongside the Lightformer rig (your call:
+keep both).** An HDRI (`public/hdri/studio-small-09.hdr`) had already
+been fetched and credited in an earlier session but never loaded by
+any component. Added `files="/hdri/studio-small-09.hdr"` to
+`Room3DCanvas.tsx`'s `<Environment>`, which already had 4
+`<Lightformer>` children (themselves having already replaced the old
+CDN `preset="apartment"` — also already done, also not reflected in
+the brief).
+
+Before wiring this, read `node_modules/@react-three/drei/core/
+Environment.js` directly rather than assuming `files` and `children`
+can coexist — they can, but through a specific mechanism worth
+recording: passing both routes `<Environment>` into its
+`EnvironmentPortal` path, which places the loaded HDRI as that
+portal's own virtual scene's background AND renders the Lightformer
+rects as objects inside that same virtual scene, then bakes one
+`CubeCamera` capture of both together into the texture that becomes
+the room's real environment map. So a glossy surface now gets genuine
+directional variation from the HDRI as well as the already-tuned
+Lightformer highlights — not one replacing the other, and not two
+separate uncombined effects either. No new runtime CDN dependency: the
+file is served from `public/`, same as every other asset here.
+
+**Task 3, partial — real metal on the sink/chimney box fallback, no
+schema change.** `useMetalHardwareTextures` (`lib/textures3d.ts`) was
+already fully built — real `metal-brushed-steel` maps, correct
+clone/dispose handling — with a comment literally saying it's for
+"the box-FALLBACK geometry of the sink and chimney/range-hood
+appliances," but nothing called it. Wired into `ApplianceMesh`
+(`Room3DCanvas.tsx`), applied only when `applianceType` is `sink` or
+`chimney` (the hook is still called unconditionally for every
+appliance — hooks can't be conditional — but its result is only used
+for those two). Sized off the box's front face; the same single
+repeat pair reused on every face, which is the simplification the
+hook's own comment already accepts.
+
+**Your call: skip handle texture maps.** No changes to `HandleSpec` or
+the `handles` table. The brief's own Task 3 step 1 says to re-evaluate
+after a real HDRI is in and skip the schema change if flat
+color+metalness+roughness already reads convincingly — I have no
+browser to make that visual call, and the brief's own fallback
+position when it can't be justified is exactly what we did: skip it,
+rather than add 3 columns on a guess.
+
+**Task 4 — the pendant GLB, wired into `FixtureInScene` (far smaller
+than the brief assumed).** Research found `FixtureCatalogItem` already
+had `modelUrl`/`modelRotationX/Y/ZDeg` (mirroring
+`ApplianceCatalogItem`), `schema.sql` already had the matching columns,
+and `FixtureModel.tsx` was already fully built sharing `ApplianceModel.
+tsx`'s `fitModelToBox` pipeline — all from a session after the brief.
+The one real gap: `FixtureInScene` never called it, always rendering
+the primitive regardless of `modelUrl`. Fixed by wrapping the existing
+primitive body as a `fallback` and rendering `<FixtureModel>` in its
+place.
+
+**Deliberately NOT reusing `bodySize` as the model's fit box.**
+`bodySize` is the primitive's generic thin disc/bar marker — the same
+shape convention shared by every fixture kind (90×14×90mm for a
+non-linear fixture) — and fitting a real pendant shade into that would
+squash it flat, the same "smear the shutter" failure `ApplianceModel`'s
+own header warns about for cabinets. Added a separate fixed constant
+(`FIXTURE_MODEL_FIT_WIDTH/HEIGHT/DEPTH_MM` = 260×280×260mm) as a
+plausible industrial-pendant-shade size — genuinely a guess, flagged as
+such in the code comment, since there's no way to eyeball it without a
+browser.
+
+**Also folded in, replacing two now-deleted scratch scripts.**
+`scripts/seed_pendant_fixture.sql` (a real, working, but never-run-via-
+schema.sql insert for the pendant catalogue row) and
+`scripts/add_fixture_model_columns.sql` (a migration for columns
+`schema.sql` already has) were both fully superseded — the columns
+already exist in `schema.sql` via `alter table ... add column if not
+exists`, so only the seed row itself needed folding in. Added as its
+own `insert ... on conflict (id) do nothing` statement (own id
+`fix_pendant_industrial`, not the standalone script's UUID-shaped id,
+matching this file's human-readable convention) rather than widening
+the existing 6-row fixtures insert — same "never touch an existing
+additive block" pattern used throughout this file. Two real, separate
+correctness fixes made in the process, not just a copy-paste: (1) the
+standalone script used `on conflict do update`, which would have
+overwritten a business's own edits to that row on every re-run of
+`schema.sql` — every other seed in this file uses `do nothing`
+specifically to avoid that, so the standalone script was quietly
+violating this file's own established rule; fixed by using `do
+nothing` instead. (2) `fix_pendant` (the existing, unrelated row,
+"Pendant light (shade excluded)") was correctly left untouched — this
+is a genuinely separate catalogue option, not a duplicate, since it's
+deliberately priced without a shade for a customer who supplies their
+own. Kept the standalone script's own honest "UNVERIFIED ORIENTATION,
+0/0/0 is a starting guess" flag rather than presenting it as
+confirmed-correct.
+
+**Bonus item, checked, no change**: re-queried the ambientCG API
+(`https://ambientcg.com/api/v2/full_json?id=<assetId>`) for the 8
+finish assets marked ESTIMATED in `scripts/seed_finishes_and_
+appliances.sql`'s header comment, since I have real network access
+this session. All 8 (`Chipboard004`, `Granite002A`, `Marble021`,
+`Metal050A`, `Metal032`, `Metal046A`, `Metal048A`, `Tiles138`) still
+return `dimensionX`/`dimensionY` = 0 — ambientCG genuinely has no
+physical-size data for these assets, not a stale check. No values
+changed; the existing ESTIMATED numbers remain the best available.
+
+Verified via `npx tsc --noEmit -p tsconfig.app.json`, `npx eslint .`,
+and `npm run build` (all clean). **Not verified in a browser** — same
+limitation as the last two features. What specifically needs your own
+eyes before trusting this: whether the HDRI actually improves chrome/
+quartz reflections over the Lightformer-only look, whether the
+sink/chimney metal texture reads correctly at that scale, and the
+pendant model's actual orientation and fit size once placed — both the
+0/0/0 rotation and the 260×280×260mm fit box are documented guesses,
+not confirmed-correct.
+
+**Follow-up, confirmed in a browser**: sink and chimney both show a
+visible metallic reflection — the `useMetalHardwareTextures` wiring
+and the HDRI are both taking effect. The pendant still renders as the
+primitive stem+disc rather than the real model in the screenshot
+checked — most likely because the placed fixture is still the original
+`fix_pendant` catalogue row (no model) rather than the new
+`fix_pendant_industrial` one, and/or `schema.sql` hadn't been re-run
+yet against the live project when the screenshot was taken, so the new
+row didn't exist to select. Not yet independently confirmed which;
+follow up once you've checked.
+
+## 30. Present mode's price reveal gets a category breakdown, exactly
+    mirroring QuoteSidebar's Selling view
+
+Your request, given with an exact category list and numbers copied
+from your own project. Added a second-level "View price breakdown"
+disclosure inside the existing price-reveal card
+(`PresentMode.tsx`) — Material, Finish, Floor/walls/ceiling,
+Countertop/slab, Hardware, Labour — installation, Fabrication, Other,
+Glass doors, Appliances, then Grand Total.
+
+**Reused QuoteSidebar's own rows and markup formula exactly, rather
+than the 8 you listed.** Your list omitted Countertop/slab and Other —
+correctly, since they're 0 on your current project — but
+`QuoteSidebar`'s Selling view conditionally shows them (`> 0`) for
+exactly that reason: they're real categories that just happen to be
+zero for you right now. Hardcoding only the 8 you listed would silently
+break on a project where countertop pricing IS enabled — the breakdown
+would no longer sum to `grandTotal`, a real violation of Principle 1.
+Each subtotal is converted from cost to selling via the identical
+formula `QuoteSidebar`'s own `markup()` uses (`value * (1 +
+marginPercent / 100)`) — kept as a local `sell()` rather than shared,
+since Present mode has no Cost view to switch away from at all (unlike
+QuoteSidebar, which needs both).
+
+Built as a disclosure toggle (button + conditional render, matching
+this file's existing `showPrice` pattern), not a `<select>` — despite
+"dropdown" in the request, a single-choice picker that collapses after
+one selection is the wrong primitive for a multi-line breakdown meant
+to stay visible and readable as a list.
+
+Verified via `npx tsc --noEmit -p tsconfig.app.json`, `npx eslint .`,
+`npm run build` (all clean). **Not verified in a browser.**
+
+## 31. `docs/Issues.md` was wrong — 22 real open issues were sitting in
+    a mislabeled file, not tracked as open
+
+While preparing a doc bundle for another machine, found three files in
+`docs/` where CLAUDE.md's design calls for one (`docs/ISSUES.md`, with
+a "Fixed" section inside it once items are resolved): `docs/Issues.md`
+(said "(none currently open)"), `docs/ISSUES-FIXED.md` (the real,
+properly-dated fixed log, matching the CLAUDE.md workflow), and
+`docs/Issues_fixed.md` — which, despite its name, was not a fixed log
+at all: 22 undated, unresolved user-reported bugs and feature requests
+(no L-shaped corner cabinet, sink cutout not controllable, tambour-on-
+shelf missing, obstacles can't rotate, two live `TypeError: Failed to
+fetch` reports, and more), never folded into `Issues.md` and never
+treated as the current open list by anything, including this session's
+own `docs/STATUS.md` draft, which repeated "ISSUES.md is currently
+empty" from the previous session's STATUS.md without checking.
+
+Fixed per this file's own rule (§"Keeping the documents true" in
+CLAUDE.md — say what was wrong, don't silently overwrite): the 22
+items moved into `docs/Issues.md` as the real "Open" list, with a note
+at the top of that file explaining the correction; `docs/Issues_fixed.md`
+deleted (its content fully preserved by the move, so nothing was lost,
+just relocated to the correctly-named/correctly-treated file). Left in
+place rather than auto-closed: the two `TypeError: Failed to fetch`
+reports, even though `docs/ISSUES-FIXED.md`'s 2026-09-21 section
+already investigated and closed what read like the same two errors
+(transient network drop, not a code defect) — not certain enough
+they're the same occurrences to close silently, so `Issues.md` now
+carries a cross-reference note instead.
+
+No code changed. This is a documentation-integrity fix only, caught
+because a request to bundle docs for another machine required actually
+reading all three files rather than assuming the filenames were
+trustworthy — the same "distrust your own tooling" lesson CLAUDE.md's
+verification-limits section already states, applied to file names
+instead of scanners.

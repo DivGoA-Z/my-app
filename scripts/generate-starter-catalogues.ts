@@ -172,6 +172,14 @@ const APPLIANCES: ApplianceCatalogItem[] = [
   { id: '', label: 'Compact Toaster', applianceType: 'toaster', widthMm: 300, depthMm: 250, heightMm: 250, defaultElevationMm: 850, unitPrice: 2200, createdAt: now, updatedAt: now },
   { id: '', label: 'Single Bowl Sink 600', applianceType: 'sink', widthMm: 600, depthMm: 450, heightMm: 200, defaultElevationMm: 850, sinkCutoutWidthMm: 540, sinkCutoutDepthMm: 400, unitPrice: 6500, createdAt: now, updatedAt: now },
   { id: '', label: 'Double Bowl Sink 900', applianceType: 'sink', widthMm: 900, depthMm: 500, heightMm: 200, defaultElevationMm: 850, sinkCutoutWidthMm: 820, sinkCutoutDepthMm: 430, unitPrice: 9800, createdAt: now, updatedAt: now },
+  // Freestanding, floor-standing (elevationMm 0), same as the existing
+  // appliances are customer-supplied more often than not in this
+  // market — reserving a real footprint matters more than the model.
+  { id: '', label: 'Single-Door Fridge 190L', applianceType: 'fridge', widthMm: 550, depthMm: 600, heightMm: 1450, defaultElevationMm: 0, unitPrice: 16000, createdAt: now, updatedAt: now },
+  { id: '', label: 'Double-Door Fridge 300L', applianceType: 'fridge', widthMm: 700, depthMm: 700, heightMm: 1750, defaultElevationMm: 0, unitPrice: 32000, createdAt: now, updatedAt: now },
+  { id: '', label: 'Countertop Microwave', applianceType: 'microwave', widthMm: 480, depthMm: 400, heightMm: 300, defaultElevationMm: 850, unitPrice: 8500, createdAt: now, updatedAt: now },
+  { id: '', label: 'Built-In Dishwasher 600', applianceType: 'dishwasher', widthMm: 600, depthMm: 570, heightMm: 820, defaultElevationMm: 0, unitPrice: 34000, createdAt: now, updatedAt: now },
+  { id: '', label: 'Under-Sink RO Purifier', applianceType: 'water-purifier', widthMm: 300, depthMm: 150, heightMm: 400, defaultElevationMm: 1000, unitPrice: 9500, createdAt: now, updatedAt: now },
 ];
 
 const HANDLES: HandleSpec[] = [

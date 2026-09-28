@@ -71,7 +71,12 @@ import { useLayoutStore } from '../../store/layoutStore';
 import { Button } from '../ui/button';
 import { useSelectedCabinetId } from '../../hooks/useSelection';
 import { resolveMaterial } from '../../lib/materials3d';
-import { useSurfaceTextures, useFinishTextures, useOpeningBackdrop } from '../../lib/textures3d';
+import {
+  useSurfaceTextures,
+  useFinishTextures,
+  useOpeningBackdrop,
+  useMetalHardwareTextures,
+} from '../../lib/textures3d';
 import { resolveFinish } from '../../types/finish';
 import {
   hasCountertop,
@@ -88,6 +93,7 @@ import type { CapturePanoramaOptions } from '../../lib/panoramaCapture';
 import { PanoramaViewerModal } from '../panorama/PanoramaViewerModal';
 import { Cabinet3DInspector } from './Cabinet3DInspector';
 import { ApplianceModel } from './ApplianceModel';
+import { FixtureModel } from './FixtureModel';
 import { resolveApplianceModel, resolveSinkCutout, applianceFootprint } from '../../lib/applianceGeometry';
 import { wallSegments } from '../../lib/openings';
 import { resolveAllFixtures, selectRealLights, maxLightsFor } from '../../lib/fixtures';
@@ -477,17 +483,37 @@ export function Room3DCanvas({ widthMm, depthMm }: Room3DCanvasProps) {
         >
           <color attach="background" args={['#dbeafe']} />
 
-          {/* Lighting environment, built from emissive panels instead of
-              an HDR image.
+          {/* Lighting environment: a self-hosted HDRI PLUS the emissive
+              Lightformer panels, composited together, not one instead
+              of the other.
               WAS preset="apartment", which fetched a stock HDR photo
-              from drei's CDN. Two problems with that: it needed network
-              access at runtime, and any glossy surface REFLECTED it —
-              so a photo of someone's apartment hallway, wooden door and
-              all, showed up mirrored in the kitchen floor. A few
-              Lightformer rectangles give the same soft highlights on
-              acrylic and stone with nothing to download, and their
-              reflections read as generic light panels, which is what a
-              real kitchen reflects anyway.
+              from drei's CDN — bad because it needed network access at
+              runtime, and because that specific photo (someone's
+              apartment hallway, wooden door and all) showed up
+              mirrored in every glossy surface, which read as wrong
+              rather than as light. Lightformer rectangles replaced it
+              with nothing to download and reflections that read as
+              generic light panels — correct for a kitchen, but flat:
+              a Lightformer rect has no depth of glare and no gradient,
+              so polished chrome and quartz still looked closer to grey
+              paint than a mirror.
+              A real HDRI (public/hdri/studio-small-09.hdr, CC0 from
+              Poly Haven, self-hosted — see public/hdri/CREDITS.md) is
+              layered back in via the `files` prop below, which is safe
+              to combine with Lightformer children: passing `files`
+              alongside `children` puts drei into its EnvironmentPortal
+              path (confirmed by reading node_modules/@react-three/drei/
+              core/Environment.js directly, not assumed from the docs) —
+              the HDRI is set as that portal's OWN virtual scene's
+              background, the Lightformer rects are placed as objects
+              inside that same virtual scene, and a single CubeCamera
+              capture bakes both together into the one texture that
+              becomes the room's real environment map. So a reflective
+              surface now shows genuine directional variation from the
+              HDRI (the bright/dark gradient a flat rect can't produce)
+              AND still catches the tuned Lightformer highlights. No new
+              runtime CDN dependency either way — the file is served
+              from public/, same as every texture/model here.
               frames={1} bakes it once rather than re-rendering the
               environment every frame — nothing here moves.
               background={false} keeps our own flat backdrop, since an
@@ -502,7 +528,12 @@ export function Room3DCanvas({ widthMm, depthMm }: Room3DCanvasProps) {
               occluded by geometry: these panels sit outside the walls
               and light straight through them, so their strength is the
               only control there is. */}
-          <Environment resolution={256} frames={1} background={false}>
+          <Environment
+            files="/hdri/studio-small-09.hdr"
+            resolution={256}
+            frames={1}
+            background={false}
+          >
             {/* Broad ceiling softbox — the main source of the sheen on
                 horizontal surfaces. */}
             <Lightformer
@@ -1477,6 +1508,13 @@ function PlacedFixtures() {
   );
 }
 
+// Real-world size a placed fixture's GLB model is fitted to — see the
+// comment where these are used in FixtureInScene for why this can't
+// just reuse the primitive's own bodySize.
+const FIXTURE_MODEL_FIT_WIDTH_MM = 260;
+const FIXTURE_MODEL_FIT_HEIGHT_MM = 280;
+const FIXTURE_MODEL_FIT_DEPTH_MM = 260;
+
 function FixtureInScene({
   placement,
   isLit,
@@ -1557,6 +1595,31 @@ function FixtureInScene({
       ? Math.max(0, mmToWorld(placement.suspendedFromMm - placement.zMm))
       : 0;
 
+  const primitiveBody = (
+    <mesh>
+      <boxGeometry args={bodySize} />
+      {/* meshStandardMaterial with emissive rather than
+          meshBasicMaterial: basic would ignore the room's light
+          entirely and the fitting would look like a flat cut-out when
+          switched off. This way the body is a real lit object that
+          ALSO glows when on. */}
+      <meshStandardMaterial
+        color={emissiveOn ? colour : '#3f3f46'}
+        emissive={emissiveOn ? colour : '#000000'}
+        emissiveIntensity={emissiveOn ? FIXTURE_EMISSIVE_INTENSITY : 0}
+        roughness={0.5}
+        metalness={0.2}
+        // TONE MAPPED, unlike before. toneMapped={false} exempted the
+        // body from the scene's exposure curve, so it displayed at
+        // full brightness however dark or bright the room was — the
+        // mechanical reason a fixture could look blazing while
+        // contributing nothing. Now it passes through the same
+        // exposure as the light it casts.
+        toneMapped
+      />
+    </mesh>
+  );
+
   return (
     <group position={position}>
       {stemHeightM > 0 && (
@@ -1566,28 +1629,32 @@ function FixtureInScene({
         </mesh>
       )}
 
-      <mesh>
-        <boxGeometry args={bodySize} />
-        {/* meshStandardMaterial with emissive rather than
-            meshBasicMaterial: basic would ignore the room's light
-            entirely and the fitting would look like a flat cut-out when
-            switched off. This way the body is a real lit object that
-            ALSO glows when on. */}
-        <meshStandardMaterial
-          color={emissiveOn ? colour : '#3f3f46'}
-          emissive={emissiveOn ? colour : '#000000'}
-          emissiveIntensity={emissiveOn ? FIXTURE_EMISSIVE_INTENSITY : 0}
-          roughness={0.5}
-          metalness={0.2}
-          // TONE MAPPED, unlike before. toneMapped={false} exempted the
-          // body from the scene's exposure curve, so it displayed at
-          // full brightness however dark or bright the room was — the
-          // mechanical reason a fixture could look blazing while
-          // contributing nothing. Now it passes through the same
-          // exposure as the light it casts.
-          toneMapped
-        />
-      </mesh>
+      {/* Real GLB body when the catalogue row has one (e.g. the
+          industrial pendant), falling back to the primitive above
+          when unset or on load failure — FixtureModel handles both
+          cases itself. BODY ONLY: the glow/light below stays driven by
+          item.lumens/colorTempK regardless of which body renders, per
+          FixtureModel's own header comment on why a model must never
+          carry its own light. Fitted to a fixed decorative size, NOT
+          bodySize — bodySize is the primitive's generic thin disc/bar
+          marker shared by every fixture kind, and fitting a real
+          pendant shade into a 90x14x90mm box would squash it flat, the
+          same "smear the shutter" failure ApplianceModel's header warns
+          about for cabinets. Unverified in a browser: this fixed size
+          is a plausible guess for an industrial pendant shade, not
+          something I've been able to eyeball. */}
+      <FixtureModel
+        modelUrl={item.modelUrl}
+        orientation={{
+          xDeg: item.modelRotationXDeg ?? 0,
+          yDeg: item.modelRotationYDeg ?? 0,
+          zDeg: item.modelRotationZDeg ?? 0,
+        }}
+        widthMm={FIXTURE_MODEL_FIT_WIDTH_MM}
+        heightMm={FIXTURE_MODEL_FIT_HEIGHT_MM}
+        depthMm={FIXTURE_MODEL_FIT_DEPTH_MM}
+        fallback={primitiveBody}
+      />
 
       {/* The real light, for the budgeted few — AIMED.
           This was a pointLight, which is omnidirectional, so an
@@ -3048,6 +3115,10 @@ const APPLIANCE_MESH_COLORS: Record<ApplianceType, string> = {
   oven: '#52525b',
   otg: '#71717a',
   toaster: '#d4d4d8',
+  fridge: '#e4e4e7',
+  microwave: '#27272a',
+  dishwasher: '#a1a1aa',
+  'water-purifier': '#f4f4f5',
 };
 
 function ApplianceMesh({ item }: { item: PlacedApplianceItem }) {
@@ -3063,6 +3134,19 @@ function ApplianceMesh({ item }: { item: PlacedApplianceItem }) {
   const [worldX, worldZ] = groundPosition(item.x + item.widthMm / 2, item.y + item.depthMm / 2);
   const centerY = mmToWorld(item.elevationMm) + heightM / 2;
 
+  // Real brushed-steel maps for the two appliance types where the box
+  // fallback IS the product's visible material (a sink basin, a
+  // chimney's steel body) rather than a stand-in for painted plastic.
+  // Called unconditionally (hooks can't be conditional) but only
+  // applied to the material below for sink/chimney — cheap for every
+  // other type since useMetalHardwareTextures' useMemo just recomputes
+  // on a box size that never gets read. Sized off the front face
+  // (width x height); the same single repeat pair is reused on every
+  // box face, same simplification useMetalHardwareTextures' own
+  // "box-FALLBACK geometry" comment already accepts.
+  const metalTextures = useMetalHardwareTextures(widthM, heightM);
+  const isMetalHardware = item.applianceType === 'sink' || item.applianceType === 'chimney';
+
   return (
     <mesh
       position={[worldX, centerY, worldZ]}
@@ -3073,6 +3157,9 @@ function ApplianceMesh({ item }: { item: PlacedApplianceItem }) {
       <boxGeometry args={[widthM, heightM, depthM]} />
       <meshStandardMaterial
         color={APPLIANCE_MESH_COLORS[item.applianceType]}
+        map={isMetalHardware ? metalTextures.map : null}
+        normalMap={isMetalHardware ? metalTextures.normalMap : null}
+        roughnessMap={isMetalHardware ? metalTextures.roughnessMap : null}
         roughness={0.4}
         metalness={
           item.applianceType === 'sink' ? 0.75 : item.applianceType === 'stove' ? 0.4 : 0.1

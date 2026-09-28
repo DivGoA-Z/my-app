@@ -61,6 +61,10 @@ const APPLIANCE_COLORS: Record<ApplianceType, string> = {
   oven: 'rgba(251, 146, 60, 0.65)',
   otg: 'rgba(250, 204, 21, 0.65)',
   toaster: 'rgba(74, 222, 128, 0.65)',
+  fridge: 'rgba(96, 165, 250, 0.65)',
+  microwave: 'rgba(192, 132, 252, 0.65)',
+  dishwasher: 'rgba(45, 212, 191, 0.65)',
+  'water-purifier': 'rgba(56, 189, 248, 0.65)',
 };
 
 const COLLISION_OVERLAY_FILL = 'rgba(220, 38, 38, 0.45)'; // red-600 @ 45% — matches CabinetLayer

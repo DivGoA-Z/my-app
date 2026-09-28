@@ -30,7 +30,18 @@ import {
 
 // Duplicated from InventoryManager.tsx's own APPLIANCE_TYPES const —
 // see cabinetImportExport.ts's MODULE_TYPES comment for why.
-const APPLIANCE_TYPES: readonly ApplianceType[] = ['stove', 'chimney', 'oven', 'otg', 'toaster', 'sink'];
+const APPLIANCE_TYPES: readonly ApplianceType[] = [
+  'stove',
+  'chimney',
+  'oven',
+  'otg',
+  'toaster',
+  'sink',
+  'fridge',
+  'microwave',
+  'dishwasher',
+  'water-purifier',
+];
 
 const SHEET_NAME = 'Appliances';
 const HEADERS = [

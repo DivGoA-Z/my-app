@@ -30,6 +30,7 @@ import { InventoryManager, type InventorySection } from './components/inventory/
 import { Room3DCanvas } from './components/canvas3d/Room3DCanvas';
 import { WallElevationView } from './components/elevation/WallElevationView';
 import { QuoteSidebar } from './components/quote/QuoteSidebar';
+import { PresentMode } from './components/present/PresentMode';
 import { CustomerDashboard } from './components/dashboard/CustomerDashboard';
 import { useLayoutStore } from './store/layoutStore';
 import { useAuthStore } from './store/authStore';
@@ -49,7 +50,7 @@ import { Label } from './components/ui/label';
 const DEFAULT_ROOM_WIDTH_MM = 3000;
 const DEFAULT_ROOM_DEPTH_MM = 4000;
 
-type View = 'dashboard' | 'canvas' | 'inventory' | 'preview3d' | 'elevation';
+type View = 'dashboard' | 'canvas' | 'inventory' | 'preview3d' | 'elevation' | 'present';
 
 function App() {
   const [view, setView] = useState<View>('dashboard');
@@ -176,6 +177,10 @@ function App() {
 
   if (view === 'elevation') {
     content = <WallElevationView onClose={() => setView('canvas')} />;
+  } else if (view === 'present') {
+    content = (
+      <PresentMode widthMm={roomWidthMm} depthMm={roomDepthMm} onExit={() => setView('canvas')} />
+    );
   } else if (view === 'preview3d') {
     content = (
       <div className="flex flex-col gap-4 p-8">
@@ -246,6 +251,10 @@ function App() {
 
         <Button variant="outline" size="sm" onClick={() => setView('preview3d')}>
           3D Preview
+        </Button>
+
+        <Button variant="outline" size="sm" onClick={() => setView('present')}>
+          Present
         </Button>
 
         <div className="flex items-center gap-2">
