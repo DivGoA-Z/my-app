@@ -58,7 +58,7 @@ import {
   deleteFixtureCatalogItemsBulk,
 } from '../lib/fixtureCatalog';
 import { fetchRateCard, saveRateCard } from '../lib/rates';
-import { fetchQuotes, freezeQuote, fingerprintPricedInputs } from '../lib/quotes';
+import { fetchQuotes, freezeQuote, fingerprintPricedInputs, markQuoteSent } from '../lib/quotes';
 import type { FrozenQuote } from '../types/quote';
 import { defaultRateCard, sanitizeRateCard, type RateCard } from '../types/rates';
 import type { FixtureCatalogItem, LightFixture, LightingMode } from '../types/fixture';
@@ -353,6 +353,12 @@ interface LayoutStore {
   // Freezes what is on screen right now as the next version. Returns
   // the frozen row so the caller can show/print it immediately.
   freezeCurrentQuote: (note?: string) => Promise<FrozenQuote | null>;
+  // Records that a quote was actually shared on WhatsApp — see
+  // markQuoteSent's own comment in lib/quotes.ts. Updates the matching
+  // row in `quotes` locally rather than a full loadQuotes() round
+  // trip, same "optimistic-ish, but only after the write actually
+  // succeeded" shape freezeCurrentQuote already uses.
+  markCurrentQuoteSent: (quoteId: string) => Promise<void>;
   upsertHandle: (handle: HandleSpec) => Promise<void>;
   bulkUpsertHandles: (handles: HandleSpec[], deleteIds?: string[]) => Promise<void>;
   removeHandle: (id: string) => Promise<void>;
@@ -1135,6 +1141,17 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
         quoteError: err instanceof Error ? err.message : 'Failed to freeze quote.',
       });
       return null;
+    }
+  },
+
+  markCurrentQuoteSent: async (quoteId) => {
+    try {
+      const sentAt = await markQuoteSent(quoteId);
+      set((state) => ({
+        quotes: state.quotes.map((q) => (q.id === quoteId && !q.sentAt ? { ...q, sentAt } : q)),
+      }));
+    } catch (err) {
+      set({ quoteError: err instanceof Error ? err.message : 'Failed to record quote as sent.' });
     }
   },
 

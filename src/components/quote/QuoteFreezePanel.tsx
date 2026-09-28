@@ -52,6 +52,7 @@ export function QuoteFreezePanel() {
   const currentProject = useLayoutStore((s) => s.currentProject);
   const loadQuotes = useLayoutStore((s) => s.loadQuotes);
   const freezeCurrentQuote = useLayoutStore((s) => s.freezeCurrentQuote);
+  const markCurrentQuoteSent = useLayoutStore((s) => s.markCurrentQuoteSent);
   const isFreezing = useLayoutStore((s) => s.isFreezingQuote);
   const quoteError = useLayoutStore((s) => s.quoteError);
 
@@ -129,6 +130,11 @@ export function QuoteFreezePanel() {
       // not done with it.
       window.open(buildWhatsAppLink(targetPhone, message), '_blank');
       toast.success('Opening WhatsApp…');
+      // Best-effort: the share itself already happened (the WhatsApp
+      // tab is open) by this point, so a failure recording sent_at
+      // shouldn't read as the share having failed — markCurrentQuoteSent
+      // already surfaces its own error via quoteError if it does.
+      void markCurrentQuoteSent(latest.id);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to share quote.';
       setExportError(errorMessage);
@@ -160,6 +166,13 @@ export function QuoteFreezePanel() {
             <span>{INR.format(latest.grandTotal)}</span>
           </div>
           <div className="mt-0.5">Frozen {formatDate(latest.frozenAt)}</div>
+          <div className="mt-0.5">
+            {latest.sentAt ? (
+              <>Sent on WhatsApp {formatDate(latest.sentAt)}</>
+            ) : (
+              <span className="text-amber-700">Not yet sent — frozen, but never shared</span>
+            )}
+          </div>
           {latest.note && <div className="mt-0.5 italic">{latest.note}</div>}
           {status === 'stale' ? (
             <p className="mt-1.5">
@@ -266,8 +279,8 @@ export function QuoteFreezePanel() {
         {isFreezing
           ? 'Freezing…'
           : latest
-            ? `Freeze v${latest.version + 1} & send`
-            : 'Freeze & send'}
+            ? `Freeze v${latest.version + 1}`
+            : 'Freeze quote'}
       </Button>
 
       <p className="text-[11px] text-gray-500">

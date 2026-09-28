@@ -1293,7 +1293,23 @@ create table if not exists public.quotes (
   frozen_at timestamptz not null default now(),
   -- Free text: "Sent on WhatsApp 12 Aug", "revised after site visit".
   note text,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- When this quote was actually shared via WhatsApp — NOT when it was
+  -- frozen (frozen_at, above). Freezing and sending used to be
+  -- conflated: the "Freeze & send" button only ever froze the row,
+  -- and the two export buttons that appeared afterward (Download PDF,
+  -- Share on WhatsApp) never recorded anything back. Null means
+  -- "frozen but never actually sent" — a real, distinct state, since
+  -- a designer can freeze a quote to lock in the numbers without
+  -- sharing it yet. Deliberately set only by the WhatsApp share path,
+  -- not Download — downloading a PDF is the designer grabbing a copy
+  -- for themselves, not evidence the customer received anything.
+  -- Deliberately NOT proof of delivery either (a wa.me link only opens
+  -- WhatsApp with the message pre-filled; there is no way for this
+  -- app to know whether the person actually pressed send inside
+  -- WhatsApp) — it's "the share action was taken," the best signal
+  -- available from a browser.
+  sent_at timestamptz
 );
 
 -- One row per version per project, so a double-click on "Freeze & send"
@@ -1305,6 +1321,13 @@ create index if not exists quotes_project_idx
   on public.quotes (project_id, version desc);
 
 alter table public.quotes add column if not exists business_id text references public.businesses(id);
+-- Added after quotes already shipped — see the column's own comment
+-- in the create table block above for why it exists and what it does
+-- and doesn't mean. `if not exists` per this file's own idempotency
+-- rule: `create table if not exists` is a no-op on an existing table,
+-- so a column added to that block alone never reaches a database that
+-- already has this table without this explicit alter too.
+alter table public.quotes add column if not exists sent_at timestamptz;
 
 -- ============================================================
 -- BUSINESS ISOLATION (RLS)

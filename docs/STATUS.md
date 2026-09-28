@@ -12,9 +12,26 @@ where reasoning is recorded and `git log` is where the history is.
 
 ---
 
-**Last updated:** 28 Sep 2026
+**Last updated:** 29 Sep 2026
 
 ## Where things stand
+
+**New, confirmed working end-to-end**: "Freeze & send" never actually
+sent anything — freezing writes the quote immediately, and the two
+export buttons that appeared afterward (Download PDF, Share on
+WhatsApp) never recorded anything back, so the button's own label was
+false. Fixed with a new `sent_at` timestamp on `quotes` (needs a
+`schema.sql` re-run), set only by Share on WhatsApp (Download
+deliberately doesn't count — that's the designer grabbing a copy, not
+evidence of delivery; true delivery confirmation isn't possible at
+all, since a `wa.me` link has no callback once the tab opens). The
+button is renamed "Freeze quote" now that it doesn't claim to send;
+the sidebar shows "Sent on WhatsApp {date}" or an amber "Not yet
+sent"; the dashboard's quote-history dropdown only lists quotes that
+were actually shared, not just frozen. Confirmed live — including a
+real ~13% current-vs-frozen total gap that turned out to be a genuine
+priced-input change (most likely margin %), not a bug, resolved by
+freezing v3. See `docs/DECISIONS.md` §34.
 
 **Checkpoint, later the same day**: you went through last session's
 unverified items live in the browser. Present mode, glass fronts,

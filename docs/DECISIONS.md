@@ -1184,10 +1184,16 @@ Fill these in from memory before relying on this document.
    entry never mentioned at all: `fetch_backdrops.py`,
    `fetch_finish_textures.py`, `fetch_hdri.py`, `fetch_textures.py`,
    `gltf_to_glb.mjs`, and `generate-starter-catalogues.ts`.
-7. **`quote_total` on `projects`** duplicates a frozen quote's
+7. ~~`quote_total` on `projects` duplicates a frozen quote's
    `grand_total`. Which is authoritative for the dashboard, and whether
    the column should now be derived from the latest frozen quote, is
-   undecided.
+   undecided.~~ **Superseded, not resolved by picking one** — §34's
+   `sent_at` work sidesteps the either/or entirely. The dashboard now
+   shows BOTH, clearly separated: `quote_total` (still the live
+   design's own running total, labelled "Current design") at the top
+   of the quote-history dropdown, and every actually-sent frozen quote
+   listed below it. Neither column had to become "the" authoritative
+   one.
 8. ~~Supabase Storage bucket configuration.~~ **Resolved:**
    `schema.sql` does create both buckets (`panoramas` and
    `material-swatches`) as public, with read and insert policies. No
@@ -3569,3 +3575,78 @@ future. Verified via `npx tsc --noEmit -p tsconfig.app.json`,
 `npx eslint .`, and a full `npm run build` (all clean), plus confirmed
 correct in the browser by you across three separate real layouts this
 session.
+
+## 34. `sent_at` on quotes: "frozen" and "actually sent" were the same
+    moment, and the button lied about it
+
+Your report: **"the button says 'freeze and send' but it does not
+actually send. it leads to 2 buttons of download or send on
+whatsapp."** True, and worth taking literally rather than dismissing
+as a labelling nitpick — freezing a quote (`freezeCurrentQuote`) writes
+the row to the database immediately; Download PDF and Share on
+WhatsApp, which only appear afterward, are pure export/share actions
+on the already-frozen row, and neither one recorded anything back
+until this change. So the button's own claim ("& send") was simply
+false — the quote existed in the database whether or not either
+follow-up button was ever touched.
+
+**Your scope, explicit and narrower than the obvious version**: only
+**Share on WhatsApp** should count as "sent" — deliberately not
+Download PDF, since downloading a PDF is the designer grabbing a copy
+for themselves, not evidence of anything reaching the customer. You
+also asked whether ACTUAL delivery (the message really landing in
+WhatsApp) could be tracked — it can't: a `wa.me` link only opens
+WhatsApp with the message pre-filled, and there is no callback from
+WhatsApp back to this app once that tab opens. You accepted the
+button-click signal as the best available, explicitly.
+
+**What changed**:
+- New nullable `sent_at timestamptz` on `quotes` (`schema.sql`, both
+  the `create table` definition for a fresh install and an explicit
+  `alter table ... add column if not exists` for an existing one —
+  `create table if not exists` is a no-op against a table that already
+  exists, so the column-in-the-create-block alone would never have
+  reached your live database).
+- `lib/quotes.ts`'s new `markQuoteSent(quoteId)` sets it once, guarded
+  by `.is('sent_at', null)` so a second share doesn't restamp the
+  first real send — the FIRST time it actually went out is the fact
+  worth keeping, even though `sent_at` itself sits outside the frozen
+  pricing content this file's other rules protect.
+- `QuoteFreezePanel.tsx`'s `shareOnWhatsApp` calls it right after
+  `window.open(...)`, best-effort — the share itself already happened
+  by that point (the tab is open), so a failure recording the
+  timestamp surfaces via `quoteError` rather than reading as the share
+  having failed.
+- The button is renamed: `Freeze & send` → `Freeze quote` / `Freeze
+  v{n} & send` → `Freeze v{n}` — it never sent anything, so it stops
+  claiming to. The quote status card now shows "Sent on WhatsApp
+  {date}" or, in amber (this app's fixed "needs attention" colour,
+  applied consistently regardless of the card's own stale/current
+  background), "Not yet sent — frozen, but never shared".
+- `CustomerDashboard.tsx`'s quote-history dropdown (§ the unified
+  alerts/dropdown work earlier this session) now filters to
+  `sent_at IS NOT NULL` — a quote that's frozen but never shared has
+  no business appearing in a "what has this customer been sent" list,
+  only in "Current design" at the top, same as before. A new
+  `fetchAllQuoteHistoriesByProject` (`lib/quotes.ts`) selects only the
+  columns that list needs, not full `summary`/`pricing_context` JSONB,
+  for the same "don't load more than the screen needs" reason
+  `panoramasByProject`'s own bulk fetch already established.
+
+**A real side-effect confirmed live, not a bug**: right after this
+shipped, you saw the sidebar's "Current design" total read ~13% lower
+than a frozen v2's total, despite believing nothing had changed, and
+asked why. The staleness check compares a fingerprint of every priced
+input — rates, margin, catalogue prices, finishes/handles/fixtures,
+not just cabinet placement — so a total that size of a swing meant
+something real had moved (most likely the per-project margin percent,
+the single easiest number to nudge by accident) between when v2 was
+frozen and now. Freezing v3 reconciled it, confirming the mechanism
+was working correctly rather than pointing at a bug in this session's
+own changes.
+
+Verified via `npx tsc --noEmit -p tsconfig.app.json`, `npx eslint .`,
+and a full `npm run build` (all clean), and confirmed working
+end-to-end in the browser: freezing, sharing on WhatsApp, the sidebar
+status flipping to "Sent," and the dashboard dropdown picking up the
+newly-sent quote.

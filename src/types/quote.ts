@@ -57,6 +57,11 @@ export interface FrozenQuote {
   // summary.grandTotal.
   grandTotal: number;
   frozenAt: string;
+  // When this quote was actually shared via WhatsApp — undefined means
+  // frozen but never sent, a real and distinct state from "frozen".
+  // See sent_at's own comment in supabase/schema.sql for what this
+  // does and doesn't prove.
+  sentAt?: string;
   note?: string;
 }
 

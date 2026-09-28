@@ -16,10 +16,12 @@
 // nodes) and then PanoramaViewerModal for whichever one is chosen.
 
 import { useEffect, useMemo, useState } from 'react';
+import { ChevronRightIcon } from 'lucide-react';
 import type { CustomerProject, LeadStatus } from '../../types/customer';
 import type { CameraNode } from '../../types/Camera';
 import { fetchCustomers, createCustomer, updateCustomerStatus } from '../../lib/customers';
 import { fetchCapturedPanoramasByProject } from '../../lib/Persistence';
+import { fetchAllQuoteHistoriesByProject, type QuoteHistoryEntry } from '../../lib/quotes';
 import { PanoramaViewerModal } from '../panorama/PanoramaViewerModal';
 import { FirstRunChecklist } from './FirstRunChecklist';
 import { useAuthStore } from '../../store/authStore';
@@ -58,6 +60,16 @@ const INR_FORMATTER = new Intl.NumberFormat('en-IN', {
   maximumFractionDigits: 0,
 });
 
+function formatQuoteDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 interface NewLeadForm {
   clientName: string;
   phone: string;
@@ -92,6 +104,16 @@ export function CustomerDashboard({ onOpenCanvas, onManageInventory }: CustomerD
   const [panoramaMenuProjectId, setPanoramaMenuProjectId] = useState<string | null>(null);
   const [viewingPanoramaCamera, setViewingPanoramaCamera] = useState<CameraNode | null>(null);
 
+  // projectId -> every quote ever sent for it, newest-first — feeds
+  // the "Quote" column's dropdown (datetime + amount per sent quote,
+  // plus the live current total above them). Same best-effort
+  // non-blocking shape as panoramasByProject: a failure here just
+  // means the dropdown shows nothing extra, not a dashboard error.
+  const [quoteHistoriesByProject, setQuoteHistoriesByProject] = useState<
+    Record<string, QuoteHistoryEntry[]>
+  >({});
+  const [quoteMenuProjectId, setQuoteMenuProjectId] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     // No setIsLoading(true) here — this effect only ever runs once on
@@ -117,6 +139,13 @@ export function CustomerDashboard({ onOpenCanvas, onManageInventory }: CustomerD
       })
       .catch(() => {
         // Non-critical — see the comment above panoramasByProject.
+      });
+    fetchAllQuoteHistoriesByProject()
+      .then((map) => {
+        if (!cancelled) setQuoteHistoriesByProject(map);
+      })
+      .catch(() => {
+        // Non-critical — see the comment above quoteHistoriesByProject.
       });
     return () => {
       cancelled = true;
@@ -268,7 +297,7 @@ export function CustomerDashboard({ onOpenCanvas, onManageInventory }: CustomerD
                   <th className="py-2 pr-3 font-medium">Phone Number</th>
                   <th className="py-2 pr-3 font-medium">Location</th>
                   <th className="py-2 pr-3 font-medium">Status</th>
-                  <th className="py-2 pr-3 text-right font-medium">Total Quote</th>
+                  <th className="py-2 pr-3 text-right font-medium">Quotes</th>
                   <th className="py-2 pr-3 font-medium">360° Views</th>
                   <th className="py-2 pl-3 font-medium" />
                 </tr>
@@ -297,10 +326,52 @@ export function CustomerDashboard({ onOpenCanvas, onManageInventory }: CustomerD
                           ))}
                         </select>
                       </td>
-                      <td className="py-2 pr-3 text-right text-gray-800">
-                        {customer.quoteTotal != null
-                          ? INR_FORMATTER.format(customer.quoteTotal)
-                          : '—'}
+                      <td className="relative py-2 pr-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setQuoteMenuProjectId((current) =>
+                              current === customer.id ? null : customer.id
+                            )
+                          }
+                          className="inline-flex items-center justify-end gap-1 text-gray-500 hover:text-gray-800"
+                          aria-label="Show quote history"
+                        >
+                          <ChevronRightIcon
+                            className={`size-4 shrink-0 transition-transform ${
+                              quoteMenuProjectId === customer.id ? 'rotate-90' : ''
+                            }`}
+                          />
+                        </button>
+                        {quoteMenuProjectId === customer.id && (
+                          <div className="absolute right-0 top-full z-10 mt-1 flex w-56 flex-col gap-1 rounded-lg border border-gray-200 bg-white p-2 text-left shadow-lg">
+                            <div className="flex items-center justify-between gap-2 border-b border-gray-100 pb-1 text-xs">
+                              <span className="text-gray-500">Current design</span>
+                              <span className="font-medium text-gray-800">
+                                {customer.quoteTotal != null
+                                  ? INR_FORMATTER.format(customer.quoteTotal)
+                                  : '—'}
+                              </span>
+                            </div>
+                            {(quoteHistoriesByProject[customer.id] ?? []).length === 0 ? (
+                              <div className="py-1 text-xs text-gray-400">No quotes sent yet.</div>
+                            ) : (
+                              (quoteHistoriesByProject[customer.id] ?? []).map((q) => (
+                                <div
+                                  key={q.id}
+                                  className="flex items-center justify-between gap-2 text-xs"
+                                >
+                                  <span className="text-gray-500">
+                                    {formatQuoteDateTime(q.sentAt)} · v{q.version}
+                                  </span>
+                                  <span className="text-gray-700">
+                                    {INR_FORMATTER.format(q.grandTotal)}
+                                  </span>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="relative py-2 pr-3">
                         {panoramasByProject[customer.id]?.length ? (

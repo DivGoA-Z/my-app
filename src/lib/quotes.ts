@@ -47,6 +47,7 @@ interface QuoteRow {
   frozen_at: string;
   note: string | null;
   created_at: string;
+  sent_at: string | null;
 }
 
 function rowToQuote(row: QuoteRow): FrozenQuote {
@@ -58,6 +59,7 @@ function rowToQuote(row: QuoteRow): FrozenQuote {
     pricingContext: row.pricing_context,
     grandTotal: row.grand_total,
     frozenAt: row.frozen_at,
+    sentAt: row.sent_at ?? undefined,
     note: row.note ?? undefined,
   };
 }
@@ -71,6 +73,78 @@ export async function fetchQuotes(projectId: string): Promise<FrozenQuote[]> {
 
   if (error) throw new Error(`Failed to load quotes: ${error.message}`);
   return (data as QuoteRow[]).map(rowToQuote);
+}
+
+// Records that a quote was actually shared on WhatsApp — called from
+// QuoteFreezePanel's shareOnWhatsApp, never from the PDF download path
+// (downloading is the designer grabbing a copy, not evidence the
+// customer received anything — see sent_at's own comment in
+// supabase/schema.sql). `is('sent_at', null)` guards against a second
+// share re-stamping the timestamp — the FIRST time it was actually
+// sent is the fact worth keeping, same "a frozen quote never changes"
+// spirit as the row it lives on, even though sent_at itself isn't
+// part of the frozen pricing content.
+export async function markQuoteSent(quoteId: string): Promise<string> {
+  const sentAt = new Date().toISOString();
+  const { error } = await supabase
+    .from('quotes')
+    .update({ sent_at: sentAt })
+    .eq('id', quoteId)
+    .is('sent_at', null);
+
+  if (error) throw new Error(`Failed to record quote as sent: ${error.message}`);
+  return sentAt;
+}
+
+// Just enough per quote to list a project's SENT-quote history — id,
+// version, total, when it was actually sent. Deliberately NOT the
+// full FrozenQuote: the dashboard's per-row dropdown
+// (CustomerDashboard.tsx) needs this for every project at once, and
+// pulling every quote's full summary/pricing_context JSONB (the
+// catalogue snapshot, potentially large) for a list that only ever
+// shows a date and an amount would be real wasted weight, the same
+// "don't load more than the screen needs" discipline this app already
+// applies to lazy texture loading.
+export interface QuoteHistoryEntry {
+  id: string;
+  version: number;
+  grandTotal: number;
+  sentAt: string;
+}
+
+// Same "bulk-fetch across every project, group client-side by
+// project_id" shape as fetchCapturedPanoramasByProject
+// (lib/Persistence.ts) — one query for the whole dashboard rather
+// than one per row. Filtered to sent_at IS NOT NULL — a quote that
+// was frozen but never actually shared on WhatsApp has no business
+// appearing in a "what has this customer been sent" list; see
+// sent_at's own comment in supabase/schema.sql. Newest-first per
+// project, same ordering fetchQuotes already uses.
+export async function fetchAllQuoteHistoriesByProject(): Promise<Record<string, QuoteHistoryEntry[]>> {
+  const { data, error } = await supabase
+    .from('quotes')
+    .select('id, project_id, version, grand_total, sent_at')
+    .not('sent_at', 'is', null)
+    .order('version', { ascending: false });
+
+  if (error) throw new Error(`Failed to load quote histories: ${error.message}`);
+
+  const byProject: Record<string, QuoteHistoryEntry[]> = {};
+  for (const row of data as {
+    id: string;
+    project_id: string;
+    version: number;
+    grand_total: number;
+    sent_at: string;
+  }[]) {
+    (byProject[row.project_id] ??= []).push({
+      id: row.id,
+      version: row.version,
+      grandTotal: row.grand_total,
+      sentAt: row.sent_at,
+    });
+  }
+  return byProject;
 }
 
 export async function fetchLatestQuote(projectId: string): Promise<FrozenQuote | null> {
