@@ -128,6 +128,57 @@ checkbox for the same field — this was a control-type conversion
 pass, not a redesign of which control each field uses. See
 `docs/DECISIONS.md` §21.
 
+Roadmap item 8's remaining two pieces, done together: **consistency
+rules**, audited rather than assumed — a scan of every toolbar/
+inspector/dashboard panel found the app was already overwhelmingly
+consistent in practice (one real drift found and fixed: this same
+session's own `FirstRunChecklist` heading), so the scale is now
+written down in `docs/PRINCIPLES.md` rather than left implicit; and
+**keyboard** — a new `useSelectionShortcuts` hook adds Delete/
+Backspace (remove whatever's selected), Escape (deselect) and arrow
+keys (nudge a cabinet/obstacle/appliance — 10mm plain, the room's own
+grid step with Shift), all gated to the 2D canvas view only so a stale
+selection from another screen can't silently act on it. New shared
+geometry helper `nudgeFootprint` (`lib/footprint.ts`), verified against
+a plain cabinet, one already near the room edge, and a rotated one.
+See `docs/DECISIONS.md` §22.
+
+Roadmap item 10 (cabinet library breadth): pantry, tandem and wicker
+baskets. Pantry needed a real new `ModuleType` (`'pantry-unit'`, its
+own multi-tier wire-basket default front) — a catalogue-row-only first
+attempt was caught losing its front configuration silently on the
+Excel round trip (`frontLayout` is deliberately excluded from that
+format) before it ever shipped. Tandem was already fully priced (every
+`drawer-unit` row already gets tandem-box-rate channels), so this
+added a genuinely new width (1200mm) instead of a same-size duplicate.
+Wicker baskets are the pantry unit's own basket hardware, not a
+separate priced product. Two new starter-catalogue rows, verified by
+round-tripping the regenerated xlsx through the real parser and
+front-breakdown functions. See `docs/DECISIONS.md` §23.
+
+Roadmap item 12 (kitchen-specific checks): aisle width, sink-to-hob
+distance, hob-not-under-a-window, a landing counter beside the hob,
+and chimney-centred-on-hob — a new advisory-only `lib/kitchenChecks.ts`
+and a third amber banner (`KitchenChecksBanner`) alongside the
+collision/clearance ones, its own show/hide toggle. A real bug caught
+by a constructed-scenario verification script before it shipped: reusing
+`surfaceAreas.ts`'s edge-based `isAgainstWall` for "which wall is this
+against" turned every ordinary single-wall counter run into a phantom
+second run at the room's corners; fixed with a separate,
+centre-distance-based `nearestWall` test that has no such ambiguity —
+confirmed against a one-sided layout, a genuine L-shaped kitchen, and
+independent north-south/east-west galleys. No full work triangle
+(sink/hob/fridge) — this app has no fridge `ApplianceType`, so only the
+sink-hob leg is checked, stated as a known gap rather than faked. See
+`docs/DECISIONS.md` §24.
+
+A second real false-positive, caught by you in the browser this time,
+not a constructed scenario: "no counter beside the hob" fired even
+with base cabinets on both sides — the adjacency tolerance (60mm,
+borrowed from a "does this touch the wall" test) was far stricter
+than a normal installation gap. Widened to 150mm and confirmed against
+your actual layout. See `docs/DECISIONS.md` §24 (corrected in place).
+
 ## Built and working
 
 2D plan (room, obstacles, cabinets, appliances, doors and windows, light
@@ -151,7 +202,13 @@ whole app — inspectors, toolbars, InventoryManager, all 5 Excel review
 grids — migrated to shadcn) · material cost priced by area and
 substrate, alongside labour, not just a flat catalogue number · glass
 fronts (single-door, double-door, drawers, open-shelf), four tints,
-priced separately by tint and rendered as real tinted glass in 3D.
+priced separately by tint and rendered as real tinted glass in 3D ·
+keyboard shortcuts (Delete/Backspace, Escape, arrow-key nudge) for
+whatever's selected on the 2D canvas · a pantry pull-out cabinet
+(its own ModuleType, wire-basket trolley front) and a wider tandem
+drawer bank · kitchen-ergonomics advisory checks (aisle width,
+sink-hob distance, hob-under-window, landing counter beside the hob,
+chimney centring) as a third canvas banner.
 
 ## Not built
 
@@ -167,6 +224,29 @@ priced separately by tint and rendered as real tinted glass in 3D.
 
 ## Known unverified
 
+- Manual horizontal/vertical override for gola/edge-profile on doors
+  (single-door/double-door, per row in a mixed front) —
+  `docs/DECISIONS.md` §26. Verified numerically; not yet seen in a
+  browser.
+- Gola/edge-profile handles on a trolley front now go vertical instead
+  of horizontal-top, and both now sit inset within the panel rather
+  than straddling its edge (`docs/DECISIONS.md` §25) — confirmed
+  fixed and visible in a browser.
+- Kitchen ergonomics checks (`docs/DECISIONS.md` §24) — every geometry
+  rule is verified against constructed scenarios (including the one
+  that caught a real corner-ambiguity bug before it shipped), but a
+  constructed scenario isn't a real layout; this is the piece most
+  worth clicking through in a browser, more so than most of this
+  session's work, since wall-geometry assumptions are exactly what a
+  real layout tests harder than any number of hand-built test cases.
+- Keyboard shortcuts (`docs/DECISIONS.md` §22) — Delete/Backspace,
+  Escape, arrow-key nudge. Easy to get subtly wrong in ways only a
+  browser catches (focus stealing, a shortcut firing where it
+  shouldn't); `nudgeFootprint`'s own geometry is verified, the keybinding
+  wiring isn't.
+- The new pantry-unit cabinet (`docs/DECISIONS.md` §23) — verified
+  that it round-trips the Excel format and resolves to the right
+  front/hardware, not yet seen placed and rendered in the 3D view.
 - Glass fronts — single-door, double-door, drawers, open-shelf
   (`docs/DECISIONS.md` §19-20) — a genuinely new visual (transparent/
   tinted 3D material) and a new form (the glass toggle + tint picker
@@ -216,18 +296,17 @@ migration — `docs/DECISIONS.md` §16-18), and real cost-basis pricing
 ## Next
 
 Foundations, inventory import/export, business isolation, real
-cost-basis pricing, roadmap item 8 (component library and the four
-states, now fully done including every native select/checkbox app-
-wide), and glass fronts (single-door/double-door/drawers/open-shelf)
-are all built. Item 8's core pieces are confirmed working in the
-browser; the full Select/Checkbox migration and the glass-front
-feature are the two pieces worth a dedicated click-through next (see
-Known unverified) — the Select/Checkbox migration now covers every
-screen in the app, including the densest ones (InventoryManager's
-tables, the 5 Excel review grids). Item 6 (real rates) was explicitly
-deferred by you in favour of item 8. Open next: click through the
-Select/Checkbox controls everywhere, Skeleton loading states, and the
-glass-front toggle/tint picker (Front Picker) plus its 3D rendering;
-then consistency rules beyond button colour (spacing/type scale) and
-keyboard beyond what already exists. Full roadmap in
-`docs/PRINCIPLES.md`, Part 2.
+cost-basis pricing, roadmap item 8 (component library, the four
+states, consistency rules and keyboard — all fully done), item 10
+(cabinet library breadth), and item 12 (kitchen-specific checks, minus
+the fridge-dependent full work triangle) are all built. Item 6 (real
+rates) remains explicitly deferred by you in favour of the others.
+Nothing this session has been seen in a browser yet — that's the
+single biggest open item, not any particular remaining feature. Open
+next, roughly in order of how much a browser click-through would
+de-risk: the kitchen ergonomics checks and keyboard shortcuts (newest,
+least exercised), the Select/Checkbox migration and glass fronts
+(from earlier this session), then whatever Phase 3 item you want after
+that — appliance-dimensions-first, rectilinear rooms, present mode, or
+the remaining Phase 4 production items (board nesting, cutting list,
+hardware boring). Full roadmap in `docs/PRINCIPLES.md`, Part 2/3.

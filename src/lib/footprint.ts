@@ -121,6 +121,43 @@ export function rotateFootprint(
   };
 }
 
+// Keyboard arrow-key nudging (useSelectionShortcuts.ts) — moves the
+// item by (dxMm, dyMm) in ROOM space, same clamp-to-room-bounds
+// behaviour rotateFootprint already gives a turn, but without changing
+// rotationDeg. Returns only x/y, same "just what changed" shape
+// rotateFootprint returns, for the same reason: callers spread it
+// straight into their own update action.
+export function nudgeFootprint(
+  item: RotatableFootprint,
+  dxMm: number,
+  dyMm: number,
+  roomWidthMm: number,
+  roomDepthMm: number
+): { x: number; y: number } {
+  const { footprintWidthMm, footprintHeightMm } = getFootprint(
+    item.widthMm,
+    item.depthMm,
+    item.rotationDeg
+  );
+
+  // Rule 1 — center is derived from the UNROTATED dimensions.
+  const centerX = item.x + item.widthMm / 2 + dxMm;
+  const centerY = item.y + item.depthMm / 2 + dyMm;
+  const clamped = clampFootprintCenter(
+    centerX,
+    centerY,
+    footprintWidthMm,
+    footprintHeightMm,
+    roomWidthMm,
+    roomDepthMm
+  );
+
+  return {
+    x: clamped.centerX - item.widthMm / 2,
+    y: clamped.centerY - item.depthMm / 2,
+  };
+}
+
 // The item's true on-floor rectangle for its CURRENT rotation, in the
 // same top-left form the rest of the app uses. This is the function
 // collision, wall-contact and surface-area code should reach for —

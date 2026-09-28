@@ -54,6 +54,7 @@ const MODULE_TYPES: readonly ModuleType[] = [
   'corner-blind',
   'corner-magic',
   'corner-carousel',
+  'pantry-unit',
 ];
 
 const MATERIALS: readonly MaterialType[] = ['HDMR', 'Plywood', 'MDF', 'Particle Board', 'BWP'];

@@ -100,6 +100,7 @@ const MODULE_COLORS: Record<ModuleType, string> = {
   'corner-blind': 'rgba(254, 202, 202, 0.65)',
   'corner-magic': 'rgba(253, 164, 175, 0.65)',
   'corner-carousel': 'rgba(252, 165, 165, 0.65)',
+  'pantry-unit': 'rgba(94, 234, 212, 0.65)',
 };
 
 const COLLISION_OVERLAY_FILL = 'rgba(220, 38, 38, 0.45)'; // red-600 @ 45%

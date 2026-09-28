@@ -12,6 +12,7 @@ import { PickChooser } from './components/canvas/PickChooser';
 import { CameraLayer } from './components/canvas/CameraLayer';
 import { CollisionWarningBanner } from './components/canvas/CollisionWarningBanner';
 import { CabinetClearanceWarningBanner } from './components/canvas/CabinetClearanceWarningBanner';
+import { KitchenChecksBanner } from './components/canvas/KitchenChecksBanner';
 import { ObstacleToolbar } from './components/toolbar/ObstacleToolbar';
 import { CabinetToolbar } from './components/toolbar/CabinetToolbar';
 import { ApplianceToolbar } from './components/toolbar/ApplianceToolbar';
@@ -34,6 +35,7 @@ import { useLayoutStore } from './store/layoutStore';
 import { useAuthStore } from './store/authStore';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { useUndoRedoShortcuts } from './hooks/useUndoRedoShortcuts';
+import { useSelectionShortcuts } from './hooks/useSelectionShortcuts';
 import { Toaster } from './components/ui/sonner';
 import { toast } from 'sonner';
 import { ConfirmDialog } from './components/common/ConfirmDialog';
@@ -74,6 +76,12 @@ function App() {
   // "off" hides.
   const [showOverlapWarnings, setShowOverlapWarnings] = useState(true);
   const [showClearanceWarnings, setShowClearanceWarnings] = useState(true);
+  // Third, independent toggle for the trade-ergonomics banner
+  // (aisle width, sink-hob distance, etc — lib/kitchenChecks.ts) —
+  // same "visible by default, hideable on a busy layout" shape as the
+  // other two, since a kitchen with a genuinely tight aisle will keep
+  // showing that finding on every render otherwise.
+  const [showKitchenChecks, setShowKitchenChecks] = useState(true);
 
   const currentProject = useLayoutStore((s) => s.currentProject);
   const currentLayout = useLayoutStore((s) => s.currentLayout);
@@ -98,6 +106,11 @@ function App() {
   // Cmd+Z / Cmd+Shift+Z, app-wide (skipped while a text field has
   // focus — see the hook's own comment).
   useUndoRedoShortcuts();
+
+  // Delete/Backspace, Escape, arrow-key nudge for whatever's selected —
+  // only while the 2D canvas is the active view (see the hook's own
+  // comment on why a stale selection from another screen must not act).
+  useSelectionShortcuts(view === 'canvas');
 
   // Restores an existing session (persisted across reloads — see
   // Supabaseclient.ts) or confirms there isn't one. init() is a no-op
@@ -278,6 +291,7 @@ function App() {
           <div className="relative flex flex-col gap-3">
             {showOverlapWarnings && <CollisionWarningBanner />}
             {showClearanceWarnings && <CabinetClearanceWarningBanner />}
+            {showKitchenChecks && <KitchenChecksBanner />}
 
             <div className="flex w-fit flex-col gap-1.5">
               <Label className="flex items-center gap-2 text-xs font-normal text-gray-600">
@@ -300,6 +314,13 @@ function App() {
                   onCheckedChange={(checked) => setShowClearanceWarnings(checked === true)}
                 />
                 Show clearance warnings
+              </Label>
+              <Label className="flex items-center gap-2 text-xs font-normal text-gray-600">
+                <Checkbox
+                  checked={showKitchenChecks}
+                  onCheckedChange={(checked) => setShowKitchenChecks(checked === true)}
+                />
+                Show kitchen ergonomics checks
               </Label>
             </div>
 

@@ -41,6 +41,7 @@ const MODULE_TYPE_LABELS: Record<string, string> = {
   'corner-blind': 'Corner Unit (blind, fixed shelves)',
   'corner-magic': 'Corner Unit (magic corner)',
   'corner-carousel': 'Corner Unit (carousel)',
+  'pantry-unit': 'Pantry Pull-out Unit',
 };
 
 export interface Cabinet3DInspectorProps {

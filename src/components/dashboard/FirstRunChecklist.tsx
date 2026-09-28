@@ -79,7 +79,7 @@ export function FirstRunChecklist({
       <CardContent className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-sm font-semibold text-gray-800">Getting started</h3>
+            <h3 className="text-sm font-semibold text-gray-700">Getting started</h3>
             <p className="text-xs text-gray-500">
               Three things worth doing before sending your first real quote.
             </p>

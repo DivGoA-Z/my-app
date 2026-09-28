@@ -21,7 +21,17 @@ export type ModuleType =
   // mechanism instead of a flag inside a flag. See DECISIONS.md.
   | 'corner-blind'
   | 'corner-magic'
-  | 'corner-carousel';
+  | 'corner-carousel'
+  // A tall pull-out pantry — same full-height carcass as 'tall-unit',
+  // but its front is a multi-tier wire-basket TROLLEY (FrontKind
+  // 'trolley', the same front cylinder-trolley uses for a single LPG
+  // platform — see defaultFrontLayout in types/front.ts) instead of a
+  // plain double door. Kept as its own moduleType rather than a
+  // tall-unit with a hand-picked front, because the whole point of a
+  // catalogue row is that a business can add "Pantry Pull-out Unit"
+  // and get the right product WITHOUT knowing to configure a trolley
+  // front themselves afterward.
+  | 'pantry-unit';
 
 // The carcass board. Drives price and durability — and NOT appearance:
 // a finished cabinet never shows its substrate. Appearance now comes

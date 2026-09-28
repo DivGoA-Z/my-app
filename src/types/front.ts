@@ -80,6 +80,11 @@ export interface FrontRowLayout {
   // 'mixed' front can have an open-shelf ROW with its own glass door,
   // same as a plain open-shelf front can.
   glass?: { tint: GlassTint };
+  // Same meaning as FrontLayout.handleOrientation below, scoped to
+  // this row — a 'mixed' front's rows are configured independently
+  // (one single-door row could run vertical while another double-door
+  // row stays horizontal), same as `glass`/`hinge` already are per row.
+  handleOrientation?: HandleOrientation;
   // Same meaning as FrontLayout.heightRatios below — a drawers row can
   // still have its OWN graduated drawer heights, independent of how
   // tall the row itself is relative to the other rows.
@@ -90,6 +95,16 @@ export interface FrontRowLayout {
   // reuses normaliseRatios for both).
   heightRatio: number;
 }
+
+// Manual override for which way a gola/edge-profile handle runs on a
+// DOOR front (single-door/double-door only, for now — see
+// FrontLayout.handleOrientation below). Absent means the existing
+// automatic choice (horizontal for a door, vertical for a trolley —
+// lib/fronts.ts's placeHandle) is unchanged; this only lets a business
+// override that default on a door specifically, since a continuous
+// profile can genuinely run either way depending on the design, not
+// just whichever this app happens to default to.
+export type HandleOrientation = 'horizontal' | 'vertical';
 
 export const MIN_MIXED_ROWS = 2;
 export const MAX_MIXED_ROWS = 4;
@@ -128,6 +143,16 @@ export interface FrontLayout {
   // area from what material/finish charge on, so a glass front is
   // never charged for board or lamination it doesn't have.
   glass?: { tint: GlassTint };
+  // single-door/double-door only, and only consulted when the
+  // resolved handle is gola or edge-profile (bar/knob/handleless
+  // ignore it entirely) — overrides the automatic horizontal
+  // placement those two handle kinds otherwise get on a door. Set to
+  // 'vertical', a double door's two leaves each get their own profile
+  // hugging the edge nearest the CENTRE meeting line — the same
+  // left/right assignment a bar/knob handle on a double door already
+  // uses (lib/fronts.ts's placeHandle), so this reads as one
+  // consistent handle style rather than two unrelated vertical strips.
+  handleOrientation?: HandleOrientation;
   // drawers only: relative heights, TOP to BOTTOM. Absent means equal.
   //
   // Graduated is the norm rather than the exception here — a shallow
@@ -189,6 +214,15 @@ export function defaultFrontLayout(
       // heavy-duty pull-out platform carrying the LPG cylinder — not a
       // stack of baskets. Count is the pull-out, so 1.
       return { kind: 'trolley', count: 1 };
+
+    case 'pantry-unit':
+      // The SAME front kind as cylinder-trolley — one shutter, several
+      // pull-out tiers behind it — but several wire-basket tiers
+      // rather than one LPG platform, which is what actually makes it
+      // a pantry pull-out. 5 is a reasonable stock configuration for a
+      // full-height unit; still freely overridable per cabinet via
+      // Front Picker, same as every other default here.
+      return { kind: 'trolley', count: 5 };
 
     case 'sink-unit':
       // Two shutters below the sink is the Indian standard (western

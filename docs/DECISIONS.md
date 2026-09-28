@@ -2574,3 +2574,400 @@ and a full `npm run build` (all clean); confirmed zero native
 same caveat as §18, more so here since these are the densest, most
 edited-in-anger screens in the app (every catalogue row, every bulk
 Excel review grid).
+
+## 22. Item 8's last two pieces: consistency rules and keyboard
+
+**Consistency rules, audited rather than assumed.** Rather than guess
+at what "one spacing scale, one type scale" should be and rewrite
+panels to match a made-up standard, grepped every toolbar/inspector/
+dashboard panel's own heading/description/shell classes first. The app
+was already overwhelmingly consistent in practice — 14 of 16 top-level
+panels use the identical `rounded-lg border border-gray-200 bg-white
+p-4` shell, every heading is `text-sm font-semibold text-gray-700`,
+every description line is `text-xs text-gray-400` or `-500` — just
+never written down, so nothing stopped it drifting silently. One real
+drift found this way: `FirstRunChecklist`'s heading (added this same
+session, §17) used `text-gray-800` instead of the established `-700`;
+fixed. The two apparent outliers that AREN'T violations: a `p-2`
+popup menu (`PickChooser`, the dashboard's 360°-views dropdown) is a
+different, deliberately denser UI category, not a panel; the quote
+sidebar's Grand Total row (`text-gray-900`) is deliberate emphasis on
+the one number that matters most, not a heading. The scale itself is
+now written down in `docs/PRINCIPLES.md`'s "Consistency rules"
+section rather than left implicit.
+
+**Keyboard.** New global hook, `useSelectionShortcuts` (mirrors
+`useUndoRedoShortcuts`'s shape — same `isEditableTarget` guard so
+typing in an Inspector field never doubles as a shortcut): Delete/
+Backspace removes whatever's selected (dispatches to the matching
+`removeCabinet`/`removeObstacle`/`removeAppliance`/`removeOpening`/
+`removeFixture` — same as that item's own Delete button, no confirm
+dialog, since undo already covers the "oops" case and every OTHER
+canvas delete already works this way); Escape deselects; arrow keys
+nudge a cabinet/obstacle/appliance's x/y — 10mm per press, or the
+room's own `gridSnapMm` (default 50) with Shift held, matching what
+dragging already snaps to.
+
+Gated by `enabled: view === 'canvas'` (a parameter, not a conditional
+hook call — React doesn't allow those) — `selection` is STORE state,
+not view state, so it survives switching to the dashboard or Manage
+Inventory. Without the gate, a stale selection from before the switch
+would let Delete or an arrow key silently act on a cabinet that isn't
+even on screen, which reads as the app losing work for no visible
+reason.
+
+**New shared geometry helper**: `nudgeFootprint` (`lib/footprint.ts`),
+same shape as the existing `rotateFootprint` — moves an item's
+UNROTATED x/y by a room-space (dx, dy), reusing `clampFootprintCenter`
+so a nudge can't push an item out of the room, without touching
+`rotationDeg`. Deliberately NOT extended to openings (position is
+`offsetMm` along a wall, not x/y) or fixtures (position depends on
+mount kind — ceiling/wall/cabinet/free); Delete/Escape still cover
+those two, arrows don't.
+
+Verified: a standalone script (deleted after) confirmed `nudgeFootprint`
+against a plain unrotated cabinet (exact delta applied), a cabinet
+already pushed near the room edge (correctly clamped rather than
+exceeding the boundary), and a 90°-rotated item (confirmed the
+footprint-swap and unrotated-corner math both apply correctly
+together, catching a case where the test's OWN starting position was
+already out of bounds and observing the function correctly pull it
+back in — not a bug, a confirmation the clamp works both ways).
+
+Verified via `npx tsc --noEmit -p tsconfig.app.json`, `npx eslint .`
+(both clean, full build check pending until the rest of this batch of
+work lands). **Not verified**: rendered in a browser — keyboard
+shortcuts are exactly the kind of thing that's easy to get subtly
+wrong (focus stealing, a shortcut firing somewhere it shouldn't) and
+hard to catch from source alone.
+
+## 23. Cabinet library breadth: a real pantry pull-out ModuleType,
+    caught a "mostly data entry" claim that wasn't quite true
+
+Roadmap item 10 named tandem, pantry, corner carousel and wicker
+baskets. Corner carousel already existed (`corner-carousel`
+ModuleType). The other three turned out to split into one real code
+gap and two that genuinely were just data, which is worth recording
+because it's easy to get backwards:
+
+**Pantry — needed a real ModuleType, not just a catalogue row.** The
+first attempt was a `tall-unit` catalogue row with an explicit
+`frontLayout` override (`{ kind: 'trolley', count: 5 }`) baked in by
+`scripts/generate-starter-catalogues.ts`. A round-trip check (parsing
+the generated xlsx back through the real `parseCabinetCatalogFile`)
+caught that this doesn't work: `cabinetImportExport.ts` deliberately
+excludes `frontLayout` from the Excel format at all (per its own
+header comment, from the original inventory-import design — a front
+is an in-app Front Picker edit, not a bulk-spreadsheet field). The
+override would have silently vanished on upload, leaving a cabinet
+labelled "Pantry Pull-out Unit" that was actually just a plain
+double-door tall unit — wrong in a way nobody would notice until a
+customer asked why their pantry has no pull-out. Fixed properly: a new
+`ModuleType` value, `'pantry-unit'` (`types/cabinet.ts`), whose own
+`defaultFrontLayout` case (`types/front.ts`) returns the trolley/
+5-basket front directly — since `module_type` DOES survive the sheet
+round trip (it's a real column), the correct front now arrives with
+the row instead of depending on a field the format can't carry.
+
+Every place `ModuleType` is enumerated updated: `MODULE_COLORS` in
+`CabinetLayer.tsx` (a `Record<ModuleType,...>`, so this one is
+TypeScript-enforced — the compiler would have caught a missed entry);
+`MODULE_TYPE_LABELS` in `Cabinet3DInspector.tsx` (a plain
+`Record<string,...>` with an `?? cabinet.moduleType` fallback, so NOT
+enforced — easy to forget, found by reading rather than by the
+compiler); the two hand-kept-in-sync `MODULE_TYPES` arrays
+(`InventoryManager.tsx`, `cabinetImportExport.ts` — the latter's own
+comment already said "keep in sync by hand if a module type is ever
+added"); and the `module_type` check constraint in `schema.sql`, both
+the inline `create table` definition and the drop/re-add widening
+block that actually applies to an existing database (same mechanism
+`corner-carousel` and `BWP` used before it). Deliberately NOT added to
+`COUNTERTOP_MODULE_TYPES` (`lib/cabinetGeometry.ts`) — a full-height
+pull-out unit doesn't carry a countertop, same as `tall-unit` is
+already correctly excluded.
+
+**Tandem — already fully supported, no code needed.** A tandem-box
+drawer system is what `RateCard.hardware.channel` has been priced as
+since real rates landed (§12) — every `drawer-unit` catalogue row
+already gets tandem-box-priced channels, not a budget alternative.
+Adding a same-width "Tandem Drawer Unit" would have been a mechanically
+identical duplicate of an existing row under a different name. Instead
+added a genuinely new WIDTH the catalogue didn't have — "Tandem Drawer
+Bank 1200" (existing rows stop at 900mm) — real breadth, not a
+relabelled duplicate.
+
+**Wicker baskets — represented by the pantry unit itself, not a new
+pricing dimension.** `RateCard.hardware.basket` ("Wire basket (each)")
+is what a pantry pull-out's tiers are already priced from; a wicker
+vs. wire distinction in the trade is a cosmetic/weave difference, not
+a structurally different component the way clear vs. tinted glass
+turned out to be (§19 — where the user gave a concrete example, "brown
+tint glass," implying real distinct pricing was wanted). No user ask
+here was that specific, so this stayed data (the pantry catalogue rows
+above) rather than a new `GlassRates`-style pricing map invented on
+spec.
+
+New starter-catalogue rows (`scripts/generate-starter-catalogues.ts`,
+regenerating `starter-catalogues/cabinets-starter.xlsx`): "Pantry
+Pull-out Unit 450/600" (category "Pantry", own toolbar grouping) and
+"Tandem Drawer Bank 1200". 26 cabinets total, up from 23.
+
+Verified: a standalone script (deleted after) round-tripped the
+regenerated xlsx through the real `parseCabinetCatalogFile` and
+confirmed `moduleType: 'pantry-unit'` survives with zero validation
+errors, then fed the resolved `defaultFrontLayout('pantry-unit', ...)`
+through the real `computeFrontBreakdown` and confirmed it produces
+5 channels + 5 baskets of hardware and a single shutter panel — the
+actual pull-out pantry product, not just a label.
+
+Verified via `npx tsc --noEmit -p tsconfig.app.json` and `npx eslint .`
+(both clean). **Not verified**: rendered in a browser.
+
+## 24. Kitchen-specific checks — aisle width, sink-hob distance,
+    hob-under-window, counter-beside-hob, chimney-centred-on-hob
+
+Roadmap item 12, the last of the three things asked for together this
+session ("start with 3 then 2 and then move to 1"). New advisory-only
+checks (`lib/kitchenChecks.ts`) — same "warn, never block" Principle 6
+every existing overlap/clearance check already follows: a genuinely
+tiny room has no choice about aisle width, and none of these should
+ever stop someone designing what the site actually requires.
+
+**What's checked, and the one honest gap.** Aisle width (two facing
+counter runs need `MIN_AISLE_MM` = 900mm of clear walking space
+between them); sink-to-hob distance (450–2700mm — closer risks
+splashing near an open flame, farther is an inefficient walk); hob not
+sitting under a window (curtains near a flame, draft blowing it out);
+a landing counter immediately beside the hob on at least one side (a
+hot pan needs somewhere to go); a chimney within 100mm of centred over
+its hob. **NOT checked**: a full three-point work triangle
+(sink/hob/refrigerator) — this app has no fridge `ApplianceType` at
+all (`types/appliance.ts`: `'stove' | 'chimney' | 'oven' | 'otg' |
+'toaster' | 'sink'`), so `checkSinkHobDistance` checks the one leg of
+the triangle that's actually visible rather than fabricating a third
+corner from nothing. Stated in the module's own header comment rather
+than silently working around it.
+
+**The real bug this caught before it shipped: corner ambiguity in
+"which wall is this against."** The first implementation reused
+`surfaceAreas.ts`'s existing `isAgainstWall` (an edge-touch test) to
+decide which wall a counter run or hob belongs to. A verification
+script (constructed, not assumed) caught that this is WRONG for these
+checks specifically: a cabinet run spanning a wall's full length
+always has an END whose edge coincides with the PERPENDICULAR wall
+too — `isAgainstWall` correctly says "yes, also touching the side
+wall" there, because for ITS purpose (does this stretch of the side
+wall have concealment behind a cabinet) that's the right answer.
+Reused here, it turned every ordinary single-wall run into a phantom
+second counter run at the room's corners, producing a spurious
+"aisle-east-west" finding on every single test layout, including ones
+with nothing anywhere near the east or west walls.
+
+Fixed with a DIFFERENT, deliberately separate test:
+`nearestWall` picks the single wall whose plane is nearest the item's
+CENTRE (not its edges), which has no corner ambiguity — a north-wall
+run's centre is close to the north plane and far from east/west
+regardless of where its ends happen to land. `isAgainstWall`/
+`wallIncursionMm` in `surfaceAreas.ts` were left untouched (correct for
+billing) and two of its internal helpers (`isAgainstWall`,
+`extentAlongWall`) plus two new ones (`startAlongWall`,
+`wallIncursionMm`, promoted from private to exported) are shared
+rather than re-derived, so the "along a wall" convention can't
+disagree between the two files.
+
+**Geometry choices, each verified against a constructed scenario, not
+assumed:**
+- Aisle width only fires when BOTH opposite walls have a real
+  incursion (`MIN_MEANINGFUL_INCURSION_MM` = 100mm) — an empty
+  opposite wall is just open room, not a galley constraint, and this
+  app's rooms are mostly single-run (docs/PRINCIPLES.md: "6×8 ft to
+  12×14 ft"). Verified: a one-sided layout produces zero findings; a
+  genuine L-shaped kitchen (perpendicular runs meeting at a corner, the
+  exact shape the corner-ambiguity bug would have broken) produces
+  zero findings; both a north-south AND an independently-tested
+  east-west narrow galley each correctly produce exactly one finding.
+- Sink-hob and chimney-hob use footprint CENTRES (rotation-invariant,
+  per this app's own established "the centre is the rotation-invariant
+  quantity" rule — CLAUDE.md) via straight-line distance, not
+  along-wall distance — the concern (splash risk, extraction
+  effectiveness) is about physical proximity in the room, not
+  positions along a shared wall.
+- Chimney-to-hob is paired by NEAREST match, not every chimney against
+  every hob, so a kitchen with several of each doesn't get one finding
+  per irrelevant cross-pairing.
+- Counter-beside-hob only considers cabinets confirmed via `nearestWall`
+  to be on the SAME wall as the hob, and only counts them "beside" it
+  within a small along-wall gap tolerance (60mm, matching the existing
+  wall-contact tolerance's own reasoning) — a cabinet on a different
+  wall entirely isn't "beside" the hob no matter how close its raw x/y
+  coordinates happen to be.
+
+**UI**: `useKitchenChecks` (mirrors `useCollisions`/
+`useCabinetClearance` — a memoised hook over the store's own layout/
+cabinets/obstacles/appliances) and `KitchenChecksBanner`, a third
+amber advisory banner alongside `CollisionWarningBanner`/
+`CabinetClearanceWarningBanner`, gated by its own "Show kitchen
+ergonomics checks" checkbox (defaults on, same "visible by default"
+convention `RemainingSpaceLayer`'s own comment cites). Built with the
+`Alert` component from the start rather than a raw div, unlike the two
+existing canvas banners it sits beside (both still hand-rolled divs,
+explicitly left open for a future pass in §16) — no reason to build a
+brand-new component the OLD way when the newer convention already
+exists. Listed one finding per line rather than collapsed into an
+aggregate count the way the other two banners are, since each message
+here is already specific about what and where — "5 issues found"
+would lose the one thing that makes this useful at a glance.
+
+Verified via `npx tsc --noEmit -p tsconfig.app.json`, `npx eslint .`,
+and a full `npm run build` (all clean), plus the constructed-scenario
+script above (deleted after, run twice — once catching the corner bug,
+once confirming the fix). **Not verified**: rendered in a browser —
+truer here than almost anywhere else in this session, since every one
+of these checks depends on wall-geometry assumptions that a single
+real layout, clicked through by hand, would test far more thoroughly
+than any number of constructed scenarios.
+
+**CORRECTED, caught by you in a real layout** — proof the note above
+was right to flag: `checkCounterBesideHob`'s adjacency tolerance
+(`ADJACENT_GAP_TOLERANCE_MM`) was 60mm, copied from
+`WALL_CONTACT_TOLERANCE_MM`'s "does this touch the wall PLANE"
+reasoning in `surfaceAreas.ts`. That was the wrong precedent to
+borrow — that question is a hard physical-contact test; this one is
+"does a real landing counter read as right there next to the hob,"
+which has to tolerate an ordinary countertop scribe gap or a hob's own
+bezel. You had base cabinets on both sides of a real hob and still got
+"no counter beside the hob," simply because the actual gap was more
+than 60mm. Widened to 150mm (`lib/kitchenChecks.ts`'s own comment on
+the constant now explains why, in place, rather than the old comment
+being silently replaced) and reverified: a 100mm gap now clears, a
+genuinely distant cabinet (500mm+) still correctly flags.
+
+## 25. Gola/edge-profile handles go vertical on a trolley pull-out
+
+Real bug, caught by you clicking through the pantry pull-out unit
+(§23): a gola or edge-profile handle on ANY trolley-fronted cabinet —
+the pantry pull-out and cylinder-trolley both share `FrontKind`
+'trolley' — was placed horizontally along the TOP edge, the exact
+same treatment `placeHandle` (`lib/fronts.ts`) gives a single-door,
+double-door or drawer front. That convention is right for those three
+(a continuous horizontal gola channel across a run of base/wall
+cabinets, or across a drawer stack, at a reachable height) and wrong
+for a trolley: a trolley has no hinge to swing from, is gripped and
+pulled straight out, and — especially on a 2100mm-tall pantry unit —
+a groove fixed at the very top edge sits near ceiling height and is
+awkward or impossible to reach. A vertical groove down one side gives
+a full-height grip reachable anywhere along it, which is the real
+trade convention for this front kind, independent of how tall the
+particular cabinet happens to be (confirmed deliberately: a SHORT
+850mm cylinder-trolley gets the same vertical treatment, since the
+"no hinge, pulled straight out" reasoning applies regardless of
+height — this is a FrontKind property, not a height threshold).
+
+Fixed by giving `placeHandle` a fourth parameter, the front's own
+`kind` (both call sites already had it in scope — the shared tail's
+`rectsKind`, and the glass-door case's own literal `'open-shelf'`) —
+consulted ONLY inside the gola/edge-profile branch, which now special-
+cases `kind === 'trolley'` to place the profile vertically (full
+panel height, at the right edge — there's no hinge-side concept for a
+trolley to derive which side from, since `side` is always `'center'`
+for this kind, so the edge is a fixed, documented choice rather than
+left to accident). Every other handle kind (bar, knob) and every other
+front kind (single-door, double-door, drawers, the open-shelf glass
+door) are untouched — this was confirmed by rechecking each explicitly
+against the real `computeFrontBreakdown`, not assumed from reading the
+diff.
+
+Deliberately NOT changed: bar/knob placement on a trolley (still
+horizontal, centred at roughly the panel's vertical midpoint). You
+asked for this to be "checked", and it was — a horizontal bar/knob
+centred at panel-height/2 sits at a genuinely comfortable reach height
+even on a 2100mm cabinet (unlike gola's problem, which is specifically
+that it clings to the TOP edge rather than being centred), so it
+was left alone rather than changed on spec.
+
+Verified: a standalone script (deleted after) confirmed gola AND
+edge-profile go vertical (full height, right-edge) on both the
+pantry-height trolley (2100mm) and a normal cylinder-trolley (850mm);
+confirmed bar and knob on the SAME trolley front are byte-for-byte
+unchanged; confirmed single-door, double-door, drawers, and the
+glass-doored open-shelf front (the other `placeHandle` call site) all
+still place gola horizontally along the top exactly as before — no
+regression on any front kind this session didn't touch. 3D rendering
+needed no changes at all: `HandleMesh` (`Room3DCanvas.tsx`) already
+reads `orientation` generically and sizes/orients the handle mesh
+accordingly — this was already exercised by single-door's own vertical
+bar handles, so a vertical gola/edge-profile on a trolley reuses an
+already-correct code path rather than a new one.
+
+Verified via `npx tsc --noEmit -p tsconfig.app.json`, `npx eslint .`,
+and a full `npm run build` (all clean), plus the script above.
+**Not verified**: rendered in a browser — you found the ORIGINAL bug
+this way, so this is exactly the kind of change worth a real look
+before trusting the fix.
+
+**Follow-up, confirmed fixed in a browser**: the straddling-the-edge
+inset above turned out to be the real cause (or at least enough of
+one) — you confirmed the gola/edge profile is now visible on the
+pantry unit's trolley front.
+
+## 26. Manual horizontal/vertical override for gola/edge-profile on
+    doors
+
+Your follow-up ask, scoped precisely rather than left to me to guess:
+a manual choice for gola/edge-profile orientation, **doors only**
+(single-door/double-door — not trolley, not drawers, not the glassed
+open-shelf door), defaulting to whatever already renders today, one
+control per row in a `mixed` front so a stacked single-door-over-
+double-door cabinet can set each independently.
+
+**Data model**: a new `HandleOrientation = 'horizontal' | 'vertical'`
+type and a `handleOrientation?` field on BOTH `FrontLayout` and
+`FrontRowLayout` (types/front.ts) — mirrors exactly how `glass` and
+`hinge` already exist at both levels for the same "a mixed front's
+rows are configured independently" reason. `undefined` (the default,
+existing cabinets are untouched) falls through to the current
+kind-based logic unchanged.
+
+**Geometry** (`lib/fronts.ts`): `placeHandle` gained a 5th parameter,
+the resolved `handleOrientation`, consulted ONLY inside the gola/
+edge-profile branch and ONLY when `kind` is `'single-door'` or
+`'double-door'` — trolley's vertical placement (§25) and every other
+kind's horizontal default are both completely unreachable from this
+new parameter, by construction (the `isDoor` check gates it). When
+set to `'vertical'`, reuses the SAME `side` ('left'/'right', already
+computed per leaf from the door's own hinge/position logic) a bar/
+knob handle already uses for ITS vertical placement — so a double
+door's two verticals land on the edge nearest the CENTRE meeting
+line, the same convention a bar/knob handle on a double door already
+has, rather than two unrelated strips that both happen to be
+vertical. The mixed-front recursive case threads `rowSpec.
+handleOrientation` into each row's own `subLayout`, same pattern
+`glass` already established there.
+
+**UI** (`FrontPicker.tsx`): the control only appears when it would
+actually do something — front kind is a door AND the resolved handle
+is gola or edge-profile (`isProfileHandle`) — showing it for a bar/
+knob/handleless front would be a control with no visible effect,
+which is worse than not offering it. Placed exactly where asked:
+Configuration → (glass, hinge, etc.) → **Handle** → **Orientation**,
+both at the top level and per mixed-front row (reading the row's own
+`kind`, but the ONE cabinet-wide `handle` — there's no per-row handle
+in this app, so a mixed front's rows can each choose their own
+handle's ORIENTATION but not a different HANDLE per row).
+
+Verified: a standalone script (deleted after) confirmed — no override
+on a single-door gola stays horizontal (unchanged default); an
+explicit vertical override on a single-door places it correctly near
+the hinge-opposite edge; an explicit horizontal override matches the
+default exactly; a double-door with vertical override places BOTH
+leaves symmetrically hugging the centre meeting line; a bar handle on
+the same door is completely unaffected (its own pre-existing vertical-
+near-edge logic is independent of this parameter entirely); trolley
+and drawers both IGNORE the override even when one is explicitly set
+on their layout (scope enforced, not just "happens not to be tested");
+a `mixed` front with a vertical single-door row and a default
+(horizontal) double-door row correctly keeps the two independent.
+
+Verified via `npx tsc --noEmit -p tsconfig.app.json`, `npx eslint .`,
+and a full `npm run build` (all clean), plus the script above. **Not
+verified**: rendered in a browser.

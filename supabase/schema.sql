@@ -273,7 +273,8 @@ create table if not exists public.cabinet_catalog_items (
     check (module_type in (
       'base-cabinet', 'wall-cabinet', 'tall-unit', 'sink-unit',
       'cylinder-trolley', 'drawer-unit',
-      'corner-blind', 'corner-magic', 'corner-carousel'
+      'corner-blind', 'corner-magic', 'corner-carousel',
+      'pantry-unit'
     )),
   width_mm integer not null,
   depth_mm integer not null,
@@ -637,6 +638,11 @@ end $$;
 delete from public.cabinet_catalog_items
   where id = 'cat_corner_900' and module_type = 'corner-unit';
 
+-- Widened again for 'pantry-unit' (docs/DECISIONS.md §23, cabinet
+-- library breadth) — same drop/re-add mechanism, same reason: this
+-- constraint is only set correctly on a BRAND NEW database by the
+-- `create table if not exists` above; an existing one needs the
+-- constraint itself replaced.
 do $$
 begin
   alter table public.cabinet_catalog_items
@@ -646,7 +652,8 @@ begin
     check (module_type in (
       'base-cabinet', 'wall-cabinet', 'tall-unit', 'sink-unit',
       'cylinder-trolley', 'drawer-unit',
-      'corner-blind', 'corner-magic', 'corner-carousel'
+      'corner-blind', 'corner-magic', 'corner-carousel',
+      'pantry-unit'
     )) not valid;
   alter table public.cabinet_catalog_items
     validate constraint cabinet_catalog_items_module_type_check;

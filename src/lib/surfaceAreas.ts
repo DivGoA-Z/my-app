@@ -211,8 +211,12 @@ function ceilingAreas(
 // ---- Walls ----
 
 // North is the y=0 edge, south y=depth, west x=0, east x=width — the
-// same convention RoomWalls uses in Room3DCanvas.
-function isAgainstWall(
+// same convention RoomWalls uses in Room3DCanvas. Exported: lib/
+// kitchenChecks.ts needs the exact same "is this item against wall X"
+// test (aisle width, hob-under-window, counter-beside-hob), and a
+// second, independently-tuned copy of the wall-contact tolerance is
+// exactly the kind of thing that quietly drifts out of agreement.
+export function isAgainstWall(
   orientation: WallOrientation,
   rect: { x: number; y: number; widthMm: number; depthMm: number },
   roomWidthMm: number,
@@ -232,12 +236,49 @@ function isAgainstWall(
 }
 
 // How much of the wall's LENGTH an item spans. North/south walls run
-// along x, east/west along y.
-function extentAlongWall(
+// along x, east/west along y. Exported for the same reason
+// isAgainstWall is.
+export function extentAlongWall(
   orientation: WallOrientation,
   rect: { widthMm: number; depthMm: number }
 ): number {
   return orientation === 'north' || orientation === 'south' ? rect.widthMm : rect.depthMm;
+}
+
+// Companion to extentAlongWall: where that span STARTS, in the same
+// "low-coordinate end of the wall" convention WallOpening.offsetMm
+// already uses (see its own comment in types/opening.ts) — one shared
+// convention for "position along a wall" rather than two that could
+// disagree.
+export function startAlongWall(
+  orientation: WallOrientation,
+  rect: { x: number; y: number }
+): number {
+  return orientation === 'north' || orientation === 'south' ? rect.x : rect.y;
+}
+
+// How far past this wall's PLANE an item's own footprint sticks INTO
+// the room — 0 for an item not against this wall at all. This is what
+// determines how much floor a counter run against a wall actually
+// consumes, independent of how long the run is (extentAlongWall) or
+// where it starts (startAlongWall).
+export function wallIncursionMm(
+  orientation: WallOrientation,
+  rect: { x: number; y: number; widthMm: number; depthMm: number },
+  roomWidthMm: number,
+  roomDepthMm: number
+): number {
+  if (!isAgainstWall(orientation, rect, roomWidthMm, roomDepthMm)) return 0;
+  switch (orientation) {
+    case 'north':
+      return rect.y + rect.depthMm;
+    case 'south':
+      return roomDepthMm - rect.y;
+    case 'west':
+      return rect.x + rect.widthMm;
+    case 'east':
+      return roomWidthMm - rect.x;
+  }
 }
 
 function wallAreas(

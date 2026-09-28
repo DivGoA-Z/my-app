@@ -361,12 +361,45 @@ Most amateur-feeling software only builds the first one:
 One spacing scale, one type scale, one set of colours with fixed
 meanings (amber = needs attention, red = error, green = confirmed). The
 placeholder-rates banner already uses amber this way — make it a
-convention rather than a one-off.
+convention rather than a one-off. **Done, audited rather than
+assumed** — a scan across every toolbar/inspector/dashboard panel
+found the app was already overwhelmingly consistent in practice
+(14 of 16 top-level panels use the exact same `rounded-lg border
+border-gray-200 bg-white p-4` shell; every panel heading uses `text-sm
+font-semibold text-gray-700`; every description line uses `text-xs
+text-gray-400` or `text-gray-500`), just not written down anywhere —
+so it could drift without anyone noticing. Now it's an explicit
+convention rather than an implicit one:
+
+- **Panel shell**: `rounded-lg border border-gray-200 bg-white p-4`.
+  A small popup/dropdown menu (`PickChooser`, the 360° views list) is
+  a different category — `p-2`/`py-1`, denser — not a violation of
+  this rule.
+- **Panel heading**: `text-sm font-semibold text-gray-700`.
+- **Description / hint text**: `text-xs text-gray-400` (a hint,
+  something already true and unremarkable) or `text-gray-500` (body
+  copy explaining what the panel is for) — the two aren't
+  interchangeable, `-400` reads as quieter.
+- **Colours keep the meanings above** — amber/red/green — and nothing
+  else borrows them for decoration.
+
+One real drift already found and fixed: `FirstRunChecklist`'s heading
+used `text-gray-800` instead of the established `-700`.
 
 ### Keyboard
 
 Undo/redo, delete, escape to deselect, arrow keys to nudge. Designers
-work fast; a mouse-only tool feels like a toy.
+work fast; a mouse-only tool feels like a toy. **Done** —
+`useSelectionShortcuts` (global, only while the 2D canvas is the
+active view): Delete/Backspace removes whatever's selected (same as
+clicking that item's own Delete button — no confirm dialog, undo
+covers the "oops" case), Escape deselects, arrow keys nudge a
+cabinet/obstacle/appliance (10mm plain, the room's own grid step with
+Shift). Deliberately NOT extended to openings (move along a wall by
+offset, not x/y) or fixtures (position depends on mount kind) — arrow-
+nudging either would need per-kind logic disproportionate to what a
+keyboard shortcut is for; Delete/Escape still cover them. See
+`docs/DECISIONS.md` §22.
 
 ### First-run experience
 
@@ -516,6 +549,15 @@ Each of these gets more expensive with everything built on top.
     transparent/tinted glass in the 3D view. Same door-swing hardware
     (hinges, handle) as a board front of the same kind; drawers keep
     their own channel hardware. See `docs/DECISIONS.md` §19-20.
+    **Tandem/pantry/wicker baskets, done** — tandem was already fully
+    priced (every drawer-unit row already gets tandem-box-rate
+    channels), so this added a genuinely new width (1200mm) rather
+    than a same-size duplicate; pantry needed a real new ModuleType
+    (`pantry-unit`, its own multi-tier wire-basket default front) since
+    a catalogue-row-only attempt turned out to silently lose its front
+    configuration on the Excel round trip; wicker baskets are the
+    pantry unit's own basket hardware, not a separate priced product.
+    See `docs/DECISIONS.md` §23.
 11. **Appliance dimensions first, appearance second.** Appliances are
     usually customer-supplied in India, so the dimension drives cabinet
     cutouts and clearances. Photoreal models are the last 10% of appeal
@@ -523,7 +565,13 @@ Each of these gets more expensive with everything built on top.
 12. **Kitchen-specific checks** — aisle width, work triangle,
     sink-to-hob distance, hob not under a window, counter run beside the
     hob, chimney centred on the hob. This is what makes the software
-    look like it knows the trade.
+    look like it knows the trade. **Done**, except the full work
+    triangle — this app has no fridge `ApplianceType`, so
+    `checkSinkHobDistance` checks the one leg of the triangle it can
+    actually see rather than fabricating a third corner. All five
+    other checks are advisory-only (`lib/kitchenChecks.ts`), a third
+    banner alongside the collision/clearance ones. See
+    `docs/DECISIONS.md` §24.
 13. **Present mode** — the customer-facing view.
 14. **The visual assets work** in `VISUAL_ASSETS_PROMPT.md` — HDRI
     first, then finish scale, then metals on hardware.

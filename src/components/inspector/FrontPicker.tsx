@@ -44,6 +44,8 @@ import type {
   FrontRowKind,
   FrontRowLayout,
   GlassTint,
+  HandleOrientation,
+  HandleSpec,
 } from '../../types/front';
 import {
   computeFrontBreakdown,
@@ -103,6 +105,18 @@ function glassHint(kind: FrontKind): string {
     default:
       return 'This front is glass instead of the cabinet’s own board and finish. Priced separately, below.';
   }
+}
+
+// Orientation is a manual choice only for a gola/edge-profile handle
+// on a door (lib/fronts.ts's placeHandle) — meaningless for a bar,
+// knob or handleless front, so the control only shows when it would
+// actually do something.
+function isProfileHandle(handle: HandleSpec | undefined): boolean {
+  return handle?.kind === 'gola' || handle?.kind === 'edge-profile';
+}
+
+function handleOrientationLabel(handle: HandleSpec | undefined): string {
+  return handle?.kind === 'gola' ? 'Gola orientation' : 'Edge profile orientation';
 }
 
 const INR = new Intl.NumberFormat('en-IN', {
@@ -521,6 +535,26 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
                 </div>
               )}
 
+              {(row.kind === 'single-door' || row.kind === 'double-door') && isProfileHandle(handle) && (
+                <div className="flex items-center justify-between gap-2 text-[10px] text-gray-500">
+                  {handleOrientationLabel(handle)}
+                  <Select
+                    value={row.handleOrientation ?? 'horizontal'}
+                    onValueChange={(value) =>
+                      updateRow(index, { handleOrientation: value as HandleOrientation })
+                    }
+                  >
+                    <SelectTrigger size="sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="horizontal">Horizontal</SelectItem>
+                      <SelectItem value="vertical">Vertical</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <label className="flex items-center justify-between gap-2 text-[10px] text-gray-500">
                 Height share
                 <input
@@ -715,6 +749,24 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
           </SelectContent>
         </Select>
       </div>
+
+      {(layout.kind === 'single-door' || layout.kind === 'double-door') && isProfileHandle(handle) && (
+        <div className="flex items-center justify-between gap-2 text-xs text-gray-600">
+          {handleOrientationLabel(handle)}
+          <Select
+            value={layout.handleOrientation ?? 'horizontal'}
+            onValueChange={(value) => setLayout({ handleOrientation: value as HandleOrientation })}
+          >
+            <SelectTrigger size="sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="horizontal">Horizontal</SelectItem>
+              <SelectItem value="vertical">Vertical</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="flex flex-col gap-0.5 border-t border-gray-100 pt-2">
         {breakdown.hardware.length === 0 ? (

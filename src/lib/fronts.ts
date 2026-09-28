@@ -19,7 +19,14 @@
 // origin, so its front face is exactly this rectangle at
 // z = +depthMm/2). The renderer converts to metres at the last moment.
 
-import type { FrontKind, FrontLayout, FrontRowKind, GlassTint, HandleSpec } from '../types/front';
+import type {
+  FrontKind,
+  FrontLayout,
+  FrontRowKind,
+  GlassTint,
+  HandleOrientation,
+  HandleSpec,
+} from '../types/front';
 import { clampCount, clampTambourShelfCount, DOUBLE_DOOR_MIN_WIDTH_MM } from '../types/front';
 import type { HardwareSpec, PlacedCabinetItem } from '../types/cabinet';
 import type { HardwareRates } from '../types/rates';
@@ -41,6 +48,14 @@ export const FRONT_THICKNESS_MM = 18;
 
 // How far a bar handle sits in from the edge it's mounted near.
 const HANDLE_EDGE_INSET_MM = 45;
+
+// How far a gola/edge-profile handle's CENTRELINE sits in from the
+// panel's true edge — half of Room3DCanvas.tsx's own `thicknessMm`
+// (20mm) for a profile, so the whole box lands inside the panel with
+// its outer face flush at the true edge, rather than the centreline
+// itself being AT the edge (which straddles half the box outside the
+// panel). See placeHandle's own comment on this branch.
+const PROFILE_EDGE_INSET_MM = 10;
 
 // Hinges per door leaf. A tall door needs more or it twists.
 function hingesPerLeaf(heightMm: number): number {
@@ -301,11 +316,15 @@ export function shelfBoards(widthMm: number, heightMm: number, count: number): R
 
 // Where the handle goes on one panel. `side` says which edge a
 // vertical bar hugs; 'center' puts a horizontal bar across the middle,
-// which is what a drawer front takes.
+// which is what a drawer front takes. `kind` and `handleOrientation`
+// are only consulted for gola/edge-profile placement — see that
+// branch's own comment.
 function placeHandle(
   rect: Rect,
   handle: HandleSpec | undefined,
-  side: 'left' | 'right' | 'center'
+  side: 'left' | 'right' | 'center',
+  kind: FrontRowKind,
+  handleOrientation: HandleOrientation | undefined
 ): HandlePlacement | null {
   // No handle chosen, or the catalogue hasn't loaded yet — no geometry
   // and, downstream, no charge. See resolveHandle in types/front.ts for
@@ -313,14 +332,71 @@ function placeHandle(
   if (!handle) return null;
   if (handle.kind === 'handleless') return null;
 
-  // Profiles are cut to the panel and run along its top edge rather
-  // than being a discrete object placed on the face — that's the whole
-  // visual point of gola/edge-profile handles, and it's also why they
-  // price per metre.
+  // Profiles are cut to the panel rather than being a discrete object
+  // placed on the face — that's the whole visual point of gola/
+  // edge-profile handles, and it's also why they price per metre.
+  //
+  // Positioned a few mm IN from the panel's true edge, not exactly on
+  // it — Room3DCanvas.tsx's HandleMesh draws a profile as a box
+  // `thicknessMm` (20mm there) wide across the axis this centreline
+  // sits on, centred ON that centreline. Placed exactly AT the edge
+  // (centreline = edge), half that box straddles OUTSIDE the panel's
+  // own bounds, into whatever reveal gap or adjacent geometry sits
+  // there — which is fragile: it depends on nothing else occupying
+  // that sliver of space, unlike a bar/knob handle, which is already
+  // deliberately inset (HANDLE_EDGE_INSET_MM). PROFILE_EDGE_INSET_MM
+  // is half that 20mm box, so an inset centreline puts the WHOLE box
+  // inside the panel, its outer face landing exactly at the panel's
+  // true edge instead of straddling it.
   if (handle.kind === 'gola' || handle.kind === 'edge-profile') {
+    // A trolley pull-out (cylinder-trolley, and pantry-unit's own
+    // default front — see types/front.ts) has no hinge to swing from;
+    // it's gripped and pulled straight out, and it's often close to
+    // full cabinet height (a pantry unit runs 2100mm). A groove along
+    // the TOP edge — right for a base/wall door or a drawer front,
+    // both a comfortable reach at their own height — would sit near
+    // ceiling height on a tall pull-out and be awkward or impossible
+    // to reach. A VERTICAL groove down one side gives a full-height
+    // grip reachable at any point along it, which is the real trade
+    // convention for this front kind regardless of the cabinet's own
+    // height. No hinge-side concept exists for a trolley to derive
+    // WHICH side from (`side` is always 'center' here — see the
+    // 'trolley' case above), so this fixes the right edge rather than
+    // leaving it to accident.
+    if (kind === 'trolley') {
+      return {
+        centerXMm: rect.centerXMm + (rect.widthMm / 2 - PROFILE_EDGE_INSET_MM),
+        centerYMm: rect.centerYMm,
+        lengthMm: rect.heightMm,
+        orientation: 'vertical',
+        handle,
+      };
+    }
+
+    // Manual override, doors only, for now (FrontLayout.handleOrientation's
+    // own comment) — a single/double door's profile can genuinely run
+    // either way depending on the design, unlike a trolley, which only
+    // ever makes sense vertical. Reuses `side` for WHICH edge, same as
+    // the trolley case reuses a fixed edge and a bar/knob handle
+    // already reuses `side` for its own vertical placement below — a
+    // double door's two leaves land their verticals on the edge
+    // nearest the centre meeting line, matching how a bar/knob handle
+    // on a double door already looks, not two unrelated strips.
+    const isDoor = kind === 'single-door' || kind === 'double-door';
+    if (isDoor && handleOrientation === 'vertical') {
+      return {
+        centerXMm:
+          rect.centerXMm + (side === 'right' ? 1 : -1) * (rect.widthMm / 2 - PROFILE_EDGE_INSET_MM),
+        centerYMm: rect.centerYMm,
+        lengthMm: rect.heightMm,
+        orientation: 'vertical',
+        handle,
+      };
+    }
+
     return {
       centerXMm: rect.centerXMm,
-      centerYMm: rect.centerYMm + rect.heightMm / 2,
+      centerYMm: rect.centerYMm + (rect.heightMm / 2 - PROFILE_EDGE_INSET_MM),
       lengthMm: rect.widthMm,
       orientation: 'horizontal',
       handle,
@@ -435,6 +511,7 @@ export function computeFrontBreakdown(
           hinge: rowSpec.hinge,
           heightRatios: rowSpec.heightRatios,
           glass: rowSpec.glass,
+          handleOrientation: rowSpec.handleOrientation,
         };
         const sub = computeFrontBreakdown(subLayout, band.widthMm, band.heightMm, handle, rates);
 
@@ -522,7 +599,14 @@ export function computeFrontBreakdown(
       const panels: FrontPanel[] = doorRects.map(({ rect, side }, index) => ({
         index,
         ...rect,
-        handle: placeHandle(rect, handle, side),
+        // A hinged door (single or double leaf, per doorRects above),
+        // never 'trolley' — a horizontal top-edge gola/edge-profile is
+        // the right convention here, same as any other door. The
+        // vertical-orientation override is scoped to `kind === 'single-
+        // door' | 'double-door'` only (FrontLayout.handleOrientation's
+        // own comment) — a glassed open-shelf door doesn't qualify yet,
+        // so `undefined` here always falls through to horizontal.
+        handle: placeHandle(rect, handle, side, 'open-shelf', undefined),
         kind: 'open-shelf' as const,
         glassTint: tint,
       }));
@@ -647,7 +731,7 @@ export function computeFrontBreakdown(
   const panels: FrontPanel[] = rects.map(({ rect, side }, index) => ({
     index,
     ...rect,
-    handle: placeHandle(rect, handle, side),
+    handle: placeHandle(rect, handle, side, rectsKind, layout.handleOrientation),
     kind: rectsKind,
     glassTint: glass?.tint,
   }));

@@ -67,6 +67,7 @@ const MODULE_TYPES: ModuleType[] = [
   'corner-blind',
   'corner-magic',
   'corner-carousel',
+  'pantry-unit',
 ];
 const MATERIALS: MaterialType[] = ['HDMR', 'Plywood', 'MDF', 'Particle Board', 'BWP'];
 const OBSTACLE_TYPES: ObstacleType[] = ['pillar', 'shaft', 'exposed-pipe', 'electrical-panel'];

@@ -81,6 +81,13 @@ function cabinet(
     material,
     finishId: finish.id,
     unitPrice,
+    // frontLayout deliberately left unset, even for a row like the
+    // pantry unit below whose whole point is a non-default front —
+    // this generator's own export function drops frontLayout from the
+    // sheet entirely (cabinetImportExport.ts's header comment), so
+    // passing one here would silently vanish on upload. Get the right
+    // front some other way — a dedicated moduleType (pantry-unit) —
+    // not a field this format can't carry.
     createdAt: now,
     updatedAt: now,
   };
@@ -117,6 +124,29 @@ const CABINETS: CatalogItem[] = [
   cabinet('Corner Blind Unit 900', 'Base', 'corner-blind', 900, 900, 850, 'HDMR', 'Natural Oak', 15800),
   cabinet('Corner Magic Unit 900', 'Base', 'corner-magic', 900, 900, 850, 'HDMR', 'Ivory Satin', 24000),
   cabinet('Corner Carousel Unit 900', 'Base', 'corner-carousel', 900, 900, 850, 'HDMR', 'White Gloss', 21500),
+  // pantry pull-out — its own ModuleType ('pantry-unit', types/
+  // cabinet.ts), whose default front IS a multi-tier wire-basket
+  // TROLLEY (types/front.ts's defaultFrontLayout), not the plain
+  // double-door 'tall-unit' gets. NOT passed as a frontLayout override
+  // here on purpose — the Excel format this generator's own export
+  // function produces deliberately excludes frontLayout (see
+  // cabinetImportExport.ts's own header comment), so an override here
+  // would silently vanish on upload and this row would import as a
+  // plain double-door tall unit wearing a misleading name. Making it a
+  // real moduleType instead means the correct front survives the round
+  // trip, because module_type DOES travel through the sheet. Own
+  // 'Pantry' category rather than folding into 'Tall', so it groups
+  // separately in the toolbar from a plain larder unit.
+  cabinet('Pantry Pull-out Unit 450', 'Pantry', 'pantry-unit', 450, 600, 2100, 'HDMR', 'Natural Oak', 38500),
+  cabinet('Pantry Pull-out Unit 600', 'Pantry', 'pantry-unit', 600, 600, 2100, 'HDMR', 'Ivory Satin', 44000),
+  // tandem drawer bank — 'drawer-unit' already defaults to a 'drawers'
+  // front, and 'channel' is already priced as a tandem-box system
+  // rather than a budget one (see PLACEHOLDER_RATES in
+  // src/types/rates.ts) — so this isn't a mechanically different
+  // product from the Drawer Unit rows above, just a genuinely new
+  // WIDTH (1200mm — nothing above goes past 900) rather than a
+  // same-size duplicate under a different name.
+  cabinet('Tandem Drawer Bank 1200', 'Base', 'drawer-unit', 1200, 600, 850, 'MDF', 'Teak Veneer', 26500),
 ];
 
 const OBSTACLES: ObstaclePreset[] = [
