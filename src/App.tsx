@@ -10,9 +10,7 @@ import { FixtureLayer } from './components/canvas/FixtureLayer';
 import { RemainingSpaceLayer } from './components/canvas/RemainingSpaceLayer';
 import { PickChooser } from './components/canvas/PickChooser';
 import { CameraLayer } from './components/canvas/CameraLayer';
-import { CollisionWarningBanner } from './components/canvas/CollisionWarningBanner';
-import { CabinetClearanceWarningBanner } from './components/canvas/CabinetClearanceWarningBanner';
-import { KitchenChecksBanner } from './components/canvas/KitchenChecksBanner';
+import { DesignAlertsPanel } from './components/canvas/DesignAlertsPanel';
 import { ObstacleToolbar } from './components/toolbar/ObstacleToolbar';
 import { CabinetToolbar } from './components/toolbar/CabinetToolbar';
 import { ApplianceToolbar } from './components/toolbar/ApplianceToolbar';
@@ -298,9 +296,11 @@ function App() {
           </div>
 
           <div className="relative flex flex-col gap-3">
-            {showOverlapWarnings && <CollisionWarningBanner />}
-            {showClearanceWarnings && <CabinetClearanceWarningBanner />}
-            {showKitchenChecks && <KitchenChecksBanner />}
+            <DesignAlertsPanel
+              showOverlapWarnings={showOverlapWarnings}
+              showClearanceWarnings={showClearanceWarnings}
+              showKitchenChecks={showKitchenChecks}
+            />
 
             <div className="flex w-fit flex-col gap-1.5">
               <Label className="flex items-center gap-2 text-xs font-normal text-gray-600">

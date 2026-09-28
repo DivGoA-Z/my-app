@@ -16,6 +16,34 @@ where reasoning is recorded and `git log` is where the history is.
 
 ## Where things stand
 
+**Checkpoint, later the same day**: you went through last session's
+unverified items live in the browser. Present mode, glass fronts,
+gola/edge-profile handles, keyboard shortcuts, and the kitchen
+ergonomics checks (including the corner-ambiguity fix) all confirmed
+working. That pass surfaced real follow-on work, all shipped and
+build-clean: a fridge work-triangle check (`checkFridgeDistances`),
+Cmd+C/Cmd+V cabinet/obstacle/appliance duplication, a real gap fix (a
+cabinet's door could open straight into a wall with no warning — now
+caught), and a full rewrite of the warning UI: one `DesignAlertsPanel`
+replacing three separate aggregate-count banners, showing a real
+explanation per alert and filtering to whatever's currently selected.
+See `docs/DECISIONS.md` §32.
+
+**In progress, paused at a safe checkpoint on purpose**: making a
+cabinet's door-swing conflict check use the TRUE quarter-circle arc
+instead of a conservative bounding box/rectangle — found because a
+correctly-detected conflict (a base-cabinet 150mm from a
+corner-carousel) didn't visually look like it overlapped, since the
+box used for detection is deliberately bigger than the arc drawn on
+screen. Your call: do the full version (one shared geometry function
+feeding BOTH detection and the on-screen arc — including extending
+real arcs to `'mixed'`-front door rows, which currently still render
+as a plain rectangle), not just a smaller detection-only fix. This is
+real rotation/arc geometry, an area with a documented bug history in
+this codebase, so this commit is the rollback point if it goes wrong.
+
+The rest of this session's earlier work, for context:
+
 This session closed out three Phase 3 roadmap items and deferred a
 fourth, your call on each:
 

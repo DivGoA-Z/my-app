@@ -13,9 +13,13 @@
 // that file's ClearanceIssue is keyed on a WallOpening; this conflict
 // has no opening involved at all, just two cabinets.
 //
-// Scoped to cabinet-vs-cabinet only, matching the reported case.
-// Extending this to obstacles/appliances would follow the same
-// pattern if it's ever asked for, but isn't built speculatively here.
+// Scoped to cabinet-vs-cabinet, PLUS the room's own walls (added
+// after a real report: a cabinet whose door/drawer reach zone pokes
+// past the room boundary — physically, a door that would open into a
+// wall — produced no warning at all, since every check here used to
+// compare cabinets against each other only). Extending this to
+// obstacles/appliances would follow the same pattern if it's ever
+// asked for, but isn't built speculatively here.
 //
 // FLOOR-TOUCHING CABINETS ONLY. First shipped without this filter and
 // immediately lit up on a corner where every cabinet involved was
@@ -188,13 +192,28 @@ export function cabinetReachZone(item: PlacedCabinetItem, layout: FrontLayout): 
 
 export interface CabinetReachIssue {
   cabinetId: string;
+  // A real cabinet's id for a cabinet-vs-cabinet conflict, or the
+  // literal string 'wall' for a reach zone that pokes past the room
+  // boundary.
   withId: string;
+  // Human explanation, for useDesignAlerts — computed here rather than
+  // by the consuming hook, since only this function knows which of the
+  // three cabinet-vs-cabinet cases fired or which room edge a wall
+  // conflict crossed.
+  message: string;
 }
 
 export interface CabinetReachResult {
   issues: CabinetReachIssue[];
   blockedCabinetIds: Set<string>;
 }
+
+// Float noise tolerance, same reasoning as collision.ts's own 0.5mm
+// epsilon on boxesOverlap: a committed position has already been
+// through an mm→px→mm round trip (canvasScale's scale is essentially
+// never a round number), so a reach zone landing EXACTLY on the wall
+// plane shouldn't flip this on 1e-13mm of rounding noise.
+const WALL_ESCAPE_TOLERANCE_MM = 0.5;
 
 // Three ways two cabinets can be in each other's way, all checked:
 //   - A's door/drawer swings into B's own box (a very tight corner —
@@ -204,7 +223,16 @@ export interface CabinetReachResult {
 //     other in the open floor between them — the classic L-corner
 //     case, where two doors on perpendicular walls fight for the same
 //     patch of floor without either cabinet touching the other.
-export function detectCabinetReachConflicts(cabinets: PlacedCabinetItem[]): CabinetReachResult {
+// PLUS a fourth, against the room itself: a reach zone that extends
+// past [0, roomWidthMm] x [0, roomDepthMm] is a door that would open
+// into a wall — physically impossible, and previously undetected since
+// nothing here compared a cabinet against the room boundary, only
+// against other cabinets.
+export function detectCabinetReachConflicts(
+  cabinets: PlacedCabinetItem[],
+  roomWidthMm: number,
+  roomDepthMm: number
+): CabinetReachResult {
   const issues: CabinetReachIssue[] = [];
   const blockedCabinetIds = new Set<string>();
 
@@ -231,10 +259,37 @@ export function detectCabinetReachConflicts(cabinets: PlacedCabinetItem[]): Cabi
         (a.zone !== null && b.zone !== null && rectsOverlap(a.zone, b.zone));
 
       if (conflict) {
-        issues.push({ cabinetId: a.item.id, withId: b.item.id });
+        issues.push({
+          cabinetId: a.item.id,
+          withId: b.item.id,
+          message: `This ${a.item.moduleType}'s door/drawer swings into the ${b.item.moduleType} next to it.`,
+        });
         blockedCabinetIds.add(a.item.id);
         blockedCabinetIds.add(b.item.id);
       }
+    }
+  }
+
+  for (const entry of entries) {
+    if (entry.item.ignoreClearance || !entry.zone) continue;
+    const { x, y, widthMm, depthMm } = entry.zone;
+    // Named per edge rather than just a boolean, so the message can say
+    // WHICH wall — the same room can have this happen on more than one
+    // cabinet, on different walls, and "would open into a wall" alone
+    // makes that impossible to tell apart at a glance.
+    const crossedWalls: string[] = [];
+    if (x < -WALL_ESCAPE_TOLERANCE_MM) crossedWalls.push('west');
+    if (y < -WALL_ESCAPE_TOLERANCE_MM) crossedWalls.push('north');
+    if (x + widthMm > roomWidthMm + WALL_ESCAPE_TOLERANCE_MM) crossedWalls.push('east');
+    if (y + depthMm > roomDepthMm + WALL_ESCAPE_TOLERANCE_MM) crossedWalls.push('south');
+
+    if (crossedWalls.length > 0) {
+      issues.push({
+        cabinetId: entry.item.id,
+        withId: 'wall',
+        message: `This ${entry.item.moduleType}'s door/drawer would open into the ${crossedWalls.join('/')} wall.`,
+      });
+      blockedCabinetIds.add(entry.item.id);
     }
   }
 

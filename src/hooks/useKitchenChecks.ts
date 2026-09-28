@@ -2,10 +2,11 @@
 //
 // Same reasoning as useCollisions.ts/useCabinetClearance.ts:
 // recomputes the trade-specific ergonomics checks (lib/kitchenChecks.ts
-// — aisle width, sink-hob distance, hob-under-window, counter-beside-
-// hob, chimney-centred-on-hob) only when the layout/cabinets/appliances
-// actually change, so a warning banner always reads the current result
-// with no manual recompute step.
+// — aisle width, sink-hob distance, sink/hob-fridge distance,
+// hob-under-window, counter-beside-hob, chimney-centred-on-hob) only
+// when the layout/cabinets/appliances actually change, so a warning
+// banner always reads the current result with no manual recompute
+// step.
 
 import { useMemo } from 'react';
 import { useLayoutStore } from '../store/layoutStore';

@@ -3,23 +3,47 @@
 // Keyboard shortcuts for whatever is currently selected on the 2D
 // plan — Delete/Backspace to remove it (same as clicking that item's
 // own Delete button in its Inspector — no confirm dialog; undo covers
-// the "oops" case), Escape to deselect, and arrow keys to nudge a
-// cabinet/obstacle/appliance without reaching for the mouse. Global,
-// registered once, same shape as useUndoRedoShortcuts — and skipped
-// the same way while focus is inside a text input/textarea/select, so
-// typing in an Inspector field never doubles as a shortcut.
+// the "oops" case), Escape to deselect, arrow keys to nudge a
+// cabinet/obstacle/appliance without reaching for the mouse, and
+// Cmd/Ctrl+C + Cmd/Ctrl+V to duplicate one. Global, registered once,
+// same shape as useUndoRedoShortcuts — and skipped the same way while
+// focus is inside a text input/textarea/select, so typing in an
+// Inspector field never doubles as a shortcut.
 //
-// Arrow-key nudging is scoped to cabinets, obstacles and appliances —
-// the three placed types whose position is a plain x/y
-// RotatableFootprint (lib/footprint.ts). An opening moves along a wall
-// by offsetMm, and a fixture's position depends on its mount kind
-// (ceiling/wall/cabinet/free); nudging either the same way would need
-// per-kind logic disproportionate to what a keyboard shortcut is for,
-// so Delete/Escape still cover them but arrows don't.
+// Arrow-key nudging AND copy/paste are both scoped to cabinets,
+// obstacles and appliances — the three placed types whose position is
+// a plain x/y RotatableFootprint (lib/footprint.ts). An opening moves
+// along a wall by offsetMm, and a fixture's position depends on its
+// mount kind (ceiling/wall/cabinet/free); duplicating either the same
+// way would need per-kind logic disproportionate to what a keyboard
+// shortcut is for, same reasoning §22's arrow-nudge scoping already
+// used — so Delete/Escape still cover them but copy/paste doesn't.
 
 import { useEffect } from 'react';
 import { useLayoutStore } from '../store/layoutStore';
 import { nudgeFootprint } from '../lib/footprint';
+import type { PlacedCabinetItem } from '../types/cabinet';
+import type { Obstacle } from '../types/layout';
+import type { PlacedApplianceItem } from '../types/appliance';
+
+// Module-level, not store state: a copied item never renders anywhere
+// and nothing needs to react to it changing, so it doesn't belong in
+// Zustand — same "session-only, not a property of the design" reasoning
+// showDimensions/showOverlapWarnings already use for their own local
+// state, just as a plain variable here since this hook has no return
+// value for a component to read. Resets on a full page reload, which
+// is the right default for a clipboard nobody asked to have persisted.
+type Clipboard =
+  | { type: 'cabinet'; item: PlacedCabinetItem }
+  | { type: 'obstacle'; item: Obstacle }
+  | { type: 'appliance'; item: PlacedApplianceItem };
+let clipboard: Clipboard | null = null;
+
+// Offset so a pasted copy doesn't land exactly on top of the original
+// (which would collide-warn and be hard to grab) — the room's own
+// default grid step, same value Shift+arrow nudges by, so a pasted
+// copy lands on-grid like a dragged item would.
+const PASTE_OFFSET_MM = 50;
 
 // Mirrors the fallback used across the toolbars/inspectors — only
 // matters before any project/layout has loaded.
@@ -67,6 +91,61 @@ export function useSelectionShortcuts(enabled: boolean) {
         if (!selection) return;
         e.preventDefault();
         state.select(null);
+        return;
+      }
+
+      const isCopy = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'c';
+      const isPaste = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'v';
+
+      // Paste checked before the `!selection` gate below — pasting a
+      // copied item doesn't require anything currently selected (you
+      // can Escape to deselect, then paste).
+      if (isPaste) {
+        if (!clipboard) return;
+        e.preventDefault();
+        const roomWidthMm = state.currentLayout?.dimensions.widthMm ?? DEFAULT_ROOM_WIDTH_MM;
+        const roomDepthMm = state.currentLayout?.dimensions.depthMm ?? DEFAULT_ROOM_DEPTH_MM;
+        // Reuses the same clamp-to-room logic a dragged/nudged item
+        // gets, rather than a fresh bounds check — one function decides
+        // "is this position in the room" everywhere (lib/footprint.ts).
+        const { x, y } = nudgeFootprint(
+          clipboard.item,
+          PASTE_OFFSET_MM,
+          PASTE_OFFSET_MM,
+          roomWidthMm,
+          roomDepthMm
+        );
+        const newId = crypto.randomUUID();
+
+        if (clipboard.type === 'cabinet') {
+          state.addCabinet({ ...clipboard.item, id: newId, x, y });
+          state.select({ type: 'cabinet', id: newId });
+        } else if (clipboard.type === 'obstacle') {
+          state.addObstacle({ ...clipboard.item, id: newId, x, y });
+          state.select({ type: 'obstacle', id: newId });
+        } else {
+          state.addAppliance({ ...clipboard.item, id: newId, x, y });
+          state.select({ type: 'appliance', id: newId });
+        }
+        return;
+      }
+
+      if (isCopy) {
+        if (!selection) return;
+        if (selection.type !== 'cabinet' && selection.type !== 'obstacle' && selection.type !== 'appliance') {
+          return;
+        }
+        e.preventDefault();
+        if (selection.type === 'cabinet') {
+          const item = state.cabinets.find((c) => c.id === selection.id);
+          if (item) clipboard = { type: 'cabinet', item };
+        } else if (selection.type === 'obstacle') {
+          const item = state.obstacles.find((o) => o.id === selection.id);
+          if (item) clipboard = { type: 'obstacle', item };
+        } else {
+          const item = state.appliances.find((a) => a.id === selection.id);
+          if (item) clipboard = { type: 'appliance', item };
+        }
         return;
       }
 

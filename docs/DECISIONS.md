@@ -3353,3 +3353,77 @@ trusting a raw list's *shape* (undated bullets reading like open
 reports) without checking whether each one already had a resolution on
 record elsewhere. "Distrust your own tooling" applies to your own
 reading of a file, not just to scanners and scripts.
+
+## 32. A live browser-testing pass: a fridge work-triangle check,
+    Cmd+C/Cmd+V duplication, a cabinet-vs-wall clearance gap, and one
+    unified alerts panel
+
+You went through the previous session's unverified items in the
+browser directly rather than a scripted checklist — present mode,
+glass fronts, gola/edge-profile handles, keyboard shortcuts, and the
+kitchen ergonomics checks (aisle width including the corner-ambiguity
+fix, sink-hob distance, counter-beside-hob) all confirmed working.
+Real follow-on work came out of that pass:
+
+**Fridge work-triangle check, your request.** `checkFridgeDistances`
+(`lib/kitchenChecks.ts`) adds the two legs `fridge` (added earlier
+this session) unblocked — sink-to-fridge and hob-to-fridge, MAX
+distance only (2700mm, same threshold as sink-hob's own "too far"
+case). Deliberately no MIN: `MIN_SINK_HOB_MM`'s reasoning is
+specifically about splashing near an open flame, which has no fridge
+equivalent, and a too-close fridge is already caught by the existing
+overlap/clearance checks. Only fires when a fridge is actually placed.
+The file's own stale header comment (still describing the fridge gap
+as unfixed) was corrected in place.
+
+**Cmd+C / Cmd+V duplication, your request** (`useSelectionShortcuts.ts`)
+— V for paste, not the P you said, since V is the standard clipboard
+key and P wasn't bound to anything; flagged rather than silently
+"corrected" without saying so. Scoped to cabinets/obstacles/appliances
+only, same reasoning arrow-nudge already uses (openings move by
+wall-offset, fixtures by mount kind — duplicating either needs
+per-kind logic disproportionate to a keyboard shortcut). Copy stores
+the selected item's full data in a module-level variable (not store
+state — nothing renders it, nothing needs to react to it); paste
+creates a new id via `crypto.randomUUID()`, offsets position by 50mm
+via the same `nudgeFootprint` clamp-to-room logic a drag already uses,
+and selects the new copy.
+
+**A real gap found from your own testing: a cabinet's door/drawer
+could open straight into a wall with no warning at all.**
+`lib/cabinetClearance.ts` previously only ever compared one cabinet's
+reach zone against ANOTHER cabinet's (the L-corner check) — nothing
+compared it against the room's own boundary. Added a fourth check:
+every floor-touching cabinet's reach zone is now also tested against
+`[0, roomWidthMm] x [0, roomDepthMm]`, flagged the same way (same
+amber highlight, same banner), with the specific wall(s) crossed named
+in the message. `detectCabinetReachConflicts` now takes room
+width/depth explicitly (both call sites — `useCabinetClearance`,
+`CabinetLayer`'s live-drag preview — updated).
+
+**Unified alerts panel, your request: select an item, see only ITS
+alerts with real explanations; select nothing, see everything.**
+Previously four separate systems (collision, cabinet-vs-cabinet/wall
+clearance, room-door-vs-item swing clearance, kitchen ergonomics) each
+rendered their own aggregate-count-only banner — "3 cabinets with a
+blocked door/drawer," no way to know why without guessing. New
+`useDesignAlerts()` hook normalizes all four into one `DesignAlert[]`
+(`itemIds`, `category`, a real human `message` — `kitchenChecks.ts`'s
+`KitchenCheckFinding` gained an `itemIds` field for this, populated at
+every finding site) and one `DesignAlertsPanel` replaces
+`CollisionWarningBanner`/`CabinetClearanceWarningBanner`/
+`KitchenChecksBanner` (all three deleted) — filtered to the current
+selection when one exists, everything otherwise. The three existing
+show/hide toggles still gate what's included, unchanged. Room-door
+swing clearance is folded in here too (previously only a count inside
+`OpeningToolbar`, which keeps its own contextual summary separately —
+different job, not redundant).
+
+Verified via `npx tsc --noEmit -p tsconfig.app.json`, `npx eslint .`,
+and a full `npm run build` (all clean). **Not yet re-verified in a
+browser** after this batch — checkpointed here (committed and pushed)
+specifically because the next piece of work (accurate door-swing
+geometry, replacing the conservative bounding-box/arc mismatch this
+same panel just made visible) is real geometry surgery in a part of
+this codebase with a documented history of rotation/arc bugs, and you
+asked for a safe point to roll back to first.

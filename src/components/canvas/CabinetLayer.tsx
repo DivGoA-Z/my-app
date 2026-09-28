@@ -292,7 +292,9 @@ export function CabinetLayer({
     ? detectCabinetReachConflicts(
         cabinets.map((c) =>
           c.id === dragState.cabinetId ? { ...c, x: dragState.xMm, y: dragState.yMm } : c
-        )
+        ),
+        widthMm,
+        depthMm
       ).blockedCabinetIds
     : committedBlockedCabinetIds;
 

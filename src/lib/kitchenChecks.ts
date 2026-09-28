@@ -15,14 +15,18 @@
 // already promises never to stop someone from designing what the site
 // actually requires.
 //
-// KNOWN GAP, stated rather than silently worked around: a real "work
-// triangle" is sink/hob/refrigerator, and this app has no fridge
-// ApplianceType (see types/appliance.ts) — Indian kitchens overwhelmingly
-// buy the fridge separately and it often doesn't even live in the
-// kitchen, which is presumably why it was never modelled. So
-// checkSinkHobDistance below checks the one leg of the triangle this
-// app CAN actually see, not a fabricated three-point triangle with a
-// guessed third corner.
+// CORRECTED: this used to say a real "work triangle" is
+// sink/hob/refrigerator but this app had no fridge ApplianceType, so
+// only the sink-hob leg below was checked. `fridge` was added to
+// ApplianceType (types/appliance.ts) once appliance-dimensions-first
+// needed it, which unblocks the other two legs —
+// checkFridgeDistances below adds them, same one-leg-at-a-time
+// distance pattern as checkSinkHobDistance, not a stricter perimeter-
+// sum or mutual-angle "triangle" rule. It only fires when a fridge is
+// actually PLACED: Indian kitchens overwhelmingly buy the fridge
+// separately and it often doesn't even live in the kitchen, so an
+// unplaced fridge correctly produces no finding rather than assuming
+// one exists.
 
 import type { RoomLayout, WallOrientation } from '../types/layout';
 import type { PlacedCabinetItem } from '../types/cabinet';
@@ -38,6 +42,13 @@ export interface KitchenCheckFinding {
   // moves — same reasoning collision/clearance ids get elsewhere.
   id: string;
   message: string;
+  // Which placed item(s) this finding is "about", for
+  // useDesignAlerts' selection filtering — empty for a room-level
+  // finding with no single item to point at (aisle width: it's about
+  // two WALLS, not an item). checkCounterBesideHob is deliberately
+  // one-sided: there's no specific cabinet to blame for the ABSENCE
+  // of a landing counter, only the hob itself.
+  itemIds: string[];
 }
 
 const WALLS: WallOrientation[] = ['north', 'east', 'south', 'west'];
@@ -165,6 +176,7 @@ export function checkAisleWidths(
       findings.push({
         id: `aisle-${a}-${b}`,
         message: `Only ${Math.max(0, Math.round(aisleMm))}mm of walking space between the ${a} and ${b} counters — the trade minimum is ${MIN_AISLE_MM}mm.`,
+        itemIds: [],
       });
     }
   }
@@ -192,11 +204,13 @@ export function checkSinkHobDistance(appliances: PlacedApplianceItem[]): Kitchen
         findings.push({
           id: `sink-hob-close-${sink.id}-${stove.id}`,
           message: `Sink and hob are only ${Math.round(distMm)}mm apart — water splashing near an open flame. ${MIN_SINK_HOB_MM}mm is the usual minimum.`,
+          itemIds: [sink.id, stove.id],
         });
       } else if (distMm > MAX_SINK_HOB_MM) {
         findings.push({
           id: `sink-hob-far-${sink.id}-${stove.id}`,
           message: `Sink and hob are ${Math.round(distMm)}mm apart — a long walk for the most common trip in the kitchen. Under ${MAX_SINK_HOB_MM}mm works better.`,
+          itemIds: [sink.id, stove.id],
         });
       }
     }
@@ -240,6 +254,7 @@ export function checkHobUnderWindow(
         findings.push({
           id: `hob-under-window-${stove.id}-${window.id}`,
           message: `Hob sits under a window on the ${wall} wall — curtains near an open flame, and a draft can blow the flame out.`,
+          itemIds: [stove.id, window.id],
         });
       }
     }
@@ -301,6 +316,7 @@ export function checkCounterBesideHob(
       findings.push({
         id: `no-landing-${stove.id}`,
         message: `No counter immediately beside the hob on the ${wall} wall — nowhere to set down a hot pan.`,
+        itemIds: [stove.id],
       });
     }
   }
@@ -348,7 +364,57 @@ export function checkChimneyCentredOnHob(appliances: PlacedApplianceItem[]): Kit
       findings.push({
         id: `chimney-offset-${stove.id}-${nearest.id}`,
         message: `Chimney is ${Math.round(offsetMm)}mm off-centre from its hob — extraction works best directly above it.`,
+        itemIds: [stove.id, nearest.id],
       });
+    }
+  }
+
+  return findings;
+}
+
+// ---- Fridge distances (the other two legs of the sink/hob/fridge
+// work triangle, now that `fridge` exists as an ApplianceType) ----
+//
+// MAX only, no MIN, unlike checkSinkHobDistance: MIN_SINK_HOB_MM's
+// reasoning is specifically about water splashing near an OPEN FLAME,
+// which has no equivalent for a fridge. A fridge placed too close to
+// the sink or hob is already caught by the existing overlap/clearance
+// checks (a real physical conflict, not an ergonomics concern) — this
+// file only adds what those don't already cover.
+const MAX_SINK_FRIDGE_MM = 2700;
+const MAX_HOB_FRIDGE_MM = 2700;
+
+export function checkFridgeDistances(appliances: PlacedApplianceItem[]): KitchenCheckFinding[] {
+  const sinks = appliances.filter((a) => a.applianceType === 'sink');
+  const stoves = appliances.filter((a) => a.applianceType === 'stove');
+  const fridges = appliances.filter((a) => a.applianceType === 'fridge');
+  const findings: KitchenCheckFinding[] = [];
+
+  for (const fridge of fridges) {
+    const fridgeCenter = footprintCenter(currentFootprintRect(fridge));
+
+    for (const sink of sinks) {
+      const sinkCenter = footprintCenter(currentFootprintRect(sink));
+      const distMm = Math.hypot(sinkCenter.x - fridgeCenter.x, sinkCenter.y - fridgeCenter.y);
+      if (distMm > MAX_SINK_FRIDGE_MM) {
+        findings.push({
+          id: `sink-fridge-far-${sink.id}-${fridge.id}`,
+          message: `Sink and fridge are ${Math.round(distMm)}mm apart — a long walk for a common trip. Under ${MAX_SINK_FRIDGE_MM}mm works better.`,
+          itemIds: [sink.id, fridge.id],
+        });
+      }
+    }
+
+    for (const stove of stoves) {
+      const stoveCenter = footprintCenter(currentFootprintRect(stove));
+      const distMm = Math.hypot(stoveCenter.x - fridgeCenter.x, stoveCenter.y - fridgeCenter.y);
+      if (distMm > MAX_HOB_FRIDGE_MM) {
+        findings.push({
+          id: `hob-fridge-far-${stove.id}-${fridge.id}`,
+          message: `Hob and fridge are ${Math.round(distMm)}mm apart — a long walk for a common trip. Under ${MAX_HOB_FRIDGE_MM}mm works better.`,
+          itemIds: [stove.id, fridge.id],
+        });
+      }
     }
   }
 
@@ -366,6 +432,7 @@ export function checkKitchenErgonomics(
   return [
     ...checkAisleWidths(layout, cabinets),
     ...checkSinkHobDistance(appliances),
+    ...checkFridgeDistances(appliances),
     ...checkHobUnderWindow(layout, appliances),
     ...checkCounterBesideHob(layout, cabinets, appliances),
     ...checkChimneyCentredOnHob(appliances),
