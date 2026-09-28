@@ -3427,3 +3427,114 @@ geometry, replacing the conservative bounding-box/arc mismatch this
 same panel just made visible) is real geometry surgery in a part of
 this codebase with a documented history of rotation/arc bugs, and you
 asked for a safe point to roll back to first.
+
+## 33. Accurate door-swing geometry — the conservative box replaced
+    with the true quarter-circle everywhere, plus two real bugs caught
+    only by your own live testing
+
+The follow-up to §32's checkpoint. You confirmed the arc-vs-box
+mismatch was real (a base-cabinet 150mm from a corner-carousel
+correctly flagged, with no visible overlap in the drawn arc — the
+detection rectangle was deliberately bigger than the arc, same
+trade-off `doorSwingZone` already makes for room doors) and asked for
+the full fix rather than a wording patch: **your words, "can't we make
+it accurate in show as well as actuality? it would be a bug equivalent
+in market."**
+
+**The geometry.** `lib/cabinetClearance.ts`'s `cabinetReachZone`
+(a `RoomRect`, one of four hardcoded rotation cases) is gone, replaced
+by `reachPolygons` — a true quarter-circle sector (an 8-sided polygon
+fan, `sectorPolygon`) for a swinging door, the same honest rectangle as
+before for a straight pull-out (already accurate — a drawer really
+does travel in a straight line), and the carousel's true diagonal
+sector built from `carouselDoorArc`'s already-verified pivot/edge
+math. Overlap is tested with a Separating Axis Theorem check
+(`polygonsOverlap`) — exact for any two convex shapes, so a rectangle
+(4 points) and a sector (9 points) are tested identically, no special
+casing.
+
+**`carouselDoorArc` relocated from `CabinetLayer.tsx` into this file**,
+extended to also return the closed-leaf endpoint (it already computed
+this internally as `p4`, just never returned it), and CabinetLayer now
+imports it rather than keeping a second copy. Same reasoning as
+`calculateBOM`'s required context or hardware being derived once: one
+calculation feeds both the drawing and the check, so they can't
+disagree. `winningReachRow` — "which row governs this cabinet's
+reach, and is it a swinging door" — is exported for the same reason,
+and used by CabinetLayer's rendering too, which is what let a `'mixed'`
+front's door row finally get a real on-screen arc instead of always
+falling back to the plain rectangle it used to ("kept simple rather
+than picking a row's hinge to arc" — no longer necessary once the
+question has one shared answer).
+
+**Rotation math, verified before trusting it, not assumed.** The
+per-leaf pivot/closed-direction/open-direction vectors are built by
+rotating local unit vectors clockwise around the cabinet's true
+rotation-invariant centre (`item.x + widthMm/2`, `item.y + depthMm/2`
+— confirmed against `lib/footprint.ts`'s own stated Rule 1, not
+re-derived from scratch) — one `rotateCW(v, deg)` formula for all four
+rotations, rather than four hand-written cases. Checked against the
+already-shipped, already-correct open-direction results the old
+per-rotation switch returned (rotating local (0,1) by 0/90/180/270
+reproduces +Y/-X/-Y/+X — south/west/north/east — exactly, for all
+four) before it was trusted for anything new.
+
+**Bug 1, caught immediately by a constructed script, before you ever
+saw it: two ordinary adjacent cabinets — sharing an edge, zero real
+gap — were flagged as conflicting with EVERY neighbour, and a cabinet
+could conflict with its own wall while sitting nowhere near it.**
+`polygonsOverlap`'s epsilon (`OVERLAP_EPSILON_MM`, meant to absorb the
+same mm→px→mm float noise `collision.ts`'s own 0.5mm epsilon
+exists for) had the comparison backwards: `aMax + EPSILON < bMin`
+requires MORE than epsilon of real separation before two shapes count
+as separated, instead of treating a touch (or a sub-epsilon overlap)
+as still separated. Caught by a script, not by eye — trusting the
+build-clean state without a script here would have shipped this. Fixed
+to `aMax <= bMin + EPSILON`. This was verified, wrongly — a lesson in
+its own right: "verified numerically" only protects against what the
+script actually checks; the original 9-check script tested wall
+conflicts and a specific box-vs-arc corner case, but not ordinary
+edge-to-edge adjacency, which is the single MOST common real-world
+cabinet arrangement. Extended the script with that exact case before
+trusting the fix.
+
+**Bug 2, NOT a bug — your own live testing, and the reason this
+section exists at all rather than a one-line fix note.** After Bug 1's
+fix, you found the SAME base-cabinet/corner-carousel pair still
+flagged, but hand-derived geometry from the numbers you gave me
+(carousel 704×750mm, rotation 0°; two open-shelf cabinets 221×457mm
+and 150×457mm nearby, zero reach of their own since an open-shelf
+front has no door) put the nearest corner only ~15-20mm outside the
+carousel's true ~411mm sector radius — genuinely borderline, not
+obviously wrong. Rather than guess a third time in the same
+investigation, asked you to run the actual experiment: nudge the
+narrow cabinet a few cm away and see if it clears. **It did.** This
+confirms the check is correctly catching a real, tight clearance in
+that corner — the carousel door's CLOSED position (part of its full
+swept path, not just the final open position a static 3D screenshot
+happens to show) passes close enough to that neighbour to matter in
+practice. A genuinely useful finding about the layout, surfaced only
+because the geometry is now accurate enough to be trusted at this
+scale — the old conservative box either would have missed this
+entirely or flagged something even less precise nearby.
+
+**The whole sequence, worth stating plainly**: three real reports, three
+different outcomes — one a genuine accuracy gap (the original ask),
+one a real code bug this rewrite introduced and a script caught, one
+not a bug at all. Distinguishing them required your insistence on
+precision (exact Inspector values, a specific move-it-and-see
+experiment) over accepting a screenshot-level guess at any point —
+matching this file's own repeated lesson about not trusting your own
+tooling, extended here to not trusting a hand-derived geometric
+estimate either without a live test to confirm it.
+
+11/11 checks pass (`npx tsx` against a scratch script, deleted after,
+per this file's own convention): wall-facing/wall-facing-away for a
+single door, a centred double-door, the reported carousel/base-cabinet
+pair close and far, mixed-front row selection, the specific box-vs-arc
+corner case, and two ordinary edge-to-edge adjacency cases (single-door
+and drawers) added specifically to catch Bug 1 class regressions in
+future. Verified via `npx tsc --noEmit -p tsconfig.app.json`,
+`npx eslint .`, and a full `npm run build` (all clean), plus confirmed
+correct in the browser by you across three separate real layouts this
+session.

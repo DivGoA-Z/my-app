@@ -46,7 +46,11 @@ import { computeRoomScale } from '../../lib/canvasScale';
 import { useCollisions } from '../../hooks/useCollisions';
 import { useCabinetClearance } from '../../hooks/useCabinetClearance';
 import { detectCollisions } from '../../lib/collision';
-import { detectCabinetReachConflicts, cabinetReachMm, cornerCutSign } from '../../lib/cabinetClearance';
+import {
+  detectCabinetReachConflicts,
+  winningReachRow,
+  carouselDoorArc,
+} from '../../lib/cabinetClearance';
 import { touchesFloor } from '../../lib/surfaceAreas';
 import { currentFootprintRect } from '../../lib/footprint';
 import { defaultFrontLayout } from '../../types/front';
@@ -190,57 +194,11 @@ function localDoorArcs(
   ];
 }
 
-interface CarouselDoorArc {
-  pivotXMm: number;
-  pivotYMm: number;
-  radiusMm: number;
-  rotationDeg: number;
-  leafEndXMm: number;
-  leafEndYMm: number;
-}
-
-// ROOM-SPACE (no Group rotation to lean on here — see the note on
-// carouselZone lower down). Pivots at the diagonal edge's own corner
-// nearest (Xcut, Yother) and sweeps 90° to the outward normal, radius
-// = the diagonal edge's own length — "along the diagonal for the
-// length of the carousel's door," per the report this replaced a
-// floating rectangle for. The two boundary angles (the edge's own
-// direction, and its outward normal) are always exactly 90° apart by
-// construction; which one is the Konva `rotation` (sweep START) vs.
-// the far bound flips with rotationDeg — verified numerically across
-// all four rotations rather than assumed, and it always comes down to
-// whether signX and signY carry the SAME sign (0°/180°) or opposite
-// signs (90°/270°).
-function carouselDoorArc(
-  footprint: { x: number; y: number; widthMm: number; depthMm: number },
-  rotationDeg: number
-): CarouselDoorArc {
-  const { signX, signY } = cornerCutSign(rotationDeg);
-  const cutW = footprint.widthMm * CORNER_CAROUSEL_CUT_FRACTION;
-  const cutD = footprint.depthMm * CORNER_CAROUSEL_CUT_FRACTION;
-  const edgeLenMm = Math.hypot(cutW, cutD);
-
-  const xCut = signX > 0 ? footprint.x + footprint.widthMm : footprint.x;
-  const yCut = signY > 0 ? footprint.y + footprint.depthMm : footprint.y;
-  const p3 = { x: xCut, y: yCut - signY * cutD };
-  const p4 = { x: xCut - signX * cutW, y: yCut };
-
-  const edgeAngleDeg = (Math.atan2(p4.y - p3.y, p4.x - p3.x) * 180) / Math.PI;
-  const nx = (signX * cutD) / edgeLenMm;
-  const ny = (signY * cutW) / edgeLenMm;
-  const normalAngleDeg = (Math.atan2(ny, nx) * 180) / Math.PI;
-
-  const rotationDeg2 = signX * signY > 0 ? normalAngleDeg : edgeAngleDeg;
-
-  return {
-    pivotXMm: p3.x,
-    pivotYMm: p3.y,
-    radiusMm: edgeLenMm,
-    rotationDeg: rotationDeg2,
-    leafEndXMm: p3.x + nx * edgeLenMm,
-    leafEndYMm: p3.y + ny * edgeLenMm,
-  };
-}
+// carouselDoorArc (the room-space diagonal-door pivot/radius) now
+// lives in lib/cabinetClearance.ts — relocated there so the clearance
+// CHECK and this on-screen arc read from the exact same geometry
+// instead of two independently-maintained copies of it. Imported
+// above.
 
 interface DragState {
   cabinetId: string;
@@ -339,23 +297,31 @@ export function CabinetLayer({
         const itemFrontLayout = item.frontLayout ?? defaultFrontLayout(item.moduleType, item.widthMm);
         const onFloor = showClearanceWarnings && touchesFloor(item.elevationMm);
 
-        // A swinging door gets a real arc (below); only a straight
-        // pull-out (drawers/trolley), or a mixed front (kept simple
-        // rather than picking a row's hinge to arc), falls back to
-        // the plain rectangle a pull-out is honestly shaped like.
-        const isSwingingDoor =
-          item.moduleType !== 'corner-carousel' &&
-          (itemFrontLayout.kind === 'single-door' || itemFrontLayout.kind === 'double-door');
-        const reachMm = onFloor && item.moduleType !== 'corner-carousel' && !isSwingingDoor
-          ? cabinetReachMm(item, itemFrontLayout)
-          : 0;
+        // Which row governs this cabinet's reach — the same question
+        // lib/cabinetClearance.ts's detection asks (winningReachRow),
+        // so rendering and detection can't disagree about which row
+        // wins for a 'mixed' front. A swinging door — whether the
+        // WHOLE front is single-door/double-door, or that's just the
+        // winning row inside a 'mixed' front — gets a real arc below;
+        // a straight pull-out (drawers/trolley) gets the plain
+        // rectangle a pull-out is honestly shaped like. Previously a
+        // 'mixed' front always fell back to the rectangle even when
+        // its winning row was a door, "kept simple rather than picking
+        // a row's hinge to arc" — fixed now that winningReachRow is
+        // shared rather than re-derived per file.
+        const winningRow =
+          onFloor && item.moduleType !== 'corner-carousel'
+            ? winningReachRow(item, itemFrontLayout)
+            : null;
+        const winningRowIsDoor =
+          winningRow?.kind === 'single-door' || winningRow?.kind === 'double-door';
+
+        const reachMm = winningRow && !winningRowIsDoor ? winningRow.reachMm : 0;
         const reachPx = reachMm * scale;
 
         const localArcs =
-          onFloor &&
-          item.moduleType !== 'corner-carousel' &&
-          (itemFrontLayout.kind === 'single-door' || itemFrontLayout.kind === 'double-door')
-            ? localDoorArcs(itemFrontLayout.kind, itemFrontLayout.hinge, widthPx, depthPx)
+          winningRow && (winningRow.kind === 'single-door' || winningRow.kind === 'double-door')
+            ? localDoorArcs(winningRow.kind, winningRow.hinge, widthPx, depthPx)
             : [];
 
         // ROOM-SPACE (not local — see carouselDoorArc's own comment):

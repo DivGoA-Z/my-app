@@ -29,18 +29,21 @@ replacing three separate aggregate-count banners, showing a real
 explanation per alert and filtering to whatever's currently selected.
 See `docs/DECISIONS.md` §32.
 
-**In progress, paused at a safe checkpoint on purpose**: making a
-cabinet's door-swing conflict check use the TRUE quarter-circle arc
-instead of a conservative bounding box/rectangle — found because a
-correctly-detected conflict (a base-cabinet 150mm from a
-corner-carousel) didn't visually look like it overlapped, since the
-box used for detection is deliberately bigger than the arc drawn on
-screen. Your call: do the full version (one shared geometry function
-feeding BOTH detection and the on-screen arc — including extending
-real arcs to `'mixed'`-front door rows, which currently still render
-as a plain rectangle), not just a smaller detection-only fix. This is
-real rotation/arc geometry, an area with a documented bug history in
-this codebase, so this commit is the rollback point if it goes wrong.
+**Done, after the checkpoint above and real back-and-forth testing**:
+the cabinet door-swing conflict check now uses the TRUE quarter-circle
+arc everywhere (detection AND the on-screen arc, one shared geometry
+function — including a `'mixed'`-front door row, which used to always
+fall back to a plain rectangle). Two real bugs turned up and got
+fixed along the way, both caught by insisting on precision rather than
+accepting a screenshot-level guess: a backwards overlap-tolerance
+epsilon that flagged every ordinary edge-to-edge adjacent cabinet pair
+as conflicting (caught by a script before you ever saw it), and — the
+one that mattered most — a third report that turned out NOT to be a
+bug at all, confirmed by you actually nudging a cabinet and watching
+the alert correctly clear. See `docs/DECISIONS.md` §33 for the full
+sequence; worth reading before touching this file again, since it's
+exactly the kind of area (rotation/arc geometry) with a repeat bug
+history in this codebase.
 
 The rest of this session's earlier work, for context:
 
