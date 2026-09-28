@@ -1141,8 +1141,14 @@ Fill these in from memory before relying on this document.
    correct, and whether `stone-concrete` was given 2:1 dimensions.~~
    **Resolved** — confirmed `stone-concrete` at 512×256 (2:1) with a
    matching swatch mm ratio, also in §29.
-3. **Whether derived relief and real normal maps currently stack** in
-   `materials3d.ts`.
+3. ~~Whether derived relief and real normal maps currently stack~~
+   **Resolved — they don't.** `textures3d.ts:714`:
+   `normalSource = normalMapUrl ? getUrlTexture(normalMapUrl, false) : derivedNormal`
+   — a clean either/or. A real, sourced normal map is used exclusively
+   when a finish has one; the procedurally-derived one (from the
+   albedo image's own height/luminance) only fills in when there
+   isn't. Only one `normalMap` slot is ever bound to the material —
+   no double-application possible as the code is written.
 4. **Diagnosed, deliberately not fixed yet.** The reclaimed-wood
    ceiling's sharp specular dot is texture-driven, not a bad seed
    value or a code bug: `finish_wood_reclaimed`'s stored `roughness`
@@ -1169,10 +1175,15 @@ Fill these in from memory before relying on this document.
    highlight stayed in place, exactly the discriminating test this
    entry originally proposed. Your call, live: the 60% tradeoff looks
    fine — no further change.
-6. **Whether `scripts/` in the live repo matches this description.**
-   `fetch_models.py`, `build_placeholder_models.mjs` and
-   `seed_finishes_and_appliances.mjs` are referenced by the credits
-   files but were not all present in the copy this was written from.
+6. ~~Whether `scripts/` in the live repo matches this description.~~
+   **Resolved, and partly wrong.** `fetch_models.py` and
+   `build_placeholder_models.mjs` both exist exactly as named. The
+   third file does NOT — there is no `seed_finishes_and_appliances.mjs`;
+   what actually exists is `seed_finishes_and_appliances.sql`, a SQL
+   file, not a JS one. `scripts/` also holds several files this old
+   entry never mentioned at all: `fetch_backdrops.py`,
+   `fetch_finish_textures.py`, `fetch_hdri.py`, `fetch_textures.py`,
+   `gltf_to_glb.mjs`, and `generate-starter-catalogues.ts`.
 7. **`quote_total` on `projects`** duplicates a frozen quote's
    `grand_total`. Which is authoritative for the dashboard, and whether
    the column should now be derived from the latest frozen quote, is
