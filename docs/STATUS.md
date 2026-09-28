@@ -33,6 +33,48 @@ real ~13% current-vs-frozen total gap that turned out to be a genuine
 priced-input change (most likely margin %), not a bug, resolved by
 freezing v3. See `docs/DECISIONS.md` §34.
 
+**Planned, discussed in full, NOT yet executed — the "panel model
+blocked" question reframed, your call, next session:**
+
+1. **Pricing stays area-based, permanently — not a stopgap.** Your
+   argument: whether the bottom panel sits between or below the
+   sides changes true panel dimensions by a few mm, invisible next to
+   the area estimate's own slop, and price is already `area × rate`
+   computed fresh per quote with no fixed size table. This is a real
+   change to `docs/PRINCIPLES.md`'s Principle 2, which currently says
+   the panel model *replaces* area costing — under this plan it
+   doesn't; the panel model becomes purely a cutting-list/production
+   concern that never blocks pricing again. **Not yet written into
+   PRINCIPLES.md** — do that first when this is picked back up, since
+   changing what the product's pricing model fundamentally is
+   deserves being stated explicitly, per this file's own house rule.
+2. **`RateCard.othersRatePerUnit` (currently one flat ₹/cabinet
+   number) becomes two sub-lists** — area-based (₹/sqft each) and
+   unit-based (₹/cabinet each) — so a business can itemise what's
+   really in "others" (edge banding, labour, nails, glue...) with
+   edge banding naturally landing in the area-based list since it
+   genuinely scales with cabinet size, unlike a flat handling fee.
+   **Internal-only** — `RateCardManager` shows the breakdown; the
+   customer-facing quote keeps one rolled-up "Other" line, unchanged.
+3. **A sheet-purchase waste factor** (e.g. 1.1×, business default with
+   a per-project override, same pattern `marginPercent` already
+   uses) multiplies into `materialCost` — `materialArea × wasteFactor
+   × materialRates[substrate]` — one clean plug-in point, already
+   confirmed in the code.
+4. **A separate, standalone "precise waste calculator"** — genuinely
+   real (an actual nesting/bin-packing heuristic against real sheet
+   sizes), not just a nicer multiplier, and NOT blocked on the
+   carpenter's construction convention the way a real cutting list
+   is: it can derive plausible panel shapes from an assumed, honestly
+   labelled default convention (Principle 10), since a waste
+   *percentage* barely moves on a few mm of construction-detail
+   uncertainty the way an exact cutting list would. Its own tool, own
+   saved/fetchable data, usable any time — not gating the main quote
+   flow.
+
+Next session: update `docs/PRINCIPLES.md` first (item 1), then
+implement items 2-4 in roughly that order.
+
 **Checkpoint, later the same day**: you went through last session's
 unverified items live in the browser. Present mode, glass fronts,
 gola/edge-profile handles, keyboard shortcuts, and the kitchen
