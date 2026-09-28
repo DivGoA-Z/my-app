@@ -1135,20 +1135,40 @@ valid normal vector field.
 
 Fill these in from memory before relying on this document.
 
-1. **Whether textures load lazily** per finish in use, or eagerly. §7's
-   VRAM warning depends on it.
-2. **Whether the seeded `swatchWidthMm`/`swatchHeightMm` values are
-   correct** for each of the 12 finish sets, and whether
-   `stone-concrete` was given 2:1 dimensions.
+1. ~~Whether textures load lazily~~ **Resolved** — confirmed lazy
+   per-finish, with real disposal, in the visual-assets pass (§29).
+2. ~~Whether the seeded `swatchWidthMm`/`swatchHeightMm` values are
+   correct, and whether `stone-concrete` was given 2:1 dimensions.~~
+   **Resolved** — confirmed `stone-concrete` at 512×256 (2:1) with a
+   matching swatch mm ratio, also in §29.
 3. **Whether derived relief and real normal maps currently stack** in
    `materials3d.ts`.
-4. **The reclaimed-wood ceiling's `roughness`.** A sharp specular dot
-   was observed on it; a matte wood ceiling should not mirror anything,
-   which points at roughness being too low. Not confirmed.
-5. **Whether the ceiling highlight seen in `fixtures-off` is
-   environmental or a fixture's emissive body.** Discriminating test:
-   switch to Fixtures Off and orbit — if it survives it's the
-   environment.
+4. **Diagnosed, deliberately not fixed yet.** The reclaimed-wood
+   ceiling's sharp specular dot is texture-driven, not a bad seed
+   value or a code bug: `finish_wood_reclaimed`'s stored `roughness`
+   (0.4) is identical to its wood siblings, but its `roughnessMap`
+   (`/textures/wood-reclaimed/roughness.jpg`, a real ambientCG scan)
+   has at least one pixel dark enough to read as near-mirror there —
+   a scalar roughness value multiplies against the map, so a low base
+   value can't fix a near-zero texel. Confirmed live: the highlight
+   stayed fixed on the same spot of wood grain while orbiting, ruling
+   out a lighting-angle explanation. A real fix means processing the
+   actual JPG (raising its darkest pixels to a floor) — judged not
+   worth it for a small highlight on a ceiling most people won't stare
+   at; revisit if it turns out to actually bother anyone using the
+   software.
+5. ~~Whether the ceiling highlight seen in `fixtures-off` is
+   environmental or a fixture's emissive body.~~ **Resolved,
+   confirmed live.** It's environmental — `lighting3d.ts`'s
+   `fixtures-off` mode runs the Lightformer panels (including the
+   broad ceiling softbox directly above the room) at 60% intensity,
+   not 0%, a deliberate choice already recorded in that file's own
+   comment (reduced from full strength once before, in response to
+   this same complaint, rather than zeroed out — a physically dark
+   room is hard to review). Confirmed by orbiting in fixtures-off: the
+   highlight stayed in place, exactly the discriminating test this
+   entry originally proposed. Your call, live: the 60% tradeoff looks
+   fine — no further change.
 6. **Whether `scripts/` in the live repo matches this description.**
    `fetch_models.py`, `build_placeholder_models.mjs` and
    `seed_finishes_and_appliances.mjs` are referenced by the credits
