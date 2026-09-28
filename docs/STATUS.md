@@ -80,15 +80,21 @@ model) rather than the new `fix_pendant_industrial` row, and/or
 `schema.sql` hadn't been re-run against the live project yet. Worth
 checking once `schema.sql` is re-run and the new fixture is placed.
 
-**A documentation-integrity bug was also found and fixed this
-session, no code involved**: `docs/Issues.md` said "(none currently
-open)" — wrong. 22 real open bug reports/feature requests had been
-sitting in a mislabeled file, `docs/Issues_fixed.md` (its name said
-"fixed"; its content was an undated open list, never folded in or
-tracked as current). Moved into `docs/Issues.md` as the real open
-list; the mislabeled file deleted. The previous version of this
-STATUS.md file itself had repeated the wrong "empty" claim without
-checking — see `docs/DECISIONS.md` §31 for the full correction.
+**A documentation-integrity detour, self-corrected before it left the
+repo, no code involved.** `docs/Issues.md` said "(none currently
+open)"; a first pass this session concluded that was wrong, moved 20
+items from a mislabeled file (`docs/Issues_fixed.md` — its name said
+"fixed," its content read like an undated open list) into `Issues.md`
+as the real open list. That was itself wrong: cross-checking each of
+the 20 against `docs/ISSUES-FIXED.md` individually found every one
+already had a matching dated fix or "investigated, not a bug" entry
+from 21-23 Sep. `Issues_fixed.md` was the ORIGINAL raw complaint list
+from before that triage process, never cleared out even though
+nothing on it was still open. Reverted: `Issues.md` is back to "(none
+currently open)", with a note on both rounds; the stale file stays
+deleted, since every item on it is already logged with a real
+resolution in `ISSUES-FIXED.md`. Full account in `docs/DECISIONS.md`
+§31, corrected in place rather than silently rewritten.
 
 ## Built and working
 
@@ -161,10 +167,9 @@ and a second real-shade pendant catalogue option.
 
 ## In progress
 
-`docs/Issues.md` now correctly carries 22 real open items (see the
-correction above) — worth reviewing next, since none of them have been
-triaged yet. Appliance-dimensions-first (item 11) is partially done —
-the type/data half is in, the cutout-sizing half and the fridge
+`docs/Issues.md` is genuinely empty right now — see the correction
+above. Appliance-dimensions-first (item 11) is partially done — the
+type/data half is in, the cutout-sizing half and the fridge
 work-triangle check are both open follow-ups, not started.
 
 ## Blocked
@@ -187,12 +192,9 @@ this session has been seen in a browser except the HDRI/metal-texture
 follow-up — that remains the single biggest open item: present mode's
 two sub-views and price breakdown, the four new appliance types placed
 and rendered, and the pendant model's actual orientation once
-`schema.sql` is re-run against the live project. The 22 items in
-`docs/Issues.md` are real user-reported gaps (L-shaped corner units,
-sink cutout control, tambour-on-shelf, obstacle rotation, an
-overlap-alert toggle, two possibly-stale fetch errors, and more) that
-were invisible as "current" until this session — worth triaging before
-picking the next feature. After that: the fridge work-triangle check,
+`schema.sql` is re-run against the live project. `docs/Issues.md` is
+genuinely empty (see the correction above) — nothing there to triage.
+After that: the fridge work-triangle check,
 appliance-driven cabinet cutouts, and — once the panel-model question
 is answered — all of Phase 4. Full roadmap in `docs/PRINCIPLES.md`,
 Part 2/3.

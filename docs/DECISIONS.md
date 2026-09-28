@@ -3313,3 +3313,43 @@ reading all three files rather than assuming the filenames were
 trustworthy — the same "distrust your own tooling" lesson CLAUDE.md's
 verification-limits section already states, applied to file names
 instead of scanners.
+
+**Correction, same day, before this ever left the repo: the fix above
+was itself wrong.** While drafting a table of these items for the
+external doc bundle, cross-checked each one against
+`docs/ISSUES-FIXED.md` individually rather than trusting the earlier
+skim. Every one of the 20 items (not 22 — miscounted the first time
+too) already has a matching dated entry there: "no L-shaped corner
+unit" → fixed 23 Sep (three corner solutions); "no tambour-on-shelf" →
+fixed 23 Sep; "obstacles can't rotate" → fixed 22 Sep; "can't add a
+cabinet with one open shelf and one drawer" → fixed 22 Sep (mixed
+fronts); "sink unit needs a real hole" → fixed 22 Sep (sink cutout);
+"open shelves aren't open" → fixed 22 Sep (open carcass); "manage
+inventory scrolls to the wrong place" → fixed 21 Sep; "pressing enter
+doesn't finalize dimensions" → fixed 21 Sep; the two
+`TypeError: Failed to fetch` reports and "floor shows reflections" →
+investigated 21-22 Sep and closed as not-a-code-defect (with an
+explicit "reopen if it recurs" on each, which `docs/Issues.md` now
+preserves); every remaining item likewise traces to a dated fix in the
+21-23 Sep range. **None were actually open.**
+
+So `docs/Issues.md`'s original "(none currently open)" was correct all
+along, and the real bug was reading `docs/Issues_fixed.md` — the
+ORIGINAL raw complaint list from before the triage process that
+produced `docs/ISSUES-FIXED.md` — as if its undated, un-triaged
+presentation meant "currently open," rather than recognizing it as a
+stale pre-triage snapshot that nobody had cleared once every item on it
+was resolved. Reverted: `docs/Issues.md` back to "(none currently
+open)", with a note explaining both rounds of this rather than erasing
+the record of getting it wrong first. `docs/Issues_fixed.md` stays
+deleted — nothing lost, since `docs/ISSUES-FIXED.md` already has every
+one of its 20 items logged with real dates and real fixes, which the
+raw file never had.
+
+Worth naming plainly: this is the exact failure CLAUDE.md's
+verification-limits section warns about, committed twice in the same
+investigation — first trusting a filename over its content, then
+trusting a raw list's *shape* (undated bullets reading like open
+reports) without checking whether each one already had a resolution on
+record elsewhere. "Distrust your own tooling" applies to your own
+reading of a file, not just to scanners and scripts.
