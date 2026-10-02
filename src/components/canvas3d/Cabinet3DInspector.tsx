@@ -26,10 +26,10 @@ import { useLayoutStore } from '../../store/layoutStore';
 import { Button } from '../ui/button';
 import { FinishPicker } from '../inspector/FinishPicker';
 import { FrontPicker } from '../inspector/FrontPicker';
-import type { MaterialType } from '../../types/cabinet';
+import { boardLabel } from '../../types/rates';
+import { resolveCarcassBoard } from '../../lib/panels';
 import type { PlacedCabinetItem } from '../../types/cabinet';
 
-const MATERIALS: MaterialType[] = ['HDMR', 'Plywood', 'MDF', 'Particle Board', 'BWP'];
 
 const MODULE_TYPE_LABELS: Record<string, string> = {
   'base-cabinet': 'Base Cabinet',
@@ -50,7 +50,14 @@ export interface Cabinet3DInspectorProps {
 
 export function Cabinet3DInspector({ cabinet }: Cabinet3DInspectorProps) {
   const updateCabinet = useLayoutStore((state) => state.updateCabinet);
+  const rateBoards = useLayoutStore((state) => state.rateCard.boards);
   const selectCabinet = useLayoutStore((state) => state.selectCabinet);
+  const currentBoard = resolveCarcassBoard(rateBoards, cabinet);
+  const pricedBoards = rateBoards.filter((b) => b.ratePerSqM > 0);
+  const boardOptions =
+    currentBoard && !pricedBoards.some((b) => b.id === currentBoard.id)
+      ? [...pricedBoards, currentBoard]
+      : pricedBoards;
 
   return (
     // Stops pointer events reaching the canvas underneath — without
@@ -92,17 +99,27 @@ export function Cabinet3DInspector({ cabinet }: Cabinet3DInspectorProps) {
           reviewing a design is a pricing decision you often make at the
           same moment. */}
       <label className="flex flex-col gap-1 text-xs text-gray-600">
-        Substrate
+        Board
         <select
-          value={cabinet.material}
-          onChange={(e) => updateCabinet(cabinet.id, { material: e.target.value as MaterialType })}
+          value={currentBoard?.id ?? ''}
+          onChange={(e) => {
+            const board = rateBoards.find((b) => b.id === e.target.value);
+            if (board) updateCabinet(cabinet.id, { material: board.material, carcassBoardId: board.id });
+          }}
           className="rounded border border-gray-300 px-2 py-1.5 text-sm"
         >
-          {MATERIALS.map((m) => (
-            <option key={m} value={m}>
-              {m}
+          {/* Same rule as BoardSelect (components/common): only priced
+              board lines, plus the current one if it isn't, so the
+              dropdown never misreports it. No "add a board" here — this
+              panel sits over the 3D canvas, so new boards are added from
+              the catalogue or inspector. */}
+          {boardOptions.map((b) => (
+            <option key={b.id} value={b.id}>
+              {boardLabel(b)}
+              {b.ratePerSqM > 0 ? '' : ' (₹0 — set a rate)'}
             </option>
           ))}
+          {!currentBoard && <option value="">{cabinet.material} (no board line)</option>}
         </select>
         <span className="text-[10px] text-gray-400">
           Affects price and durability, not appearance.

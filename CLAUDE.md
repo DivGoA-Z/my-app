@@ -120,10 +120,11 @@ business-data tables: `projects`, `layouts`, `surface_finishes`,
 `construction_settings` (plus the auth tables `businesses`,
 `business_users`, `super_admins`). This said "ten" until 29 Sep 2026,
 when `construction_settings` was added for the cutting list
-(`docs/DECISIONS.md` §41). Construction settings are deliberately NOT
-on `rate_cards` — anything reachable from `PricingContext` is hashed
-into the frozen-quote fingerprint, and construction never changes a
-price.
+(`docs/DECISIONS.md` §41). Since §42 construction settings ARE a
+priced input — board is priced on the cutting list's real part sizes —
+so they're passed as `PricingContext.construction` (required) and
+hashed into the frozen-quote fingerprint. (This paragraph said in §41
+that construction never changes a price; that stopped being true.)
 
 **`schema.sql` is idempotent and is the migration mechanism.** Every
 statement is `if not exists` / `on conflict do nothing`, so re-running

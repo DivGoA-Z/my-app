@@ -19,7 +19,7 @@
 // a convenient default — not something this type or lib/Inventory.ts
 // need to keep in sync with going forward.
 
-import type { ModuleType, MaterialType } from './cabinet';
+import type { CabinetPanels, ModuleType, MaterialType } from './cabinet';
 import type { FrontLayout } from './front';
 import type { ObstacleType } from './layout';
 import type { ApplianceType } from './appliance';
@@ -33,6 +33,11 @@ export interface CatalogItem {
   depthMm: number;
   heightMm: number;
   material: MaterialType;  // substrate — costing only, never visible
+  // Same as PlacedCabinetItem.carcassBoardId — the exact board line
+  // (material AND thickness) cabinets from this row are built from;
+  // copied onto the placed cabinet. Absent → the material's original
+  // 18mm line (lib/panels.ts's defaultCarcassBoard).
+  carcassBoardId?: string;
   // Default finish for cabinets added from this catalogue item
   // (FK -> SurfaceFinish.id, types/finish.ts). Placed cabinets can
   // override it individually.
@@ -50,6 +55,10 @@ export interface CatalogItem {
   frontLayout?: FrontLayout;
   // FK -> HandleSpec.id (types/front.ts).
   handleId?: string;
+  // Default panels for cabinets added from this row — see PanelSpec in
+  // types/cabinet.ts. Absent = every panel included, default boards.
+  // Copied onto the placed cabinet, which can then override it.
+  panels?: CabinetPanels;
   // ₹ fabrication/assembly price — NOT material, finish, hardware or
   // labour, all priced separately (material/labour by the cabinet's
   // own estimated area, on the rate card; finish/hardware by their

@@ -1,23 +1,29 @@
 // src/lib/cutList.ts
 //
 // The cutting list: every board part the workshop cuts for a layout,
-// derived from the cabinets' dimensions and fronts plus the business's
-// ConstructionSettings (types/construction.ts).
+// derived from each cabinet's dimensions, fronts and panel spec (which
+// panels exist, from which board — types/cabinet.ts's PanelSpec,
+// resolved by lib/panels.ts), plus the business's ConstructionSettings
+// (how the panels are fitted — types/construction.ts).
 //
 // DERIVED, NEVER STORED — same rule as lib/bom.ts's header: a stored
 // cutting list goes stale the moment a cabinet is resized. It's
 // recomputed from the design every time it's shown or exported.
 //
-// DOES NOT FEED THE PRICE. Pricing is area-based by design
-// (docs/PRINCIPLES.md Principle 2); this is a production document. The
-// one intended bridge is phase 2's nesting, which will MEASURE sheet
-// waste and let a business copy that figure into the project's sheet
-// waste factor — by choice, never automatically.
+// IT IS ALSO WHAT PRICES THE BOARD (since §42). lib/bom.ts charges each
+// cabinet's material as the sum of its parts' real areas × each part's
+// own board rate — "price by real area" (Principle 2). Before §42 this
+// file explicitly did NOT feed the price; that was dropped because the
+// area pricing used instead (front face + half a side) was roughly a
+// third of the board a cabinet really uses. One decomposition for both
+// means the price and the workshop can never disagree about a panel.
 //
 // CONVENTIONS every part below follows
 // - Millimetres, rounded to a whole mm (a workshop saw is set in whole
 //   mm; 0.5mm precision here would be false precision) — exact halves
 //   round DOWN, see mm() below for why.
+// - Every panel's thickness is ITS OWN board's thickness. A 25mm left
+//   side and an 18mm right side make the bottom W − 25 − 18 wide.
 // - `lengthMm` is the dimension that runs along the grain for a part
 //   where grain matters (fronts — the finish's pattern runs vertically),
 //   and simply the height-wise/longer dimension otherwise.
@@ -27,23 +33,29 @@
 // - Edge banding is counted per EDGE, split by which dimension the edge
 //   runs along — "1 long edge" on a side panel is its front edge.
 //   Visible front edges of the carcass are banded; backs never are;
-//   fronts (shutters, drawer fronts) are banded all round.
+//   fronts are banded all round.
+// - An excluded panel (PanelSpec.included false) isn't listed, and the
+//   panels around it stop allowing for it: no bottom → the sides run the
+//   full height and the back stops at the floor of the carcass; no left
+//   side → the bottom runs out to the left edge.
 //
 // KNOWN GAPS, surfaced as warnings rather than silently omitted
-// (Principle 10): drawer box parts (phase 3), tambour shutters (bought
-// as a unit), glass panels (ordered cut to size from a glass supplier),
-// and the corner carousel's diagonal front carcass (listed as a
-// rectangular box).
+// (Principle 10): drawer box parts (phase 3), glass panels (ordered cut
+// to size from a glass supplier), and the corner carousel's diagonal
+// front carcass (listed as a rectangular box).
 
-import type { MaterialType, PlacedCabinetItem } from '../types/cabinet';
+import type { MaterialType, PanelRole, PlacedCabinetItem } from '../types/cabinet';
+import { PANEL_ROLE_LABELS } from '../types/cabinet';
 import type { ConstructionSettings } from '../types/construction';
 import type { SurfaceFinish } from '../types/finish';
 import { resolveFinish } from '../types/finish';
 import { defaultFrontLayout, GLASS_TINT_LABELS } from '../types/front';
-import type { HardwareRates } from '../types/rates';
+import type { BoardRate, HardwareRates, RateCard } from '../types/rates';
+import { boardLabel, LEGACY_BOARD_THICKNESS_MM, MATERIAL_RATE_LABELS } from '../types/rates';
 import { hasCountertop } from './cabinetGeometry';
-import { carcassBands, computeFrontBreakdown, FRONT_THICKNESS_MM } from './fronts';
+import { carcassBands, computeFrontBreakdown } from './fronts';
 import { describeFinish } from './materials3d';
+import { resolvePanels } from './panels';
 
 export type CutPartKind = 'carcass' | 'back' | 'front';
 
@@ -59,12 +71,21 @@ export interface CutPart {
   // Stable for a given design; what a workshop writes on each part.
   cabinetRef: string;
   cabinetLabel: string;
+  // Which cabinet this came from, by id — what lib/bom.ts groups on to
+  // price each cabinet's own parts.
+  cabinetId: string;
   kind: CutPartKind;
+  role: PanelRole;
   name: string;
   lengthMm: number;
   widthMm: number;
   thicknessMm: number;
   material: MaterialType;
+  // The board line this part is cut from — undefined only when no
+  // suitable line exists on the rate card (warned; priced at ₹0).
+  boardId?: string;
+  boardName: string;
+  ratePerSqM: number;
   // Fronts only — the laminate/acrylic that goes on this part.
   finish?: string;
   // Already multiplied by the cabinet's own quantity.
@@ -77,7 +98,7 @@ export interface CutPart {
 
 export interface CutListGroup {
   key: string;
-  // "18mm HDMR — carcass"
+  // "HDMR 18mm — carcass"
   label: string;
   kind: CutPartKind;
   material: MaterialType;
@@ -108,7 +129,7 @@ const NO_RATES: HardwareRates = {
   cornerCarousel: 0,
 };
 
-const MM2_PER_SQM = 1_000_000;
+export const MM2_PER_SQM = 1_000_000;
 
 const FRONT_PART_NAMES: Record<string, string> = {
   'single-door': 'Shutter',
@@ -117,6 +138,13 @@ const FRONT_PART_NAMES: Record<string, string> = {
   drawers: 'Drawer front',
   trolley: 'Trolley front',
   'false-front': 'False front',
+  // CORRECTED (§42): phase 1 left tambours off the list as "bought as a
+  // unit". types/front.ts's own FrontKind comment says otherwise — "a
+  // real, priced panel like a false-front (material + finish, cut and
+  // edge-banded)" — and the code comment is the better authority. It is
+  // listed as one panel at the shutter's size; how the workshop slats
+  // it is the carpenter's call.
+  tambour: 'Tambour shutter',
 };
 
 function formatModuleType(moduleType: string): string {
@@ -135,42 +163,73 @@ function formatModuleType(moduleType: string): string {
 // normally (395.9 → 396, 395.4 → 395).
 const mm = (value: number) => Math.round(value - 0.001);
 
-function cabinetParts(
+// The parts of ONE cabinet. Exported so lib/bom.ts can price a cabinet
+// from exactly the parts the cutting list shows for it.
+export function cabinetCutParts(
   item: PlacedCabinetItem,
   cabinetRef: string,
   settings: ConstructionSettings,
   finishes: SurfaceFinish[],
+  rates: Pick<RateCard, 'boards' | 'defaultBackBoardId'>,
   warnings: string[]
 ): CutPart[] {
-  const T = settings.carcassThicknessMm;
   const W = item.widthMm;
   const H = item.heightMm;
   const isBase = hasCountertop(item.moduleType);
-  const usesRails = isBase && settings.baseTop === 'rails';
-  const backT = settings.backFit === 'inset-full' ? T : settings.backThicknessMm;
+  const panels = resolvePanels(item, rates, warnings, cabinetRef);
+
+  // A role with no board at all still gets listed at the legacy 18mm so
+  // the workshop sees the part; it's priced at ₹0 and warned about once
+  // per cabinet.
+  const missing = new Set<PanelRole>();
+  const thick = (role: PanelRole) => {
+    const board = panels[role].board;
+    if (!board) missing.add(role);
+    return board?.thicknessMm ?? LEGACY_BOARD_THICKNESS_MM;
+  };
+  const has = (role: PanelRole) => panels[role].included;
+
+  const tLeft = has('leftSide') ? thick('leftSide') : 0;
+  const tRight = has('rightSide') ? thick('rightSide') : 0;
+  // Base units default to rails (your 29 Sep answer), everything else to
+  // a full top — overridable per catalogue row and per cabinet.
+  const topStyle = panels.top.topStyle ?? (isBase ? 'rails' : 'full');
+  const tTop = has('top') ? thick('top') : 0;
+  const tBottom = has('bottom') ? thick('bottom') : 0;
+  const tBack = has('back') ? thick('back') : 0;
+  // The front's physical thickness takes depth even if the business
+  // doesn't cut fronts itself (excluded) — the shutter still hangs there
+  // — but only an INCLUDED front with no board is worth warning about.
+  const tFront = has('fronts')
+    ? thick('fronts')
+    : (panels.fronts.board?.thicknessMm ?? LEGACY_BOARD_THICKNESS_MM);
 
   // See the header: the front is inset into the stated depth. A nailed-
   // on back sits behind the carcass, so it takes its own thickness out
   // of the carcass depth too, or the cabinet would end up deeper than
   // quoted and collide with the wall.
+  const backFitted = has('back');
   const carcassDepth =
-    item.depthMm - FRONT_THICKNESS_MM - (settings.backFit === 'nailed-on' ? backT : 0);
-  // An inset full-thickness back sits INSIDE the carcass, between the
-  // sides, so top/bottom/shelves stop in front of it.
-  const innerDepth = carcassDepth - (settings.backFit === 'inset-full' ? T : 0);
+    item.depthMm - tFront - (backFitted && settings.backFit === 'nailed-on' ? tBack : 0);
+  // An inset back sits INSIDE the carcass, between the sides, so top,
+  // bottom and shelves stop in front of it.
+  const innerDepth = carcassDepth - (backFitted && settings.backFit === 'inset-full' ? tBack : 0);
   // Shelves and dividers also stop short of the front by the setback,
   // and — for a grooved back — short of the back board itself.
   // Approximation: the groove's distance from the rear edge isn't a
   // setting yet, so only the back's own thickness is allowed for.
   const shelfDepth =
-    innerDepth - settings.shelfSetbackMm - (settings.backFit === 'grooved' ? backT : 0);
-  const betweenWidth = W - 2 * T;
+    innerDepth -
+    settings.shelfSetbackMm -
+    (backFitted && settings.backFit === 'grooved' ? tBack : 0);
+  const betweenWidth = W - tLeft - tRight;
 
   const label = `${formatModuleType(item.moduleType)} ${W}×${item.depthMm}×${H}`;
   const q = item.quantity;
   const parts: CutPart[] = [];
   const add = (
-    part: Omit<CutPart, 'cabinetRef' | 'cabinetLabel' | 'material' | 'lengthMm' | 'widthMm'> & {
+    role: PanelRole,
+    part: Pick<CutPart, 'kind' | 'name' | 'quantity' | 'edgeBanding' | 'grainFixed' | 'finish'> & {
       lengthMm: number;
       widthMm: number;
     }
@@ -178,106 +237,107 @@ function cabinetParts(
     const lengthMm = mm(part.lengthMm);
     const widthMm = mm(part.widthMm);
     if (lengthMm <= 0 || widthMm <= 0 || part.quantity <= 0) return;
-    parts.push({ ...part, lengthMm, widthMm, cabinetRef, cabinetLabel: label, material: item.material });
+    const board: BoardRate | undefined = panels[role].board;
+    parts.push({
+      ...part,
+      lengthMm,
+      widthMm,
+      role,
+      cabinetRef,
+      cabinetLabel: label,
+      cabinetId: item.id,
+      thicknessMm: board?.thicknessMm ?? LEGACY_BOARD_THICKNESS_MM,
+      material: board?.material ?? item.material,
+      boardId: board?.id,
+      boardName: board ? boardLabel(board) : `${MATERIAL_RATE_LABELS[item.material]} (no board line)`,
+      ratePerSqM: board?.ratePerSqM ?? 0,
+    });
   };
 
   // ---- Sides ----
-  // Shortened by T at each end whose panel runs OVER them. Rails always
-  // fit between the sides, so a railed base top never shortens them.
-  const topOver = !usesRails && settings.topFit === 'over-sides';
-  const bottomOver = settings.bottomFit === 'over-sides';
-  add({
-    kind: 'carcass',
-    name: 'Side',
-    lengthMm: H - (topOver ? T : 0) - (bottomOver ? T : 0),
-    widthMm: carcassDepth,
-    thicknessMm: T,
-    quantity: 2 * q,
-    edgeBanding: { length: 1, width: 0 },
-    grainFixed: false,
-  });
-
-  // ---- Top, or rails ----
-  if (usesRails) {
-    add({
+  // Shortened at each end whose panel runs OVER them. Rails always fit
+  // between the sides, so a railed top never shortens them; an excluded
+  // top or bottom doesn't either.
+  const topOver = has('top') && topStyle === 'full' && settings.topFit === 'over-sides';
+  const bottomOver = has('bottom') && settings.bottomFit === 'over-sides';
+  const sideHeight = H - (topOver ? tTop : 0) - (bottomOver ? tBottom : 0);
+  for (const role of ['leftSide', 'rightSide'] as const) {
+    if (!has(role)) continue;
+    add(role, {
       kind: 'carcass',
-      name: 'Front rail',
-      lengthMm: betweenWidth,
-      widthMm: settings.railWidthMm,
-      thicknessMm: T,
-      quantity: q,
-      edgeBanding: { length: 1, width: 0 },
-      grainFixed: false,
-    });
-    add({
-      kind: 'carcass',
-      name: 'Back rail',
-      lengthMm: betweenWidth,
-      widthMm: settings.railWidthMm,
-      thicknessMm: T,
-      quantity: q,
-      edgeBanding: { length: 0, width: 0 },
-      grainFixed: false,
-    });
-  } else {
-    add({
-      kind: 'carcass',
-      name: 'Top',
-      lengthMm: topOver ? W : betweenWidth,
-      widthMm: innerDepth,
-      thicknessMm: T,
+      name: role === 'leftSide' ? 'Left side' : 'Right side',
+      lengthMm: sideHeight,
+      widthMm: carcassDepth,
       quantity: q,
       edgeBanding: { length: 1, width: 0 },
       grainFixed: false,
     });
   }
 
+  // ---- Top, or rails ----
+  if (has('top')) {
+    if (topStyle === 'rails') {
+      add('top', {
+        kind: 'carcass',
+        name: 'Front rail',
+        lengthMm: betweenWidth,
+        widthMm: settings.railWidthMm,
+        quantity: q,
+        edgeBanding: { length: 1, width: 0 },
+        grainFixed: false,
+      });
+      add('top', {
+        kind: 'carcass',
+        name: 'Back rail',
+        lengthMm: betweenWidth,
+        widthMm: settings.railWidthMm,
+        quantity: q,
+        edgeBanding: { length: 0, width: 0 },
+        grainFixed: false,
+      });
+    } else {
+      add('top', {
+        kind: 'carcass',
+        name: 'Top',
+        lengthMm: topOver ? W : betweenWidth,
+        widthMm: innerDepth,
+        quantity: q,
+        edgeBanding: { length: 1, width: 0 },
+        grainFixed: false,
+      });
+    }
+  }
+
   // ---- Bottom ----
-  add({
-    kind: 'carcass',
-    name: 'Bottom',
-    lengthMm: bottomOver ? W : betweenWidth,
-    widthMm: innerDepth,
-    thicknessMm: T,
-    quantity: q,
-    edgeBanding: { length: 1, width: 0 },
-    grainFixed: false,
-  });
+  if (has('bottom')) {
+    add('bottom', {
+      kind: 'carcass',
+      name: 'Bottom',
+      lengthMm: bottomOver ? W : betweenWidth,
+      widthMm: innerDepth,
+      quantity: q,
+      edgeBanding: { length: 1, width: 0 },
+      grainFixed: false,
+    });
+  }
 
   // ---- Back ----
-  // The inner opening is W−2T by H−2T in every convention: the top
-  // (or back rail) and bottom are T thick whether they sit between the
-  // sides or over them.
-  const innerH = H - 2 * T;
-  if (settings.backFit === 'grooved') {
-    add({
+  // The inner opening: between the sides, and between the top (or back
+  // rail) and the bottom — each only if that panel is actually built.
+  const innerH = H - tTop - tBottom;
+  if (backFitted) {
+    const g = settings.grooveDepthMm;
+    const [backH, backW] =
+      settings.backFit === 'grooved'
+        ? [innerH + 2 * g, betweenWidth + 2 * g]
+        : settings.backFit === 'nailed-on'
+          ? [H, W]
+          : [innerH, betweenWidth];
+    add('back', {
       kind: 'back',
       name: 'Back',
-      lengthMm: innerH + 2 * settings.grooveDepthMm,
-      widthMm: betweenWidth + 2 * settings.grooveDepthMm,
-      thicknessMm: backT,
-      quantity: q,
-      edgeBanding: { length: 0, width: 0 },
-      grainFixed: false,
-    });
-  } else if (settings.backFit === 'nailed-on') {
-    add({
-      kind: 'back',
-      name: 'Back',
-      lengthMm: H,
-      widthMm: W,
-      thicknessMm: backT,
-      quantity: q,
-      edgeBanding: { length: 0, width: 0 },
-      grainFixed: false,
-    });
-  } else {
-    add({
-      kind: 'carcass',
-      name: 'Back',
-      lengthMm: innerH,
-      widthMm: betweenWidth,
-      thicknessMm: T,
+      lengthMm: backH,
+      widthMm: backW,
       quantity: q,
       edgeBanding: { length: 0, width: 0 },
       grainFixed: false,
@@ -287,55 +347,50 @@ function cabinetParts(
   // ---- Dividers, shelves, fronts ----
   const layout = item.frontLayout ?? defaultFrontLayout(item.moduleType, W);
   const bands = carcassBands(layout, H);
-  if (bands.length > 1) {
-    add({
-      kind: 'carcass',
-      name: 'Divider',
-      lengthMm: betweenWidth,
-      widthMm: shelfDepth,
-      thicknessMm: T,
-      quantity: (bands.length - 1) * q,
-      edgeBanding: { length: 1, width: 0 },
-      grainFixed: false,
-    });
-  }
-
   // No handle is passed: only panel/shelf GEOMETRY is read here, and a
   // handle never changes a panel's size.
   const breakdown = computeFrontBreakdown(layout, W, H, undefined, NO_RATES);
-  if (breakdown.shelves.length > 0) {
-    add({
-      kind: 'carcass',
-      name: 'Shelf',
-      lengthMm: betweenWidth,
-      widthMm: shelfDepth,
-      thicknessMm: T,
-      quantity: breakdown.shelves.length * q,
-      edgeBanding: { length: 1, width: 0 },
-      grainFixed: false,
-    });
+
+  if (has('shelves')) {
+    if (bands.length > 1) {
+      add('shelves', {
+        kind: 'carcass',
+        name: 'Divider',
+        lengthMm: betweenWidth,
+        widthMm: shelfDepth,
+        quantity: (bands.length - 1) * q,
+        edgeBanding: { length: 1, width: 0 },
+        grainFixed: false,
+      });
+    }
+    if (breakdown.shelves.length > 0) {
+      add('shelves', {
+        kind: 'carcass',
+        name: 'Shelf',
+        lengthMm: betweenWidth,
+        widthMm: shelfDepth,
+        quantity: breakdown.shelves.length * q,
+        edgeBanding: { length: 1, width: 0 },
+        grainFixed: false,
+      });
+    }
   }
 
   const finishLabel = describeFinish(resolveFinish(finishes, item.finishId));
   let glassCount = 0;
   let glassTint: string | undefined;
-  let tambourCount = 0;
   for (const panel of breakdown.panels) {
     if (panel.glassTint) {
       glassCount++;
       glassTint = GLASS_TINT_LABELS[panel.glassTint];
       continue;
     }
-    if (panel.kind === 'tambour') {
-      tambourCount++;
-      continue;
-    }
-    add({
+    if (!has('fronts')) continue;
+    add('fronts', {
       kind: 'front',
       name: FRONT_PART_NAMES[panel.kind] ?? 'Front',
       lengthMm: panel.heightMm,
       widthMm: panel.widthMm,
-      thicknessMm: FRONT_THICKNESS_MM,
       finish: finishLabel,
       quantity: q,
       edgeBanding: { length: 2, width: 2 },
@@ -343,13 +398,17 @@ function cabinetParts(
     });
   }
 
+  if (missing.size > 0) {
+    warnings.push(
+      `${cabinetRef}: no ${MATERIAL_RATE_LABELS[item.material]} board on the rate card for its ${[...missing]
+        .map((r) => PANEL_ROLE_LABELS[r].toLowerCase())
+        .join(', ')} — listed at ${LEGACY_BOARD_THICKNESS_MM}mm and priced at ₹0. Add a board line or pick another board.`
+    );
+  }
   if (glassCount > 0) {
     warnings.push(
       `${cabinetRef}: ${glassCount * q} glass panel${glassCount * q === 1 ? '' : 's'} (${glassTint}) not listed — order cut to size from the glass supplier.`
     );
-  }
-  if (tambourCount > 0) {
-    warnings.push(`${cabinetRef}: tambour shutter not listed — bought as a unit.`);
   }
   if (item.moduleType === 'corner-carousel') {
     warnings.push(
@@ -367,26 +426,29 @@ function cabinetParts(
 export function computeCutList(
   cabinets: PlacedCabinetItem[],
   settings: ConstructionSettings,
-  finishes: SurfaceFinish[]
+  finishes: SurfaceFinish[],
+  rates: Pick<RateCard, 'boards' | 'defaultBackBoardId'>
 ): CutList {
   const warnings: string[] = [];
   const parts = cabinets.flatMap((item, i) =>
-    cabinetParts(item, `C${i + 1}`, settings, finishes, warnings)
+    cabinetCutParts(item, `C${i + 1}`, settings, finishes, rates, warnings)
   );
 
-  // Grouped by what's physically the same stock: carcass board of one
-  // material and thickness is one pile of sheets; thin backs another;
-  // fronts are split by finish too, because a walnut shutter and a
-  // white one are cut from differently laminated boards.
+  // Grouped by what's physically the same stock: one board line is one
+  // pile of sheets. Fronts are split by finish too, because a walnut
+  // shutter and a white one are cut from differently laminated boards.
+  // A back is carcass (you pointed that out) but usually a different,
+  // thinner board — so it gets its own group, labelled as carcass.
   const byKey = new Map<string, CutListGroup>();
   for (const part of parts) {
-    const key = [part.kind, part.material, part.thicknessMm, part.finish ?? ''].join('|');
+    const key = groupKey(part);
     let group = byKey.get(key);
     if (!group) {
-      const kindLabel = part.kind === 'front' ? `fronts, ${part.finish}` : part.kind === 'back' ? 'backs' : 'carcass';
+      const kindLabel =
+        part.kind === 'front' ? `fronts, ${part.finish}` : part.kind === 'back' ? 'carcass back' : 'carcass';
       group = {
         key,
-        label: `${part.thicknessMm}mm ${part.material} — ${kindLabel}`,
+        label: `${part.boardName} — ${kindLabel}`,
         kind: part.kind,
         material: part.material,
         thicknessMm: part.thicknessMm,
@@ -400,7 +462,7 @@ export function computeCutList(
     }
     group.parts.push(part);
     group.pieceCount += part.quantity;
-    group.areaSqM += (part.lengthMm * part.widthMm * part.quantity) / MM2_PER_SQM;
+    group.areaSqM += partAreaSqM(part);
     group.edgeBandM += edgeBandMm(part) / 1000;
   }
 
@@ -409,6 +471,15 @@ export function computeCutList(
     (a, b) => kindOrder.indexOf(a.kind) - kindOrder.indexOf(b.kind) || a.label.localeCompare(b.label)
   );
   return { parts, groups, warnings };
+}
+
+export function groupKey(p: Pick<CutPart, 'kind' | 'boardId' | 'boardName' | 'finish'>): string {
+  return [p.kind, p.boardId ?? p.boardName, p.finish ?? ''].join('|');
+}
+
+// Real area of ALL copies of one part row, in m².
+export function partAreaSqM(part: CutPart): number {
+  return (part.lengthMm * part.widthMm * part.quantity) / MM2_PER_SQM;
 }
 
 // Running length of edge banding on ALL copies of one part row.
@@ -429,7 +500,17 @@ export function describeEdgeBanding(e: EdgeBanding): string {
 // (group), same name, same size, same banding → one row with the
 // quantities summed and the cabinet refs listed. The per-cabinet list
 // is still what's exported alongside, so nothing is lost.
-export interface ConsolidatedPart extends Omit<CutPart, 'cabinetRef' | 'cabinetLabel'> {
+export interface ConsolidatedPart {
+  kind: CutPartKind;
+  name: string;
+  lengthMm: number;
+  widthMm: number;
+  thicknessMm: number;
+  boardName: string;
+  finish?: string;
+  quantity: number;
+  edgeBanding: EdgeBanding;
+  grainFixed: boolean;
   cabinetRefs: string[];
 }
 
@@ -437,10 +518,7 @@ export function consolidateParts(parts: CutPart[]): ConsolidatedPart[] {
   const byKey = new Map<string, ConsolidatedPart>();
   for (const p of parts) {
     const key = [
-      p.kind,
-      p.material,
-      p.thicknessMm,
-      p.finish ?? '',
+      groupKey(p),
       p.name,
       p.lengthMm,
       p.widthMm,
@@ -459,7 +537,7 @@ export function consolidateParts(parts: CutPart[]): ConsolidatedPart[] {
         lengthMm: p.lengthMm,
         widthMm: p.widthMm,
         thicknessMm: p.thicknessMm,
-        material: p.material,
+        boardName: p.boardName,
         finish: p.finish,
         quantity: p.quantity,
         edgeBanding: p.edgeBanding,

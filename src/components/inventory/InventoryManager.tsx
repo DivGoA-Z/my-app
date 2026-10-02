@@ -23,17 +23,17 @@ import { Alert, AlertDescription } from '../ui/alert';
 import { Checkbox } from '../ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { confirmDialog } from '../../store/confirmDialogStore';
+import { BoardSelect } from '../common/BoardSelect';
 import { useLayoutStore } from '../../store/layoutStore';
 import { FinishManager } from './FinishManager';
 import { HandleManager } from './HandleManager';
 import { FixtureManager } from './FixtureManager';
 import { RateCardManager } from './RateCardManager';
-import { ConstructionSettingsManager } from './ConstructionSettingsManager';
 import { CabinetCatalogImportExport } from './CabinetCatalogImportExport';
 import { ObstaclePresetImportExport } from './ObstaclePresetImportExport';
 import { ApplianceCatalogImportExport } from './ApplianceCatalogImportExport';
 import type { CatalogItem, ObstaclePreset, ApplianceCatalogItem } from '../../types/Catalog';
-import type { ModuleType, MaterialType } from '../../types/cabinet';
+import type { ModuleType } from '../../types/cabinet';
 import { FALLBACK_FINISH_ID } from '../../types/finish';
 import type { ObstacleType } from '../../types/layout';
 import type { ApplianceType } from '../../types/appliance';
@@ -70,7 +70,6 @@ const MODULE_TYPES: ModuleType[] = [
   'corner-carousel',
   'pantry-unit',
 ];
-const MATERIALS: MaterialType[] = ['HDMR', 'Plywood', 'MDF', 'Particle Board', 'BWP'];
 const OBSTACLE_TYPES: ObstacleType[] = ['pillar', 'shaft', 'exposed-pipe', 'electrical-panel'];
 // 'sink' was missing here after the sink moved out of the cabinet
 // module types and became an appliance — the union and the DB check
@@ -198,11 +197,6 @@ export function InventoryManager({ initialSection }: { initialSection?: Inventor
               anywhere until now — see docs/ISSUES-FIXED.md. */}
           <RateCardManager />
 
-          {/* Directly under the rates: the other business-wide setup
-              that isn't a catalogue row. Read only by the cutting list
-              — see its own header comment. */}
-          <ConstructionSettingsManager />
-
           {/* Finishes first: cabinet rows below reference them, so this
               is the order the data actually depends in. */}
           <FinishManager />
@@ -224,7 +218,7 @@ export function InventoryManager({ initialSection }: { initialSection?: Inventor
                   <th className="px-2 py-2 font-medium">Name</th>
                   <th className="px-2 py-2 font-medium">Type</th>
                   <th className="px-2 py-2 font-medium">W×D×H (mm)</th>
-                  <th className="px-2 py-2 font-medium">Material</th>
+                  <th className="px-2 py-2 font-medium">Board</th>
                   <th className="px-2 py-2 font-medium">Finish</th>
                   <th className="px-2 py-2 font-medium">Default front</th>
                   <th className="px-2 py-2 font-medium">Price</th>
@@ -474,21 +468,11 @@ function CabinetCatalogRow({ item, categorySuggestions, onSave, onDelete }: Cabi
         </div>
       </td>
       <td className="px-2 py-1.5">
-        <Select
-          value={draft.material}
-          onValueChange={(value) => setDraft({ ...draft, material: value as MaterialType })}
-        >
-          <SelectTrigger size="sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {MATERIALS.map((m) => (
-              <SelectItem key={m} value={m}>
-                {m}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <BoardSelect
+          material={draft.material}
+          carcassBoardId={draft.carcassBoardId}
+          onChange={(patch) => setDraft({ ...draft, ...patch })}
+        />
       </td>
       <td className="px-2 py-1.5">
         <Select value={draft.finishId} onValueChange={(value) => setDraft({ ...draft, finishId: value })}>
@@ -641,21 +625,11 @@ function NewCabinetItemRow({
         </div>
       </td>
       <td className="px-2 py-1.5">
-        <Select
-          value={draft.material}
-          onValueChange={(value) => setDraft({ ...draft, material: value as MaterialType })}
-        >
-          <SelectTrigger size="sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {MATERIALS.map((m) => (
-              <SelectItem key={m} value={m}>
-                {m}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <BoardSelect
+          material={draft.material}
+          carcassBoardId={draft.carcassBoardId}
+          onChange={(patch) => setDraft({ ...draft, ...patch })}
+        />
       </td>
       <td className="px-2 py-1.5">
         <Select value={draft.finishId} onValueChange={(value) => setDraft({ ...draft, finishId: value })}>

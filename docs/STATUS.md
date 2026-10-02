@@ -67,7 +67,9 @@ block reframed (items 1–3 of last session's plan)**:
    bottom while there are unsaved changes.
 
 **Before using it: re-run `supabase/schema.sql`.** A new
-`construction_settings` table, and five new nullable columns (`rate_cards.others_rates`, `rate_cards.sheet_waste_factor`,
+`construction_settings` table, `rate_cards.board_rates`,
+`rate_cards.default_back_board_id`, `cabinet_catalog_items.panels`, and
+five more new nullable columns (`rate_cards.others_rates`, `rate_cards.sheet_waste_factor`,
 `layouts.sheet_waste_factor`, `layouts.project_charges`,
 `layouts.charge_rates`); until they exist, **autosave and rate
 saves fail** (reads are fine). Expect existing frozen quotes to read
@@ -87,7 +89,36 @@ corner carousel's diagonal shape (flagged). Dimensions checked by
 running the real code on sample cabinets against hand arithmetic —
 not yet against a carpenter's own list.
 
-**Next — cutting list phase 2, nesting** (was "item 4, the standalone
+**New, NOT yet seen in a browser — board lines and real-area pricing**
+(`docs/DECISIONS.md` §42, steps 1–4 of the 2 Oct plan):
+- Rate card **Boards**: one line per material × thickness × ₹/m²
+  (HDMR 18mm, HDMR 6mm…) plus a default back board. Old rates carried
+  over as 18mm lines; **HDMR 6mm ₹450 is a guess — check it.**
+- Every cabinet has a per-panel spec (each side, top/rails, bottom,
+  back, shelves, fronts: included? which board?), catalogue default,
+  cabinet override, all included by default. **No UI to edit it yet —
+  that's the Cabinet Designer page, step 5.**
+- **Board is now priced on real area** from the cutting list's parts.
+  A typical base unit's material goes ~₹907 → ~₹2,567. **Every open
+  quote's material line rises ~2.5–3×** — recheck board rates and the
+  fabrication charge against invoices. Principle 2 reworded to match
+  (rule unchanged: price by real area).
+- **Check-in point (as agreed): look at a real project's new prices
+  before step 5 starts.**
+- Follow-ups from your review (§43): construction settings moved to a
+  separate **Workshop settings** page (they move price by ₹0–30, not
+  meaningfully); "full top vs rails" moved to the cabinet's own top
+  panel (it moves price ~₹300); a board line in use **can't be deleted**
+  — the rate card names the projects/catalogue rows using it; cabinet
+  Material dropdowns offer **only priced boards**, plus "+ Add a new
+  board…" which saves the line to the rate card.
+- (§44) Cabinets now pick an exact **board line** ("HDMR 18mm —
+  ₹1,400/m²") instead of just a material, with the back board shown
+  under it. Workshop settings are formally optional — **Principle 12**:
+  designing and quoting never need them.
+
+**After that — step 5, the Cabinet Designer page**, then **cutting list
+phase 2, nesting** (was "item 4, the standalone
 waste calculator"): real panels derived from an *assumed*, labelled
 construction convention, nested onto real sheet sizes with a known
 heuristic, to *measure* the waste factor item 3 only lets you type.

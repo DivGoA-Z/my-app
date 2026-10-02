@@ -16,12 +16,18 @@ import {
   defaultRateCard,
   sanitizeRateCard,
   sanitizeWasteFactor,
+  DEFAULT_BACK_BOARD_ID,
   DEFAULT_LABOUR_RATES,
+  LEGACY_BOARD_THICKNESS_MM,
+  MATERIAL_RATE_KEYS,
+  PLACEHOLDER_RATES,
+  legacyBoardId,
   LABOUR_FABRICATION_ID,
   LABOUR_SITE_ID,
   type OtherRate,
   type RateCard,
 } from '../types/rates';
+import type { MaterialType } from '../types/cabinet';
 
 interface RateCardRow {
   id: string;
@@ -43,7 +49,13 @@ interface RateCardRow {
   // growth history — MaterialType has already grown once (BWP, added
   // alongside this column) with more to come as businesses stock more
   // substrates.
-  material_rates: RateCard['materialRates'] | null;
+  // LEGACY (§13 → §42): one ₹/m² per material. Read only to migrate a
+  // card saved before board_rates existed into 18mm board lines; never
+  // written.
+  material_rates?: Partial<Record<MaterialType, number>> | null;
+  // JSONB array of BoardRate. Null on a row saved before §42.
+  board_rates: RateCard['boards'] | null;
+  default_back_board_id: string | null;
   // Same one-JSONB-column reasoning as material_rates above — priced
   // by TINT, which is a set of keys just like MaterialType is.
   glass_rates: RateCard['glassRates'] | null;
@@ -72,12 +84,8 @@ function rowToRateCard(row: RateCardRow): RateCard {
     id: row.id,
     label: row.label,
     hardware: row.hardware_rates,
-    // Cast, not a lie: this can genuinely be undefined for a row
-    // saved before this column existed, and sanitizeRateCard (always
-    // called right after this, in fetchRateCard) is what actually
-    // supplies the zeros via its own `card.materialRates?.HDMR`
-    // optional-chaining — one fallback path, not two disagreeing ones.
-    materialRates: (row.material_rates ?? undefined) as RateCard['materialRates'],
+    boards: row.board_rates ?? legacyBoards(row.material_rates),
+    defaultBackBoardId: row.default_back_board_id ?? DEFAULT_BACK_BOARD_ID,
     glassRates: (row.glass_rates ?? undefined) as RateCard['glassRates'],
     othersRates: withLegacyLabour(
       readOthersRates(row.others_rates, row.others_rate_per_unit),
@@ -99,7 +107,8 @@ function rateCardToRow(card: RateCard, businessId: string): RateCardRow {
     // Zeroed, not left alone — see this column's comment above.
     labor_rate_per_sqft: 0,
     hardware_rates: card.hardware,
-    material_rates: card.materialRates,
+    board_rates: card.boards,
+    default_back_board_id: card.defaultBackBoardId,
     glass_rates: card.glassRates,
     fabrication_rate_per_unit: 0,
     others_rates: card.othersRates,
@@ -135,6 +144,26 @@ function legacyOthersRates(othersRatePerUnit: number | undefined): RateCard['oth
 interface TwoListOthersRates {
   perSqFt?: Omit<OtherRate, 'basis' | 'showOnQuote' | 'applyMargin'>[];
   perUnit?: Omit<OtherRate, 'basis' | 'showOnQuote' | 'applyMargin'>[];
+}
+
+// A card saved before §42 had one ₹/m² per material. Each becomes an
+// 18mm board line at the same rate, with the same fixed id the seed
+// uses (legacyBoardId), so no 18mm part's price moves and the
+// fingerprint is stable across loads. The seeded 6mm back line is
+// added too: the old card had no back rate at all, and without one
+// every back would price at ₹0. A material the old card had no rate for
+// still gets a line, at ₹0 — the same "not priced yet" it meant before.
+function legacyBoards(rates: Partial<Record<MaterialType, number>> | null | undefined): RateCard['boards'] {
+  const seededBack = PLACEHOLDER_RATES.boards.find((b) => b.id === DEFAULT_BACK_BOARD_ID);
+  return [
+    ...MATERIAL_RATE_KEYS.map((material) => ({
+      id: legacyBoardId(material),
+      material,
+      thicknessMm: LEGACY_BOARD_THICKNESS_MM,
+      ratePerSqM: Number(rates?.[material] ?? 0),
+    })),
+    ...(seededBack ? [{ ...seededBack }] : []),
+  ];
 }
 
 // Site labour and fabrication were their own columns until §38. A card

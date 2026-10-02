@@ -20,14 +20,15 @@ import {
   computeCutList,
   consolidateParts,
   describeEdgeBanding,
+  groupKey,
   type CutList,
 } from '../../lib/cutList';
 import { buildWorkbookBlob } from '../../lib/importExport/xlsxHelpers';
 import { downloadBlob } from '../../lib/downloadBlob';
 import {
   BACK_FIT_LABELS,
-  BASE_TOP_LABELS,
-  PANEL_FIT_LABELS,
+  BOTTOM_FIT_LABELS,
+  TOP_FIT_LABELS,
   type ConstructionSettings,
 } from '../../types/construction';
 
@@ -36,22 +37,20 @@ type Mode = 'cutting' | 'cabinet';
 function settingsRows(s: ConstructionSettings): Record<string, string | number>[] {
   return [
     { Setting: 'Status', Value: s.confirmed ? 'Confirmed by carpenter' : 'ASSUMED — not yet confirmed' },
-    { Setting: 'Carcass thickness (mm)', Value: s.carcassThicknessMm },
-    { Setting: 'Bottom panel', Value: PANEL_FIT_LABELS[s.bottomFit] },
-    { Setting: 'Top panel', Value: PANEL_FIT_LABELS[s.topFit] },
+    { Setting: 'Carcass bottom', Value: BOTTOM_FIT_LABELS[s.bottomFit] },
+    { Setting: 'Carcass top (full top panels)', Value: TOP_FIT_LABELS[s.topFit] },
     { Setting: 'Back panel', Value: BACK_FIT_LABELS[s.backFit] },
-    { Setting: 'Back thickness (mm)', Value: s.backFit === 'inset-full' ? s.carcassThicknessMm : s.backThicknessMm },
     { Setting: 'Groove depth (mm)', Value: s.backFit === 'grooved' ? s.grooveDepthMm : '—' },
-    { Setting: 'Base unit top', Value: BASE_TOP_LABELS[s.baseTop] },
-    { Setting: 'Rail width (mm)', Value: s.baseTop === 'rails' ? s.railWidthMm : '—' },
+    { Setting: 'Rail width (mm)', Value: s.railWidthMm },
     { Setting: 'Shelf setback (mm)', Value: s.shelfSetbackMm },
   ];
 }
 
 function exportWorkbook(cutList: CutList, settings: ConstructionSettings, projectName: string) {
+  // Same key computeCutList grouped by, so a part's "Board" cell always
+  // names the group it's listed under on screen.
   const byBoard = new Map(cutList.groups.map((g) => [g.key, g.label]));
-  const boardOf = (p: { kind: string; material: string; thicknessMm: number; finish?: string }) =>
-    byBoard.get([p.kind, p.material, p.thicknessMm, p.finish ?? ''].join('|')) ?? '';
+  const boardOf = (p: CutList['parts'][number]) => byBoard.get(groupKey(p)) ?? p.boardName;
 
   const cuttingHeaders = ['Board', 'Part', 'Length (mm)', 'Width (mm)', 'Qty', 'Edge banding', 'Grain', 'Cabinets'];
   const cuttingRows = cutList.groups.flatMap((g) =>
@@ -106,16 +105,23 @@ function exportWorkbook(cutList: CutList, settings: ConstructionSettings, projec
   downloadBlob(blob, `cutting-list-${safeName}-${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
-export function CutListView({ onClose }: { onClose: () => void }) {
+export function CutListView({
+  onClose,
+  onOpenWorkshop,
+}: {
+  onClose: () => void;
+  onOpenWorkshop: () => void;
+}) {
   const cabinets = useLayoutStore((s) => s.cabinets);
   const finishes = useLayoutStore((s) => s.finishes);
   const settings = useLayoutStore((s) => s.constructionSettings);
+  const rateCard = useLayoutStore((s) => s.rateCard);
   const currentProject = useLayoutStore((s) => s.currentProject);
   const [mode, setMode] = useState<Mode>('cutting');
 
   const cutList = useMemo(
-    () => computeCutList(cabinets, settings, finishes),
-    [cabinets, settings, finishes]
+    () => computeCutList(cabinets, settings, finishes, rateCard),
+    [cabinets, settings, finishes, rateCard]
   );
 
   const totalPieces = cutList.groups.reduce((n, g) => n + g.pieceCount, 0);
@@ -161,9 +167,18 @@ export function CutListView({ onClose }: { onClose: () => void }) {
         <Alert className="border-amber-300 bg-amber-50">
           <AlertDescription className="text-amber-900">
             <strong className="font-semibold">Built on assumed construction.</strong> Part sizes
-            follow the default workshop convention (bottom between the sides, grooved back, railed
-            base tops). Confirm or change it with your carpenter under Manage Inventory →
-            Construction before anything is cut.
+            follow the default workshop convention (top and bottom between the sides, grooved
+            back). Confirm or change it with your carpenter in{' '}
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="h-auto p-0 align-baseline text-amber-900 underline"
+              onClick={onOpenWorkshop}
+            >
+              Workshop settings
+            </Button>{' '}
+            before anything is cut.
           </AlertDescription>
         </Alert>
       )}

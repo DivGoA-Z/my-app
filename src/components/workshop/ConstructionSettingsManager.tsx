@@ -1,4 +1,4 @@
-// src/components/inventory/ConstructionSettingsManager.tsx
+// src/components/workshop/ConstructionSettingsManager.tsx
 //
 // Edits how the business's workshop builds a cabinet — the conventions
 // the cutting list (lib/cutList.ts) depends on. Every decision offers
@@ -26,9 +26,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { useLayoutStore } from '../../store/layoutStore';
 import {
   BACK_FIT_LABELS,
-  BASE_TOP_LABELS,
+  BOTTOM_FIT_LABELS,
   DRAWER_BOX_LABELS,
-  PANEL_FIT_LABELS,
+  TOP_FIT_LABELS,
   type ConstructionSettings,
 } from '../../types/construction';
 
@@ -144,10 +144,13 @@ export function ConstructionSettingsManager() {
     <div className="flex flex-col gap-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-sm font-semibold text-gray-700">Construction (for the cutting list)</h3>
+          <h3 className="text-sm font-semibold text-gray-700">How your workshop builds a cabinet</h3>
           <p className="mt-1 text-xs text-gray-500">
-            How your workshop builds a cabinet. Every part size on the cutting list comes from
-            these. They don't change any price.
+            How the panels are fitted together. Used by the cutting list and, later, the
+            wastage calculation. Changing these moves a cabinet's price by a few rupees at most
+            (part sizes shift by a few millimetres) — which panels a cabinet has, and from which
+            board, are chosen per cabinet in the catalogue. Board thicknesses come from the rate
+            card's Boards.
           </p>
         </div>
         {saveButton}
@@ -166,28 +169,23 @@ export function ConstructionSettingsManager() {
 
       <div className="grid gap-3 sm:grid-cols-2">
         <ChoiceField
-          label="Bottom panel"
+          label="Carcass bottom — how it meets the sides"
           value={draft.bottomFit}
-          labels={PANEL_FIT_LABELS}
+          labels={BOTTOM_FIT_LABELS}
           onChange={(v) => set('bottomFit', v)}
         />
         <ChoiceField
-          label="Top panel (wall and tall units, and base units with a full top)"
+          label="Carcass top — how it meets the sides"
           value={draft.topFit}
-          labels={PANEL_FIT_LABELS}
+          labels={TOP_FIT_LABELS}
           onChange={(v) => set('topFit', v)}
+          help="Only for a full top panel. Rails always fit between the sides. (Whether a cabinet has a full top, rails or no top is chosen per cabinet in the catalogue — it changes the price.)"
         />
         <ChoiceField
           label="Back panel"
           value={draft.backFit}
           labels={BACK_FIT_LABELS}
           onChange={(v) => set('backFit', v)}
-        />
-        <ChoiceField
-          label="Top of a base unit (under the countertop)"
-          value={draft.baseTop}
-          labels={BASE_TOP_LABELS}
-          onChange={(v) => set('baseTop', v)}
         />
         <ChoiceField
           label="Drawer boxes"
@@ -201,18 +199,6 @@ export function ConstructionSettingsManager() {
       <fieldset className="flex flex-col gap-2">
         <legend className="text-xs font-medium text-gray-600">Sizes (mm)</legend>
         <NumberField
-          label="Carcass board thickness"
-          value={draft.carcassThicknessMm}
-          onChange={(v) => set('carcassThicknessMm', v)}
-        />
-        <NumberField
-          label="Thin back thickness"
-          value={draft.backThicknessMm}
-          onChange={(v) => set('backThicknessMm', v)}
-          disabled={draft.backFit === 'inset-full'}
-          disabledReason="full-thickness back uses the carcass thickness"
-        />
-        <NumberField
           label="Groove depth, each side"
           value={draft.grooveDepthMm}
           onChange={(v) => set('grooveDepthMm', v)}
@@ -220,11 +206,9 @@ export function ConstructionSettingsManager() {
           disabledReason="only for a grooved back"
         />
         <NumberField
-          label="Base unit rail width"
+          label="Rail width (cabinets whose top is rails)"
           value={draft.railWidthMm}
           onChange={(v) => set('railWidthMm', v)}
-          disabled={draft.baseTop !== 'rails'}
-          disabledReason="only for a railed top"
         />
         <NumberField
           label="Shelf / divider setback from the front"

@@ -19,18 +19,16 @@
 // can't drift apart.
 
 import { useState } from 'react';
+import { BoardSelect } from '../common/BoardSelect';
 import { useLayoutStore } from '../../store/layoutStore';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useSelectedCabinetId, useSelectedObstacleId } from '../../hooks/useSelection';
 import { rotateCabinet, resizeCabinet, duplicateCabinet } from '../../lib/cabinetGeometry';
-import type { MaterialType } from '../../types/cabinet';
 import { FinishPicker } from './FinishPicker';
 import { FrontPicker } from './FrontPicker';
 
-const MATERIALS: MaterialType[] = ['HDMR', 'Plywood', 'MDF', 'Particle Board', 'BWP'];
 
 // Mirrors the fallback used in App.tsx/CabinetToolbar — only matters
 // before any project/layout has loaded.
@@ -140,22 +138,13 @@ export function CabinetInspector() {
       </label>
 
       <div className="flex flex-col gap-1 text-xs text-gray-600">
-        Material
-        <Select
-          value={cabinet.material}
-          onValueChange={(value) => updateCabinet(cabinet.id, { material: value as MaterialType })}
-        >
-          <SelectTrigger size="sm" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {MATERIALS.map((m) => (
-              <SelectItem key={m} value={m}>
-                {m}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        Board
+        <BoardSelect
+          material={cabinet.material}
+          carcassBoardId={cabinet.carcassBoardId}
+          onChange={(patch) => updateCabinet(cabinet.id, patch)}
+          triggerClassName="w-full"
+        />
       </div>
 
       <Label className="flex items-start gap-2 text-xs font-normal text-gray-600">

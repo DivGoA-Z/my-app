@@ -30,6 +30,10 @@ export function useBOM() {
   // Same again: labour per sqft and the four hardware rates come from
   // the rate card, so editing a rate must recompute the quote.
   const rates = useLayoutStore((state) => state.rateCard);
+  // Since §42, board is priced on the cutting list's real part sizes,
+  // which construction settings shape — so a construction edit must
+  // reprice too, same as a rate edit.
+  const construction = useLayoutStore((state) => state.constructionSettings);
   // currentLayout carries the room's floor/ceiling/wall finish
   // assignments and its dimensions, both of which the surface line
   // items are computed from.
@@ -41,9 +45,10 @@ export function useBOM() {
         handles,
         fixtureCatalog,
         rates,
+        construction,
         layout: currentLayout ?? undefined,
       }),
-    [cabinets, appliances, finishes, handles, fixtureCatalog, rates, currentLayout]
+    [cabinets, appliances, finishes, handles, fixtureCatalog, rates, construction, currentLayout]
   );
 }
 

@@ -3,9 +3,9 @@
 // Edits the business's rate card: one "Labour and other charges" list
 // (site labour and fabrication are its first two rows — §38 — each row
 // per sq ft / per cabinet / lump sum, and shown on the quote or rolled
-// into "Other"), consumable/mechanism hardware rates, material rates
-// by substrate and the sheet waste factor on them, and a glass-door
-// front's rate by tint.
+// into "Other"), consumable/mechanism hardware rates, board lines
+// (material × thickness × ₹/m², §42) and the sheet waste factor on
+// them, and a glass-door front's rate by tint.
 //
 // Margin does NOT live here, deliberately — it's edited in
 // QuoteSidebar instead, per PROJECT rather than one business-wide
@@ -31,16 +31,31 @@ import { Alert, AlertDescription } from '../ui/alert';
 import { useLayoutStore } from '../../store/layoutStore';
 import {
   RATE_LABELS,
-  MATERIAL_RATE_LABELS,
   HARDWARE_RATE_KEYS as HARDWARE_KEYS,
-  MATERIAL_RATE_KEYS as MATERIAL_KEYS,
   GLASS_RATE_KEYS as GLASS_KEYS,
   isPlaceholderRateCard,
+  sameBoards,
   sameOtherRates,
   type RateCard,
 } from '../../types/rates';
 import { GLASS_TINT_LABELS } from '../../types/front';
 import { ChargeRatesList } from '../common/ChargeRatesList';
+import { BoardRatesEditor } from './BoardRatesEditor';
+
+// Every editable field, compared by value. Used both for the Save
+// button's enabled state and for the resync below, so the two can't
+// disagree about what "unsaved" means.
+function cardsDiffer(a: RateCard, b: RateCard): boolean {
+  return (
+    a.sheetWasteFactor !== b.sheetWasteFactor ||
+    // Field-by-field, not JSON.stringify — see sameOtherRates.
+    !sameOtherRates(a.othersRates, b.othersRates) ||
+    HARDWARE_KEYS.some((k) => a.hardware[k] !== b.hardware[k]) ||
+    !sameBoards(a.boards, b.boards) ||
+    a.defaultBackBoardId !== b.defaultBackBoardId ||
+    GLASS_KEYS.some((k) => a.glassRates[k] !== b.glassRates[k])
+  );
+}
 
 export function RateCardManager() {
   const rateCard = useLayoutStore((state) => state.rateCard);
@@ -76,17 +91,25 @@ export function RateCardManager() {
   // already matched what was saved.
   const [syncedFrom, setSyncedFrom] = useState<RateCard>(rateCard);
   if (syncedFrom !== rateCard) {
+    // EXCEPTION to "resync replaces the draft": a board line can now be
+    // added from somewhere else on the same page (a catalogue row's
+    // Material dropdown → "+ Add a new board…", components/common/
+    // BoardSelect.tsx), which saves the rate card directly. If this
+    // draft had unsaved edits at that moment, replacing it would throw
+    // them away. So an unsaved draft keeps its edits and just gains any
+    // board line that appeared in the store and wasn't there before.
+    // Field comparison, not object identity: right after this editor's
+    // own Save, the store holds a NEW (sanitised) object equal to the
+    // draft, and identity would wrongly call that "unsaved edits".
+    const draftWasDirty = cardsDiffer(draft, syncedFrom);
+    const added = rateCard.boards.filter(
+      (b) => !syncedFrom.boards.some((x) => x.id === b.id) && !draft.boards.some((x) => x.id === b.id)
+    );
     setSyncedFrom(rateCard);
-    setDraft(rateCard);
+    setDraft(draftWasDirty ? { ...draft, boards: [...draft.boards, ...added] } : rateCard);
   }
 
-  const dirty =
-    draft.sheetWasteFactor !== rateCard.sheetWasteFactor ||
-    // Field-by-field, not JSON.stringify — see sameOtherRates.
-    !sameOtherRates(draft.othersRates, rateCard.othersRates) ||
-    HARDWARE_KEYS.some((k) => draft.hardware[k] !== rateCard.hardware[k]) ||
-    MATERIAL_KEYS.some((k) => draft.materialRates[k] !== rateCard.materialRates[k]) ||
-    GLASS_KEYS.some((k) => draft.glassRates[k] !== rateCard.glassRates[k]);
+  const dirty = cardsDiffer(draft, rateCard);
 
   // Whether the business is still on the seeded numbers. Shared with
   // FirstRunChecklist's "add your rates" step — see isPlaceholderRateCard's
@@ -186,31 +209,18 @@ export function RateCardManager() {
       <Separator />
 
       <fieldset className="flex flex-col gap-3">
-        <legend className="text-xs font-medium text-gray-600">Material (₹ per sq m)</legend>
-        {MATERIAL_KEYS.map((key) => (
-          <Label key={key} className="flex items-center justify-between gap-3 font-normal">
-            <span className="text-xs text-gray-600">{MATERIAL_RATE_LABELS[key]}</span>
-            <Input
-              type="number"
-              min={0}
-              step={1}
-              value={draft.materialRates[key]}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  materialRates: { ...draft.materialRates, [key]: Number(e.target.value) },
-                })
-              }
-              className="w-28 text-right"
-            />
-          </Label>
-        ))}
+        <legend className="text-xs font-medium text-gray-600">Boards</legend>
         <p className="text-[11px] text-gray-500">
-          Charged on each cabinet's own estimated carcass area (the same rough estimate
-          labour is charged on) times its substrate's rate here — a Plywood cabinet and a
-          BWP one of the same size now cost differently, instead of both quietly costing
-          whatever the catalogue's flat price happened to be.
+          Every board you buy, one line per material and thickness — HDMR 18mm and HDMR 6mm are
+          different lines at different prices. Each panel of a cabinet is priced at its own
+          board's rate, on its real area. Each cabinet picks its carcass board in the catalogue
+          (and per cabinet); its back uses the default back board below.
         </p>
+        <BoardRatesEditor
+          boards={draft.boards}
+          defaultBackBoardId={draft.defaultBackBoardId}
+          onChange={(boards, defaultBackBoardId) => setDraft({ ...draft, boards, defaultBackBoardId })}
+        />
         <Label className="flex items-center justify-between gap-3 font-normal">
           <span className="text-xs text-gray-600">Sheet waste factor (×)</span>
           <Input
@@ -224,7 +234,7 @@ export function RateCardManager() {
         </Label>
         <p className="text-[11px] text-gray-500">
           Board is bought as whole 8×4 sheets, and the offcuts are paid for too. 1.10 means
-          "buy 10% more than the cabinets use." Multiplies the material rates above only.
+          "buy 10% more than the cabinets use." Multiplies the board rates above only.
           This is your default — a project can override it from its quote.
         </p>
       </fieldset>
@@ -254,7 +264,7 @@ export function RateCardManager() {
         <p className="text-[11px] text-gray-500">
           An open-shelf front's optional glass door (Front Picker, on a cabinet), charged by
           the glass panel's own area — sq ft, not sq m, matching site labour's unit rather
-          than the substrate rates above. Priced separately from Material: glass is bought
+          than the board rates above. Priced separately from Boards: glass is bought
           and cut as glass, not the cabinet's own board.
         </p>
       </fieldset>

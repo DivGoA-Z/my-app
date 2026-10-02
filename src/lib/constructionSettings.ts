@@ -51,13 +51,10 @@ export async function saveConstructionSettings(
     // added to ConstructionSettings is a compile error here until it's
     // deliberately persisted — not silently dropped or silently stored.
     settings: {
-      carcassThicknessMm: c.carcassThicknessMm,
       topFit: c.topFit,
       bottomFit: c.bottomFit,
       backFit: c.backFit,
-      backThicknessMm: c.backThicknessMm,
       grooveDepthMm: c.grooveDepthMm,
-      baseTop: c.baseTop,
       railWidthMm: c.railWidthMm,
       shelfSetbackMm: c.shelfSetbackMm,
       drawerBox: c.drawerBox,

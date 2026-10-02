@@ -67,6 +67,49 @@ export interface HardwareSpec {
   unitCost: number; // ₹ per unit of the above
 }
 
+// The panels a cabinet is built from, for the cutting list AND the
+// price (docs/DECISIONS.md §42). Left and right sides are separate
+// because an exposed end side often gets a different (finished or
+// thicker) board than the hidden one. 'shelves' covers fixed shelves
+// and the dividers between a mixed front's rows; 'fronts' covers every
+// board front (shutters, drawer/trolley/false fronts, tambour).
+export type PanelRole = 'leftSide' | 'rightSide' | 'top' | 'bottom' | 'back' | 'shelves' | 'fronts';
+
+export const PANEL_ROLES: PanelRole[] = ['leftSide', 'rightSide', 'top', 'bottom', 'back', 'shelves', 'fronts'];
+
+export const PANEL_ROLE_LABELS: Record<PanelRole, string> = {
+  leftSide: 'Left side',
+  rightSide: 'Right side',
+  top: 'Top',
+  bottom: 'Bottom',
+  back: 'Back',
+  shelves: 'Shelves & dividers',
+  fronts: 'Fronts (shutters, drawer fronts)',
+};
+
+// One panel's choices. EVERY field optional, and absent means the
+// default — so a cabinet with no `panels` at all (every cabinet saved
+// before §42) is exactly "all panels included, default boards", which
+// is what you asked new cabinets to start as too.
+export interface PanelSpec {
+  // false → this panel isn't built: not on the cutting list, not
+  // priced. A sink unit without a back, a niche cabinet without a top.
+  included?: boolean;
+  // FK -> BoardRate.id on the rate card (types/rates.ts). Absent → the
+  // default board for this role (lib/panels.ts's resolvePanels). A
+  // dangling id (the line was deleted) also falls back to the default,
+  // and the cutting list says so.
+  boardId?: string;
+  // 'top' only: a full panel, or two rails. Absent → rails for a base
+  // unit (one a countertop sits on — the slab covers it), a full panel
+  // for everything else. Lives here, with the cabinet, because it
+  // changes the price (~₹300 on a 600mm base unit): it's which panels
+  // the cabinet has, not how the workshop fits them.
+  topStyle?: 'full' | 'rails';
+}
+
+export type CabinetPanels = Partial<Record<PanelRole, PanelSpec>>;
+
 // One row per cabinet placed on the 2D grid. This is the object Konva.js
 // drag events read/write directly, and the same shape is what later gets
 // consumed by the Phase 2 panorama renderer for wall-module placement.
@@ -94,6 +137,16 @@ export interface PlacedCabinetItem {
   elevationMm: number;
   rotationDeg: 0 | 90 | 180 | 270;
   material: MaterialType;     // substrate — costing only, never visible
+  // The board line (types/rates.ts BoardRate.id) the carcass is cut
+  // from — "HDMR 18mm", not just "HDMR". Added 2 Oct 2026 because a
+  // material alone didn't say WHICH thickness a cabinet used: the
+  // catalogue showed "HDMR" and silently meant "the thickest HDMR line".
+  // Kept in sync with `material` (which the quote's Material column,
+  // Excel import and the DB check constraint still read). Absent (every
+  // cabinet before this) → the material's original 18mm line (see
+  // lib/panels.ts's defaultCarcassBoard for why not "thickest"). A per-panel PanelSpec.boardId still overrides it for one
+  // panel. See lib/panels.ts and docs/DECISIONS.md §44.
+  carcassBoardId?: string;
   // FK -> SurfaceFinish.id (types/finish.ts). Seeded from the catalogue
   // item this cabinet was added from, then freely changed per cabinet
   // (CabinetInspector / the 3D view), which is why it lives here and not
@@ -142,6 +195,12 @@ export interface PlacedCabinetItem {
   // makes this distinction for room doors), so they get independent
   // mutes rather than sharing one flag.
   ignoreClearance?: boolean;
+  // Which panels this cabinet is built from, and from which boards —
+  // see PanelSpec above. Snapshotted from the catalogue row when the
+  // cabinet is added (same reasoning as frontLayout: a per-cabinet
+  // design decision the designer then changes for this project), and
+  // overridable per cabinet. Absent = every panel, default boards.
+  panels?: CabinetPanels;
 }
 
 /*

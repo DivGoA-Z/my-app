@@ -42,6 +42,7 @@ export function useQuoteStatus(): QuoteStatusResult {
   const handles = useLayoutStore((s) => s.handles);
   const fixtureCatalog = useLayoutStore((s) => s.fixtureCatalog);
   const rateCard = useLayoutStore((s) => s.rateCard);
+  const constructionSettings = useLayoutStore((s) => s.constructionSettings);
 
   // quotes is kept newest-first by both fetchQuotes (ordered by version
   // descending) and freezeCurrentQuote (which unshifts), so [0] is the
@@ -63,6 +64,7 @@ export function useQuoteStatus(): QuoteStatusResult {
       handles,
       fixtureCatalog,
       rates: rateCard,
+      construction: constructionSettings,
       layout: layoutForQuote,
     });
 
@@ -79,5 +81,6 @@ export function useQuoteStatus(): QuoteStatusResult {
     handles,
     fixtureCatalog,
     rateCard,
+    constructionSettings,
   ]);
 }

@@ -48,32 +48,50 @@ silently cheaper quote.
 
 Everything else in the app may be approximate. This may not.
 
-### 2. Price by area; cut by panels
+### 2. Price by real area
 
-**Changed 29 Sep 2026.** This principle used to be "Panels are the unit
+**Wording corrected 2 Oct 2026** — the rule is unchanged, the text was
+wrong in two places (see "Correction, 2 Oct" below). **Changed 29 Sep
+2026.** This principle used to be "Panels are the unit
 of truth" and said the panel model would *replace* area-based costing.
 That is no longer the plan — the original text is kept below, marked
 superseded, because the reasoning behind it was sound and the reason it
 was dropped is the useful part.
 
 Price is `area × rate`, computed fresh from each cabinet's own
-dimensions on every quote (`estimateAreaSqFt`/`carcassAreaSqM` in
-`src/lib/bom.ts`). **That is the permanent pricing method, not a
-stopgap.** It never needs a fixed size table, so there is nothing to
-re-derive when the construction convention is finally known.
+dimensions on every quote, using **the area that is really there —
+never less.** **That is the permanent pricing method, not a stopgap.**
+It never needs a fixed size table, so there is nothing to re-derive.
 
-The panel model is still needed, but only for **production**: a
-workshop cuts from real panels — two sides, top, bottom, back,
-shelves, each with a thickness, banded edges and a grain direction.
-That is a cutting-list concern. It does not feed the price, and it
-must never again be allowed to block pricing work.
+Board area is the real area of each panel the cabinet is actually
+built from (only the panels it has; each at its own board's thickness
+and rate — `docs/DECISIONS.md` §42), measured by the same panel
+breakdown the cutting list uses, so the price and the workshop can
+never disagree about a panel. Nothing about pricing may ever wait on
+anyone's answer again: the construction convention is a set of
+settings with defaults (§41), not a blocker.
+
+> **Correction, 2 Oct 2026.** This section previously said price came
+> from `estimateAreaSqFt`/`carcassAreaSqM` — front face plus half a
+> side — and that the panel model "does not feed the price". Both were
+> wrong against the rule itself. That estimate came to roughly a third
+> of the board a cabinet really uses (a 600×600×720 base unit: 0.65 m²
+> priced against 1.70 m² of 18mm plus 0.41 m² of 6mm back actually
+> cut), which breaks "never less". And "panels don't feed the price"
+> was only ever there so pricing wouldn't wait on the carpenter; once
+> construction became settings, the panel breakdown was simply the
+> best measure of real area. The rule — price by real area × rate — is
+> what you set on 29 Sep and is unchanged. Site labour and per-sq-ft
+> charges still use the estimated area, which is how the trade bills
+> labour; that's a separate question, not settled here.
 
 Why the change: whether the bottom panel sits between or under the
-sides moves real panel dimensions by one board thickness (~18mm).
-Next to the area estimate's own slop — a half-side allowance standing
-in for sides, top, bottom and back — that is invisible in a quote.
-Waiting on the carpenter's convention for pricing bought no accuracy
-anyone would see, and it was blocking real work.
+sides moves real panel dimensions by one board thickness (~18mm),
+which is invisible in a quote. Waiting on the carpenter's convention
+for pricing bought no accuracy anyone would see, and it was blocking
+real work. (That same fact is why pricing from the panel breakdown is
+safe now: construction settings move the price by a few millimetres'
+worth, never meaningfully.)
 
 What makes area pricing honest instead of hand-wavy is saying what it
 leaves out, and pricing those things explicitly rather than hoping the
@@ -326,6 +344,37 @@ complete on a Sunday evening.
 This settles a recurring argument. "Should we build a fancy bulk
 editor?" — not first. Excel round-trip first; the in-app editor is for
 single-item edits and corrections.
+
+## Principle 12: production detail is an add-on, never a gate
+
+*Added 2 Oct 2026, in your words: workshop settings "must never be
+indispensable for designing a kitchen, as this can be too complicated
+for the small business owner or too time consuming."*
+
+The core flow — draw the room, place cabinets, walk through it, price
+it, send the quote — must work completely with **nothing** filled in on
+the production side. Workshop settings (how panels are fitted), an
+exact cutting list, sheet nesting and measured waste are add-ons for a
+business that wants them.
+
+So:
+
+- Every production setting has a sensible default, and the app runs on
+  it silently. Nothing in designing or quoting links to, warns about, or
+  waits on Workshop settings.
+- Anything production detail would *refine* has a by-experience
+  shortcut that's good enough on its own. Waste is the example: the
+  rate card's sheet waste factor (e.g. 1.10) is typed from experience;
+  measuring it from a nested cutting list is optional.
+- Where a production setting does touch the price, it must be by a
+  rounding error, never meaningfully (measured: ₹0–30 on a ~₹2,500
+  cabinet's board). If a choice moves the price meaningfully — whether
+  a base unit has a full top or rails, which board a cabinet uses — it
+  belongs with the cabinet in the catalogue, where a designer already
+  is, not on the production page.
+
+This settles "should this go in Workshop settings?": only if a business
+that never opens that page still gets a correct quote without it.
 
 ---
 

@@ -30,6 +30,7 @@ import { WallElevationView } from './components/elevation/WallElevationView';
 import { QuoteSidebar } from './components/quote/QuoteSidebar';
 import { PresentMode } from './components/present/PresentMode';
 import { CutListView } from './components/cutlist/CutListView';
+import { WorkshopSettingsPage } from './components/workshop/WorkshopSettingsPage';
 import { CustomerDashboard } from './components/dashboard/CustomerDashboard';
 import { useLayoutStore } from './store/layoutStore';
 import { useAuthStore } from './store/authStore';
@@ -49,7 +50,15 @@ import { Label } from './components/ui/label';
 const DEFAULT_ROOM_WIDTH_MM = 3000;
 const DEFAULT_ROOM_DEPTH_MM = 4000;
 
-type View = 'dashboard' | 'canvas' | 'inventory' | 'preview3d' | 'elevation' | 'present' | 'cutlist';
+type View =
+  | 'dashboard'
+  | 'canvas'
+  | 'inventory'
+  | 'workshop'
+  | 'preview3d'
+  | 'elevation'
+  | 'present'
+  | 'cutlist';
 
 function App() {
   const [view, setView] = useState<View>('dashboard');
@@ -175,7 +184,17 @@ function App() {
   let content: React.ReactNode;
 
   if (view === 'cutlist') {
-    content = <CutListView onClose={() => setView('canvas')} />;
+    content = (
+      <CutListView
+        onClose={() => setView('canvas')}
+        onOpenWorkshop={() => {
+          setPreviousView('cutlist');
+          setView('workshop');
+        }}
+      />
+    );
+  } else if (view === 'workshop') {
+    content = <WorkshopSettingsPage onBack={() => setView(previousView)} />;
   } else if (view === 'elevation') {
     content = <WallElevationView onClose={() => setView('canvas')} />;
   } else if (view === 'present') {
@@ -213,6 +232,18 @@ function App() {
         <div className="flex justify-end gap-2">
           <Button variant="outline" size="sm" onClick={() => handleManageInventory()}>
             Manage Inventory
+          </Button>
+          {/* Separate from Manage Inventory on purpose — see
+              WorkshopSettingsPage's header comment. */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setPreviousView('dashboard');
+              setView('workshop');
+            }}
+          >
+            Workshop settings
           </Button>
           <Button variant="outline" size="sm" onClick={() => signOut()}>
             Sign out

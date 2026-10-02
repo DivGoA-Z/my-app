@@ -216,11 +216,13 @@ interface LayoutStore {
   // from the first render rather than null. See types/rates.ts for why
   // that fallback is deliberate and where it could bite.
   rateCard: RateCard;
-  // How the workshop builds a cabinet — read only by the cutting list
-  // (lib/cutList.ts). Deliberately NOT part of rateCard or anything in
-  // PricingContext: it never changes a price, and anything reachable
-  // from PricingContext is hashed into every frozen quote's fingerprint.
-  // See types/construction.ts.
+  // How the workshop builds a cabinet — read by the cutting list
+  // (lib/cutList.ts), and so, since §42, by pricing too: board is priced
+  // on the cutting list's real part sizes. It's passed as
+  // PricingContext.construction (required) and hashed into the frozen-
+  // quote fingerprint. CORRECTED: this comment said in §41 that it
+  // "never changes a price" and was deliberately kept out of
+  // PricingContext — true then, not since §42. See types/construction.ts.
   constructionSettings: ConstructionSettings;
   // The business's finish catalogue (types/finish.ts). Read by the
   // 3D renderer, the inspector's finish picker and BOM costing.
@@ -1192,7 +1194,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
   freezeCurrentQuote: async (note) => {
     const {
       currentProject, currentLayout, cabinets, obstacles, appliances, cameras,
-      finishes, handles, fixtureCatalog, rateCard,
+      finishes, handles, fixtureCatalog, rateCard, constructionSettings,
     } = get();
 
     if (!currentProject || !currentLayout) {
@@ -1206,7 +1208,14 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
     // different layout than the one that gets saved is exactly the
     // sidebar-vs-database divergence this whole pass is about.
     const layoutForQuote: RoomLayout = { ...currentLayout, obstacles, cameras };
-    const ctx = { finishes, handles, fixtureCatalog, rates: rateCard, layout: layoutForQuote };
+    const ctx = {
+      finishes,
+      handles,
+      fixtureCatalog,
+      rates: rateCard,
+      construction: constructionSettings,
+      layout: layoutForQuote,
+    };
     const summary = calculateBOM(cabinets, appliances, ctx);
 
     set({ isFreezingQuote: true, quoteError: null });
@@ -1220,6 +1229,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
           finishes,
           handles,
           fixtureCatalog,
+          construction: constructionSettings,
           layoutId: currentLayout.id,
           // Fingerprints the PRICED INPUTS, not the output — two
           // different designs can total the same rupee figure, and a
@@ -1343,7 +1353,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
     // fire again a moment later for no reason.
     cancelPendingAutosave();
 
-    const { currentProject, currentLayout, cabinets, obstacles, appliances, cameras, finishes, handles, fixtureCatalog, rateCard } =
+    const { currentProject, currentLayout, cabinets, obstacles, appliances, cameras, finishes, handles, fixtureCatalog, rateCard, constructionSettings } =
       get();
 
     if (!currentProject || !currentLayout) {
@@ -1366,6 +1376,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
       handles,
       fixtureCatalog,
       rates: rateCard,
+      construction: constructionSettings,
       layout: layoutForQuote,
     });
     const projectWithQuote: CustomerProject = { ...currentProject, quoteTotal: grandTotal };

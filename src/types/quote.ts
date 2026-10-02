@@ -21,6 +21,7 @@
 // A revision is a NEW ROW at version + 1, never an edit. Nothing in
 // this app should ever update a quotes row's summary.
 
+import type { ConstructionSettings } from './construction';
 import type { BOMSummary } from '../lib/bom';
 import type { RateCard } from './rates';
 import type { SurfaceFinish } from './finish';
@@ -39,6 +40,11 @@ export interface FrozenPricingContext {
   finishes: SurfaceFinish[];
   handles: HandleSpec[];
   fixtureCatalog: FixtureCatalogItem[];
+  // The construction settings the quote's board was priced on (§42).
+  // Optional: absent on every quote frozen before construction became a
+  // priced input. Recorded for the same reason rates are — so a frozen
+  // quote carries everything it was priced with.
+  construction?: ConstructionSettings;
   layoutId: string | null;
   // See computeQuoteFingerprint. Not a timestamp — layouts.updated_at
   // is both too sensitive and not sensitive enough.

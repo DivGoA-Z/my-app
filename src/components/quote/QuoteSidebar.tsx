@@ -237,6 +237,15 @@ export function QuoteSidebar() {
                     <div className="text-[10px] font-normal text-gray-500">
                       {line.frontDescription} · {line.handleDescription}
                     </div>
+                    {/* A part with no board line is priced at ₹0 —
+                        said out loud here rather than quietly under-
+                        quoting (Principle 1). Business-only: this
+                        sidebar is never shown to a customer. */}
+                    {line.missingBoard && (
+                      <div className="text-[10px] font-medium text-red-600">
+                        Some board isn't on your rate card — priced ₹0. See the cutting list.
+                      </div>
+                    )}
                   </td>
                   <td className="py-1.5 pr-2 text-gray-600">
                     {line.widthMm} × {line.depthMm} × {line.heightMm}

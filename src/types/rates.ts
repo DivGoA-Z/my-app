@@ -39,23 +39,44 @@ export type CardPricedHardware = Exclude<HardwareSpec['type'], 'handle'>;
 
 export type HardwareRates = Record<CardPricedHardware, number>;
 
-// ₹ per sq m of a cabinet's own estimated CARCASS area (lib/bom.ts's
-// carcassAreaSqM — the same rough front-face-plus-side-allowance
-// estimate already used for labour, not an accurate per-panel figure;
-// see docs/DECISIONS.md §13 for why that distinction matters and what
-// it would take to make this exact instead of estimated). Added
-// alongside real material-cost estimates so materialCost stops being
-// a stand-in for the catalogue's own unitPrice and becomes what its
-// name says: the substrate, priced by how much of it the cabinet
-// actually uses.
-export type MaterialRates = Record<MaterialType, number>;
+// One board the business buys: a material at a thickness, at a price
+// per square metre. "HDMR 18mm ₹1,400/m²" and "HDMR 6mm ₹450/m²" are two
+// lines — the same substrate at different thicknesses is a different
+// product at a different price, which is the whole reason this is a
+// list rather than one rate per material.
+//
+// REPLACED `materialRates` (one ₹/m² per MaterialType, §13), which
+// couldn't tell an 18mm carcass from a 6mm back. A cabinet now picks a
+// board per panel (PanelSpec in types/cabinet.ts; defaults resolved in
+// lib/panels.ts), and every part on the cutting list is priced at its
+// own board's rate. See docs/DECISIONS.md §42.
+//
+// `id` is FIXED for seeded and migrated lines (never randomUUID on
+// load) — the rate card is hashed into every frozen quote's
+// fingerprint (§35).
+export interface BoardRate {
+  id: string;
+  material: MaterialType;
+  thicknessMm: number;
+  ratePerSqM: number;
+}
+
+// Seeded board lines: the five old material rates carried over verbatim
+// as 18mm lines (so no 18mm part's rate moves), plus one 6mm HDMR line
+// for backs, which never had a rate of its own before.
+export const LEGACY_BOARD_THICKNESS_MM = 18;
+export const DEFAULT_BACK_BOARD_ID = 'board-hdmr-6';
+
+export function legacyBoardId(material: MaterialType): string {
+  return `board-${material.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${LEGACY_BOARD_THICKNESS_MM}`;
+}
 
 // ₹ per sq ft of a glass door's own area (lib/fronts.ts's 'open-shelf'
 // case, when FrontLayout.glass is set) — keyed by TINT rather than one
 // flat number, because tinted/lacquered glass genuinely costs more
 // than plain clear toughened glass in the local market, same
-// "different products, different rates" reasoning MaterialRates above
-// already uses for substrates. Priced separately from materialRates:
+// "different products, different rates" reasoning BoardRate above
+// already uses for substrates. Priced separately from board lines:
 // glass is bought and cut as glass, not the cabinet's own board
 // substrate.
 export type GlassRates = Record<GlassTint, number>;
@@ -162,8 +183,13 @@ export interface RateCard {
   // and fitted. See HardwareSpec in types/cabinet.ts.
   hardware: HardwareRates;
 
-  // See MaterialRates above.
-  materialRates: MaterialRates;
+  // See BoardRate above. Every line a cabinet's panels can be cut from.
+  boards: BoardRate[];
+  // The board a cabinet's back is cut from unless the cabinet says
+  // otherwise. Business-wide rather than per material, because backs
+  // are usually one standard thin board whatever the carcass is — a
+  // BWP kitchen still typically gets the same 6mm back.
+  defaultBackBoardId: string;
 
   // See GlassRates above.
   glassRates: GlassRates;
@@ -270,21 +296,24 @@ export const PLACEHOLDER_RATES: Omit<RateCard, 'createdAt' | 'updatedAt'> = {
     cornerMagic: 12000,
     cornerCarousel: 6000,
   },
-  // Real Delhi NCR market estimates (2026-09-25) for HDMR/Plywood and
-  // BWP; MDF and Particle Board are MY OWN placeholder guesses (not
-  // given by the business), scaled down from the given figures in the
-  // usual retail ordering (MDF cheaper than plywood-grade boards,
-  // particle board cheapest) — flagged separately because they carry
-  // less confidence than the other four numbers on this object, all
-  // of which came from a real local-market source. See
-  // docs/DECISIONS.md §13.
-  materialRates: {
-    HDMR: 1400,
-    Plywood: 1400,
-    BWP: 2200,
-    MDF: 1100,
-    'Particle Board': 850,
-  },
+  // 18mm lines: real Delhi NCR market estimates (2026-09-25) for
+  // HDMR/Plywood and BWP; MDF and Particle Board are MY OWN placeholder
+  // guesses (not given by the business), scaled down from the given
+  // figures in the usual retail ordering — less confidence than the
+  // other three. See docs/DECISIONS.md §13.
+  //
+  // The 6mm HDMR line is a placeholder GUESS too (§42) — nobody has
+  // given a real price for back board. Roughly a third of 18mm, the
+  // usual local ratio; check it against an invoice.
+  boards: [
+    { id: legacyBoardId('HDMR'), material: 'HDMR', thicknessMm: 18, ratePerSqM: 1400 },
+    { id: legacyBoardId('Plywood'), material: 'Plywood', thicknessMm: 18, ratePerSqM: 1400 },
+    { id: legacyBoardId('BWP'), material: 'BWP', thicknessMm: 18, ratePerSqM: 2200 },
+    { id: legacyBoardId('MDF'), material: 'MDF', thicknessMm: 18, ratePerSqM: 1100 },
+    { id: legacyBoardId('Particle Board'), material: 'Particle Board', thicknessMm: 18, ratePerSqM: 850 },
+    { id: DEFAULT_BACK_BOARD_ID, material: 'HDMR', thicknessMm: 6, ratePerSqM: 450 },
+  ],
+  defaultBackBoardId: DEFAULT_BACK_BOARD_ID,
   othersRates: DEFAULT_LABOUR_RATES,
   // 1 — no waste — rather than a realistic 1.1, deliberately:
   // introducing this field must not silently move every open quote's
@@ -323,6 +352,7 @@ export const HARDWARE_RATE_KEYS: CardPricedHardware[] = [
   'cornerCarousel',
 ];
 
+// Every MaterialType, in the order a board-line picker lists them.
 export const MATERIAL_RATE_KEYS: MaterialType[] = ['HDMR', 'Plywood', 'BWP', 'MDF', 'Particle Board'];
 
 export const GLASS_RATE_KEYS: GlassTint[] = ['clear', 'black', 'brown', 'yellow'];
@@ -340,7 +370,8 @@ export function isPlaceholderRateCard(card: RateCard): boolean {
     sameOtherRates(card.othersRates, PLACEHOLDER_RATES.othersRates) &&
     card.sheetWasteFactor === PLACEHOLDER_RATES.sheetWasteFactor &&
     HARDWARE_RATE_KEYS.every((k) => card.hardware[k] === PLACEHOLDER_RATES.hardware[k]) &&
-    MATERIAL_RATE_KEYS.every((k) => card.materialRates[k] === PLACEHOLDER_RATES.materialRates[k]) &&
+    sameBoards(card.boards, PLACEHOLDER_RATES.boards) &&
+    card.defaultBackBoardId === PLACEHOLDER_RATES.defaultBackBoardId &&
     GLASS_RATE_KEYS.every((k) => card.glassRates[k] === PLACEHOLDER_RATES.glassRates[k])
   );
 }
@@ -416,18 +447,13 @@ export function sanitizeRateCard(card: RateCard): RateCard {
       cornerMagic: nonNegative(card.hardware.cornerMagic),
       cornerCarousel: nonNegative(card.hardware.cornerCarousel),
     },
-    materialRates: {
-      // Same graceful-growth reasoning as cornerMagic/cornerCarousel
-      // above — a rate card saved before materialRates existed loads
-      // as "not priced yet" (0) for every key rather than throwing.
-      HDMR: nonNegative(card.materialRates?.HDMR),
-      Plywood: nonNegative(card.materialRates?.Plywood),
-      BWP: nonNegative(card.materialRates?.BWP),
-      MDF: nonNegative(card.materialRates?.MDF),
-      'Particle Board': nonNegative(card.materialRates?.['Particle Board']),
-    },
+    boards: sanitizeBoards(card.boards),
+    // Must name a line that exists; a dangling id (the line was deleted)
+    // falls back to the seeded 6mm line if present, else the thinnest
+    // line, so a back is never silently priced off a missing board.
+    defaultBackBoardId: resolveDefaultBackBoardId(card),
     glassRates: {
-      // Same graceful-growth reasoning as materialRates above — a rate
+      // Same graceful-growth reasoning as cornerMagic above — a rate
       // card saved before glassRates existed loads as "not priced yet"
       // (0) for every tint rather than throwing.
       clear: nonNegative(card.glassRates?.clear),
@@ -460,6 +486,54 @@ export function sanitizeOtherRates(rates: OtherRate[] | undefined): OtherRate[] 
     // always marked up.
     applyMargin: r.applyMargin !== false,
   }));
+}
+
+// Same clamp-don't-reject reasoning as sanitizeOtherRates. A thickness
+// must be positive (a 0mm board would produce cutting-list parts that
+// look fine and are physical nonsense); a missing id falls back to its
+// position, never a random id (fingerprint — §35).
+function sanitizeBoards(boards: BoardRate[] | undefined): BoardRate[] {
+  return (boards ?? []).map((b, i) => ({
+    id: b.id || `board-row-${i}`,
+    material: MATERIAL_RATE_KEYS.includes(b.material) ? b.material : 'HDMR',
+    thicknessMm: Number.isFinite(b.thicknessMm) && b.thicknessMm > 0 ? b.thicknessMm : LEGACY_BOARD_THICKNESS_MM,
+    ratePerSqM: nonNegative(b.ratePerSqM),
+  }));
+}
+
+function resolveDefaultBackBoardId(card: RateCard): string {
+  const boards = card.boards ?? [];
+  if (boards.some((b) => b.id === card.defaultBackBoardId)) return card.defaultBackBoardId;
+  if (boards.some((b) => b.id === DEFAULT_BACK_BOARD_ID)) return DEFAULT_BACK_BOARD_ID;
+  const thinnest = [...boards].sort((a, b) => a.thicknessMm - b.thicknessMm)[0];
+  return thinnest?.id ?? '';
+}
+
+export function sameBoards(a: BoardRate[], b: BoardRate[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every(
+      (x, i) =>
+        x.id === b[i].id &&
+        x.material === b[i].material &&
+        x.thicknessMm === b[i].thicknessMm &&
+        x.ratePerSqM === b[i].ratePerSqM
+    )
+  );
+}
+
+// Materials a cabinet may be given: those with at least one board line
+// at a non-zero rate. Your rule (2 Oct 2026): an unpriced board must not
+// be offered when creating or editing a cabinet — picking one would
+// quietly price that cabinet's board at ₹0. Shared by every Material
+// dropdown so they can't disagree.
+export function pricedMaterials(boards: BoardRate[]): MaterialType[] {
+  return MATERIAL_RATE_KEYS.filter((m) => boards.some((b) => b.material === m && b.ratePerSqM > 0));
+}
+
+// "HDMR 18mm" — how a board line is named everywhere it's picked.
+export function boardLabel(board: BoardRate): string {
+  return `${MATERIAL_RATE_LABELS[board.material]} ${board.thicknessMm}mm`;
 }
 
 // Field-by-field rather than JSON.stringify — stringify depends on key

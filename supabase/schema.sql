@@ -291,6 +291,14 @@ create table if not exists public.cabinet_catalog_items (
 );
 
 alter table public.cabinet_catalog_items add column if not exists business_id text references public.businesses(id);
+-- Default panels for cabinets added from this row (docs/DECISIONS.md
+-- §42): {leftSide: {included, boardId}, ..., top: {..., topStyle}}.
+-- JSONB like front_layout; NULL = every panel included, default boards.
+alter table public.cabinet_catalog_items add column if not exists panels jsonb;
+-- The exact board line (rate_cards.board_rates[].id) the carcass is cut
+-- from — "HDMR 18mm", not just "HDMR" (§44). NULL = the material's
+-- original 18mm line, which every row before this column was priced on.
+alter table public.cabinet_catalog_items add column if not exists carcass_board_id text;
 
 create table if not exists public.obstacle_presets (
   id text primary key,
@@ -1189,6 +1197,16 @@ alter table public.rate_cards add column if not exists others_rates jsonb;
 -- NULL as 1, no waste, so adding the column moves no quote total. A
 -- project can override it — see layouts.sheet_waste_factor.
 alter table public.rate_cards add column if not exists sheet_waste_factor numeric;
+-- Board lines (docs/DECISIONS.md §42): [{id, material, thicknessMm,
+-- ratePerSqM}] — the same material at different thicknesses is a
+-- different product at a different price, so a list rather than one
+-- rate per material. SUPERSEDES material_rates above, which is kept and
+-- read once to migrate an older card into 18mm lines; nothing writes it
+-- now. default_back_board_id names the line backs are cut from unless a
+-- cabinet says otherwise. Both nullable: NULL = "saved before §42",
+-- which is exactly what the migration keys off.
+alter table public.rate_cards add column if not exists board_rates jsonb;
+alter table public.rate_cards add column if not exists default_back_board_id text;
 -- CORRECTED: this block briefly also added a `margin_percent` column
 -- here — a business-wide margin. Moved to `layouts.margin_percent`
 -- instead (below, near that table's own price_electrical/
@@ -1375,11 +1393,14 @@ alter table public.quotes add column if not exists sent_at timestamptz;
 --
 -- How the business's workshop builds a cabinet — bottom between or
 -- under the sides, how the back is fixed, board thicknesses — which the
--- cutting list (src/lib/cutList.ts) reads. One row per business, like
--- rate_cards. Deliberately NOT a column on rate_cards: the rate card is
--- hashed into every frozen quote's fingerprint, and construction never
--- changes a price, so storing it there would mark every quote stale on
--- a groove-depth edit. `settings` is one jsonb blob for the same reason
+-- cutting list (src/lib/cutList.ts) reads — and, since §42, pricing
+-- too, because board is priced on the cutting list's real part sizes.
+-- One row per business, like rate_cards. Its own table rather than a
+-- column on rate_cards because it describes how the workshop builds,
+-- not a price. (CORRECTED: this said in §41 that construction never
+-- changes a price; it moves it by a few millimetres' worth since §42.)
+-- Board thicknesses are NOT stored here any more — each panel takes its
+-- board line's thickness from rate_cards.board_rates. `settings` is one jsonb blob for the same reason
 -- hardware_rates is: a growing set of keys never queried in SQL.
 -- No seed row: a business without one gets the app's defaults
 -- (DEFAULT_CONSTRUCTION in src/types/construction.ts), labelled as

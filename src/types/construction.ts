@@ -14,13 +14,15 @@
 // for whatever the settings say, and the carpenter's real answer is a
 // settings change, never a code change. See docs/DECISIONS.md §41.
 //
-// WHY NOT ON THE RATE CARD
-// The rate card is hashed into every frozen quote's fingerprint
-// (types/quote.ts). Construction doesn't change a single rupee of the
-// price (pricing is area-based — Principle 2), so storing it there would
-// mark every frozen quote "design has changed" whenever someone adjusted
-// a groove depth. Separate row, separate store field, never reaches
-// PricingContext.
+// WHY ITS OWN ROW, NOT A COLUMN ON THE RATE CARD
+// Originally (§41) because construction didn't change the price and the
+// rate card is hashed into every frozen quote's fingerprint. CORRECTED
+// in §42: board is now priced on the cutting list's real part sizes, so
+// construction DOES move the price — by a few millimetres' worth — and
+// it is passed into pricing as PricingContext.construction and hashed
+// into the fingerprint like every other priced input. It stays its own
+// row anyway: it describes how the workshop builds, not what anything
+// costs, and is edited on its own screen.
 
 // Top and bottom panels, each set independently — a carpenter can
 // capture the bottom between the sides but run the top over them.
@@ -30,24 +32,31 @@
 //                     sides stop short of it: side height loses T.
 export type PanelFit = 'between-sides' | 'over-sides';
 
-// How the back is fixed.
-//   'grooved'     → a thin back slides into a groove cut in the sides,
-//                   top and bottom: back = inner opening + groove depth
-//                   on each side, at backThicknessMm.
-//   'nailed-on'   → a thin back nailed/screwed over the rear edges:
-//                   back = full W × H, and the carcass loses its
+// How the back is fixed. Its THICKNESS is not here — it's the back's own
+// board (PanelSpec in types/cabinet.ts, default the rate card's default
+// back board).
+//   'grooved'     → the back slides into a groove cut in the sides, top
+//                   and bottom: back = inner opening + groove depth on
+//                   each side.
+//   'nailed-on'   → the back is nailed/screwed over the rear edges:
+//                   back = full W × H, and the carcass loses the back's
 //                   thickness from depth so the cabinet stays D deep.
-//   'inset-full'  → a full-thickness back (same board as the carcass)
-//                   fitted between the sides, top and bottom; top,
-//                   bottom and shelves lose T of depth to make room.
+//   'inset-full'  → the back is fitted INSIDE the carcass, between the
+//                   sides, top and bottom (usually a full-thickness
+//                   board); top, bottom and shelves lose its thickness
+//                   of depth to make room. The id says "full" for
+//                   history — §41 tied it to the carcass thickness; since
+//                   §42 the back's board decides.
 export type BackFit = 'grooved' | 'nailed-on' | 'inset-full';
 
-// Top of a BASE cabinet (one the countertop sits on). Wall and tall
-// units always get a full top — nothing covers them.
-//   'rails' → a front and a back rail of railWidthMm instead of a full
-//             panel; the countertop hides the gap and it saves board.
-//   'full'  → a full top panel, same as a wall unit.
-export type BaseTop = 'rails' | 'full';
+// (BaseTop — "two rails vs full top on a base unit" — lived here in
+// §41-§42. MOVED to the cabinet's own top panel (PanelSpec.topStyle in
+// types/cabinet.ts) on 2 Oct 2026: it isn't how the workshop fits
+// panels, it's WHICH panels a cabinet has, and it moves the price by
+// ~₹300 on a 600mm base unit where every setting left on this page moves
+// it by ₹0-30. Pricing choices live with the cabinet in the catalogue;
+// this page is how the workshop builds. A stored row that still has
+// `baseTop` is simply ignored.)
 
 // Drawer boxes.
 //   'tandem' → metal-sided boxes (the channel system supplies the
@@ -61,19 +70,17 @@ export type DrawerBox = 'tandem' | 'wooden';
 
 export interface ConstructionSettings {
   id: string;
-  // Carcass board thickness — sides, top, bottom, rails, shelves,
-  // dividers. 18mm is the local standard for HDMR/ply.
-  carcassThicknessMm: number;
+  // (carcassThicknessMm and backThicknessMm lived here in §41. Removed in
+  // §42: every panel's thickness is now its own board line's thickness,
+  // so one number can't contradict the board a panel is actually cut
+  // from. A stored row that still has them is simply ignored.)
   topFit: PanelFit;
   bottomFit: PanelFit;
   backFit: BackFit;
-  // Thickness of a 'grooved' or 'nailed-on' back. Ignored for
-  // 'inset-full', which uses carcassThicknessMm.
-  backThicknessMm: number;
   // How far a 'grooved' back sits into each groove. Ignored otherwise.
   grooveDepthMm: number;
-  baseTop: BaseTop;
-  // Width (front-to-back) of each base-unit rail when baseTop = 'rails'.
+  // Width (front-to-back) of each rail, for any cabinet whose top panel
+  // is rails (PanelSpec.topStyle).
   railWidthMm: number;
   // How far shelves and dividers stop short of the carcass front, so a
   // door closes past them.
@@ -90,16 +97,13 @@ export interface ConstructionSettings {
 
 // Your answers (29 Sep 2026) — the common Delhi NCR convention, and
 // still ASSUMPTIONS until your carpenter confirms them. Numbers are
-// typical, not measured: 6mm back in an 8mm groove, 100mm rails, 20mm
-// shelf setback.
+// typical, not measured: an 8mm groove, 100mm rails, 20mm shelf
+// setback. Board thicknesses come from the rate card's board lines.
 export const DEFAULT_CONSTRUCTION: Omit<ConstructionSettings, 'id' | 'createdAt' | 'updatedAt'> = {
-  carcassThicknessMm: 18,
   topFit: 'between-sides',
   bottomFit: 'between-sides',
   backFit: 'grooved',
-  backThicknessMm: 6,
   grooveDepthMm: 8,
-  baseTop: 'rails',
   railWidthMm: 100,
   shelfSetbackMm: 20,
   drawerBox: 'tandem',
@@ -113,20 +117,24 @@ export function defaultConstructionSettings(): ConstructionSettings {
   return { ...DEFAULT_CONSTRUCTION, id: crypto.randomUUID(), createdAt: now, updatedAt: now };
 }
 
-export const PANEL_FIT_LABELS: Record<PanelFit, string> = {
-  'between-sides': 'Between the sides',
-  'over-sides': 'Over / under the sides (full width)',
+// Worded per panel by the settings screen ("sits on top of the sides"
+// for the top, "sides stand on it" for the bottom) — see
+// TOP_FIT_LABELS/BOTTOM_FIT_LABELS below. One carcass top, one carcass
+// bottom; these say how each MEETS the sides, nothing more.
+export const TOP_FIT_LABELS: Record<PanelFit, string> = {
+  'between-sides': 'Fitted between the two sides',
+  'over-sides': 'Sits on top of the two sides (full width)',
+};
+
+export const BOTTOM_FIT_LABELS: Record<PanelFit, string> = {
+  'between-sides': 'Fitted between the two sides',
+  'over-sides': 'Sides stand on it (full width)',
 };
 
 export const BACK_FIT_LABELS: Record<BackFit, string> = {
-  grooved: 'Thin back, grooved in',
-  'nailed-on': 'Thin back, nailed on the rear',
-  'inset-full': 'Full-thickness back, inset',
-};
-
-export const BASE_TOP_LABELS: Record<BaseTop, string> = {
-  rails: 'Two rails (front and back)',
-  full: 'Full top panel',
+  grooved: 'Back grooved in',
+  'nailed-on': 'Back nailed on the rear',
+  'inset-full': 'Back fitted inside the carcass (inset)',
 };
 
 export const DRAWER_BOX_LABELS: Record<DrawerBox, string> = {
@@ -134,9 +142,8 @@ export const DRAWER_BOX_LABELS: Record<DrawerBox, string> = {
   wooden: 'Wooden box (cut all sides + bottom)',
 };
 
-const PANEL_FITS = Object.keys(PANEL_FIT_LABELS) as PanelFit[];
+const PANEL_FITS = Object.keys(TOP_FIT_LABELS) as PanelFit[];
 const BACK_FITS = Object.keys(BACK_FIT_LABELS) as BackFit[];
-const BASE_TOPS = Object.keys(BASE_TOP_LABELS) as BaseTop[];
 const DRAWER_BOXES = Object.keys(DRAWER_BOX_LABELS) as DrawerBox[];
 
 // Clamp-don't-reject, same as sanitizeRateCard: an unknown enum value
@@ -155,13 +162,10 @@ export function sanitizeConstruction(s: Partial<ConstructionSettings> & { id: st
   const now = new Date().toISOString();
   return {
     id: s.id,
-    carcassThicknessMm: positive(s.carcassThicknessMm, d.carcassThicknessMm),
     topFit: pick(s.topFit, PANEL_FITS, d.topFit),
     bottomFit: pick(s.bottomFit, PANEL_FITS, d.bottomFit),
     backFit: pick(s.backFit, BACK_FITS, d.backFit),
-    backThicknessMm: positive(s.backThicknessMm, d.backThicknessMm),
     grooveDepthMm: nonNegative(s.grooveDepthMm, d.grooveDepthMm),
-    baseTop: pick(s.baseTop, BASE_TOPS, d.baseTop),
     railWidthMm: positive(s.railWidthMm, d.railWidthMm),
     shelfSetbackMm: nonNegative(s.shelfSetbackMm, d.shelfSetbackMm),
     drawerBox: pick(s.drawerBox, DRAWER_BOXES, d.drawerBox),

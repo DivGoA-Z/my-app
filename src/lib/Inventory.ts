@@ -20,12 +20,18 @@ interface CabinetCatalogRow {
   depth_mm: number;
   height_mm: number;
   material: CatalogItem['material'];
+  // NULL = the material's original 18mm line (lib/panels.ts's
+  // defaultCarcassBoard), what every row before §44 was priced on.
+  carcass_board_id: string | null;
   finish_id: string;
   // JSONB. A discriminated union whose fields differ per kind, so it
   // stays one document rather than being flattened into nullable
   // columns — see the note on CatalogItem.frontLayout.
   front_layout: CatalogItem['frontLayout'] | null;
   handle_id: string | null;
+  // JSONB, same one-document reasoning as front_layout. NULL = every
+  // panel, default boards (§42).
+  panels: CatalogItem['panels'] | null;
   unit_price: number;
   business_id: string;
   created_at: string;
@@ -82,9 +88,11 @@ function rowToCatalogItem(row: CabinetCatalogRow): CatalogItem {
     depthMm: row.depth_mm,
     heightMm: row.height_mm,
     material: row.material,
+    carcassBoardId: row.carcass_board_id ?? undefined,
     finishId: row.finish_id,
     frontLayout: row.front_layout ?? undefined,
     handleId: row.handle_id ?? undefined,
+    panels: row.panels ?? undefined,
     unitPrice: row.unit_price,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -101,9 +109,11 @@ function catalogItemToRow(item: CatalogItem, businessId: string): CabinetCatalog
     depth_mm: item.depthMm,
     height_mm: item.heightMm,
     material: item.material,
+    carcass_board_id: item.carcassBoardId ?? null,
     finish_id: item.finishId,
     front_layout: item.frontLayout ?? null,
     handle_id: item.handleId ?? null,
+    panels: item.panels ?? null,
     unit_price: item.unitPrice,
     business_id: businessId,
     created_at: item.createdAt,

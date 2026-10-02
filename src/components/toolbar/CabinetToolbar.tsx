@@ -61,6 +61,7 @@ export function CabinetToolbar({ onManageInventory }: CabinetToolbarProps) {
       elevationMm: getDefaultElevationMm(item.moduleType),
       rotationDeg: 0,
       material: item.material,
+      carcassBoardId: item.carcassBoardId,
       finishId: item.finishId,
       // Front configuration is SNAPSHOTTED from the catalogue rather
       // than resolved live at render time — the opposite of how
@@ -75,6 +76,10 @@ export function CabinetToolbar({ onManageInventory }: CabinetToolbarProps) {
       // read time — which keeps improving as that rule improves.
       frontLayout: item.frontLayout,
       handleId: item.handleId,
+      // Snapshotted for the same reason frontLayout is (see above), and
+      // deep-copied so editing this cabinet's panels can never reach
+      // back into the catalogue row's object.
+      panels: item.panels ? structuredClone(item.panels) : undefined,
       unitPrice: item.unitPrice,
       quantity: 1,
     };

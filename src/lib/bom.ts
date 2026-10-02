@@ -35,6 +35,8 @@ import { CABINET_FACE_LABELS } from '../types/fixture';
 import type { FixtureCatalogItem, LightFixture } from '../types/fixture';
 import type { SurfaceAreaBreakdown } from './surfaceAreas';
 import type { OtherRate, OtherRateBasis, RateCard } from '../types/rates';
+import type { ConstructionSettings } from '../types/construction';
+import { cabinetCutParts, partAreaSqM } from './cutList';
 
 export interface BOMLineItem {
   cabinetId: string;
@@ -59,15 +61,18 @@ export interface BOMLineItem {
   // Itemised so the quote can show WHY hardware costs what it does.
   // Every one of these was silently empty before parametric fronts.
   hardwareDetail: { label: string; count: number; unitCost: number; cost: number }[];
-  // Carcass area the SUBSTRATE is priced on — see carcassAreaSqM's own
-  // comment for why this is a different (larger) area than
-  // finishedAreaSqM, and why both are still estimates, not the exact
-  // panel-by-panel figure the still-blocked panel model would give.
+  // REAL board area of this cabinet's parts, in m² (all copies) — the
+  // sum of exactly the parts the cutting list lists for it (§42).
+  // Larger than finishedAreaSqM, which is the front face only.
   materialArea: number;
   // materialArea × sheet waste factor × substrate rate. materialArea
   // itself stays the area the cabinet USES, not the area bought, so the
   // two are never confused on screen.
   materialCost: number;
+  // True if any of this cabinet's parts has no board line on the rate
+  // card, and so was priced at ₹0. Absent on a frozen line item from
+  // before §42.
+  missingBoard?: boolean;
   finishCost: number;
   hardwareCost: number;
   // Every RateCard.othersRates row that applies per cabinet, summed —
@@ -312,6 +317,13 @@ export interface PricingContext {
   // Labour and hardware rates — the two things that used to be
   // hardcoded module constants here and in lib/fronts.ts.
   rates: RateCard;
+  // How the workshop fits the panels (types/construction.ts). A PRICED
+  // input since §42 — board is priced on the cutting list's real part
+  // sizes, which these settings shape by a few millimetres — and so,
+  // like every field here, required, and hashed into the frozen-quote
+  // fingerprint. (In §41 it was deliberately kept OUT of this object
+  // because it didn't affect price then; that changed.)
+  construction: ConstructionSettings;
   // The room itself, for floor/ceiling/wall finishes and for openings
   // and fixtures, all of which are properties of the layout rather than
   // of any item. Genuinely optional: a caller pricing a bare cabinet
@@ -359,41 +371,20 @@ function estimateAreaSqFt(item: PlacedCabinetItem): number {
   return (frontFaceMm2 + sideAllowanceMm2) / MM2_PER_SQFT;
 }
 
-// The SAME estimate as estimateAreaSqFt above (front face + a
-// discounted side/back allowance), reused for the cabinet's own
-// SUBSTRATE cost rather than a second, independently-tuned formula —
-// one rough area estimate, not two that could quietly drift apart. In
-// sq M rather than sq ft: material is bought and rated per sq m
-// (plywood/ply sheets are retailed that way), unlike labour.
-//
-// This is still an ESTIMATE, not the panel model (docs/PRINCIPLES.md
-// Phase 1 item 2, blocked on the carpenter's construction convention)
-// — it doesn't know whether the bottom panel is captured between the
-// sides or sits under them, so it can't produce an exact cutting
-// list, only a costing-grade approximation. Good enough to price
-// substrate by how much of it a cabinet actually uses instead of a
-// flat catalogue number that doesn't vary by material at all; not
-// good enough to cut boards against.
-//
-// Same `glassAreaMm2` subtraction as finishedAreaSqM above, and for
-// the same reason — a glass front's shutter isn't cut from the
-// cabinet's own board substrate at all, so charging materialRates on
-// that area too would double-charge it alongside RateCard.glassRates.
-// Only the FRONT FACE term is reduced; sideAllowanceMm2 (the carcass
-// sides/back) is untouched — those are still real board regardless of
-// what the front is made of.
-function carcassAreaSqM(item: PlacedCabinetItem, glassAreaMm2: number): number {
-  const frontFaceMm2 = Math.max(0, item.widthMm * item.heightMm - glassAreaMm2);
-  const sideAllowanceMm2 = item.depthMm * item.heightMm * 0.5;
-  return (frontFaceMm2 + sideAllowanceMm2) / MM2_PER_SQM;
-}
+// (carcassAreaSqM lived here until §42: front face + half a side, the
+// same rough estimate labour uses, standing in for the board a cabinet
+// uses. Run against the cutting list it came to roughly a THIRD of the
+// real board — a 600×600×720 base unit priced on ~0.65 m² that really
+// uses ~1.70 m² of 18mm plus ~0.41 m² of 6mm back. Material is now
+// priced on the cutting list's own parts instead; see materialCost in
+// calculateBOM below and docs/DECISIONS.md §42.)
 
 export function calculateBOM(
   items: PlacedCabinetItem[],
   appliances: PlacedApplianceItem[],
   ctx: PricingContext
 ): BOMSummary {
-  const { finishes, handles, fixtureCatalog, rates, layout } = ctx;
+  const { finishes, handles, fixtureCatalog, rates, construction, layout } = ctx;
   // Resolved once for the whole layout, not per cabinet — it's a
   // property of how this job's sheets are bought, not of any one unit.
   const sheetWasteFactor = layout?.sheetWasteFactor ?? rates.sheetWasteFactor;
@@ -417,7 +408,7 @@ export function calculateBOM(
   // cabinet-list price check (no layout) isn't a job, and charging it
   // a delivery fee would be wrong. Same rule inside othersRowAmount.
   const othersLumpSum = layout ? othersRate('lumpsum') : 0;
-  const lineItems: BOMLineItem[] = items.map((item) => {
+  const lineItems: BOMLineItem[] = items.map((item, index) => {
     // NOT named `layout` — that's the RoomLayout parameter of this
     // function, and shadowing it here would make a later edit reach for
     // the wrong one silently.
@@ -428,8 +419,9 @@ export function calculateBOM(
     // below AND the hardware/glass costing further down need it — a
     // glass front's panel isn't cut from the cabinet's own board
     // substrate or laminated with its finish, so its area has to come
-    // OUT of both before those are charged (see carcassAreaSqM/
-    // finishedAreaSqM's own glassAreaMm2 parameter). Independent of
+    // OUT of the finish charge (finishedAreaSqM's glassAreaMm2
+    // parameter) — and it never reaches the board charge at all, because
+    // the cutting list doesn't list glass panels as board parts. Independent of
     // effectiveHardware's own item.hardware-override handling below —
     // an override replaces the DERIVED hardware list, but says nothing
     // about glass, so glass is read from the front layout regardless of
@@ -439,9 +431,18 @@ export function calculateBOM(
     const glassAreaMm2 = frontBreakdown.glassAreaMm2;
 
     const areaSqFt = estimateAreaSqFt(item) * item.quantity;
-    const materialArea = carcassAreaSqM(item, glassAreaMm2) * item.quantity;
-    const materialCost =
-      materialArea * sheetWasteFactor * (rates.materialRates?.[item.material] ?? 0);
+    // REAL board, priced part by part (§42): exactly the parts the
+    // cutting list shows for this cabinet — only the panels it actually
+    // has (PanelSpec.included), each at its own board line's rate and
+    // real area — times the sheet waste factor for whole-sheet buying.
+    // Glass panels aren't parts (bought as glass, RateCard.glassRates);
+    // excluded panels aren't either. Quantity is already in each part.
+    const parts = cabinetCutParts(item, `C${index + 1}`, construction, finishes, rates, []);
+    const materialArea = sum(parts, partAreaSqM);
+    const materialCost = sheetWasteFactor * sum(parts, (p) => partAreaSqM(p) * p.ratePerSqM);
+    // A part with no board line is priced at ₹0 — flagged so the quote
+    // sidebar can say so instead of quietly under-quoting (Principle 1).
+    const missingBoard = parts.some((p) => !p.boardId);
     // item.unitPrice is deliberately NOT read here — see
     // docs/DECISIONS.md §15. It's a reference figure a business sees
     // when browsing the catalogue, not a cost this function counts;
@@ -496,6 +497,7 @@ export function calculateBOM(
       hardwareDetail,
       materialArea,
       materialCost,
+      missingBoard,
       finishCost,
       hardwareCost,
       othersCost,

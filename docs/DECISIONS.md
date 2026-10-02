@@ -4046,3 +4046,186 @@ Verified: `tsc -p tsconfig.app.json`, lint, build clean; the Node run
 above. **Not seen in a browser.** Needs `schema.sql` re-run (new
 `construction_settings` table) — until then the settings can't be
 saved, though the cutting list still works on the defaults.
+
+## 42. Board lines, per-panel specs, and board priced on real area
+
+Three decisions from the 2 Oct discussion, built as one change because
+each depends on the last:
+
+**1. Board lines on the rate card** (your idea: "multiple lines of HDMR
+with different thickness and different pricing"). `RateCard.boards` —
+`{material, thicknessMm, ratePerSqM}` — replaces `materialRates` (one
+₹/m² per material), which couldn't tell an 18mm carcass from a 6mm
+back. Seeded: the five old rates as 18mm lines, unchanged, plus
+**HDMR 6mm ₹450/m² — a placeholder guess** (about a third of 18mm,
+the usual ratio; nobody has given a real figure). A business-wide
+`defaultBackBoardId` names the back board. Migration: an old card's
+`material_rates` become 18mm lines with FIXED ids (`legacyBoardId`) —
+the fingerprint trap again — plus the 6mm line; `material_rates` is
+kept, read once, never written.
+
+**2. Per-panel spec, catalogue default, cabinet override, all ticked by
+default** (your call). `PanelSpec` per role — left side, right side,
+top (with full/rails), bottom, back, shelves & dividers, fronts — each
+`{included?, boardId?, topStyle?}`, every field optional so "absent"
+means "built, default board". Left/right are separate because an
+exposed end side often gets a different board. Default board: back →
+the default back board; everything else → the **thickest** line of the
+cabinet's own material. Stored on `cabinet_catalog_items.panels` and
+snapshotted (deep-copied) onto a placed cabinet like `frontLayout`.
+**No editing UI yet** — that's the Cabinet Designer page (step 5);
+today every cabinet uses the defaults.
+
+**3. Board priced on real area** (your call: "fix it now and take up
+real area"). Material cost per cabinet = Σ over the cutting list's own
+parts for that cabinet of real area × that part's board rate × sheet
+waste. `carcassAreaSqM` (front face + half a side) is gone. Principle 2
+was REWORDED, not reversed — your rule was always "price by the area
+that's really there"; the text had named the estimate as the method
+and claimed panels don't feed the price. You pointed out the
+contradiction; I'd wrongly called it a reversal. Consequences:
+- **Construction settings are now a priced input**: required on
+  `PricingContext` (no default — the compiler found all four call
+  sites: sidebar, save, freeze, staleness) and hashed into the
+  fingerprint. Comments from §41 saying construction "never changes a
+  price" were corrected in place, with notes.
+- **Thickness moved off Construction settings** onto the board lines,
+  so one number can't contradict the board a panel is cut from.
+- Frozen quotes record the construction they were priced with.
+- Glass never reaches the board charge (not a cut part); finish is
+  still front-face; site labour and per-sq-ft charges still use the
+  estimated area (trade convention — a separate question).
+
+**Measured by running the real `calculateBOM`** on a 600×600×720 HDMR
+base unit: material ₹907 → **₹2,567** (2.11 m² real board vs 0.65 m²
+estimated). Untick back → ₹2,385 (−₹183 = the back exactly); BWP left
+side → ₹2,902; full top instead of rails → ₹2,869; quantity 2 →
+exactly double. **Every open quote's material line rises by roughly
+2.5–3×**; frozen quotes don't change. Rates and the fabrication charge
+should be rechecked against invoices — fabrication may have been set
+high to make totals look right.
+
+**Two traps found by running it, fixed:**
+- *Silent thin carcass.* Delete "HDMR 18mm" and HDMR cabinets quietly
+  fall to the next-thickest HDMR line — 6mm carcasses, priced and cut —
+  with no warning, because a board was still found. The rate card now
+  shows, live under the board list, which carcass board each material
+  resolves to (red if under 12mm).
+- *Unpriced parts.* No suitable line at all → the part is still listed
+  (at 18mm) but priced ₹0; the cabinet is flagged in red in the quote
+  sidebar ("Some board isn't on your rate card") and on the cutting list.
+
+**Also corrected**: phase 1 left tambour shutters off the cutting list
+as "bought as a unit". `types/front.ts`'s own FrontKind comment says a
+tambour is a cut, edge-banded panel, and the code comment is the better
+authority (CLAUDE.md) — they're listed and priced now.
+
+Verified: `tsc -p tsconfig.app.json`, lint, build clean, and the Node
+runs above. **Not seen in a browser.** Needs `schema.sql` re-run
+(`rate_cards.board_rates`, `rate_cards.default_back_board_id`,
+`cabinet_catalog_items.panels`).
+
+## 43. Workshop settings get their own page; rails/full moves to the cabinet; boards in use can't be deleted; only priced boards offered
+
+Four points from your review of §42.
+
+**1. Construction moves off the catalogue to a "Workshop settings"
+page** (dashboard button, and a link from the cutting list's banner).
+Your rule: the catalogue page holds what sets prices. I measured what
+the remaining settings do to a price before agreeing, since §42 made
+construction a priced input: on a 600mm base unit and a wall unit,
+every fitting setting (top/bottom between or over the sides, back
+fixing, groove depth) moves board cost by **₹0–15 on ~₹2,500**, rail
+width ~₹30. So "doesn't impact price" is right to within a rounding
+error — it stays in `PricingContext` and the fingerprint (it does move
+the number, slightly), but it doesn't belong among the pricing screens.
+
+**2. "Full top vs rails" moved to the cabinet** — the one setting that
+DID move price (~₹300). It isn't how the workshop fits panels, it's
+which panels a cabinet has, so it now lives on the cabinet's own top
+panel (`PanelSpec.topStyle`): base units default to rails (your 29 Sep
+answer), everything else a full top, overridable per catalogue row and
+cabinet once the Designer exists. `ConstructionSettings.baseTop` is
+gone; a stored row with it is ignored. Your question "why two options
+for top panel?" exposed that the old screen mixed the two ideas; the
+remaining top setting is relabelled "Carcass top — how it meets the
+sides" (fitted between / sits on top of the sides). There is only ever
+ONE carcass top; the countertop is not part of the cabinet.
+
+**3. A board line in use can't be removed** — and the business is told
+which projects and catalogue rows use it (`lib/boardUsage.ts`). "In
+use" = any INCLUDED panel resolves to that line, explicitly or BY
+DEFAULT (thickest line of the material, or the default back board),
+checked with the same `resolvePanels` pricing uses, across each
+project's latest saved layout, the open project's unsaved cabinets,
+and the catalogue. Frozen quotes aren't checked: they carry their own
+copy of the rate card. This replaces §42's softer fix for the "delete
+HDMR 18mm → silent 6mm carcasses" trap; the live "carcass board each
+material uses" line stays as a visible check.
+
+**4. Only priced boards are offered for a cabinet** — a shared
+`MaterialSelect` (catalogue add/edit rows, cabinet inspector) lists
+only materials with a board line at a non-zero rate
+(`pricedMaterials`), plus "+ Add a new board…", which creates the line
+on the business rate card and saves it immediately (a rate is
+required). The 3D inspector's native dropdown is filtered the same way
+but has no create option (it floats over the canvas). A cabinet whose
+current material has no priced line still shows it, marked, rather
+than the dropdown misreporting the value.
+- *Trap handled:* the rate card editor sits on the same page as the
+  catalogue rows. Adding a board from a row saves the rate card, and
+  the editor's resync used to REPLACE its draft — which would have
+  discarded unsaved rate edits. It now merges the new line into a dirty
+  draft instead. "Dirty" is compared field by field (one shared
+  `cardsDiffer`), not by object identity, which would have mis-fired
+  right after the editor's own Save.
+
+**Process slip, recorded so it isn't repeated**: running
+`prettier --write` on three touched files reformatted them entirely
+(~800-line diff) — this repo isn't Prettier-formatted. Restored from
+git, edits re-applied by hand; final diff on those files is +23/−53.
+
+Verified: `tsc -p tsconfig.app.json`, lint, build clean. **Not seen in a
+browser**, including the delete guard's Supabase query.
+
+## 44. Cabinets pick a board line, not a material; Workshop settings declared optional (Principle 12)
+
+**The catalogue didn't say which board.** You noticed a catalogue row
+said "HDMR" without saying 18mm or 6mm — it silently meant "the
+thickest HDMR line", which was also the root of §42's deleted-line trap.
+Cabinets and catalogue rows now carry `carcassBoardId` — an exact board
+line ("HDMR 18mm — ₹1,400/m²") — picked in a `BoardSelect` dropdown that
+replaced §43's `MaterialSelect` (catalogue add/edit rows, cabinet
+inspector; the 3D inspector's native dropdown lists board lines too).
+Choosing a line also sets `material` to match, because the quote's
+Material column, the Excel import and the DB check constraint still read
+it. The back board is shown under the picker, read-only; per-panel
+changes are the Designer's job. §43's rules carry over: only priced
+lines offered, "+ Add a new board…" saves to the rate card, an unpriced
+current value is shown marked. New column:
+`cabinet_catalog_items.carcass_board_id`.
+
+**A second "thickest line" trap, found by running it.** For a cabinet
+with no board chosen (every cabinet before this), the fallback was "the
+thickest line of its material". A run showed that merely ADDING an "HDMR
+25mm" line silently made every older HDMR cabinet a 25mm carcass
+(₹2,567 → ₹3,364 on a 600mm base unit, 25mm parts on the cutting list)
+with nobody touching them. The fallback now prefers the material's
+ORIGINAL 18mm line (`legacyBoardId` — the line every such cabinet was
+priced on), and only uses "thickest" if that line is gone, which the
+§43 delete guard prevents while it's in use. Rule: **adding a board
+never moves an existing cabinet; only choosing one does.**
+
+**Workshop settings are optional — now a written principle.** Your
+statement: they must never be indispensable for designing a kitchen;
+they exist for the cutting list and, later, measuring waste, which can
+also be estimated from experience. That was already how the code
+behaved (nothing in design/quote reads, links to, or warns about them;
+pricing runs on defaults; the sheet waste factor is typed from
+experience), and it's now Principle 12 in `docs/PRINCIPLES.md`, with
+the test: a setting belongs on the Workshop page only if a business
+that never opens it still gets a correct quote.
+
+Verified: `tsc -p tsconfig.app.json`, lint, build clean; the Node run
+above (explicit 18mm/25mm choices, legacy fallback after adding a 25mm
+line). **Not seen in a browser.** Needs `schema.sql` re-run.
