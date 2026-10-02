@@ -25,9 +25,11 @@ import {
 } from '../../lib/cutList';
 import { buildWorkbookBlob } from '../../lib/importExport/xlsxHelpers';
 import { downloadBlob } from '../../lib/downloadBlob';
+import { ExtraPartsEditor } from '../common/ExtraPartsEditor';
 import {
   BACK_FIT_LABELS,
   BOTTOM_FIT_LABELS,
+  DEPTH_CONVENTION_LABELS,
   TOP_FIT_LABELS,
   type ConstructionSettings,
 } from '../../types/construction';
@@ -37,6 +39,7 @@ type Mode = 'cutting' | 'cabinet';
 function settingsRows(s: ConstructionSettings): Record<string, string | number>[] {
   return [
     { Setting: 'Status', Value: s.confirmed ? 'Confirmed by carpenter' : 'ASSUMED — not yet confirmed' },
+    { Setting: 'Cabinet depth means', Value: DEPTH_CONVENTION_LABELS[s.depthIncludesFront ? 'includes-front' : 'carcass-only'] },
     { Setting: 'Carcass bottom', Value: BOTTOM_FIT_LABELS[s.bottomFit] },
     { Setting: 'Carcass top (full top panels)', Value: TOP_FIT_LABELS[s.topFit] },
     { Setting: 'Back panel', Value: BACK_FIT_LABELS[s.backFit] },
@@ -108,11 +111,18 @@ function exportWorkbook(cutList: CutList, settings: ConstructionSettings, projec
 export function CutListView({
   onClose,
   onOpenWorkshop,
+  onOpenDesigner,
 }: {
   onClose: () => void;
   onOpenWorkshop: () => void;
+  // "This part is wrong" → one click to the cabinet it comes from (§48).
+  // The list itself is never edited directly: it's derived from the
+  // design, and the same parts set the price.
+  onOpenDesigner: (cabinetId: string) => void;
 }) {
   const cabinets = useLayoutStore((s) => s.cabinets);
+  const looseParts = useLayoutStore((s) => s.currentLayout?.looseParts);
+  const setLooseParts = useLayoutStore((s) => s.setLooseParts);
   const finishes = useLayoutStore((s) => s.finishes);
   const settings = useLayoutStore((s) => s.constructionSettings);
   const rateCard = useLayoutStore((s) => s.rateCard);
@@ -120,9 +130,28 @@ export function CutListView({
   const [mode, setMode] = useState<Mode>('cutting');
 
   const cutList = useMemo(
-    () => computeCutList(cabinets, settings, finishes, rateCard),
-    [cabinets, settings, finishes, rateCard]
+    () => computeCutList(cabinets, settings, finishes, rateCard, looseParts ?? []),
+    [cabinets, settings, finishes, rateCard, looseParts]
   );
+
+  // Cabinet ref ("C3") → its id, so a ref on any row can open that
+  // cabinet in the Designer. Loose parts have no cabinet.
+  const idByRef = new Map(cutList.parts.filter((p) => p.cabinetId).map((p) => [p.cabinetRef, p.cabinetId]));
+  const refLink = (ref: string, title?: string) => {
+    const id = idByRef.get(ref);
+    if (!id) return <span key={ref} title={title}>{ref}</span>;
+    return (
+      <button
+        key={ref}
+        type="button"
+        title={title ? `${title} — open in the Cabinet Designer` : 'Open in the Cabinet Designer'}
+        className="text-blue-700 underline-offset-2 hover:underline"
+        onClick={() => onOpenDesigner(id)}
+      >
+        {ref}
+      </button>
+    );
+  };
 
   const totalPieces = cutList.groups.reduce((n, g) => n + g.pieceCount, 0);
 
@@ -226,14 +255,19 @@ export function CutListView({
                             <td className="px-2 py-1 text-right tabular-nums">{p.quantity}</td>
                             <td className="px-2 py-1">{describeEdgeBanding(p.edgeBanding)}</td>
                             <td className="px-2 py-1">{p.grainFixed ? 'Grain' : ''}</td>
-                            <td className="px-2 py-1 text-gray-500">{p.cabinetRefs.join(', ')}</td>
+                            <td className="px-2 py-1 text-gray-500">
+                              {p.cabinetRefs.map((ref, k) => (
+                                <span key={ref}>
+                                  {k > 0 ? ', ' : ''}
+                                  {refLink(ref)}
+                                </span>
+                              ))}
+                            </td>
                           </tr>
                         ))
                       : g.parts.map((p, i) => (
                           <tr key={i} className="border-b border-gray-100">
-                            <td className="px-2 py-1 text-gray-500" title={p.cabinetLabel}>
-                              {p.cabinetRef}
-                            </td>
+                            <td className="px-2 py-1 text-gray-500">{refLink(p.cabinetRef, p.cabinetLabel)}</td>
                             <td className="px-2 py-1 text-gray-800">{p.name}</td>
                             <td className="px-2 py-1 text-right tabular-nums">{p.lengthMm}</td>
                             <td className="px-2 py-1 text-right tabular-nums">{p.widthMm}</td>
@@ -260,6 +294,26 @@ export function CutListView({
           )}
         </>
       )}
+
+      {/* Loose parts — board pieces that don't belong to any one cabinet
+          (§48). Saved with the project, listed above under their board,
+          and priced inside Material like any panel. */}
+      <section className="flex flex-col gap-2 rounded-md border border-gray-200 p-3">
+        <div>
+          <h3 className="text-xs font-semibold text-gray-800">Loose parts (not part of any cabinet)</h3>
+          <p className="text-[11px] text-gray-500">
+            Fillers, a plinth or skirting, end panels. Each is cut, listed above under its board,
+            and charged on the quote like any panel — real area × the board's rate. To change a
+            cabinet's own parts, click its C-number above.
+          </p>
+        </div>
+        <ExtraPartsEditor
+          parts={looseParts ?? []}
+          onChange={setLooseParts}
+          requireBoard
+          namePlaceholder="e.g. Filler, left wall"
+        />
+      </section>
     </div>
   );
 }

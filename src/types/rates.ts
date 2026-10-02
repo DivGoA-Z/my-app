@@ -287,7 +287,14 @@ export const PLACEHOLDER_RATES: Omit<RateCard, 'createdAt' | 'updatedAt'> = {
     // new hardware category, so this is a value update, not a new key.
     channel: 2500,
     basket: 1400,
-    shelf: 350,
+    // Shelf SUPPORTS and fitting — pins/studs and the labour to fit a
+    // shelf — NOT the shelf board. Was ₹350 "Shelf, cut and edge-
+    // banded", which priced the board itself back when board had no
+    // price of its own; once §42 priced board on real area, every
+    // shelf was charged twice (its board in Material AND ₹350 here).
+    // Your call (§48): keep the line, narrow its meaning, ₹80 as a
+    // placeholder guess for a set of supports plus fitting.
+    shelf: 80,
     // Real component costs, one per cabinet regardless of front kind
     // — see cornerMechanismHardware in lib/fronts.ts. Magic-corner
     // pull-out systems retail well above a plain lazy susan, which
@@ -411,7 +418,7 @@ export const RATE_LABELS: Record<CardPricedHardware, string> = {
   hinge: 'Hinge (each)',
   channel: 'Drawer channel (per pair)',
   basket: 'Wire basket (each)',
-  shelf: 'Shelf, cut and edge-banded (each)',
+  shelf: 'Shelf supports & fitting (each shelf — the board is priced under Boards)',
   cornerMagic: 'Magic corner pull-out mechanism (each)',
   cornerCarousel: 'Carousel / lazy susan mechanism (each)',
 };

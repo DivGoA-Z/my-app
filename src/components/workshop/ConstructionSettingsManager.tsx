@@ -24,9 +24,11 @@ import { Checkbox } from '../ui/checkbox';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useLayoutStore } from '../../store/layoutStore';
+import { confirmDialog } from '../../store/confirmDialogStore';
 import {
   BACK_FIT_LABELS,
   BOTTOM_FIT_LABELS,
+  DEPTH_CONVENTION_LABELS,
   DRAWER_BOX_LABELS,
   TOP_FIT_LABELS,
   type ConstructionSettings,
@@ -38,17 +40,19 @@ function ChoiceField<T extends string>({
   labels,
   onChange,
   help,
+  disabled,
 }: {
   label: string;
   value: T;
   labels: Record<T, string>;
   onChange: (value: T) => void;
   help?: string;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-1 text-xs text-gray-600">
       {label}
-      <Select value={value} onValueChange={(v) => onChange(v as T)}>
+      <Select value={value} onValueChange={(v) => onChange(v as T)} disabled={disabled}>
         <SelectTrigger size="sm" className="w-full">
           <SelectValue />
         </SelectTrigger>
@@ -105,6 +109,13 @@ export function ConstructionSettingsManager() {
 
   const [draft, setDraft] = useState<ConstructionSettings>(settings);
   const [saving, setSaving] = useState(false);
+  // "Set once, then fixed for the business" (your rule, §47): once the
+  // SAVED settings are confirmed, the page is locked and changing it
+  // takes a deliberate unlock with a warning — these move every cutting
+  // list in every project, so they shouldn't change by a stray click.
+  // Not a permission system: anyone who can open the page can unlock.
+  const [unlocked, setUnlocked] = useState(false);
+  const locked = settings.confirmed && !unlocked;
   // Adjusted during render, not in an effect — same pattern and same
   // reasoning as RateCardManager's own resync.
   const [syncedFrom, setSyncedFrom] = useState<ConstructionSettings>(settings);
@@ -124,6 +135,8 @@ export function ConstructionSettingsManager() {
     setSaving(true);
     try {
       await updateConstructionSettings(draft);
+      // Saving confirmed settings re-locks the page.
+      setUnlocked(false);
       toast.success('Construction settings saved');
     } catch (err) {
       toast.error('Failed to save construction settings', {
@@ -156,6 +169,34 @@ export function ConstructionSettingsManager() {
         {saveButton}
       </div>
 
+      {locked && (
+        <Alert className="border-emerald-300 bg-emerald-50">
+          <AlertDescription className="flex flex-wrap items-center gap-2 text-emerald-900">
+            <span>
+              <strong className="font-semibold">Confirmed by your carpenter — locked.</strong> These
+              apply to every cabinet in every project.
+            </span>
+            <Button
+              type="button"
+              size="xs"
+              variant="outline"
+              onClick={async () => {
+                const ok = await confirmDialog({
+                  title: 'Change confirmed workshop settings?',
+                  description:
+                    'This changes part sizes on every cutting list in every project, and nudges board prices by a few rupees per cabinet. Frozen quotes are not affected. Only continue if your carpenter has changed how they build.',
+                  confirmLabel: 'Unlock',
+                  destructive: false,
+                });
+                if (ok) setUnlocked(true);
+              }}
+            >
+              Change settings
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {!draft.confirmed && (
         <Alert className="border-amber-300 bg-amber-50">
           <AlertDescription className="text-amber-900">
@@ -169,29 +210,41 @@ export function ConstructionSettingsManager() {
 
       <div className="grid gap-3 sm:grid-cols-2">
         <ChoiceField
+          label="Cabinet depth (e.g. 600) means…"
+          value={draft.depthIncludesFront ? 'includes-front' : 'carcass-only'}
+          labels={DEPTH_CONVENTION_LABELS}
+          onChange={(v) => set('depthIncludesFront', v === 'includes-front')}
+          disabled={locked}
+          help="Moves every side, top, bottom and shelf by a shutter's thickness — check this one first. The 2D plan and 3D view still draw the stated depth as the finished cabinet either way."
+        />
+        <ChoiceField
           label="Carcass bottom — how it meets the sides"
           value={draft.bottomFit}
           labels={BOTTOM_FIT_LABELS}
           onChange={(v) => set('bottomFit', v)}
+          disabled={locked}
         />
         <ChoiceField
           label="Carcass top — how it meets the sides"
           value={draft.topFit}
           labels={TOP_FIT_LABELS}
           onChange={(v) => set('topFit', v)}
-          help="Only for a full top panel. Rails always fit between the sides. (Whether a cabinet has a full top, rails or no top is chosen per cabinet in the catalogue — it changes the price.)"
+          disabled={locked}
+          help="Applies to a full top and to rails alike. (Whether a cabinet has a full top, rails or no top is chosen per cabinet in the catalogue — it changes the price.) Shelves and dividers always fit between the sides."
         />
         <ChoiceField
           label="Back panel"
           value={draft.backFit}
           labels={BACK_FIT_LABELS}
           onChange={(v) => set('backFit', v)}
+          disabled={locked}
         />
         <ChoiceField
           label="Drawer boxes"
           value={draft.drawerBox}
           labels={DRAWER_BOX_LABELS}
           onChange={(v) => set('drawerBox', v)}
+          disabled={locked}
           help="Recorded now, not applied yet — drawer box parts are still to be added to the cutting list (drawer fronts are already listed)."
         />
       </div>
@@ -202,27 +255,30 @@ export function ConstructionSettingsManager() {
           label="Groove depth, each side"
           value={draft.grooveDepthMm}
           onChange={(v) => set('grooveDepthMm', v)}
-          disabled={draft.backFit !== 'grooved'}
-          disabledReason="only for a grooved back"
+          disabled={locked || draft.backFit !== 'grooved'}
+          disabledReason={locked ? undefined : 'only for a grooved back'}
         />
         <NumberField
           label="Rail width (cabinets whose top is rails)"
           value={draft.railWidthMm}
           onChange={(v) => set('railWidthMm', v)}
+          disabled={locked}
         />
         <NumberField
           label="Shelf / divider setback from the front"
           value={draft.shelfSetbackMm}
           onChange={(v) => set('shelfSetbackMm', v)}
+          disabled={locked}
         />
       </fieldset>
 
       <Label className="flex items-center gap-2 text-xs font-normal text-gray-700">
         <Checkbox
           checked={draft.confirmed}
+          disabled={locked}
           onCheckedChange={(checked) => set('confirmed', checked === true)}
         />
-        My carpenter has confirmed these settings
+        My carpenter has confirmed these settings (locks this page once saved)
       </Label>
 
       {/* Same sticky-while-dirty bar as RateCardManager — see its

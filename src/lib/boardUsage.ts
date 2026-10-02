@@ -20,7 +20,7 @@
 
 import { supabase } from './Supabaseclient';
 import { resolvePanels } from './panels';
-import type { PlacedCabinetItem } from '../types/cabinet';
+import type { ExtraPart, PlacedCabinetItem } from '../types/cabinet';
 import type { CatalogItem } from '../types/Catalog';
 import type { RateCard } from '../types/rates';
 
@@ -30,22 +30,30 @@ export interface BoardUsage {
 }
 
 function usesBoard(
-  item: Pick<PlacedCabinetItem, 'material' | 'panels' | 'carcassBoardId'>,
+  item: Pick<PlacedCabinetItem, 'material' | 'panels' | 'carcassBoardId' | 'extraParts'>,
   boardId: string,
   rates: Pick<RateCard, 'boards' | 'defaultBackBoardId'>
 ): boolean {
   const resolved = resolvePanels(item, rates);
-  return Object.values(resolved).some((p) => p.included && p.board?.id === boardId);
+  // A hand-entered extra part naming this board counts too (§48); one
+  // that names none follows the carcass board, already covered above.
+  return (
+    Object.values(resolved).some((p) => p.included && p.board?.id === boardId) ||
+    (item.extraParts ?? []).some((ep) => ep.boardId === boardId)
+  );
 }
 
 export async function findBoardUsage(
   boardId: string,
   rates: Pick<RateCard, 'boards' | 'defaultBackBoardId'>,
   catalogue: CatalogItem[],
-  openProject: { id: string; name: string; cabinets: PlacedCabinetItem[] } | null
+  openProject: { id: string; name: string; cabinets: PlacedCabinetItem[]; looseParts: ExtraPart[] } | null
 ): Promise<BoardUsage> {
   const [layoutsRes, projectsRes] = await Promise.all([
-    supabase.from('layouts').select('project_id, cabinets, updated_at').order('updated_at', { ascending: false }),
+    supabase
+      .from('layouts')
+      .select('project_id, cabinets, loose_parts, updated_at')
+      .order('updated_at', { ascending: false }),
     supabase.from('projects').select('id, client_name'),
   ]);
   if (layoutsRes.error) throw new Error(`Couldn't check where this board is used: ${layoutsRes.error.message}`);
@@ -54,18 +62,26 @@ export async function findBoardUsage(
   const names = new Map(
     (projectsRes.data as { id: string; client_name: string }[]).map((p) => [p.id, p.client_name])
   );
-  const cabinetsByProject = new Map<string, PlacedCabinetItem[]>();
-  for (const row of layoutsRes.data as { project_id: string; cabinets: PlacedCabinetItem[] | null }[]) {
-    if (!cabinetsByProject.has(row.project_id)) cabinetsByProject.set(row.project_id, row.cabinets ?? []);
+  const byProject = new Map<string, { cabinets: PlacedCabinetItem[]; looseParts: ExtraPart[] }>();
+  for (const row of layoutsRes.data as {
+    project_id: string;
+    cabinets: PlacedCabinetItem[] | null;
+    loose_parts: ExtraPart[] | null;
+  }[]) {
+    if (!byProject.has(row.project_id))
+      byProject.set(row.project_id, { cabinets: row.cabinets ?? [], looseParts: row.loose_parts ?? [] });
   }
-  // The open project's in-memory cabinets win over its saved row.
+  // The open project's in-memory design wins over its saved row.
   if (openProject) {
-    cabinetsByProject.set(openProject.id, openProject.cabinets);
+    byProject.set(openProject.id, { cabinets: openProject.cabinets, looseParts: openProject.looseParts });
     names.set(openProject.id, openProject.name);
   }
 
-  const projectNames = [...cabinetsByProject.entries()]
-    .filter(([, cabinets]) => cabinets.some((c) => usesBoard(c, boardId, rates)))
+  const projectNames = [...byProject.entries()]
+    .filter(
+      ([, p]) =>
+        p.cabinets.some((c) => usesBoard(c, boardId, rates)) || p.looseParts.some((ep) => ep.boardId === boardId)
+    )
     .map(([id]) => names.get(id) ?? 'Unnamed project');
   const catalogueLabels = catalogue.filter((c) => usesBoard(c, boardId, rates)).map((c) => c.label);
   return { projectNames, catalogueLabels };

@@ -39,6 +39,7 @@ export function BoardRatesEditor({
   const catalogue = useLayoutStore((s) => s.cabinetCatalog);
   const currentProject = useLayoutStore((s) => s.currentProject);
   const cabinets = useLayoutStore((s) => s.cabinets);
+  const looseParts = useLayoutStore((s) => s.currentLayout?.looseParts);
   const [checkingId, setCheckingId] = useState<string | null>(null);
   const [blocked, setBlocked] = useState<{ board: string; usage: BoardUsage } | null>(null);
 
@@ -54,7 +55,9 @@ export function BoardRatesEditor({
         board.id,
         { boards, defaultBackBoardId },
         catalogue,
-        currentProject ? { id: currentProject.id, name: currentProject.clientName, cabinets } : null
+        currentProject
+          ? { id: currentProject.id, name: currentProject.clientName, cabinets, looseParts: looseParts ?? [] }
+          : null
       );
       if (usage.projectNames.length > 0 || usage.catalogueLabels.length > 0) {
         setBlocked({ board: boardLabel(board), usage });

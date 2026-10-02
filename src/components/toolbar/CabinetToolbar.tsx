@@ -80,6 +80,7 @@ export function CabinetToolbar({ onManageInventory }: CabinetToolbarProps) {
       // deep-copied so editing this cabinet's panels can never reach
       // back into the catalogue row's object.
       panels: item.panels ? structuredClone(item.panels) : undefined,
+      extraParts: item.extraParts ? structuredClone(item.extraParts) : undefined,
       unitPrice: item.unitPrice,
       quantity: 1,
     };

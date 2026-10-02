@@ -96,8 +96,8 @@ not yet against a carpenter's own list.
   over as 18mm lines; **HDMR 6mm ₹450 is a guess — check it.**
 - Every cabinet has a per-panel spec (each side, top/rails, bottom,
   back, shelves, fronts: included? which board?), catalogue default,
-  cabinet override, all included by default. **No UI to edit it yet —
-  that's the Cabinet Designer page, step 5.**
+  cabinet override, all included by default. Edited in the Cabinet
+  Designer (below).
 - **Board is now priced on real area** from the cutting list's parts.
   A typical base unit's material goes ~₹907 → ~₹2,567. **Every open
   quote's material line rises ~2.5–3×** — recheck board rates and the
@@ -117,8 +117,44 @@ not yet against a carpenter's own list.
   under it. Workshop settings are formally optional — **Principle 12**:
   designing and quoting never need them.
 
-**After that — step 5, the Cabinet Designer page**, then **cutting list
-phase 2, nesting** (was "item 4, the standalone
+**New, NOT yet seen in a browser — the Cabinet Designer** (§45): open
+it with **"Panels & boards…"** on a catalogue row (product defaults) or
+in the cabinet inspector (that cabinet only). Tick which panels are
+built, pick a board per panel, full top or rails; parts and board cost
+update live from the same code the quote uses. From a placed cabinet,
+apply its board to every cabinet in the kitchen, or its panels to every
+cabinet of the same type — one undo step each.
+
+**New, NOT yet seen in a browser — 3D preview in the Designer** (§46):
+the cabinet drawn as its actual panels at real cut sizes, coloured by
+board; untick a panel and it disappears. Show/hide fronts, pull panels
+apart; hover a row to light its panel, click a panel to find its row.
+**Also fixed (§46):** the catalogue reloaded on every browser-tab switch
+(keyed on the session object, which Supabase replaces on tab focus) —
+now loads once per signed-in user; returning from the Designer keeps
+your scroll position.
+
+**New (§47), not seen in a browser:** Workshop settings gained **"Cabinet
+depth means…"** (includes the shutter — default — or carcass only), the
+top's corner rule now covers rails too, and once you tick "my carpenter
+has confirmed" and save, the page **locks** (deliberate "Change
+settings" to unlock). Edge banding now counts only customer-facing
+edges — newly, the bottom edge of wall-cabinet sides.
+**Known gap:** with "carcass only", the 2D plan / 3D view / collision
+still draw the cabinet 18mm shallower than it really is — only the
+cutting list and price follow the setting.
+
+**New (§48), not seen in a browser — adding to the cutting list:** the
+list is still never edited directly (it sets the price), but now:
+**extra shelves** in any cabinet (Designer → Shelves row), **extra parts**
+on a cabinet (Designer → Extra parts), **loose parts** for the project —
+fillers, plinth, end panels (Cutting List page) — all listed AND priced
+at their board's rate; every C-number on the cutting list opens that
+cabinet in the Designer. **Fixed a shelf double charge** from §42: the
+₹350 "shelf" hardware line now means supports & fitting only, ₹80
+placeholder.
+
+**Next — cutting list phase 2, nesting** (was "item 4, the standalone
 waste calculator"): real panels derived from an *assumed*, labelled
 construction convention, nested onto real sheet sizes with a known
 heuristic, to *measure* the waste factor item 3 only lets you type.

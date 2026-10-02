@@ -299,6 +299,10 @@ alter table public.cabinet_catalog_items add column if not exists panels jsonb;
 -- from — "HDMR 18mm", not just "HDMR" (§44). NULL = the material's
 -- original 18mm line, which every row before this column was priced on.
 alter table public.cabinet_catalog_items add column if not exists carcass_board_id text;
+-- Hand-entered extra parts for cabinets from this row (§48):
+-- [{id, name, lengthMm, widthMm, quantity, boardId?, edgeLong, edgeShort}].
+-- Listed on the cutting list and priced like any panel. NULL = none.
+alter table public.cabinet_catalog_items add column if not exists extra_parts jsonb;
 
 create table if not exists public.obstacle_presets (
   id text primary key,
@@ -1032,6 +1036,10 @@ alter table public.layouts add column if not exists project_charges jsonb;
 -- flowing into every project that hasn't customised. See
 -- docs/DECISIONS.md §39.
 alter table public.layouts add column if not exists charge_rates jsonb;
+-- Board parts for this project not tied to a cabinet — fillers, plinth,
+-- end panels (§48). Same shape as cabinet_catalog_items.extra_parts.
+-- Listed on the cutting list and priced inside Material. NULL = none.
+alter table public.layouts add column if not exists loose_parts jsonb;
 
 -- Starter set, at plausible Delhi NCR retail. `on conflict do nothing`
 -- so re-running never overwrites a business's own rates — same as the
@@ -1264,7 +1272,7 @@ insert into public.rate_cards
   (id, label, labor_rate_per_sqft, hardware_rates, material_rates, glass_rates, business_id)
 values
   ('default', 'Default rates (placeholder)', 150,
-   '{"hinge": 225, "channel": 2500, "basket": 1400, "shelf": 350, "cornerMagic": 12000, "cornerCarousel": 6000}'::jsonb,
+   '{"hinge": 225, "channel": 2500, "basket": 1400, "shelf": 80, "cornerMagic": 12000, "cornerCarousel": 6000}'::jsonb,
    '{"HDMR": 1400, "Plywood": 1400, "BWP": 2200, "MDF": 1100, "Particle Board": 850}'::jsonb,
    '{"clear": 180, "black": 230, "brown": 230, "yellow": 240}'::jsonb,
    'biz_default')
@@ -1282,6 +1290,16 @@ update public.rate_cards
    set hardware_rates = jsonb_set(jsonb_set(hardware_rates, '{hinge}', '225'), '{channel}', '2500')
  where hardware_rates->>'hinge' = '120'
    and hardware_rates->>'channel' = '450';
+
+-- Shelf double-charge fix (docs/DECISIONS.md §48): the 'shelf' rate used
+-- to price the shelf BOARD ("cut and edge-banded", placeholder 350); since
+-- §42 the board is priced on real area in Material, so the line now means
+-- supports & fitting only, placeholder 80. Same "only touch what's still
+-- the placeholder" rule as the hinge/channel update above: a business
+-- that set its own shelf rate is left alone (and should review it).
+update public.rate_cards
+   set hardware_rates = jsonb_set(hardware_rates, '{shelf}', '80')
+ where hardware_rates->>'shelf' = '350';
 
 -- Separate backfill for the brand-new material_rates column: every
 -- row that predates it is NULL, not "already has some other value" —

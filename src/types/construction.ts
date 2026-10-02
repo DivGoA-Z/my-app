@@ -86,6 +86,22 @@ export interface ConstructionSettings {
   // door closes past them.
   shelfSetbackMm: number;
   drawerBox: DrawerBox;
+  // What a cabinet's stated depth (e.g. "600") measures.
+  //   true  → the finished cabinet INCLUDING the shutter: the carcass
+  //           behind it is 600 − shutter thickness (582). The app's
+  //           original convention (lib/fronts.ts: fronts are inset into
+  //           the stated depth).
+  //   false → the CARCASS alone; the shutter adds its thickness in
+  //           front (finished cabinet 618).
+  // Many workshops say "600" for the carcass, so this is the most likely
+  // real mismatch with a carpenter — and it moves every side, top,
+  // bottom and shelf on the cutting list by a shutter's thickness (§47).
+  //
+  // KNOWN GAP: only the cutting list and price follow this. The 2D plan,
+  // 3D walkthrough and collision checks still treat the stated depth as
+  // the finished cabinet, so with `false` they draw it a shutter's
+  // thickness shallower than it really is.
+  depthIncludesFront: boolean;
   // False until the business says its carpenter has checked these.
   // While false, the cutting list shows an amber "assumed construction"
   // banner — same reasoning as the placeholder-rates banner: a workshop
@@ -107,6 +123,7 @@ export const DEFAULT_CONSTRUCTION: Omit<ConstructionSettings, 'id' | 'createdAt'
   railWidthMm: 100,
   shelfSetbackMm: 20,
   drawerBox: 'tandem',
+  depthIncludesFront: true,
   confirmed: false,
 };
 
@@ -135,6 +152,14 @@ export const BACK_FIT_LABELS: Record<BackFit, string> = {
   grooved: 'Back grooved in',
   'nailed-on': 'Back nailed on the rear',
   'inset-full': 'Back fitted inside the carcass (inset)',
+};
+
+// depthIncludesFront as a two-option picker. Keys are strings because
+// the settings screen's dropdown works in strings.
+export type DepthConvention = 'includes-front' | 'carcass-only';
+export const DEPTH_CONVENTION_LABELS: Record<DepthConvention, string> = {
+  'includes-front': 'Includes the shutter (600 = finished cabinet, carcass 582)',
+  'carcass-only': 'Carcass only (600 = carcass, shutter adds in front)',
 };
 
 export const DRAWER_BOX_LABELS: Record<DrawerBox, string> = {
@@ -169,6 +194,8 @@ export function sanitizeConstruction(s: Partial<ConstructionSettings> & { id: st
     railWidthMm: positive(s.railWidthMm, d.railWidthMm),
     shelfSetbackMm: nonNegative(s.shelfSetbackMm, d.shelfSetbackMm),
     drawerBox: pick(s.drawerBox, DRAWER_BOXES, d.drawerBox),
+    // Missing (a row saved before §47) → the original convention.
+    depthIncludesFront: s.depthIncludesFront !== false,
     confirmed: s.confirmed === true,
     createdAt: s.createdAt ?? now,
     updatedAt: s.updatedAt ?? now,

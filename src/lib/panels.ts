@@ -18,7 +18,7 @@
 // to the default AND is reported, so a deleted line can't silently
 // reprice or resize a cabinet without anyone noticing.
 
-import type { PanelRole, PlacedCabinetItem } from '../types/cabinet';
+import type { CabinetPanels, PanelRole, PanelSpec, PlacedCabinetItem } from '../types/cabinet';
 import { PANEL_ROLE_LABELS, PANEL_ROLES } from '../types/cabinet';
 import type { BoardRate, RateCard } from '../types/rates';
 import { boardLabel, legacyBoardId } from '../types/rates';
@@ -33,6 +33,8 @@ export interface ResolvedPanel {
   // 'top' only — resolved by the cutting list against the business's
   // ConstructionSettings.baseTop when the cabinet doesn't say.
   topStyle?: 'full' | 'rails';
+  // 'shelves' only — see PanelSpec.extraCount.
+  extraCount?: number;
 }
 
 export type ResolvedPanels = Record<PanelRole, ResolvedPanel>;
@@ -93,7 +95,62 @@ export function resolvePanels(
           } instead.`
         );
     }
-    out[role] = { included: spec?.included !== false, board, topStyle: spec?.topStyle };
+    out[role] = {
+      included: spec?.included !== false,
+      board,
+      topStyle: spec?.topStyle,
+      extraCount: spec?.extraCount,
+    };
   }
   return out;
+}
+
+// Drops every choice that equals its default, so "absent" keeps meaning
+// "default" (PanelSpec's contract) and two specs that mean the same
+// thing compare equal. Returns undefined when nothing is customised.
+export function normalizePanels(panels: CabinetPanels | undefined): CabinetPanels | undefined {
+  if (!panels) return undefined;
+  const out: CabinetPanels = {};
+  for (const role of PANEL_ROLES) {
+    const spec = panels[role];
+    if (!spec) continue;
+    const clean: PanelSpec = {};
+    if (spec.included === false) clean.included = false;
+    if (spec.boardId) clean.boardId = spec.boardId;
+    if (role === 'top' && spec.topStyle) clean.topStyle = spec.topStyle;
+    if (role === 'shelves' && spec.extraCount && spec.extraCount > 0) clean.extraCount = Math.floor(spec.extraCount);
+    if (Object.keys(clean).length > 0) out[role] = clean;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+export function samePanels(a: CabinetPanels | undefined, b: CabinetPanels | undefined): boolean {
+  const na = normalizePanels(a);
+  const nb = normalizePanels(b);
+  return PANEL_ROLES.every((role) => {
+    const x = na?.[role];
+    const y = nb?.[role];
+    return (
+      x?.included === y?.included &&
+      x?.boardId === y?.boardId &&
+      x?.topStyle === y?.topStyle &&
+      x?.extraCount === y?.extraCount
+    );
+  });
+}
+
+// One line for a catalogue row: "All panels" or "No back · rails top ·
+// 2 custom boards". Says only what differs from the default.
+export function describePanels(panels: CabinetPanels | undefined): string {
+  const p = normalizePanels(panels);
+  if (!p) return 'All panels, default boards';
+  const bits: string[] = [];
+  const missing = PANEL_ROLES.filter((r) => p[r]?.included === false);
+  if (missing.length > 0) bits.push('No ' + missing.map((r) => PANEL_ROLE_LABELS[r].toLowerCase()).join(', '));
+  if (p.top?.topStyle) bits.push(p.top.topStyle === 'rails' ? 'rails top' : 'full top');
+  const extra = p.shelves?.included === false ? 0 : (p.shelves?.extraCount ?? 0);
+  if (extra > 0) bits.push(`+${extra} shel${extra === 1 ? 'f' : 'ves'}`);
+  const custom = PANEL_ROLES.filter((r) => p[r]?.boardId && p[r]?.included !== false).length;
+  if (custom > 0) bits.push(`${custom} custom board${custom === 1 ? '' : 's'}`);
+  return bits.join(' · ');
 }

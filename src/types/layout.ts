@@ -1,6 +1,7 @@
 // src/types/layout.ts
 
 import type { OtherRate } from './rates';
+import type { ExtraPart } from './cabinet';
 import type { CameraNode } from './Camera';
 import type { WallOpening } from './opening';
 import type { LightFixture, LightingMode } from './fixture';
@@ -237,6 +238,11 @@ export interface RoomLayout {
   // folded into chargeRates and cleared the moment that project is
   // customised.
   projectCharges?: ProjectCharges;
+  // Board parts for this project that don't belong to any one cabinet —
+  // fillers, a plinth/skirting, end panels (§48). Edited on the Cutting
+  // List page; listed there AND priced (real area × board rate × sheet
+  // waste, inside Material). Undefined = none.
+  looseParts?: ExtraPart[];
   gridSnapMm: number;        // e.g. 50 — controls drag-and-drop snapping
   createdAt: string;
   updatedAt: string;

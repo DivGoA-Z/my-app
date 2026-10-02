@@ -4229,3 +4229,240 @@ that never opens it still gets a correct quote.
 Verified: `tsc -p tsconfig.app.json`, lint, build clean; the Node run
 above (explicit 18mm/25mm choices, legacy fallback after adding a 25mm
 line). **Not seen in a browser.** Needs `schema.sql` re-run.
+
+## 45. The Cabinet Designer page (step 5)
+
+One page, `components/designer/CabinetDesignerPage.tsx`, opened two
+ways: **"Panels & boards…"** on a catalogue row (edits that product's
+defaults — saved to the catalogue) or in the cabinet inspector (edits
+that cabinet only — saved to the layout, undoable). Back returns to
+whichever screen opened it.
+
+**Left:** the carcass board (`BoardSelect`, back board shown beneath),
+then one row per panel — left side, right side, top (plus full/rails),
+bottom, back, shelves & dividers, fronts — each with a **Built** tick
+and a board picker whose first option is "Default — HDMR 18mm" (or the
+back default), so a panel can always be put back to following the
+cabinet. Only priced boards are listed. One-line hints in the trade's
+words ("Often left off a sink unit for the plumbing").
+
+**Right:** the cabinet's parts with size, board, edge banding and ₹ each,
+"board as cut" and "board on the quote (× sheet waste)" — computed by
+`cabinetCutParts`, the same function the quote prices from and the
+cutting list prints, so the page can't disagree with the quote. Board
+only, at cost; finish/hardware/labour/margin are added on the quote.
+
+**Draft until Save**, like the rate card: the right side shows the
+draft, so "untick back → ₹183 less" is visible before committing.
+Discard reverts. Choices equal to the default are dropped on save
+(`normalizePanels`), so a spec that only restates defaults reads as
+"nothing customised" and isn't flagged dirty (`samePanels`). An
+unticked panel keeps its board choice, so re-ticking restores it.
+
+**Apply to this kitchen** (placed-cabinet mode only), each confirmed
+and undoable in ONE step via a new `updateCabinets` store action (N
+separate `updateCabinet` calls would have been N undo steps):
+- "Use this carcass board for every cabinet" — the common "BWP
+  throughout" case. Panels given their own board keep it.
+- "Copy these panels to every <type>" — same module type only, because
+  copying "no back" from a sink unit onto every cabinet would be wrong.
+Deliberately not "copy panels to every cabinet".
+
+**Catalogue rows** show a one-line panel summary under the board
+("All panels, default boards" / "No back · rails top · 1 custom
+board"); so does the inspector.
+
+**Two bugs avoided while wiring, worth knowing:**
+- A catalogue row keeps a local draft copied once on first render. Its
+  own Save would have written that stale copy's `panels` over whatever
+  the Designer saved since. The row now always saves the current
+  saved row's panels.
+- Reusing `previousView` for the Designer's Back would have broken
+  Manage Inventory's own Back (it reads the same slot): catalogue →
+  Designer → back → Back reloaded the catalogue forever. The Designer
+  has its own return slot.
+
+Not yet: the 3D preview of the cabinet alone (agreed as later).
+
+Verified: `tsc -p tsconfig.app.json`, lint (incl. the React compiler
+rules), build clean; the panel helpers run under Node on sample specs.
+**Not seen in a browser.**
+
+## 46. Catalogue "refreshing" fixed; 3D cabinet preview in the Designer
+
+**The catalogue reloaded far more often than intended — two causes.**
+1. *A real bug.* Inventory loading was keyed on the Supabase `session`
+   object, and Supabase hands back a NEW session object on every auth
+   event — including whenever the browser tab regains focus and on the
+   hourly token refresh. So every tab switch reloaded the whole
+   catalogue: a flash of loading placeholders, every row remounted, and
+   any unsaved catalogue-row edit thrown away. A comment in
+   `authStore.ts` claimed such events "just re-set the same values";
+   corrected in place. Now keyed on `session.user.id`, so inventory
+   loads once per signed-in user. Rule: **key on the user id, never on
+   `session` identity.** (Nothing else in the app was keyed on it.)
+2. *Within the app*, leaving Manage Inventory unmounts it, so coming
+   back reset the scroll to the top and replayed the toolbar's "scroll
+   to section" smooth-scroll — which looked like a refresh though no
+   data was refetched. Returning from the Designer now restores the
+   scroll position and drops the stale section request.
+Your expectation — load when opened, not on every screen change — is
+met: data is fetched once at sign-in and every edit goes through the
+store, so what's shown on opening is already current.
+
+**The 3D preview draws PANELS, not the finished cabinet.** The
+walkthrough's `CabinetMesh` draws a sealed box behind doors in its
+finish; in the Designer that would look identical whether or not the
+back was ticked, i.e. it would ignore everything the page edits. So
+`CabinetPreview3D` draws each actual piece — sides, top or rails,
+bottom, back, shelves, dividers, fronts — at its real cut size and
+position, coloured by board (legend underneath; fronts in the finish's
+solid colour, slightly see-through; a part with no board line in red).
+"Show fronts" off to look inside; "Pull panels apart" explodes each
+panel out along its own face. Hovering a table row lights its panel in
+3D; clicking a panel highlights and scrolls to its row.
+
+**Positions come from the cutting list itself.** Each `CutPart` now
+carries `boxes: PartBox[]` — one per physical piece in a single
+cabinet, mm, cabinet-local (+x right, +y up, +z front, the same
+handedness as three.js, so it's a straight × `MM_TO_M`) — computed in
+`cabinetCutParts` from the same thicknesses and fits as the cut sizes.
+The picture therefore can't show a panel the cutting list doesn't list,
+or at a different size. Pricing never reads `boxes`.
+
+**Checked by running it**, across three construction conventions and
+four cabinets (base, wall with a BWP left side, a mixed tall unit, a
+sink unit with no back and a full top): all 90 pieces' boxes match
+their cut sizes within 1mm (the half-mm is the documented round-down),
+every box sits inside its cabinet, box counts match piece counts, and
+**no two panels overlap** (the grooved back excluded — it's meant to sit
+in the grooves). The grooved back's distance from the rear edge isn't a
+setting, so the preview places it 10mm in — picture only; its cut size
+doesn't depend on it.
+
+Verified: `tsc -p tsconfig.app.json`, lint, build clean; the Node runs
+above. **Not seen in a browser** — I can't sign in to the app from here,
+so how it actually looks (framing, colours, lighting) is unchecked.
+
+## 47. Depth convention, rails follow the top's corner rule, a confirmed-settings lock, customer-facing edge banding
+
+From your questions about why a 600×600×850 cabinet's side is 850×582
+(not 564): a side is height × carcass depth, and 582 = 600 − the 18mm
+shutter, because the app had always treated the stated depth as
+INCLUDING the shutter. 564 is the bottom's width (600 − two 18mm
+sides). That convention, and which panel runs past which at each
+corner, were partly settings and partly hardcoded — you asked for all of
+them to be one-time, business-wide Workshop settings with defaults.
+
+**1. Depth convention — new setting.** `depthIncludesFront` (default
+true = the original convention: carcass 582 behind an 18mm shutter;
+false = "600" is the carcass, the shutter adds 18mm in front). Moves
+every side, top, bottom and shelf by a shutter's thickness — measured
++₹57 board on a 600×600×850 base unit. It's the most likely real
+mismatch with a carpenter, so the Workshop page lists it first.
+**Known gap, flagged on that page:** only the cutting list and price
+follow it. The 2D plan, 3D walkthrough and collision still treat the
+stated depth as the finished cabinet, so with "carcass only" they draw
+it 18mm shallower than reality. Fixing that touches footprints,
+collision and clearance everywhere — its own piece of work.
+
+**2. Corner rules — all on the Workshop page now.** Top, bottom and back
+already were. The one remaining HARDCODED rule a carpenter could
+reasonably do differently — rails always between the sides — is gone:
+the top's rule now applies to rails too ("over the sides" → 600mm rails,
+sides 832). Shelves and dividers still always fit between the sides;
+there's no other physical way to fit them. Rules are business-wide and
+symmetric (left = right); no per-cabinet or per-side override, by
+design (Principle 12 — the Designer stays light).
+
+**3. "Set once, then fixed" — a lock.** Once the SAVED settings are
+confirmed ("my carpenter has confirmed"), every field on the Workshop
+page is disabled under a green "Confirmed — locked" banner. "Change
+settings" unlocks after a warning that this changes every cutting list
+in every project (frozen quotes unaffected); saving confirmed settings
+re-locks. It's a guard against stray clicks, not a permission system.
+
+**4. Edge banding: customer-facing edges only, never the wall** (your
+rule). Front edges of sides, top, bottom, shelves, dividers and the
+front rail; all four edges of fronts; never rear edges, the back rail or
+the back. Newly counted: the BOTTOM edge of the sides of anything
+mounted off the floor (`elevationMm > 0`) — a wall cabinet's sides are
+seen from below. A cabinet stacked on another (a loft over a tall unit)
+would be over-counted; accepted as rare.
+
+Checked by running it: the 600×600×850 base and a wall unit under both
+depth conventions and with rails over the sides (numbers above), and the
+geometry check extended to five convention combinations — 150 pieces,
+sizes match cut sizes within 1mm, nothing outside its cabinet (fronts
+allowed 18mm proud when carcass-only), no overlaps.
+
+Verified: `tsc -p tsconfig.app.json`, lint, build clean. **Not seen in a
+browser.**
+
+## 48. Editing what's on the cutting list; a shelf double charge fixed
+
+**The cutting list is never edited directly** — it's derived from the
+design, and the same parts set the price, so an edit made on the list
+itself would make the list and the quote disagree. Every change happens
+one step upstream, and the gap was that some parts had no upstream home.
+Built, as you agreed:
+
+1. **Extra shelves in any cabinet** — `PanelSpec.extraCount` on the
+   Shelves row of the Cabinet Designer (0–8). Spread evenly through the
+   cabinet's TALLEST compartment that has no shelves of its own (a plain
+   door cabinet: the whole carcass), so they never collide with an
+   open-shelf row's shelves or a divider. Each is a board part AND a
+   "Shelf supports & fitting" hardware line, like any shelf.
+2. **Extra parts on a cabinet** — `PlacedCabinetItem.extraParts` /
+   `CatalogItem.extraParts` (`cabinet_catalog_items.extra_parts`):
+   name, length × width, quantity, board ("Carcass board" by default),
+   banded long/short edges. Listed and priced inside the cabinet's own
+   line (they come out of `cabinetCutParts`). Not drawn in the 3D preview
+   — they have no fixed position — and the preview says so.
+3. **Loose parts for the project** — `RoomLayout.looseParts`
+   (`layouts.loose_parts`), edited on the Cutting List page: fillers,
+   plinth, end panels. Always name a board (no cabinet to inherit from).
+   Priced inside the Material subtotal as real area × board rate × sheet
+   waste, via the same `loosePartsCut` the list prints;
+   `BOMSummary.loosePartsCost` carries how much of Material they are.
+   Undoable design edits.
+4. **Jump to the source** — every C-number on the cutting list opens
+   that cabinet in the Designer; Back returns to the cutting list.
+5. **Last-minute workshop trims stay in the exported Excel** — paperwork,
+   not a design change, so they don't move the quote.
+- Extra and loose parts' named boards count for the "board in use"
+  delete guard (§43) — including loose parts in the open project's
+  unsaved design.
+- One shared `ExtraPartsEditor` serves both the Designer and the cutting
+  list, offering only priced boards (the BoardSelect rule).
+- `computeCutList` now takes `looseParts` as a REQUIRED argument (pass
+  `[]`), same no-defaults rule as `PricingContext`.
+
+**A shelf double charge, found while pricing extra shelves — introduced
+by §42.** The rate card's ₹350 "Shelf, cut and edge-banded (each)"
+priced the shelf BOARD back when board had no price of its own. Once
+§42 priced board on real area, every open-shelf unit's shelves were
+charged twice (≈₹439 board in Material + ₹350 here, for a 600mm shelf).
+Your call: keep the line, narrow it to **"Shelf supports & fitting"**,
+placeholder **₹80** (a guess). `schema.sql` moves any card still on the
+₹350 placeholder to ₹80 (same "only touch what's still the placeholder"
+rule as the hinge/channel update); a business that set its own shelf
+rate is left alone and should review it. Until `schema.sql` is re-run,
+a live card still says ₹350.
+
+**On board efficiency** (your question): the cutting list fixes WHICH
+parts and their sizes; it says nothing about how they're laid out on
+sheets, which is where waste happens. Today's waste is only the typed
+sheet waste factor. Phase 2 (nesting) will lay parts out with a known
+heuristic and measure waste — good layouts, not provably optimal ones;
+2D sheet packing is a hard problem every cutting tool approximates.
+
+Checked by running it: extra shelf +₹439 board +₹80 fitting; unticked
+shelves add nothing; a 564×100 stiffener +₹79; two 720×75 loose fillers
+₹151 inside Material; geometry test now 245 pieces across six cabinets
+(incl. extra shelves in a door cabinet and in a mixed tall unit's door
+band) — sizes match, all inside, no overlaps.
+
+Verified: `tsc -p tsconfig.app.json`, lint, build clean. **Not seen in a
+browser.** Needs `schema.sql` re-run (`cabinet_catalog_items.
+extra_parts`, `layouts.loose_parts`, the shelf-rate update).

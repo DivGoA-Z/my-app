@@ -812,8 +812,14 @@ export function effectiveHardware(
   rates: HardwareRates
 ): HardwareSpec[] {
   if (item.hardware && item.hardware.length > 0) return item.hardware;
+  // Extra shelves from the Cabinet Designer (PanelSpec.extraCount, §48)
+  // get supports & fitting like any other shelf. Skipped if the shelves
+  // panel is unticked — no shelves are built then.
+  const shelvesSpec = item.panels?.shelves;
+  const extraShelves = shelvesSpec?.included === false ? 0 : Math.max(0, Math.floor(shelvesSpec?.extraCount ?? 0));
   return [
     ...cabinetFrontBreakdown(item, fallbackLayout, handle, rates).hardware,
     ...cornerMechanismHardware(item.moduleType, rates),
+    ...(extraShelves > 0 ? [{ type: 'shelf' as const, count: extraShelves, unitCost: rates.shelf }] : []),
   ];
 }

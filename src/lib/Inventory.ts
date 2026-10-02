@@ -32,6 +32,8 @@ interface CabinetCatalogRow {
   // JSONB, same one-document reasoning as front_layout. NULL = every
   // panel, default boards (§42).
   panels: CatalogItem['panels'] | null;
+  // JSONB list of ExtraPart (§48). NULL = none.
+  extra_parts: CatalogItem['extraParts'] | null;
   unit_price: number;
   business_id: string;
   created_at: string;
@@ -93,6 +95,7 @@ function rowToCatalogItem(row: CabinetCatalogRow): CatalogItem {
     frontLayout: row.front_layout ?? undefined,
     handleId: row.handle_id ?? undefined,
     panels: row.panels ?? undefined,
+    extraParts: row.extra_parts ?? undefined,
     unitPrice: row.unit_price,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -114,6 +117,7 @@ function catalogItemToRow(item: CatalogItem, businessId: string): CabinetCatalog
     front_layout: item.frontLayout ?? null,
     handle_id: item.handleId ?? null,
     panels: item.panels ?? null,
+    extra_parts: item.extraParts ?? null,
     unit_price: item.unitPrice,
     business_id: businessId,
     created_at: item.createdAt,

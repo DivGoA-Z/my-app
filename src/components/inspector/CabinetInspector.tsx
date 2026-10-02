@@ -20,6 +20,7 @@
 
 import { useState } from 'react';
 import { BoardSelect } from '../common/BoardSelect';
+import { describePanels } from '../../lib/panels';
 import { useLayoutStore } from '../../store/layoutStore';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
@@ -43,7 +44,10 @@ function formatModuleType(moduleType: string): string {
     .join(' ');
 }
 
-export function CabinetInspector() {
+// onOpenDesigner: opens the Cabinet Designer for this cabinet — App.tsx
+// owns which screen is showing, so it's passed in rather than the
+// inspector switching views itself.
+export function CabinetInspector({ onOpenDesigner }: { onOpenDesigner?: (cabinetId: string) => void } = {}) {
   const selectedCabinetId = useSelectedCabinetId();
   const selectedObstacleId = useSelectedObstacleId();
   const cabinets = useLayoutStore((state) => state.cabinets);
@@ -145,6 +149,18 @@ export function CabinetInspector() {
           onChange={(patch) => updateCabinet(cabinet.id, patch)}
           triggerClassName="w-full"
         />
+        <span className="text-[10px] text-gray-500">{describePanels(cabinet.panels)}</span>
+        {onOpenDesigner && (
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            className="self-start"
+            onClick={() => onOpenDesigner(cabinet.id)}
+          >
+            Panels & boards…
+          </Button>
+        )}
       </div>
 
       <Label className="flex items-start gap-2 text-xs font-normal text-gray-600">

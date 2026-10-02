@@ -58,6 +58,7 @@ export async function saveConstructionSettings(
       railWidthMm: c.railWidthMm,
       shelfSetbackMm: c.shelfSetbackMm,
       drawerBox: c.drawerBox,
+      depthIncludesFront: c.depthIncludesFront,
       confirmed: c.confirmed,
     },
     business_id: businessId,

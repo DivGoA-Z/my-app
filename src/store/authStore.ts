@@ -79,9 +79,14 @@ export const useAuthStore = create<AuthStore>((set) => {
 
       supabase.auth.getSession().then(({ data: { session } }) => resolveSession(session));
       // Covers sign-in, sign-out, and a token refresh happening
-      // elsewhere (another tab) — resolveSession is idempotent, so an
-      // event that fires for a session already resolved just re-sets
-      // the same values.
+      // elsewhere (another tab). CORRECTED: this said resolveSession
+      // "just re-sets the same values" for an event on an already-
+      // resolved session. Not quite — Supabase passes a NEW session
+      // object each time (it fires on tab refocus and hourly token
+      // refresh too), so anything keyed on `session` identity re-runs.
+      // That reloaded the whole inventory on every tab switch until
+      // App.tsx keyed its load on the user id instead. Key on
+      // session.user.id, never on `session`.
       supabase.auth.onAuthStateChange((_event, session) => resolveSession(session));
     },
 

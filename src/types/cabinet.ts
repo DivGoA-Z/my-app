@@ -106,9 +106,39 @@ export interface PanelSpec {
   // changes the price (~₹300 on a 600mm base unit): it's which panels
   // the cabinet has, not how the workshop fits them.
   topStyle?: 'full' | 'rails';
+  // 'shelves' only: shelves ADDED to whatever the front layout already
+  // gives (an open-shelf or tambour front has its own). For the common
+  // "one shelf inside a door cabinet" — the design model had no shelf
+  // there at all before §48. Spread evenly through the cabinet's tallest
+  // compartment that has no shelves of its own (lib/cutList.ts). Each
+  // also adds a "Shelf supports & fitting" hardware line, like any shelf.
+  extraCount?: number;
 }
 
 export type CabinetPanels = Partial<Record<PanelRole, PanelSpec>>;
+
+// A board part the standard panels don't cover, entered by hand (§48):
+// on a CABINET ("+ Add part" in the Cabinet Designer — a stiffener, a
+// loft partition) or LOOSE on a project (RoomLayout.looseParts, on the
+// Cutting List page — a filler, a plinth, an end panel). Listed on the
+// cutting list AND priced like any panel: real area × its board's rate ×
+// sheet waste — you agreed a part that's cut must be charged for.
+export interface ExtraPart {
+  id: string;
+  name: string;
+  lengthMm: number;
+  widthMm: number;
+  // On a cabinet: per cabinet (multiplied by the cabinet's quantity).
+  quantity: number;
+  // FK -> BoardRate.id. Absent on a cabinet part → that cabinet's
+  // carcass board. A loose part always names one (there's no cabinet to
+  // inherit from).
+  boardId?: string;
+  // How many LONG / SHORT edges are banded, 0-2 each (same meaning as
+  // cutList's EdgeBanding). Default 1 long edge — a visible front edge.
+  edgeLong: 0 | 1 | 2;
+  edgeShort: 0 | 1 | 2;
+}
 
 // One row per cabinet placed on the 2D grid. This is the object Konva.js
 // drag events read/write directly, and the same shape is what later gets
@@ -201,6 +231,9 @@ export interface PlacedCabinetItem {
   // design decision the designer then changes for this project), and
   // overridable per cabinet. Absent = every panel, default boards.
   panels?: CabinetPanels;
+  // Hand-entered parts beyond the standard panels — see ExtraPart.
+  // Snapshotted from the catalogue row like `panels`.
+  extraParts?: ExtraPart[];
 }
 
 /*

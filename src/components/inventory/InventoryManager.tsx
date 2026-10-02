@@ -24,6 +24,7 @@ import { Checkbox } from '../ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { confirmDialog } from '../../store/confirmDialogStore';
 import { BoardSelect } from '../common/BoardSelect';
+import { describePanels } from '../../lib/panels';
 import { useLayoutStore } from '../../store/layoutStore';
 import { FinishManager } from './FinishManager';
 import { HandleManager } from './HandleManager';
@@ -138,7 +139,14 @@ const SECTION_ELEMENT_IDS: Record<InventorySection, string> = {
   appliances: 'inventory-section-appliances',
 };
 
-export function InventoryManager({ initialSection }: { initialSection?: InventorySection } = {}) {
+export function InventoryManager({
+  initialSection,
+  onOpenDesigner,
+}: {
+  initialSection?: InventorySection;
+  // Opens the Cabinet Designer on a catalogue row (App.tsx owns views).
+  onOpenDesigner?: (itemId: string) => void;
+} = {}) {
   const cabinetCatalog = useLayoutStore((s) => s.cabinetCatalog);
   const obstaclePresets = useLayoutStore((s) => s.obstaclePresets);
   const applianceCatalog = useLayoutStore((s) => s.applianceCatalog);
@@ -240,6 +248,7 @@ export function InventoryManager({ initialSection }: { initialSection?: Inventor
                     categorySuggestions={categories}
                     onSave={upsertCabinetCatalogItem}
                     onDelete={removeCabinetCatalogItem}
+                    onOpenDesigner={onOpenDesigner}
                   />
                 ))}
                 <NewCabinetItemRow categorySuggestions={categories} onAdd={upsertCabinetCatalogItem} />
@@ -367,9 +376,10 @@ interface CabinetCatalogRowProps {
   categorySuggestions: string[];
   onSave: (item: CatalogItem) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  onOpenDesigner?: (itemId: string) => void;
 }
 
-function CabinetCatalogRow({ item, categorySuggestions, onSave, onDelete }: CabinetCatalogRowProps) {
+function CabinetCatalogRow({ item, categorySuggestions, onSave, onDelete, onOpenDesigner }: CabinetCatalogRowProps) {
   const finishes = useLayoutStore((state) => state.finishes);
   const [draft, setDraft] = useState(item);
   const [isSaving, setIsSaving] = useState(false);
@@ -379,7 +389,12 @@ function CabinetCatalogRow({ item, categorySuggestions, onSave, onDelete }: Cabi
     setIsSaving(true);
     setError(null);
     try {
-      await onSave(draft);
+      // `panels` always comes from the CURRENT saved row, never this
+      // row's draft: panels are edited only in the Cabinet Designer, and
+      // this draft was copied once when the row first rendered. Saving
+      // the draft's copy would silently undo whatever the Designer saved
+      // since (§45).
+      await onSave({ ...draft, panels: item.panels });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save.');
     } finally {
@@ -473,6 +488,20 @@ function CabinetCatalogRow({ item, categorySuggestions, onSave, onDelete }: Cabi
           carcassBoardId={draft.carcassBoardId}
           onChange={(patch) => setDraft({ ...draft, ...patch })}
         />
+        {/* The panels this product starts with, in one line, and the way
+            to change them — the Cabinet Designer (§45). */}
+        <div className="mt-0.5 text-[10px] text-gray-500">{describePanels(item.panels)}</div>
+        {onOpenDesigner && (
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-[11px]"
+            onClick={() => onOpenDesigner(item.id)}
+          >
+            Panels & boards…
+          </Button>
+        )}
       </td>
       <td className="px-2 py-1.5">
         <Select value={draft.finishId} onValueChange={(value) => setDraft({ ...draft, finishId: value })}>

@@ -72,6 +72,7 @@ interface LayoutRow {
   sheet_waste_factor: number | null;
   project_charges: RoomLayout['projectCharges'] | null;
   charge_rates: OtherRate[] | null;
+  loose_parts: RoomLayout['looseParts'] | null;
   grid_snap_mm: number;
   // Same reasoning as ProjectRow.business_id.
   business_id: string;
@@ -158,6 +159,7 @@ function layoutToRow(
     sheet_waste_factor: layout.sheetWasteFactor ?? null,
     project_charges: layout.projectCharges ?? null,
     charge_rates: layout.chargeRates ?? null,
+    loose_parts: layout.looseParts ?? null,
     grid_snap_mm: layout.gridSnapMm,
     created_at: layout.createdAt,
     updated_at: new Date().toISOString(), // bumped on every save
@@ -208,6 +210,7 @@ function rowToLayout(row: LayoutRow): RoomLayout {
     // NULL → undefined → follow the business rates. Sanitised with the
     // rate card's own function so both lists obey the same rules.
     chargeRates: row.charge_rates ? sanitizeOtherRates(row.charge_rates) : undefined,
+    looseParts: row.loose_parts ?? undefined,
     projectCharges: row.project_charges
       ? { labor: row.project_charges.labor ?? [], other: row.project_charges.other ?? [] }
       : undefined,

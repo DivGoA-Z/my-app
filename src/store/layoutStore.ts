@@ -28,7 +28,7 @@ import type {
   Wall,
   WallOrientation,
 } from '../types/layout';
-import type { PlacedCabinetItem } from '../types/cabinet';
+import type { ExtraPart, PlacedCabinetItem } from '../types/cabinet';
 import type { PlacedApplianceItem } from '../types/appliance';
 import type { CustomerProject } from '../types/customer';
 import type { CatalogItem, ObstaclePreset, ApplianceCatalogItem } from '../types/Catalog';
@@ -317,6 +317,8 @@ interface LayoutStore {
   customiseChargeRates: () => void;
   setChargeRates: (rates: OtherRate[]) => void;
   resetChargeRates: () => void;
+  // The project's loose cutting-list parts — RoomLayout.looseParts (§48).
+  setLooseParts: (parts: ExtraPart[]) => void;
   setExposure: (exposure: number) => void;
 
   upsertFixtureCatalogItem: (item: FixtureCatalogItem) => Promise<void>;
@@ -332,6 +334,11 @@ interface LayoutStore {
 
   addCabinet: (item: PlacedCabinetItem) => void;
   updateCabinet: (id: string, updates: Partial<PlacedCabinetItem>) => void;
+  // The same patch to several cabinets as ONE undo step — the Cabinet
+  // Designer's "use this board on every cabinet in this kitchen". N
+  // separate updateCabinet calls would each carry a different
+  // signature and become N undo steps.
+  updateCabinets: (ids: string[], updates: Partial<PlacedCabinetItem>) => void;
   removeCabinet: (id: string) => void;
 
   addObstacle: (obstacle: Obstacle) => void;
@@ -805,6 +812,21 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
     );
   },
 
+  // An undoable design edit like any other; priced inside Material.
+  setLooseParts: (parts) => {
+    noteDesignEdit('setLooseParts');
+    set((state) =>
+      state.currentLayout
+        ? {
+            currentLayout: {
+              ...state.currentLayout,
+              looseParts: parts.length > 0 ? parts : undefined,
+            },
+          }
+        : {}
+    );
+  },
+
   resetChargeRates: () => {
     noteDesignEdit('chargeRates');
     set((state) =>
@@ -923,6 +945,15 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
   addCabinet: (item) => {
     noteDesignEdit('addCabinet:' + item.id);
     set((state) => ({ cabinets: [...state.cabinets, item] }));
+  },
+
+  updateCabinets: (ids, updates) => {
+    if (ids.length === 0) return;
+    noteDesignEdit('updateCabinets');
+    const targets = new Set(ids);
+    set((state) => ({
+      cabinets: state.cabinets.map((c) => (targets.has(c.id) ? { ...c, ...updates } : c)),
+    }));
   },
 
   updateCabinet: (id, updates) => {

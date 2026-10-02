@@ -19,7 +19,7 @@
 // a convenient default — not something this type or lib/Inventory.ts
 // need to keep in sync with going forward.
 
-import type { CabinetPanels, ModuleType, MaterialType } from './cabinet';
+import type { CabinetPanels, ExtraPart, ModuleType, MaterialType } from './cabinet';
 import type { FrontLayout } from './front';
 import type { ObstacleType } from './layout';
 import type { ApplianceType } from './appliance';
@@ -59,6 +59,9 @@ export interface CatalogItem {
   // types/cabinet.ts. Absent = every panel included, default boards.
   // Copied onto the placed cabinet, which can then override it.
   panels?: CabinetPanels;
+  // Default extra parts for cabinets added from this row — see
+  // ExtraPart in types/cabinet.ts.
+  extraParts?: ExtraPart[];
   // ₹ fabrication/assembly price — NOT material, finish, hardware or
   // labour, all priced separately (material/labour by the cabinet's
   // own estimated area, on the rate card; finish/hardware by their

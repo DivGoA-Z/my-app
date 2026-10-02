@@ -36,7 +36,7 @@ import type { FixtureCatalogItem, LightFixture } from '../types/fixture';
 import type { SurfaceAreaBreakdown } from './surfaceAreas';
 import type { OtherRate, OtherRateBasis, RateCard } from '../types/rates';
 import type { ConstructionSettings } from '../types/construction';
-import { cabinetCutParts, partAreaSqM } from './cutList';
+import { cabinetCutParts, loosePartsCut, partAreaSqM } from './cutList';
 
 export interface BOMLineItem {
   cabinetId: string;
@@ -210,7 +210,12 @@ export interface BOMSummary {
   openingLineItems: OpeningLineItem[];
   fixtureLineItems: FixtureLineItem[];
   countertopLineItem: CountertopLineItem | null;
+  // Includes loosePartsCost below — loose parts are board too.
   materialSubtotal: number;
+  // Board cost of the project's loose parts (§48), already inside
+  // materialSubtotal; carried separately so the sidebar can say how much
+  // of Material it is. Absent on a summary frozen before §48.
+  loosePartsCost: number;
   // RateCard.othersRates rows, split by the row's own showOnQuote:
   // ticked rows each become a named line here (amount summed across
   // every cabinet, or once for a lump sum); every unticked row is
@@ -552,8 +557,16 @@ export function calculateBOM(
   // costs the business; grandTotal (below) is what the customer is
   // charged, and is the only one of the two either the frozen quote or
   // the PDF has ever read.
+  // Loose project parts (RoomLayout.looseParts, §48) — fillers, plinth,
+  // end panels. Priced exactly like a cabinet's own board: real area ×
+  // board rate × sheet waste, from the same loosePartsCut the cutting
+  // list prints. A cost like any other, so it's marked up, and it's
+  // shown inside the Material subtotal (it IS board).
+  const looseParts = loosePartsCut(layout?.looseParts ?? [], rates, []);
+  const loosePartsCost = sheetWasteFactor * sum(looseParts, (p) => partAreaSqM(p) * p.ratePerSqM);
   const allCost =
     sum(lineItems, (l) => l.lineTotal) +
+    loosePartsCost +
     othersLumpSum +
     applianceSubtotal +
     surfaceSubtotal +
@@ -609,7 +622,8 @@ export function calculateBOM(
     openingLineItems,
     fixtureLineItems,
     countertopLineItem,
-    materialSubtotal: sum(lineItems, (l) => l.materialCost),
+    materialSubtotal: sum(lineItems, (l) => l.materialCost) + loosePartsCost,
+    loosePartsCost,
     shownOtherLines,
     othersSubtotal,
     othersUnmarkedSubtotal,
@@ -667,7 +681,7 @@ const HARDWARE_LABELS: Record<string, string> = {
   channel: 'Drawer channels (pairs)',
   handle: 'Handles',
   basket: 'Wire baskets',
-  shelf: 'Shelves',
+  shelf: 'Shelf supports & fitting',
   cornerMagic: 'Magic corner mechanism',
   cornerCarousel: 'Carousel / lazy susan mechanism',
 };

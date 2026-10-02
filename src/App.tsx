@@ -1,6 +1,6 @@
 // src/App.tsx
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { RoomCanvas } from './components/canvas/RoomCanvas';
 import { CabinetLayer } from './components/canvas/CabinetLayer';
 import { ObstacleLayer } from './components/canvas/ObstacleLayer';
@@ -31,6 +31,7 @@ import { QuoteSidebar } from './components/quote/QuoteSidebar';
 import { PresentMode } from './components/present/PresentMode';
 import { CutListView } from './components/cutlist/CutListView';
 import { WorkshopSettingsPage } from './components/workshop/WorkshopSettingsPage';
+import { CabinetDesignerPage, type DesignerTarget } from './components/designer/CabinetDesignerPage';
 import { CustomerDashboard } from './components/dashboard/CustomerDashboard';
 import { useLayoutStore } from './store/layoutStore';
 import { useAuthStore } from './store/authStore';
@@ -55,6 +56,7 @@ type View =
   | 'canvas'
   | 'inventory'
   | 'workshop'
+  | 'designer'
   | 'preview3d'
   | 'elevation'
   | 'present'
@@ -65,6 +67,12 @@ function App() {
   // Where "Manage Inventory" returns to when closed — the dashboard, or
   // back into whichever client's layout was open.
   const [previousView, setPreviousView] = useState<View>('dashboard');
+  const [designerTarget, setDesignerTarget] = useState<DesignerTarget | null>(null);
+  // Where the Designer's Back goes. Its OWN slot, not previousView:
+  // Manage Inventory's Back reads previousView, so reusing it would make
+  // catalogue → Designer → back → Back reload the catalogue forever.
+  const [designerReturn, setDesignerReturn] = useState<View>('canvas');
+  const designerScrollY = useRef(0);
   // Which catalog section to scroll to when the inventory screen opens —
   // set by whichever toolbar's "Manage" button was clicked, undefined
   // for the dashboard's generic "Manage Inventory" button.
@@ -108,6 +116,13 @@ function App() {
   const canRedo = useLayoutStore((s) => s.redoStack.length > 0);
 
   const session = useAuthStore((s) => s.session);
+  // Keyed on the USER, not the session object. Supabase hands back a new
+  // session object on every auth event — including when the browser tab
+  // regains focus and on the hourly token refresh — and keying the
+  // inventory load on `session` reloaded the whole catalogue each time:
+  // a flash of loading placeholders, and any unsaved catalogue-row edits
+  // thrown away. The user only changes on an actual sign-in/out.
+  const userId = session?.user.id;
   const isAuthLoading = useAuthStore((s) => s.isLoading);
   const authInit = useAuthStore((s) => s.init);
   const signOut = useAuthStore((s) => s.signOut);
@@ -135,8 +150,8 @@ function App() {
   // Inventory screen first. Gated on `session`: this reaches Supabase,
   // and RLS now requires being signed in for that to return anything.
   useEffect(() => {
-    if (session) loadInventory();
-  }, [loadInventory, session]);
+    if (userId) loadInventory();
+  }, [loadInventory, userId]);
 
   if (isAuthLoading) {
     return <p className="p-8 text-sm text-gray-500">Loading…</p>;
@@ -144,6 +159,20 @@ function App() {
 
   if (!session) {
     return <LoginScreen />;
+  }
+
+  // The Cabinet Designer is entered from a catalogue row or a placed
+  // cabinet; Back returns to whichever screen opened it.
+  function openDesigner(target: DesignerTarget, from: View) {
+    setDesignerTarget(target);
+    setDesignerReturn(from);
+    // Remember where the page was scrolled, so Back lands on the row you
+    // left from rather than the top. And drop any "scroll to section"
+    // request from the toolbar's Manage button — otherwise coming back
+    // replays that smooth-scroll and the page looks like it refreshed.
+    designerScrollY.current = window.scrollY;
+    if (from === 'inventory') setManageSection(undefined);
+    setView('designer');
   }
 
   function handleOpenCanvas(projectId: string) {
@@ -191,6 +220,19 @@ function App() {
           setPreviousView('cutlist');
           setView('workshop');
         }}
+        onOpenDesigner={(cabinetId) => openDesigner({ kind: 'cabinet', cabinetId }, 'cutlist')}
+      />
+    );
+  } else if (view === 'designer' && designerTarget) {
+    content = (
+      <CabinetDesignerPage
+        target={designerTarget}
+        onBack={() => {
+          setView(designerReturn);
+          // After the screen it returns to has rendered.
+          const y = designerScrollY.current;
+          requestAnimationFrame(() => window.scrollTo(0, y));
+        }}
       />
     );
   } else if (view === 'workshop') {
@@ -221,7 +263,10 @@ function App() {
         <Button variant="outline" size="sm" className="self-start" onClick={() => setView(previousView)}>
           ← Back
         </Button>
-        <InventoryManager initialSection={manageSection} />
+        <InventoryManager
+          initialSection={manageSection}
+          onOpenDesigner={(itemId) => openDesigner({ kind: 'catalogue', itemId }, 'inventory')}
+        />
       </div>
     );
   } else if (view === 'dashboard') {
@@ -407,7 +452,9 @@ function App() {
             </RoomCanvas>
           </div>
 
-          <CabinetInspector />
+          <CabinetInspector
+            onOpenDesigner={(cabinetId) => openDesigner({ kind: 'cabinet', cabinetId }, 'canvas')}
+          />
           <ObstacleInspector />
           <ApplianceInspector />
           <OpeningInspector />
