@@ -28,6 +28,7 @@ import { FinishManager } from './FinishManager';
 import { HandleManager } from './HandleManager';
 import { FixtureManager } from './FixtureManager';
 import { RateCardManager } from './RateCardManager';
+import { ConstructionSettingsManager } from './ConstructionSettingsManager';
 import { CabinetCatalogImportExport } from './CabinetCatalogImportExport';
 import { ObstaclePresetImportExport } from './ObstaclePresetImportExport';
 import { ApplianceCatalogImportExport } from './ApplianceCatalogImportExport';
@@ -196,6 +197,11 @@ export function InventoryManager({ initialSection }: { initialSection?: Inventor
               to find. This was built but never actually rendered
               anywhere until now — see docs/ISSUES-FIXED.md. */}
           <RateCardManager />
+
+          {/* Directly under the rates: the other business-wide setup
+              that isn't a catalogue row. Read only by the cutting list
+              — see its own header comment. */}
+          <ConstructionSettingsManager />
 
           {/* Finishes first: cabinet rows below reference them, so this
               is the order the data actually depends in. */}

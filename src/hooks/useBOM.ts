@@ -57,7 +57,7 @@ function QuotePanel() {
     <div>
       <p>Material: ₹{bom.materialSubtotal.toLocaleString('en-IN')}</p>
       <p>Hardware: ₹{bom.hardwareSubtotal.toLocaleString('en-IN')}</p>
-      <p>Labor: ₹{bom.laborSubtotal.toLocaleString('en-IN')}</p>
+      <p>Other: ₹{bom.othersSubtotal.toLocaleString('en-IN')}</p>
       <p className="font-bold">
         Grand Total: ₹{bom.grandTotal.toLocaleString('en-IN')}
       </p>

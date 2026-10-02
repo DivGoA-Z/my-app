@@ -12,11 +12,25 @@
 // prices" as a distinct state.
 
 import { supabase } from './Supabaseclient';
-import { defaultRateCard, sanitizeRateCard, type RateCard } from '../types/rates';
+import {
+  defaultRateCard,
+  sanitizeRateCard,
+  sanitizeWasteFactor,
+  DEFAULT_LABOUR_RATES,
+  LABOUR_FABRICATION_ID,
+  LABOUR_SITE_ID,
+  type OtherRate,
+  type RateCard,
+} from '../types/rates';
 
 interface RateCardRow {
   id: string;
   label: string;
+  // LEGACY, like fabrication_rate_per_unit below — site labour is now
+  // a row of others_rates (docs/DECISIONS.md §38). Read once to create
+  // that row on an older card; written as 0 on every save so a business
+  // that DELETES the labour row doesn't have it resurrected from this
+  // column on the next load.
   labor_rate_per_sqft: number;
   // The four hardware rates are one JSONB column rather than four
   // columns, matching how layouts stores fixtures. The set of hardware
@@ -33,11 +47,21 @@ interface RateCardRow {
   // Same one-JSONB-column reasoning as material_rates above — priced
   // by TINT, which is a set of keys just like MaterialType is.
   glass_rates: RateCard['glassRates'] | null;
-  // Plain numeric columns, not JSONB — each is a single scalar, not a
-  // set of keys that grows over time the way hardware/material rates
-  // do, so there's no per-key migration story to design for here.
+  // LEGACY — same story as labor_rate_per_sqft above: now the
+  // fabrication row of others_rates, read once to migrate, written 0.
   fabrication_rate_per_unit: number;
-  others_rate_per_unit: number;
+  // LEGACY — superseded by others_rates below. Read only to migrate a
+  // card saved before others_rates existed (see rowToRateCard); never
+  // written, so it keeps whatever value it last had. Optional on this
+  // interface because rateCardToRow deliberately leaves it out.
+  others_rate_per_unit?: number;
+  // JSONB — an array of OtherRate. Null on a row saved before it
+  // existed. Can also be the short-lived two-list object shape (see
+  // readOthersRates) on a card saved during the one session that shape
+  // existed.
+  others_rates: RateCard['othersRates'] | TwoListOthersRates | null;
+  // Plain numeric — one scalar, no per-key growth to plan for.
+  sheet_waste_factor: number | null;
   business_id: string;
   created_at: string;
   updated_at: string;
@@ -47,7 +71,6 @@ function rowToRateCard(row: RateCardRow): RateCard {
   return {
     id: row.id,
     label: row.label,
-    laborRatePerSqFt: row.labor_rate_per_sqft,
     hardware: row.hardware_rates,
     // Cast, not a lie: this can genuinely be undefined for a row
     // saved before this column existed, and sanitizeRateCard (always
@@ -56,8 +79,14 @@ function rowToRateCard(row: RateCardRow): RateCard {
     // optional-chaining — one fallback path, not two disagreeing ones.
     materialRates: (row.material_rates ?? undefined) as RateCard['materialRates'],
     glassRates: (row.glass_rates ?? undefined) as RateCard['glassRates'],
-    fabricationRatePerUnit: row.fabrication_rate_per_unit,
-    othersRatePerUnit: row.others_rate_per_unit,
+    othersRates: withLegacyLabour(
+      readOthersRates(row.others_rates, row.others_rate_per_unit),
+      row.labor_rate_per_sqft,
+      row.fabrication_rate_per_unit
+    ),
+    // Null on an older row → 1 (no waste), via the same function
+    // sanitizeRateCard uses, so there is still one fallback path.
+    sheetWasteFactor: sanitizeWasteFactor(row.sheet_waste_factor ?? undefined),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -67,16 +96,86 @@ function rateCardToRow(card: RateCard, businessId: string): RateCardRow {
   return {
     id: card.id,
     label: card.label,
-    labor_rate_per_sqft: card.laborRatePerSqFt,
+    // Zeroed, not left alone — see this column's comment above.
+    labor_rate_per_sqft: 0,
     hardware_rates: card.hardware,
     material_rates: card.materialRates,
     glass_rates: card.glassRates,
-    fabrication_rate_per_unit: card.fabricationRatePerUnit,
-    others_rate_per_unit: card.othersRatePerUnit,
+    fabrication_rate_per_unit: 0,
+    others_rates: card.othersRates,
+    sheet_waste_factor: card.sheetWasteFactor,
     business_id: businessId,
     created_at: card.createdAt,
     updated_at: new Date().toISOString(), // bumped on every save
   };
+}
+
+// A card saved before others_rates existed had one flat ₹/cabinet
+// "others" number. Carried over as a single per-cabinet row so no
+// quote total moves by a rupee on upgrade; the business can rename or
+// split it from the rate card. Zero (the seeded default, and what
+// nearly every card has) becomes no rows at all, so the placeholder
+// check in types/rates.ts still recognises an untouched card.
+//
+// The row's id is a FIXED string, not crypto.randomUUID(). A random id
+// here would be regenerated on every load until the card is re-saved,
+// and the rate card is part of what computeQuoteFingerprint hashes
+// (lib/quotes.ts) — so every frozen quote would read "design has
+// changed" on every page load, the exact cry-wolf failure that
+// fingerprint's own comment warns trains people to ignore it.
+function legacyOthersRates(othersRatePerUnit: number | undefined): RateCard['othersRates'] {
+  const rate = Number(othersRatePerUnit ?? 0);
+  return rate > 0 ? [{ id: 'legacy-other', label: 'Other', rate, basis: 'cabinet', showOnQuote: false, applyMargin: true }] : [];
+}
+
+// The shape others_rates had for one session (docs/DECISIONS.md §35 →
+// §37): two fixed lists instead of one list with a per-row basis.
+// Rows kept their own ids, so converting is deterministic and a card
+// saved that way doesn't change fingerprint on every load.
+interface TwoListOthersRates {
+  perSqFt?: Omit<OtherRate, 'basis' | 'showOnQuote' | 'applyMargin'>[];
+  perUnit?: Omit<OtherRate, 'basis' | 'showOnQuote' | 'applyMargin'>[];
+}
+
+// Site labour and fabrication were their own columns until §38. A card
+// whose columns still hold a value (never saved since) gets them as the
+// two labour rows, at the TOP of the list, with the old values and the
+// seeded labels/ids — so no total moves and the quote prints them as
+// it always did. Skipped if a row with that id is already there, and
+// skipped when the column is 0, which is what every save now writes:
+// that's what stops a deleted labour row coming back.
+function withLegacyLabour(
+  rates: RateCard['othersRates'],
+  laborRatePerSqFt: number | undefined,
+  fabricationRatePerUnit: number | undefined
+): RateCard['othersRates'] {
+  const legacy: [string, number | undefined][] = [
+    [LABOUR_SITE_ID, laborRatePerSqFt],
+    [LABOUR_FABRICATION_ID, fabricationRatePerUnit],
+  ];
+  const added = legacy.flatMap(([id, value]) => {
+    const rate = Number(value ?? 0);
+    const seed = DEFAULT_LABOUR_RATES.find((r) => r.id === id);
+    if (!seed || rate <= 0 || rates.some((r) => r.id === id)) return [];
+    return [{ ...seed, rate }];
+  });
+  return [...added, ...rates];
+}
+
+// Three generations of storage, newest first. sanitizeRateCard runs
+// after this and fills any missing/invalid basis with 'cabinet'.
+function readOthersRates(
+  stored: RateCardRow['others_rates'],
+  legacyPerUnit: number | undefined
+): RateCard['othersRates'] {
+  if (Array.isArray(stored)) return stored;
+  if (stored) {
+    return [
+      ...(stored.perSqFt ?? []).map((r) => ({ ...r, basis: 'sqft' as const, showOnQuote: false, applyMargin: true })),
+      ...(stored.perUnit ?? []).map((r) => ({ ...r, basis: 'cabinet' as const, showOnQuote: false, applyMargin: true })),
+    ];
+  }
+  return legacyOthersRates(legacyPerUnit);
 }
 
 // No `.eq('id', ...)` filter — there is no longer one fixed well-known

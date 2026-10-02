@@ -21,14 +21,20 @@
 // flags, it doesn't know about rows or the Supabase client directly.
 
 import { create } from 'zustand';
-import type { RoomLayout, RoomDimensions, Obstacle, Wall, WallOrientation } from '../types/layout';
+import type {
+  RoomLayout,
+  RoomDimensions,
+  Obstacle,
+  Wall,
+  WallOrientation,
+} from '../types/layout';
 import type { PlacedCabinetItem } from '../types/cabinet';
 import type { PlacedApplianceItem } from '../types/appliance';
 import type { CustomerProject } from '../types/customer';
 import type { CatalogItem, ObstaclePreset, ApplianceCatalogItem } from '../types/Catalog';
 import type { SurfaceFinish } from '../types/finish';
 import type { CameraNode } from '../types/Camera';
-import { calculateBOM } from '../lib/bom';
+import { calculateBOM, legacyProjectChargeRates } from '../lib/bom';
 import { saveProjectBundle, loadProjectBundle } from '../lib/Persistence';
 import { uploadPanorama, deletePanorama } from '../lib/panoramaStorage';
 import {
@@ -58,9 +64,22 @@ import {
   deleteFixtureCatalogItemsBulk,
 } from '../lib/fixtureCatalog';
 import { fetchRateCard, saveRateCard } from '../lib/rates';
+import { fetchConstructionSettings, saveConstructionSettings } from '../lib/constructionSettings';
+import {
+  defaultConstructionSettings,
+  sanitizeConstruction,
+  type ConstructionSettings,
+} from '../types/construction';
 import { fetchQuotes, freezeQuote, fingerprintPricedInputs, markQuoteSent } from '../lib/quotes';
 import type { FrozenQuote } from '../types/quote';
-import { defaultRateCard, sanitizeRateCard, type RateCard } from '../types/rates';
+import {
+  defaultRateCard,
+  sanitizeOtherRates,
+  sanitizeRateCard,
+  sanitizeWasteFactor,
+  type OtherRate,
+  type RateCard,
+} from '../types/rates';
 import type { FixtureCatalogItem, LightFixture, LightingMode } from '../types/fixture';
 import type { HandleSpec } from '../types/front';
 import type { WallOpening } from '../types/opening';
@@ -197,6 +216,12 @@ interface LayoutStore {
   // from the first render rather than null. See types/rates.ts for why
   // that fallback is deliberate and where it could bite.
   rateCard: RateCard;
+  // How the workshop builds a cabinet — read only by the cutting list
+  // (lib/cutList.ts). Deliberately NOT part of rateCard or anything in
+  // PricingContext: it never changes a price, and anything reachable
+  // from PricingContext is hashed into every frozen quote's fingerprint.
+  // See types/construction.ts.
+  constructionSettings: ConstructionSettings;
   // The business's finish catalogue (types/finish.ts). Read by the
   // 3D renderer, the inspector's finish picker and BOM costing.
   finishes: SurfaceFinish[];
@@ -280,6 +305,16 @@ interface LayoutStore {
   setLightingMode: (mode: LightingMode) => void;
   setPriceElectrical: (priceElectrical: boolean) => void;
   setMarginPercent: (marginPercent: number) => void;
+  // undefined clears the override and falls back to the rate card's
+  // business default — see RoomLayout.sheetWasteFactor.
+  setSheetWasteFactor: (factor: number | undefined) => void;
+  // A project's own "Labour and other charges" list — see
+  // RoomLayout.chargeRates. customise copies the business list (plus
+  // any legacy §36 project charges) into the project; reset drops the
+  // copy so the project follows the rate card again.
+  customiseChargeRates: () => void;
+  setChargeRates: (rates: OtherRate[]) => void;
+  resetChargeRates: () => void;
   setExposure: (exposure: number) => void;
 
   upsertFixtureCatalogItem: (item: FixtureCatalogItem) => Promise<void>;
@@ -348,6 +383,7 @@ interface LayoutStore {
   // No create and no delete: the rate card is a single row that is
   // edited, never added to or removed.
   updateRateCard: (card: RateCard) => Promise<void>;
+  updateConstructionSettings: (settings: ConstructionSettings) => Promise<void>;
 
   loadQuotes: () => Promise<void>;
   // Freezes what is on screen right now as the next version. Returns
@@ -524,6 +560,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
   handles: [],
   fixtureCatalog: [],
   rateCard: defaultRateCard(),
+  constructionSettings: defaultConstructionSettings(),
   finishes: [],
   isInventoryLoading: false,
   inventoryError: null,
@@ -712,6 +749,65 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
     set((state) =>
       state.currentLayout
         ? { currentLayout: { ...state.currentLayout, marginPercent: safeMarginPercent } }
+        : {}
+    );
+  },
+
+  // Per-project override of the rate card's sheet waste factor — same
+  // shape as setMarginPercent above. Clamped with the SAME function the
+  // rate card uses (sanitizeWasteFactor) so a project override and the
+  // business default can never disagree about what a legal factor is.
+  setSheetWasteFactor: (factor) => {
+    noteDesignEdit('setSheetWasteFactor');
+    const safeFactor = factor === undefined ? undefined : sanitizeWasteFactor(factor);
+    set((state) =>
+      state.currentLayout
+        ? { currentLayout: { ...state.currentLayout, sheetWasteFactor: safeFactor } }
+        : {}
+    );
+  },
+
+  // Per-project charges list — see RoomLayout.chargeRates. Same
+  // noteDesignEdit signature for all three so undo treats a customise-
+  // then-edit burst as one step, like any other debounced edit.
+  customiseChargeRates: () => {
+    noteDesignEdit('chargeRates');
+    set((state) =>
+      state.currentLayout
+        ? {
+            currentLayout: {
+              ...state.currentLayout,
+              // Copied, not referenced — later rate-card edits must not
+              // reach into a customised project, which is the whole point.
+              chargeRates: [
+                ...state.rateCard.othersRates.map((r) => ({ ...r })),
+                ...legacyProjectChargeRates(state.currentLayout.projectCharges),
+              ],
+              // Folded into chargeRates above; clearing it stops them
+              // being priced twice.
+              projectCharges: undefined,
+            },
+          }
+        : {}
+    );
+  },
+
+  // Sanitised with the rate card's own function (non-negative rates,
+  // valid basis) so the two lists obey the same rules.
+  setChargeRates: (rates) => {
+    noteDesignEdit('chargeRates');
+    set((state) =>
+      state.currentLayout
+        ? { currentLayout: { ...state.currentLayout, chargeRates: sanitizeOtherRates(rates) } }
+        : {}
+    );
+  },
+
+  resetChargeRates: () => {
+    noteDesignEdit('chargeRates');
+    set((state) =>
+      state.currentLayout
+        ? { currentLayout: { ...state.currentLayout, chargeRates: undefined } }
         : {}
     );
   },
@@ -977,6 +1073,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
         handles,
         fixtureCatalog,
         rateCard,
+        constructionSettings,
       ] = await Promise.all([
         fetchCabinetCatalog(),
         fetchObstaclePresets(),
@@ -985,6 +1082,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
         fetchHandles(),
         fetchFixtureCatalog(),
         fetchRateCard(),
+        fetchConstructionSettings(),
       ]);
       set({
         cabinetCatalog,
@@ -994,6 +1092,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
         handles,
         fixtureCatalog,
         rateCard,
+        constructionSettings,
         isInventoryLoading: false,
       });
     } catch (err) {
@@ -1164,6 +1263,14 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
   updateRateCard: async (card) => {
     await saveRateCard(card, requireBusinessId());
     set({ rateCard: sanitizeRateCard(card) });
+  },
+
+  // Same save-then-set order as updateRateCard: the store only changes
+  // once the database has accepted it, so a failed save can't leave a
+  // cutting list on screen that the database doesn't agree with.
+  updateConstructionSettings: async (settings) => {
+    await saveConstructionSettings(settings, requireBusinessId());
+    set({ constructionSettings: sanitizeConstruction(settings) });
   },
 
   upsertHandle: async (handle) => {

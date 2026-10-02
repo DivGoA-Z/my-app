@@ -60,6 +60,85 @@ export type MaterialRates = Record<MaterialType, number>;
 // substrate.
 export type GlassRates = Record<GlassTint, number>;
 
+// What one "others" row is charged on:
+//   'sqft'    ₹ per sq ft of estimated cabinet area (lib/bom.ts's
+//             estimateAreaSqFt — the same area site labour uses).
+//             For things that grow with cabinet size: edge banding.
+//   'cabinet' ₹ per cabinet, flat regardless of size. The default for
+//             a new row — the most common case, and what the single
+//             othersRatePerUnit number this replaced always was.
+//   'lumpsum' ₹ once per PROJECT, however many cabinets — a delivery
+//             or site-visit fee the business charges on every job.
+export type OtherRateBasis = 'sqft' | 'cabinet' | 'lumpsum';
+
+export const OTHER_RATE_BASES: OtherRateBasis[] = ['sqft', 'cabinet', 'lumpsum'];
+
+export const OTHER_RATE_BASIS_LABELS: Record<OtherRateBasis, string> = {
+  sqft: 'Per sq ft',
+  cabinet: 'Per cabinet',
+  lumpsum: 'Lump sum',
+};
+
+// One named line of the "others" rate — see RateCard.othersRates.
+// `id` is client-generated purely so the editor can key its rows; it
+// has no meaning outside this card.
+export interface OtherRate {
+  id: string;
+  label: string;
+  rate: number;
+  basis: OtherRateBasis;
+  // true → printed as its own line on the customer's quote, under this
+  // row's label; false → summed into the single "Other" line. A choice
+  // about PRESENTATION only — the amount charged is identical either
+  // way, and margin applies either way. Off for a new row (most
+  // consumables aren't worth a line of their own); on for the two
+  // labour rows, which is how they always printed before.
+  showOnQuote: boolean;
+  // false → the amount is the SELLING price, never marked up by the
+  // project's margin — for a price the business has already fixed ("extra
+  // service ₹20,000" stays ₹20,000). Editable on both the business rate
+  // card and a project's own list (RoomLayout.chargeRates) — §39 made it
+  // project-only, §40 made both sides match. On for every seeded row
+  // and every new one.
+  applyMargin: boolean;
+}
+
+// The two labour charges that used to be their own rate-card fields
+// (see RateCard's comment where they were), now seeded as the first two
+// "others" rows with the same values and units, both shown on the
+// quote as they always were.
+//
+// FIXED ids, not crypto.randomUUID(): these rows are also created on
+// load when migrating an older card (lib/rates.ts), and the rate card
+// feeds the quote fingerprint — a random id there would mark every
+// frozen quote "changed" on every page load (docs/DECISIONS.md §35).
+//
+// Values are the old placeholders, and still placeholders: ₹150/sq ft
+// site labour, and ₹2,500 per cabinet to cut, edge-band and assemble
+// a box — a plausible Delhi NCR workshop figure nobody has checked
+// against a real invoice (docs/DECISIONS.md §14).
+export const LABOUR_SITE_ID = 'labour-site';
+export const LABOUR_FABRICATION_ID = 'labour-fabrication';
+
+export const DEFAULT_LABOUR_RATES: OtherRate[] = [
+  {
+    id: LABOUR_SITE_ID,
+    label: 'Labour — site installation',
+    rate: 150,
+    basis: 'sqft',
+    showOnQuote: true,
+    applyMargin: true,
+  },
+  {
+    id: LABOUR_FABRICATION_ID,
+    label: 'Labour — fabrication',
+    rate: 2500,
+    basis: 'cabinet',
+    showOnQuote: true,
+    applyMargin: true,
+  },
+];
+
 export interface RateCard {
   // One row per business now (business_id + RLS — see
   // supabase/schema.sql and defaultRateCard's own comment below for
@@ -69,10 +148,14 @@ export interface RateCard {
   id: string;
   label: string;
 
-  // ₹ per sq ft of estimated cabinet area. Sq ft rather than sq m
-  // because that is still the billing unit in the trade, even though
-  // all geometry is stored in mm.
-  laborRatePerSqFt: number;
+  // Site-installation labour (₹/sq ft) and workshop fabrication
+  // (₹/cabinet) used to be two fields here, laborRatePerSqFt and
+  // fabricationRatePerUnit. They are now the first two rows of
+  // othersRates below — DEFAULT_LABOUR_RATES — so every charge that
+  // isn't a material/hardware/glass rate is edited in one place, the
+  // same way, with the same "show on quote" choice. Their units didn't
+  // change: site labour is still per sq ft (the trade's billing unit),
+  // fabrication still per cabinet. See docs/DECISIONS.md §38.
 
   // ₹ per unit, where the unit differs per row and is NOT always a
   // piece — 'channel' is a PAIR of runners, which is how they are sold
@@ -85,26 +168,56 @@ export interface RateCard {
   // See GlassRates above.
   glassRates: GlassRates;
 
-  // ₹ per CABINET (flat, regardless of size) — box construction/
-  // assembly labour: cutting, edge-banding and assembling the carcass
-  // panels. Deliberately separate from `laborRatePerSqFt` above, which
-  // is SITE installation/fitting labour, billed by area per the
-  // trade's own convention — this one is workshop labour, billed flat
-  // per unit because a workshop quotes "so much to build a box", not
-  // by its surface area. See docs/DECISIONS.md §14 for why this field
-  // exists: material+finish+hardware alone came to well under half of
-  // what a real cabinet was priced at — this is the missing piece,
-  // named rather than left invisible inside a catalogue's own
-  // unitPrice the way it used to be.
-  fabricationRatePerUnit: number;
+  // Every charge that isn't a material, hardware or glass rate: labour
+  // (site installation and fabrication — DEFAULT_LABOUR_RATES), edge
+  // banding, glue, packing, delivery. Itemised catch-all for whatever doesn't fit the categories above —
+  // whatever else. ONE list, each row carrying its own basis (OtherRateBasis above),
+  // because those things genuinely scale differently — edge banding
+  // with cabinet size, a handling fee per cabinet, delivery once per
+  // job — but a business thinks of them as one heading, "others".
+  //
+  // (First built as two separate lists, perSqFt and perUnit, the same
+  // day. You found two headings harder to read than one list with a
+  // per-row choice, and asked for a third basis — lump sum — that two
+  // fixed lists had no room for. lib/rates.ts still reads that shape
+  // in case a card was saved with it. See docs/DECISIONS.md §37.)
+  //
+  // REPLACED `othersRatePerUnit`, a single flat ₹/cabinet number. One
+  // number couldn't say what was in it, and it forced size-dependent
+  // costs like edge banding into a flat fee that overcharged a 300mm
+  // filler and undercharged a 1200mm tall unit. See docs/DECISIONS.md
+  // §35. A card saved before this existed is migrated on load (see
+  // lib/rates.ts's rowToRateCard) into one per-cabinet row labelled
+  // "Other", so no quote total moves.
+  //
+  // On the quote, each row is either its own line or part of one
+  // rolled-up "Other" — the business's choice per row (showOnQuote).
+  // (§35-§37 made the whole list internal-only; §38 made that a per-row
+  // choice when labour moved in, since labour always printed.)
+  //
+  // Seeded with the two labour rows only. Nothing else has a real-
+  // world number behind it, so nothing else is invented here.
+  othersRates: OtherRate[];
 
-  // ₹ per cabinet — a deliberate catch-all for whatever doesn't fit
-  // the categories above (packing, delivery, a specific job's site
-  // conditions, anything). Defaults to 0, unlike every other rate on
-  // this card, because unlike them it has no real-world number behind
-  // it at all — it exists so a business has somewhere to put one
-  // without it silently vanishing into "fabrication."
-  othersRatePerUnit: number;
+  // Multiplier on substrate cost for whole-sheet purchasing: a
+  // business buys 8×4 sheets, not square metres, and the offcuts are
+  // paid for too. 1.1 means "buy 10% more board than the cabinets
+  // use." Applied to materialCost ONLY — not finish (laminate is
+  // bought separately and has its own waste, not modelled), not glass
+  // (cut to order).
+  //
+  // This is the BUSINESS default. A project can override it
+  // (RoomLayout.sheetWasteFactor) — a job that's all 600mm units nests
+  // much better than one full of odd widths. The override lives on the
+  // layout for the same reason marginPercent does (docs/DECISIONS.md
+  // §15), but unlike margin the DEFAULT lives here rather than as a
+  // code constant: how well a workshop nests its cuts is a fact about
+  // that workshop, the same everywhere it works, which is exactly what
+  // this card holds.
+  //
+  // Never below 1 — a factor under 1 would claim the cabinets use less
+  // board than their own area. Clamped in sanitizeRateCard.
+  sheetWasteFactor: number;
 
   // Cost-plus margin used to live here as `marginPercent` — a single
   // business-wide number. Moved to `RoomLayout.marginPercent`
@@ -134,7 +247,6 @@ export const ACTIVE_RATE_CARD_ID = 'default';
 export const PLACEHOLDER_RATES: Omit<RateCard, 'createdAt' | 'updatedAt'> = {
   id: ACTIVE_RATE_CARD_ID,
   label: 'Default rates (placeholder)',
-  laborRatePerSqFt: 150,
   hardware: {
     // A soft-close hinge SET (a pair) runs about ₹450 in the local
     // market, but this rate is priced per PIECE (see this file's own
@@ -173,18 +285,15 @@ export const PLACEHOLDER_RATES: Omit<RateCard, 'createdAt' | 'updatedAt'> = {
     MDF: 1100,
     'Particle Board': 850,
   },
-  // A genuine placeholder in the fullest sense — unlike hinge/channel/
-  // material above, nobody gave a real number for this one. ₹2,500 is
-  // a round, plausible Delhi NCR workshop estimate for cutting,
-  // edge-banding and assembling one cabinet box, picked so a fresh
-  // quote isn't obviously broken (₹0 fabrication reads as "free to
-  // build," which is a worse first impression than an order-of-
-  // magnitude guess). Needs checking against a real workshop invoice
-  // before any quote built on it goes to a customer, same as every
-  // other rate on this card.
-  fabricationRatePerUnit: 2500,
-  othersRatePerUnit: 0,
-  // Genuine placeholders, same footing as fabricationRatePerUnit above
+  othersRates: DEFAULT_LABOUR_RATES,
+  // 1 — no waste — rather than a realistic 1.1, deliberately:
+  // introducing this field must not silently move every open quote's
+  // material cost by 10%, same rule this whole object was built under
+  // (see its header comment). A business turns it up once it knows its
+  // own offcut rate; the placeholder banner stays up until it does.
+  sheetWasteFactor: 1,
+  // Genuine placeholders, same footing as fabrication labour
+  // (DEFAULT_LABOUR_RATES)
   // — no business has given a real number for glass yet. Ordered
   // clear < brown/black < yellow, the usual local retail pattern for
   // toughened lacquered glass (yellow/gold-tint stock tends to run a
@@ -225,9 +334,11 @@ export const GLASS_RATE_KEYS: GlassTint[] = ['clear', 'black', 'brown', 'yellow'
 // number IS, not whether someone has visited the rates screen.
 export function isPlaceholderRateCard(card: RateCard): boolean {
   return (
-    card.laborRatePerSqFt === PLACEHOLDER_RATES.laborRatePerSqFt &&
-    card.fabricationRatePerUnit === PLACEHOLDER_RATES.fabricationRatePerUnit &&
-    card.othersRatePerUnit === PLACEHOLDER_RATES.othersRatePerUnit &&
+    // Order-sensitive on purpose: the seed is exactly these rows in
+    // this order, and anything else — a row added, removed, renamed,
+    // re-priced or re-ticked — is the business making it its own.
+    sameOtherRates(card.othersRates, PLACEHOLDER_RATES.othersRates) &&
+    card.sheetWasteFactor === PLACEHOLDER_RATES.sheetWasteFactor &&
     HARDWARE_RATE_KEYS.every((k) => card.hardware[k] === PLACEHOLDER_RATES.hardware[k]) &&
     MATERIAL_RATE_KEYS.every((k) => card.materialRates[k] === PLACEHOLDER_RATES.materialRates[k]) &&
     GLASS_RATE_KEYS.every((k) => card.glassRates[k] === PLACEHOLDER_RATES.glassRates[k])
@@ -293,7 +404,6 @@ export const MATERIAL_RATE_LABELS: Record<MaterialType, string> = {
 export function sanitizeRateCard(card: RateCard): RateCard {
   return {
     ...card,
-    laborRatePerSqFt: nonNegative(card.laborRatePerSqFt),
     hardware: {
       hinge: nonNegative(card.hardware.hinge),
       channel: nonNegative(card.hardware.channel),
@@ -325,9 +435,59 @@ export function sanitizeRateCard(card: RateCard): RateCard {
       brown: nonNegative(card.glassRates?.brown),
       yellow: nonNegative(card.glassRates?.yellow),
     },
-    fabricationRatePerUnit: nonNegative(card.fabricationRatePerUnit),
-    othersRatePerUnit: nonNegative(card.othersRatePerUnit),
+    othersRates: sanitizeOtherRates(card.othersRates),
+    sheetWasteFactor: sanitizeWasteFactor(card.sheetWasteFactor),
   };
+}
+
+// Same clamp-don't-reject reasoning as nonNegative below. A blank label
+// is kept rather than dropped — the editor would otherwise delete a row
+// the moment its label is cleared to retype — but reads as "Other" on
+// the rate card rather than as nothing.
+//
+// A missing id (only possible in hand-edited JSONB) falls back to its
+// position, not crypto.randomUUID() — a random one would change on
+// every load, and this card feeds the quote fingerprint. See
+// legacyOthersRates in lib/rates.ts for the same trap.
+export function sanitizeOtherRates(rates: OtherRate[] | undefined): OtherRate[] {
+  return (rates ?? []).map((r, i) => ({
+    id: r.id || `row-${i}`,
+    label: r.label ?? '',
+    rate: nonNegative(r.rate),
+    basis: OTHER_RATE_BASES.includes(r.basis) ? r.basis : 'cabinet',
+    showOnQuote: r.showOnQuote === true,
+    // Missing (every row saved before §39) → true: rate-card rows were
+    // always marked up.
+    applyMargin: r.applyMargin !== false,
+  }));
+}
+
+// Field-by-field rather than JSON.stringify — stringify depends on key
+// ORDER, and rows built by different code paths (the seed, the loader,
+// the editor) don't promise the same order, which would make an
+// untouched card look edited.
+export function sameOtherRates(a: OtherRate[], b: OtherRate[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every((r, i) => {
+      const o = b[i];
+      return (
+        r.id === o.id &&
+        r.label === o.label &&
+        r.rate === o.rate &&
+        r.basis === o.basis &&
+        r.showOnQuote === o.showOnQuote &&
+        r.applyMargin === o.applyMargin
+      );
+    })
+  );
+}
+
+// Shared with the per-project override (layoutStore's
+// setSheetWasteFactor) so the two can never disagree about what a
+// legal factor is. Missing, non-numeric or below 1 → 1 (no waste).
+export function sanitizeWasteFactor(value: number | undefined): number {
+  return value !== undefined && Number.isFinite(value) && value > 1 ? value : 1;
 }
 
 function nonNegative(value: number): number {

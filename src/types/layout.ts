@@ -1,5 +1,6 @@
 // src/types/layout.ts
 
+import type { OtherRate } from './rates';
 import type { CameraNode } from './Camera';
 import type { WallOpening } from './opening';
 import type { LightFixture, LightingMode } from './fixture';
@@ -128,6 +129,25 @@ export interface Obstacle {
   ignoreOverlap?: boolean;
 }
 
+// One hand-entered lump sum on a project. `amount` is the SELLING
+// price, deliberately not marked up by marginPercent: a business that
+// types "₹20,000" for a service is naming what the customer pays, and
+// silently turning it into ₹25,000 would put a number on the quote
+// nobody chose. `id` is client-generated, used only to key editor rows.
+// LEGACY shape — see RoomLayout.projectCharges.
+export interface ProjectCharge {
+  id: string;
+  label: string;
+  amount: number;
+}
+
+// Two lists so each lands in its own category on the quote — a labour
+// lump sum prints with Labour, anything else with Other.
+export interface ProjectCharges {
+  labor: ProjectCharge[];
+  other: ProjectCharge[];
+}
+
 export interface RoomLayout {
   id: string;
   projectId: string;        // FK -> CustomerProject.id
@@ -195,6 +215,28 @@ export interface RoomLayout {
   // older layout without one falls back to DEFAULT_MARGIN_PERCENT
   // (lib/bom.ts) rather than needing a migration.
   marginPercent?: number;
+  // Per-project override of RateCard.sheetWasteFactor. Undefined means
+  // "use the business default" — NOT the same as 1, which is a real
+  // choice ("this job wastes nothing worth charging for"). Same
+  // per-project reasoning as marginPercent above; see
+  // docs/DECISIONS.md §35.
+  sheetWasteFactor?: number;
+  // This project's own "Labour and other charges" list, overriding the
+  // rate card's (RateCard.othersRates) wholesale. UNDEFINED means
+  // "follow the business rates" — so a rate-card change keeps flowing
+  // into every project that hasn't customised; an array (even an empty
+  // one) means this project has its own list and no longer follows.
+  // Same override-by-presence pattern as sheetWasteFactor above. Rows
+  // have every option the rate card's do, plus "Add margin" (see
+  // OtherRate.applyMargin). See docs/DECISIONS.md §39.
+  chargeRates?: OtherRate[];
+  // LEGACY (§36, superseded the same day by chargeRates above): hand-
+  // entered lump sums, never marked up. No longer edited anywhere. Still
+  // priced, as no-margin lump-sum rows (lib/bom.ts's
+  // legacyProjectChargeRates), for a project saved while it existed;
+  // folded into chargeRates and cleared the moment that project is
+  // customised.
+  projectCharges?: ProjectCharges;
   gridSnapMm: number;        // e.g. 50 — controls drag-and-drop snapping
   createdAt: string;
   updatedAt: string;

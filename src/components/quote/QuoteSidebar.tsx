@@ -14,8 +14,9 @@
 //
 // Also where this project's own margin is edited (per-project, not a
 // business-wide rate — see RoomLayout.marginPercent and
-// docs/DECISIONS.md §15) and where the Cost/Selling toggle lives —
-// the ONLY place either total is shown. The toggle is business-only;
+// docs/DECISIONS.md §15), along with its sheet waste override (same
+// pattern — RoomLayout.sheetWasteFactor, §35), and where the
+// Cost/Selling toggle lives — the ONLY place either total is shown. The toggle is business-only;
 // the frozen quote and the PDF always print the selling figures.
 
 import { useState } from 'react';
@@ -28,6 +29,7 @@ import { Label } from '../ui/label';
 import { APPLIANCE_TYPE_LABELS } from '../../types/appliance';
 import type { ApplianceType } from '../../types/appliance';
 import { QuoteFreezePanel } from './QuoteFreezePanel';
+import { ChargeRatesList } from '../common/ChargeRatesList';
 
 const INR_FORMATTER = new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -55,6 +57,16 @@ export function QuoteSidebar() {
   const bom = useBOM();
   const currentLayout = useLayoutStore((s) => s.currentLayout);
   const setMarginPercent = useLayoutStore((s) => s.setMarginPercent);
+  const setSheetWasteFactor = useLayoutStore((s) => s.setSheetWasteFactor);
+  const businessWasteFactor = useLayoutStore((s) => s.rateCard.sheetWasteFactor);
+  const businessChargeRates = useLayoutStore((s) => s.rateCard.othersRates);
+  const customiseChargeRates = useLayoutStore((s) => s.customiseChargeRates);
+  const setChargeRates = useLayoutStore((s) => s.setChargeRates);
+  const resetChargeRates = useLayoutStore((s) => s.resetChargeRates);
+  const projectChargeRates = currentLayout?.chargeRates;
+  const legacyChargeCount =
+    (currentLayout?.projectCharges?.labor.length ?? 0) +
+    (currentLayout?.projectCharges?.other.length ?? 0);
   // Internal, business-only, session-only (not persisted) — this is
   // the ONE place either total is shown side by side. A frozen quote,
   // the PDF, and the WhatsApp link always show the selling total
@@ -121,6 +133,84 @@ export function QuoteSidebar() {
         />
       </Label>
 
+      {/* Per-project override of the rate card's sheet waste factor
+          (RoomLayout.sheetWasteFactor). Blank means "use the business
+          default", shown as the placeholder — deliberately NOT
+          pre-filled with it, or every project would silently pin
+          today's default and stop following the rate card. */}
+      <Label className="-mt-2 flex items-center justify-between gap-2">
+        <span className="text-[11px] font-normal text-gray-500">
+          Sheet waste for this project (×)
+          {currentLayout?.sheetWasteFactor !== undefined && (
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="ml-1 h-auto p-0 text-[11px]"
+              onClick={() => setSheetWasteFactor(undefined)}
+            >
+              use default ({businessWasteFactor})
+            </Button>
+          )}
+        </span>
+        <Input
+          type="number"
+          min={1}
+          step={0.01}
+          placeholder={String(businessWasteFactor)}
+          value={currentLayout?.sheetWasteFactor ?? ''}
+          onChange={(e) =>
+            setSheetWasteFactor(e.target.value === '' ? undefined : Number(e.target.value))
+          }
+          className="h-6 w-16 text-right"
+        />
+      </Label>
+
+      {/* This project's labour and other charges (RoomLayout.
+          chargeRates). Follows the business rate card until
+          customised; once customised it is the project's own copy, with
+          every rate-card option plus "Add margin" — untick it for a
+          price already fixed (an extra service at ₹20,000 stays
+          ₹20,000). See docs/DECISIONS.md §39. */}
+      <div className="flex flex-col gap-2 rounded-md border border-gray-200 p-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[11px] font-medium text-gray-600">Labour and other charges</span>
+          {projectChargeRates ? (
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="h-auto p-0 text-[11px]"
+              onClick={resetChargeRates}
+            >
+              Reset to business rates
+            </Button>
+          ) : (
+            <Button type="button" variant="outline" size="xs" onClick={customiseChargeRates}>
+              Customise for this project
+            </Button>
+          )}
+        </div>
+        {projectChargeRates ? (
+          <ChargeRatesList
+            rates={projectChargeRates}
+            onChange={setChargeRates}
+            inputClassName="h-6 text-xs"
+          />
+        ) : (
+          <p className="text-[11px] text-gray-500">
+            Using your business rates ({businessChargeRates.length}{' '}
+            {businessChargeRates.length === 1 ? 'charge' : 'charges'}). Customise to change a
+            rate, add a charge such as an extra service, or choose what prints — for this
+            project only.
+            {legacyChargeCount > 0 &&
+              ` Also includes ${legacyChargeCount} earlier project ${
+                legacyChargeCount === 1 ? 'charge' : 'charges'
+              } — customise to edit.`}
+          </p>
+        )}
+      </div>
+
       {bom.lineItems.length === 0 ? (
         <p className="text-xs text-gray-500">No cabinets placed yet.</p>
       ) : (
@@ -170,7 +260,7 @@ export function QuoteSidebar() {
                     )}
                   </td>
                   <td className="py-1.5 pl-2 text-right font-medium text-gray-800">
-                    {formatINR(markup(line.lineTotal))}
+                    {formatINR(markup(line.lineTotal - line.unmarkedCost) + line.unmarkedCost)}
                   </td>
                 </tr>
               ))}
@@ -350,18 +440,20 @@ export function QuoteSidebar() {
           <span>Hardware</span>
           <span>{formatINR(markup(bom.hardwareSubtotal))}</span>
         </div>
-        <div className="flex justify-between">
-          <span>Labour — installation</span>
-          <span>{formatINR(markup(bom.laborSubtotal))}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Fabrication</span>
-          <span>{formatINR(markup(bom.fabricationSubtotal))}</span>
-        </div>
-        {bom.othersSubtotal > 0 && (
+        {/* Charge rows ticked "show on quote" (labour, by default) —
+            each its own line. Marked up unless the row is fixed-price
+            (applyMargin false). The unticked rest are in "Other"
+            below. See BOMSummary.shownOtherLines. */}
+        {bom.shownOtherLines.map((c, i) => (
+          <div key={`shown-${i}`} className="flex justify-between">
+            <span>{c.label}</span>
+            <span>{formatINR(c.applyMargin === false ? c.amount : markup(c.amount))}</span>
+          </div>
+        ))}
+        {bom.othersSubtotal + bom.othersUnmarkedSubtotal > 0 && (
           <div className="flex justify-between">
             <span>Other</span>
-            <span>{formatINR(markup(bom.othersSubtotal))}</span>
+            <span>{formatINR(markup(bom.othersSubtotal) + bom.othersUnmarkedSubtotal)}</span>
           </div>
         )}
         {bom.glassSubtotal > 0 && (
@@ -380,7 +472,10 @@ export function QuoteSidebar() {
           <span>{formatINR(view === 'cost' ? bom.costGrandTotal : bom.grandTotal)}</span>
         </div>
         {view === 'selling' && (
-          <span className="text-[10px] text-gray-400">Includes {bom.marginPercent}% margin.</span>
+          <span className="text-[10px] text-gray-400">
+            Includes {bom.marginPercent}% margin
+            {bom.unmarkedTotal > 0 ? ', except on fixed-price charges.' : '.'}
+          </span>
         )}
       </div>
 

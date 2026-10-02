@@ -145,18 +145,24 @@ export function PresentMode({ widthMm, depthMm, onExit }: PresentModeProps) {
                 <span>Hardware</span>
                 <span>{INR_FORMATTER.format(sell(bom.hardwareSubtotal))}</span>
               </div>
-              <div className="flex justify-between">
-                <span>Labour — installation</span>
-                <span>{INR_FORMATTER.format(sell(bom.laborSubtotal))}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Fabrication</span>
-                <span>{INR_FORMATTER.format(sell(bom.fabricationSubtotal))}</span>
-              </div>
-              {bom.othersSubtotal > 0 && (
+              {/* Charge rows ticked "show on quote" — see
+                  BOMSummary.shownOtherLines. Marked up unless fixed-price. */}
+              {bom.shownOtherLines.map((c, i) => (
+                <div key={`shown-${i}`} className="flex justify-between">
+                  <span>{c.label}</span>
+                  <span>
+                    {INR_FORMATTER.format(c.applyMargin === false ? c.amount : sell(c.amount))}
+                  </span>
+                </div>
+              ))}
+              {/* Fixed-price rows (applyMargin false) are already selling
+                  prices — added after sell(), never through it. */}
+              {bom.othersSubtotal + bom.othersUnmarkedSubtotal > 0 && (
                 <div className="flex justify-between">
                   <span>Other</span>
-                  <span>{INR_FORMATTER.format(sell(bom.othersSubtotal))}</span>
+                  <span>
+                    {INR_FORMATTER.format(sell(bom.othersSubtotal) + bom.othersUnmarkedSubtotal)}
+                  </span>
                 </div>
               )}
               {bom.glassSubtotal > 0 && (

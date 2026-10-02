@@ -33,47 +33,66 @@ real ~13% current-vs-frozen total gap that turned out to be a genuine
 priced-input change (most likely margin %), not a bug, resolved by
 freezing v3. See `docs/DECISIONS.md` §34.
 
-**Planned, discussed in full, NOT yet executed — the "panel model
-blocked" question reframed, your call, next session:**
+**New, code complete, NOT yet seen in a browser — the panel-model
+block reframed (items 1–3 of last session's plan)**:
 
-1. **Pricing stays area-based, permanently — not a stopgap.** Your
-   argument: whether the bottom panel sits between or below the
-   sides changes true panel dimensions by a few mm, invisible next to
-   the area estimate's own slop, and price is already `area × rate`
-   computed fresh per quote with no fixed size table. This is a real
-   change to `docs/PRINCIPLES.md`'s Principle 2, which currently says
-   the panel model *replaces* area costing — under this plan it
-   doesn't; the panel model becomes purely a cutting-list/production
-   concern that never blocks pricing again. **Not yet written into
-   PRINCIPLES.md** — do that first when this is picked back up, since
-   changing what the product's pricing model fundamentally is
-   deserves being stated explicitly, per this file's own house rule.
-2. **`RateCard.othersRatePerUnit` (currently one flat ₹/cabinet
-   number) becomes two sub-lists** — area-based (₹/sqft each) and
-   unit-based (₹/cabinet each) — so a business can itemise what's
-   really in "others" (edge banding, labour, nails, glue...) with
-   edge banding naturally landing in the area-based list since it
-   genuinely scales with cabinet size, unlike a flat handling fee.
-   **Internal-only** — `RateCardManager` shows the breakdown; the
-   customer-facing quote keeps one rolled-up "Other" line, unchanged.
-3. **A sheet-purchase waste factor** (e.g. 1.1×, business default with
-   a per-project override, same pattern `marginPercent` already
-   uses) multiplies into `materialCost` — `materialArea × wasteFactor
-   × materialRates[substrate]` — one clean plug-in point, already
-   confirmed in the code.
-4. **A separate, standalone "precise waste calculator"** — genuinely
-   real (an actual nesting/bin-packing heuristic against real sheet
-   sizes), not just a nicer multiplier, and NOT blocked on the
-   carpenter's construction convention the way a real cutting list
-   is: it can derive plausible panel shapes from an assumed, honestly
-   labelled default convention (Principle 10), since a waste
-   *percentage* barely moves on a few mm of construction-detail
-   uncertainty the way an exact cutting list would. Its own tool, own
-   saved/fetchable data, usable any time — not gating the main quote
-   flow.
+1. **Principle 2 changed** in `docs/PRINCIPLES.md`: pricing is
+   area-based *permanently*; the panel model is a production
+   (cutting-list) concern only and no longer blocks pricing. The old
+   text is kept, marked superseded.
+2. **One "Labour and other charges" list** on the rate card replaces
+   the separate labour, fabrication and "other" fields. Pre-filled
+   with site installation (₹/sq ft) and fabrication (₹/cabinet); each
+   row picks per sq ft / per cabinet (default) / lump sum (once per
+   project), and a **Show on quote** tick — ticked rows print as their
+   own line, unticked ones combine into "Other". Existing values
+   migrate on load, so no total moves. (`docs/DECISIONS.md` §35, §37,
+   §38.)
+3. **Sheet waste factor**: business default on the rate card, blank-
+   means-default override per project in the quote sidebar. Multiplies
+   material (substrate) cost only. Seeded at 1 (no waste) so no open
+   quote moves — set your real figure (e.g. 1.10).
 
-Next session: update `docs/PRINCIPLES.md` first (item 1), then
-implement items 2-4 in roughly that order.
+4. **Project-level override** of the whole charges list in the quote
+   sidebar: follows the business rates until "Customise for this
+   project", then every rate-card option plus an **Add margin** tick
+   (untick for a fixed price — ₹20k stays ₹20k; the rate card has the
+   same tick, §40). "Reset to business
+   rates" undoes it. Replaced the earlier separate "Project charges"
+   box, whose saved data still prices correctly. `docs/DECISIONS.md`
+   §36, §39.
+5. **Rate card Save button fixed** — it was at the bottom of a long
+   form and never seen, so rate edits were never saved. Now a Save
+   button at the top of the rate card, plus a sticky amber bar at the
+   bottom while there are unsaved changes.
+
+**Before using it: re-run `supabase/schema.sql`.** A new
+`construction_settings` table, and five new nullable columns (`rate_cards.others_rates`, `rate_cards.sheet_waste_factor`,
+`layouts.sheet_waste_factor`, `layouts.project_charges`,
+`layouts.charge_rates`); until they exist, **autosave and rate
+saves fail** (reads are fine). Expect existing frozen quotes to read
+"design has changed" once — the rate card gained fields, no total
+moved. See `docs/DECISIONS.md` §35.
+
+**New, NOT yet seen in a browser — cutting list, phase 1**
+(`docs/DECISIONS.md` §41): a **Cutting List** screen (button beside
+Present) listing every carcass, back and front part per cabinet —
+size, thickness, quantity, edge banding, grain — "for cutting" or "by
+cabinet", with Excel export. Built on new **Construction settings**
+(Manage Inventory, under the rate card): every carpenter decision is
+selectable with all its alternatives, pre-filled with the common
+convention, and marked **assumed** until you tick "my carpenter has
+confirmed". Not yet listed: drawer boxes, tambour, glass (noted), the
+corner carousel's diagonal shape (flagged). Dimensions checked by
+running the real code on sample cabinets against hand arithmetic —
+not yet against a carpenter's own list.
+
+**Next — cutting list phase 2, nesting** (was "item 4, the standalone
+waste calculator"): real panels derived from an *assumed*, labelled
+construction convention, nested onto real sheet sizes with a known
+heuristic, to *measure* the waste factor item 3 only lets you type.
+Not blocked on the carpenter. Its own tool and saved data, never
+gating the quote flow.
 
 **Checkpoint, later the same day**: you went through last session's
 unverified items live in the browser. Present mode, glass fronts,
@@ -235,6 +254,20 @@ and a second real-shade pendant catalogue option.
 
 ## Known unverified
 
+- The Cutting List screen, its Excel export and the Construction
+  settings editor (§41) — build clean and the sizing maths run under
+  Node against hand arithmetic, but not seen in a browser and not yet
+  compared with a carpenter's real cutting list.
+
+- Itemised "others" lists and the sheet waste factor on the rate card,
+  and the per-project waste override in the quote sidebar
+  (`docs/DECISIONS.md` §35) — you've seen the lists render; saving
+  rates and seeing the quote move is not yet confirmed. Needs
+  `schema.sql` re-run first.
+- The project-level charges override and its Add margin tick in the
+  sidebar/Present mode/PDF (§39), and the rate card's top Save button
+  — build clean, not seen in a browser.
+
 - Present mode (`docs/DECISIONS.md` §28, §30) — both sub-views and the
   price-reveal breakdown are `tsc`/`eslint`/`npm run build` clean, dev
   server confirmed to serve without a startup error, but not clicked
@@ -264,19 +297,21 @@ work-triangle check are both open follow-ups, not started.
 
 ## Blocked
 
-- **The panel model** waits on the carpenter's construction convention:
-  is the bottom panel captured between the sides, or sitting on them?
-  Is the back grooved in or nailed on?
-- **All of Phase 4** — board nesting, the real cutting list, and
-  hardware boring — is blocked transitively on the panel model above,
-  not on anything specific to nesting or boring themselves. Board
-  nesting also separately needs real supplier sheet sizes and
-  thicknesses once unblocked. Until the carpenter's convention is
-  known, none of Phase 4 can start.
+- **Nothing in Phase 4 is blocked any more.** The carpenter's
+  construction convention is now a set of settings (every alternative
+  selectable, defaults labelled "assumed" until confirmed), so the
+  cutting list and nesting build on those. The carpenter still needs to
+  CONFIRM the settings before anything is actually cut — a check, not a
+  blocker. Pricing was already unblocked (Principle 2, area costing is
+  permanent).
 
 ## Next
 
-Phase 3 items 9, 11, 13, 14 are now scoped and either done (13, 14) or
+**First**: re-run `schema.sql`, then look at the rate card's new
+"Other costs" lists, the waste factor, and the sidebar override in the
+browser. Then build the standalone waste calculator (plan item 4).
+
+Earlier backlog, unchanged: Phase 3 items 9, 11, 13, 14 are now scoped and either done (13, 14) or
 partially done and explicitly deferred/scoped (9, 11). Nothing from
 this session has been seen in a browser except the HDRI/metal-texture
 follow-up — that remains the single biggest open item: present mode's

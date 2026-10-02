@@ -1004,6 +1004,26 @@ alter table public.layouts add column if not exists price_countertop boolean def
 -- than the column silently disagreeing with the code's own default if
 -- one of the two is ever changed without the other.
 alter table public.layouts add column if not exists margin_percent numeric;
+-- Per-project override of rate_cards.sheet_waste_factor — a job of
+-- all-600mm units nests onto sheets far better than one of odd
+-- widths. NULL means "use the business default", same null-means-
+-- not-set reasoning as margin_percent directly above.
+alter table public.layouts add column if not exists sheet_waste_factor numeric;
+-- Hand-entered lump sums for this project, { labor: [{id,label,amount}],
+-- other: [...] } — added on top of rate-card pricing and NOT marked up
+-- by margin_percent (the amount typed is the selling price). JSONB, same
+-- reasoning as fixtures: a small list never queried in SQL. NULL = none.
+-- See docs/DECISIONS.md §36.
+alter table public.layouts add column if not exists project_charges jsonb;
+-- SUPERSEDED the same day by charge_rates below (§39) — kept, only read,
+-- for a project saved in between. Nothing writes new data to it.
+--
+-- This project's own copy of the rate card's others_rates list
+-- ([{id, label, rate, basis, showOnQuote, applyMargin}]), overriding it
+-- wholesale. NULL = follow the business rate card, so rate changes keep
+-- flowing into every project that hasn't customised. See
+-- docs/DECISIONS.md §39.
+alter table public.layouts add column if not exists charge_rates jsonb;
 
 -- Starter set, at plausible Delhi NCR retail. `on conflict do nothing`
 -- so re-running never overwrites a business's own rates — same as the
@@ -1149,6 +1169,26 @@ alter table public.rate_cards add column if not exists glass_rates jsonb;
 -- part of adding the column).
 alter table public.rate_cards add column if not exists fabrication_rate_per_unit numeric not null default 2500;
 alter table public.rate_cards add column if not exists others_rate_per_unit numeric not null default 0;
+-- SUPERSEDED by others_rates below (docs/DECISIONS.md §35) — kept, not
+-- dropped: a drop is not idempotent-safe against a database someone
+-- hasn't upgraded the app on yet, and lib/rates.ts still reads it once
+-- to migrate an older card into others_rates. Nothing writes it now.
+--
+-- others_rates: the "others" catch-all itemised as one list of named
+-- rates, [{id, label, rate, basis}], basis one of 'sqft' (scales with
+-- cabinet size — edge banding), 'cabinet' (flat per unit — packing) or
+-- 'lumpsum' (once per project — delivery). For one session it was
+-- stored as { perSqFt: [...], perUnit: [...] } instead; lib/rates.ts
+-- still reads that shape (docs/DECISIONS.md §37). JSONB for the same reason
+-- as hardware_rates: a growing set of keys never queried in SQL.
+-- Nullable with no default so NULL means "saved before this existed",
+-- which is exactly the case the legacy migration keys off.
+alter table public.rate_cards add column if not exists others_rates jsonb;
+-- Business-default multiplier on substrate cost for whole-sheet
+-- purchasing (1.1 = 10% offcut waste). Nullable; lib/rates.ts treats
+-- NULL as 1, no waste, so adding the column moves no quote total. A
+-- project can override it — see layouts.sheet_waste_factor.
+alter table public.rate_cards add column if not exists sheet_waste_factor numeric;
 -- CORRECTED: this block briefly also added a `margin_percent` column
 -- here — a business-wide margin. Moved to `layouts.margin_percent`
 -- instead (below, near that table's own price_electrical/
@@ -1330,6 +1370,29 @@ alter table public.quotes add column if not exists business_id text references p
 alter table public.quotes add column if not exists sent_at timestamptz;
 
 -- ============================================================
+-- CONSTRUCTION SETTINGS (docs/DECISIONS.md §41)
+-- ============================================================
+--
+-- How the business's workshop builds a cabinet — bottom between or
+-- under the sides, how the back is fixed, board thicknesses — which the
+-- cutting list (src/lib/cutList.ts) reads. One row per business, like
+-- rate_cards. Deliberately NOT a column on rate_cards: the rate card is
+-- hashed into every frozen quote's fingerprint, and construction never
+-- changes a price, so storing it there would mark every quote stale on
+-- a groove-depth edit. `settings` is one jsonb blob for the same reason
+-- hardware_rates is: a growing set of keys never queried in SQL.
+-- No seed row: a business without one gets the app's defaults
+-- (DEFAULT_CONSTRUCTION in src/types/construction.ts), labelled as
+-- assumed until confirmed.
+create table if not exists public.construction_settings (
+  id text primary key,
+  settings jsonb not null default '{}'::jsonb,
+  business_id text references public.businesses(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- ============================================================
 -- BUSINESS ISOLATION (RLS)
 -- ============================================================
 --
@@ -1355,7 +1418,7 @@ begin
   foreach t in array array[
     'projects', 'layouts', 'surface_finishes', 'cabinet_catalog_items',
     'obstacle_presets', 'appliance_catalog_items', 'handles',
-    'light_fixture_catalog', 'rate_cards', 'quotes'
+    'light_fixture_catalog', 'rate_cards', 'quotes', 'construction_settings'
   ]
   loop
     execute format('update public.%I set business_id = %L where business_id is null', t, 'biz_default');

@@ -7,6 +7,7 @@
 // inline. Makes this swappable later (different backend, offline mode,
 // etc.) without touching the store's public API.
 
+import { sanitizeOtherRates, type OtherRate } from '../types/rates';
 import { supabase } from './Supabaseclient';
 import type { CustomerProject, LeadStatus } from '../types/customer';
 import type { RoomLayout, Wall, WallOrientation, Obstacle } from '../types/layout';
@@ -68,6 +69,9 @@ interface LayoutRow {
   countertop_finish_id: string | null;
   price_countertop: boolean | null;
   margin_percent: number | null;
+  sheet_waste_factor: number | null;
+  project_charges: RoomLayout['projectCharges'] | null;
+  charge_rates: OtherRate[] | null;
   grid_snap_mm: number;
   // Same reasoning as ProjectRow.business_id.
   business_id: string;
@@ -151,6 +155,9 @@ function layoutToRow(
     countertop_finish_id: layout.countertopFinishId ?? null,
     price_countertop: layout.priceCountertop ?? null,
     margin_percent: layout.marginPercent ?? null,
+    sheet_waste_factor: layout.sheetWasteFactor ?? null,
+    project_charges: layout.projectCharges ?? null,
+    charge_rates: layout.chargeRates ?? null,
     grid_snap_mm: layout.gridSnapMm,
     created_at: layout.createdAt,
     updated_at: new Date().toISOString(), // bumped on every save
@@ -193,6 +200,17 @@ function rowToLayout(row: LayoutRow): RoomLayout {
     // lib/bom.ts's DEFAULT_MARGIN_PERCENT is the single place that
     // fallback lives, so this file doesn't need its own copy of it.
     marginPercent: row.margin_percent ?? undefined,
+    // Undefined when unset, same as marginPercent — the business
+    // default on the rate card is the fallback, applied in lib/bom.ts.
+    sheetWasteFactor: row.sheet_waste_factor ?? undefined,
+    // Each list defaulted separately — same defensive reasoning as
+    // cameras/fixtures above: a missing key would break every .map.
+    // NULL → undefined → follow the business rates. Sanitised with the
+    // rate card's own function so both lists obey the same rules.
+    chargeRates: row.charge_rates ? sanitizeOtherRates(row.charge_rates) : undefined,
+    projectCharges: row.project_charges
+      ? { labor: row.project_charges.labor ?? [], other: row.project_charges.other ?? [] }
+      : undefined,
     gridSnapMm: row.grid_snap_mm,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

@@ -48,27 +48,62 @@ silently cheaper quote.
 
 Everything else in the app may be approximate. This may not.
 
-### 2. Panels are the unit of truth
+### 2. Price by area; cut by panels
 
-**This is the biggest change implied by "cutting list".**
+**Changed 29 Sep 2026.** This principle used to be "Panels are the unit
+of truth" and said the panel model would *replace* area-based costing.
+That is no longer the plan — the original text is kept below, marked
+superseded, because the reasoning behind it was sound and the reason it
+was dropped is the useful part.
 
-Today, material and labour are priced from an *area estimate* —
-front-face area plus half the side area (`estimateAreaSqFt` in
-`src/lib/bom.ts`). That is a sales approximation and it is fine for a
-sales tool. It cannot produce a cutting list, because a workshop needs
-actual panels: two sides, top, bottom, back, shelves, each with real
-dimensions, a thickness, edge banding on named edges, and a grain
-direction.
+Price is `area × rate`, computed fresh from each cabinet's own
+dimensions on every quote (`estimateAreaSqFt`/`carcassAreaSqM` in
+`src/lib/bom.ts`). **That is the permanent pricing method, not a
+stopgap.** It never needs a fixed size table, so there is nothing to
+re-derive when the construction convention is finally known.
 
-So the model inverts. A cabinet is decomposed into **panels**, and
-*both* the cutting list and the price derive from that decomposition.
-The cutting list stops being a feature bolted on later and becomes the
-more honest foundation for pricing — because once you know every panel,
-material cost is a fact rather than an estimate.
+The panel model is still needed, but only for **production**: a
+workshop cuts from real panels — two sides, top, bottom, back,
+shelves, each with a thickness, banded edges and a grain direction.
+That is a cutting-list concern. It does not feed the price, and it
+must never again be allowed to block pricing work.
 
-Consequence: this replaces the area-based costing rather than sitting
-beside it. Doing it later means re-deriving every quote the app has ever
-produced.
+Why the change: whether the bottom panel sits between or under the
+sides moves real panel dimensions by one board thickness (~18mm).
+Next to the area estimate's own slop — a half-side allowance standing
+in for sides, top, bottom and back — that is invisible in a quote.
+Waiting on the carpenter's convention for pricing bought no accuracy
+anyone would see, and it was blocking real work.
+
+What makes area pricing honest instead of hand-wavy is saying what it
+leaves out, and pricing those things explicitly rather than hoping the
+estimate absorbs them:
+
+- **Sheet waste** — a business buys whole 8×4 sheets, not square
+  metres. That is a waste factor multiplied into material cost
+  (business default, per-project override), not a nesting run on
+  every quote.
+- **Consumables and handling** — edge banding, glue, nails, packing.
+  Itemised on the rate card, per sq ft where it genuinely scales with
+  size (edge banding) and per cabinet where it doesn't.
+
+Accurate waste *measurement* — real panels nested onto real sheets —
+is a separate, standalone tool that informs the waste factor. It may
+use an assumed construction convention, labelled as such
+(Principle 10), because a waste *percentage* barely moves on a few mm
+of construction detail even though an exact cutting list would.
+
+> **Superseded (17 Sep 2026 text, kept for the reasoning):** "Panels
+> are the unit of truth. [...] A cabinet is decomposed into panels,
+> and *both* the cutting list and the price derive from that
+> decomposition. [...] Consequence: this replaces the area-based
+> costing rather than sitting beside it. Doing it later means
+> re-deriving every quote the app has ever produced."
+>
+> The last sentence is what turned out to be wrong: frozen quotes
+> carry their own snapshot (`src/types/quote.ts`), so no old quote is
+> ever re-derived, and a live quote is re-priced from dimensions on
+> every render anyway. There was never a backlog to migrate.
 
 ### 3. The catalogue belongs to the business
 
@@ -160,7 +195,9 @@ honest estimate is usable; a silent one is a liability.
 
 ### Sales *and* production
 
-- The panel model (principle 2) replaces area-based costing.
+- ~~The panel model (principle 2) replaces area-based costing.~~ No
+  longer — pricing stays area-based permanently; the panel model is
+  for the cutting list only (Principle 2, changed 29 Sep 2026).
 - **Construction convention must be decided before modelling panels.**
   Is the bottom panel captured between the side panels, or does it sit on
   top of them? Is the back grooved in or nailed on? These change *every
@@ -190,8 +227,11 @@ built on top:
    column to ten tables today is an afternoon. Retrofitting tenancy into
    a system with live customer data in multiple firms is a project people
    write postmortems about.
-2. **The panel model.** Every feature built on area-estimate costing is
-   a feature that has to be re-derived later.
+2. ~~**The panel model.** Every feature built on area-estimate costing is
+   a feature that has to be re-derived later.~~ Withdrawn 29 Sep 2026 —
+   area costing is permanent (Principle 2), so nothing built on it
+   needs re-deriving. The panel model is still needed for production,
+   but it is no longer cheaper now than later.
 3. **Rectilinear room geometry.** Arbitrary 90°-angle polygons instead of
    rectangle-plus-pillars. This touches wall building, surface-area
    costing, opening subtraction, collision and the 3D room. It is a
@@ -483,6 +523,19 @@ Each of these gets more expensive with everything built on top.
    item: it produces a price, not a cutting list, and doesn't need the
    carpenter's convention to do it. The real panel model — exact
    per-panel dimensions — is still fully blocked on that answer.
+   **Reframed 29 Sep 2026** (Principle 2 changed): pricing no longer
+   waits on this at all — area costing is the permanent method, now
+   with an itemised "others" rate and a sheet waste factor
+   (`docs/DECISIONS.md` §35). What remains of this item is the
+   production cutting list only, still blocked on the carpenter's
+   convention. A standalone waste calculator that nests panels from an
+   *assumed* convention is not blocked and is the next step.
+   **Unblocked 29 Sep 2026** (`docs/DECISIONS.md` §41): the
+   carpenter's convention is now a set of business settings with every
+   alternative selectable, pre-filled with the common local convention
+   and labelled "assumed" until confirmed. The cutting list is built on
+   those (Phase 4 item 16) — the carpenter's answer is a settings
+   change, not a blocker.
 3. ~~Undo/redo, while the set of edit actions is still small.~~ **Done**
    — was already built and documented (`docs/DECISIONS.md`, "Undo/redo
    + autosave" in §6 Interaction) but this list was never updated to
@@ -625,7 +678,11 @@ Each of these gets more expensive with everything built on top.
 
 15. **Board nesting** — fitting panels onto 8×4 sheets. Genuinely hard
     (2D bin packing); use a known heuristic, don't invent one.
-16. **Cutting list output** for the workshop.
+16. **Cutting list output** for the workshop. **Phase 1 done, 29 Sep
+    2026** (`docs/DECISIONS.md` §41) — carcass, back and front parts
+    per cabinet from configurable construction settings, on-screen and
+    Excel export. Not yet: drawer boxes, corner-carousel geometry, a
+    printable PDF. Item 15 (nesting) is next and no longer blocked.
 17. **Hardware boring positions**, if CNC ever matters.
 
 ### Running alongside all of it

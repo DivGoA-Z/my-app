@@ -29,6 +29,7 @@ import { Room3DCanvas } from './components/canvas3d/Room3DCanvas';
 import { WallElevationView } from './components/elevation/WallElevationView';
 import { QuoteSidebar } from './components/quote/QuoteSidebar';
 import { PresentMode } from './components/present/PresentMode';
+import { CutListView } from './components/cutlist/CutListView';
 import { CustomerDashboard } from './components/dashboard/CustomerDashboard';
 import { useLayoutStore } from './store/layoutStore';
 import { useAuthStore } from './store/authStore';
@@ -48,7 +49,7 @@ import { Label } from './components/ui/label';
 const DEFAULT_ROOM_WIDTH_MM = 3000;
 const DEFAULT_ROOM_DEPTH_MM = 4000;
 
-type View = 'dashboard' | 'canvas' | 'inventory' | 'preview3d' | 'elevation' | 'present';
+type View = 'dashboard' | 'canvas' | 'inventory' | 'preview3d' | 'elevation' | 'present' | 'cutlist';
 
 function App() {
   const [view, setView] = useState<View>('dashboard');
@@ -173,7 +174,9 @@ function App() {
   // any in-flight toast each time `view` changes.
   let content: React.ReactNode;
 
-  if (view === 'elevation') {
+  if (view === 'cutlist') {
+    content = <CutListView onClose={() => setView('canvas')} />;
+  } else if (view === 'elevation') {
     content = <WallElevationView onClose={() => setView('canvas')} />;
   } else if (view === 'present') {
     content = (
@@ -253,6 +256,10 @@ function App() {
 
         <Button variant="outline" size="sm" onClick={() => setView('present')}>
           Present
+        </Button>
+
+        <Button variant="outline" size="sm" onClick={() => setView('cutlist')}>
+          Cutting List
         </Button>
 
         <div className="flex items-center gap-2">

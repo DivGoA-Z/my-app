@@ -97,7 +97,11 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
   // the same factor, distributed rather than shown as one separate
   // "Margin" line — confirmed with the business rather than assumed,
   // so the printed lines sum to the printed total exactly
-  // (docs/DECISIONS.md §15). `s.marginPercent` is undefined for a
+  // (docs/DECISIONS.md §15). ONE exception: fixed-price charges
+  // (applyMargin false, §39 — and §36's project charges on a quote
+  // frozen before that) print unmarked — they were typed as selling
+  // prices, and grandTotal already excludes them from margin, so the
+  // lines still sum exactly. `s.marginPercent` is undefined for a
   // quote frozen before margin existed at all — factor is exactly 1
   // then, which reproduces that quote's own historical total
   // precisely (a frozen quote never changes, see types/quote.ts).
@@ -160,7 +164,9 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
         `${line.widthMm} × ${line.depthMm} × ${line.heightMm}`,
         String(line.quantity),
         `${line.material} / ${line.finish}`,
-        formatAmount(marked(line.lineTotal)),
+        // Fixed-price charge rows (§39) inside this line aren't marked
+        // up. `?? 0` — absent on a quote frozen before §39.
+        formatAmount(marked(line.lineTotal - (line.unmarkedCost ?? 0)) + (line.unmarkedCost ?? 0)),
       ]),
       styles: { fontSize: 8, cellPadding: 4, valign: 'middle' },
       headStyles: { fillColor: [31, 41, 55] },
@@ -268,9 +274,22 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
     ...(s.surfaceSubtotal > 0 ? ([['Floor / walls / ceiling', marked(s.surfaceSubtotal)]] as [string, number][]) : []),
     ...(s.countertopSubtotal > 0 ? ([['Countertop / slab', marked(s.countertopSubtotal)]] as [string, number][]) : []),
     ['Hardware', marked(s.hardwareSubtotal)],
-    ['Labour — installation', marked(s.laborSubtotal)],
-    ['Fabrication', marked(s.fabricationSubtotal ?? 0)],
-    ...(s.othersSubtotal ? ([['Other', marked(s.othersSubtotal)]] as [string, number][]) : []),
+    // laborSubtotal/fabricationSubtotal exist only on quotes frozen
+    // before §38; printed exactly as they were for those. A newer
+    // quote has neither and prints its labour through shownOtherLines.
+    ...(s.laborSubtotal ? ([['Labour — installation', marked(s.laborSubtotal)]] as [string, number][]) : []),
+    ...(s.fabricationSubtotal ? ([['Fabrication', marked(s.fabricationSubtotal)]] as [string, number][]) : []),
+    ...(s.shownOtherLines ?? []).map(
+      (c) => [c.label, c.applyMargin === false ? c.amount : marked(c.amount)] as [string, number]
+    ),
+    // §36's project charges — only on a quote frozen in the short window
+    // they existed (since §39 they arrive as fixed-price shownOtherLines).
+    // Already the selling price, so NOT marked(); printed exactly as then.
+    ...(s.projectLaborCharges ?? []).map((c) => [`Labour — ${c.label}`, c.amount] as [string, number]),
+    ...(s.othersSubtotal || s.othersUnmarkedSubtotal
+      ? ([['Other', marked(s.othersSubtotal) + (s.othersUnmarkedSubtotal ?? 0)]] as [string, number][])
+      : []),
+    ...(s.projectOtherCharges ?? []).map((c) => [`Other — ${c.label}`, c.amount] as [string, number]),
     ...(s.glassSubtotal ? ([['Glass doors', marked(s.glassSubtotal)]] as [string, number][]) : []),
     ['Appliances', marked(s.applianceSubtotal)],
     ...(s.openingSubtotal > 0 ? ([['Doors & windows', marked(s.openingSubtotal)]] as [string, number][]) : []),

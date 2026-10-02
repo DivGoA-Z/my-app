@@ -113,10 +113,17 @@ foreign-key type error (`incompatible types: uuid and text`) — which is
 exactly what happened when the `quotes` table was first written.
 
 **Cabinets, appliances, obstacles, walls, cameras and fixtures are
-JSONB arrays on the `layouts` row**, not their own tables. Ten tables
-total: `projects`, `layouts`, `surface_finishes`,
+JSONB arrays on the `layouts` row**, not their own tables. Eleven
+business-data tables: `projects`, `layouts`, `surface_finishes`,
 `cabinet_catalog_items`, `obstacle_presets`, `appliance_catalog_items`,
-`handles`, `light_fixture_catalog`, `rate_cards`, `quotes`.
+`handles`, `light_fixture_catalog`, `rate_cards`, `quotes`,
+`construction_settings` (plus the auth tables `businesses`,
+`business_users`, `super_admins`). This said "ten" until 29 Sep 2026,
+when `construction_settings` was added for the cutting list
+(`docs/DECISIONS.md` §41). Construction settings are deliberately NOT
+on `rate_cards` — anything reachable from `PricingContext` is hashed
+into the frozen-quote fingerprint, and construction never changes a
+price.
 
 **`schema.sql` is idempotent and is the migration mechanism.** Every
 statement is `if not exists` / `on conflict do nothing`, so re-running

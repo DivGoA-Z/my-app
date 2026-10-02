@@ -1,8 +1,10 @@
 // src/components/inventory/RateCardManager.tsx
 //
-// Edits the business's rate card: site installation labour (per sq
-// ft), consumable/mechanism hardware rates, material rates by
-// substrate, per-cabinet fabrication/other rates, and a glass-door
+// Edits the business's rate card: one "Labour and other charges" list
+// (site labour and fabrication are its first two rows — §38 — each row
+// per sq ft / per cabinet / lump sum, and shown on the quote or rolled
+// into "Other"), consumable/mechanism hardware rates, material rates
+// by substrate and the sheet waste factor on them, and a glass-door
 // front's rate by tint.
 //
 // Margin does NOT live here, deliberately — it's edited in
@@ -34,9 +36,11 @@ import {
   MATERIAL_RATE_KEYS as MATERIAL_KEYS,
   GLASS_RATE_KEYS as GLASS_KEYS,
   isPlaceholderRateCard,
+  sameOtherRates,
   type RateCard,
 } from '../../types/rates';
 import { GLASS_TINT_LABELS } from '../../types/front';
+import { ChargeRatesList } from '../common/ChargeRatesList';
 
 export function RateCardManager() {
   const rateCard = useLayoutStore((state) => state.rateCard);
@@ -77,9 +81,9 @@ export function RateCardManager() {
   }
 
   const dirty =
-    draft.laborRatePerSqFt !== rateCard.laborRatePerSqFt ||
-    draft.fabricationRatePerUnit !== rateCard.fabricationRatePerUnit ||
-    draft.othersRatePerUnit !== rateCard.othersRatePerUnit ||
+    draft.sheetWasteFactor !== rateCard.sheetWasteFactor ||
+    // Field-by-field, not JSON.stringify — see sameOtherRates.
+    !sameOtherRates(draft.othersRates, rateCard.othersRates) ||
     HARDWARE_KEYS.some((k) => draft.hardware[k] !== rateCard.hardware[k]) ||
     MATERIAL_KEYS.some((k) => draft.materialRates[k] !== rateCard.materialRates[k]) ||
     GLASS_KEYS.some((k) => draft.glassRates[k] !== rateCard.glassRates[k]);
@@ -107,12 +111,21 @@ export function RateCardManager() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h3 className="font-semibold text-sm text-gray-700">Rate card</h3>
-        <p className="mt-1 text-xs text-gray-500">
-          The prices that aren't attached to a product. Finishes, handles, fixtures,
-          cabinets and appliances are priced on their own catalogue rows.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="font-semibold text-sm text-gray-700">Rate card</h3>
+          <p className="mt-1 text-xs text-gray-500">
+            The prices that aren't attached to a product. Finishes, handles, fixtures,
+            cabinets and appliances are priced on their own catalogue rows.
+          </p>
+        </div>
+        {/* A second Save at the top, alongside the sticky bar at the
+            bottom — your request, so saving never needs a scroll
+            first. Same handler and same disabled rule as the bottom
+            one; there is still only one draft. */}
+        <Button type="button" size="sm" onClick={save} disabled={!dirty || saving}>
+          {saving ? 'Saving…' : 'Save rates'}
+        </Button>
       </div>
 
       {isPlaceholder && (
@@ -125,61 +138,20 @@ export function RateCardManager() {
         </Alert>
       )}
 
-      <Label className="flex flex-col items-stretch gap-1">
-        <span className="text-xs font-medium text-gray-600">
-          Labour — site installation (₹ per sq ft)
-        </span>
-        <Input
-          type="number"
-          min={0}
-          step={1}
-          value={draft.laborRatePerSqFt}
-          onChange={(e) =>
-            setDraft({ ...draft, laborRatePerSqFt: Number(e.target.value) })
-          }
-        />
-        <span className="text-[11px] font-normal text-gray-500">
-          Fitting the finished cabinet on site. Charged on estimated cabinet area — sq ft
-          rather than sq m because that's still the billing unit in the trade. Not the same
-          as Fabrication below, which is workshop labour to build the box in the first place.
-        </span>
-      </Label>
-
-      <Separator />
-
       <fieldset className="flex flex-col gap-3">
-        <legend className="text-xs font-medium text-gray-600">Per-cabinet (₹ per unit)</legend>
-        <Label className="flex items-center justify-between gap-3 font-normal">
-          <span className="text-xs text-gray-600">Fabrication (cut, edge-band, assemble)</span>
-          <Input
-            type="number"
-            min={0}
-            step={1}
-            value={draft.fabricationRatePerUnit}
-            onChange={(e) =>
-              setDraft({ ...draft, fabricationRatePerUnit: Number(e.target.value) })
-            }
-            className="w-28 text-right"
-          />
-        </Label>
-        <Label className="flex items-center justify-between gap-3 font-normal">
-          <span className="text-xs text-gray-600">Other</span>
-          <Input
-            type="number"
-            min={0}
-            step={1}
-            value={draft.othersRatePerUnit}
-            onChange={(e) => setDraft({ ...draft, othersRatePerUnit: Number(e.target.value) })}
-            className="w-28 text-right"
-          />
-        </Label>
+        <legend className="text-xs font-medium text-gray-600">Labour and other charges (₹)</legend>
         <p className="text-[11px] text-gray-500">
-          Flat per cabinet, regardless of size — unlike material/finish (priced by area) or
-          site labour above (priced by area). Fabrication is workshop labour to actually
-          build one cabinet box; Other is a deliberate catch-all with no real number behind
-          it yet (packing, delivery, a specific site's conditions — whatever doesn't fit
-          elsewhere), which is why it defaults to ₹0 instead of a placeholder guess.
+          Labour, edge banding, packing, delivery — anything that isn't material, hardware or
+          glass. Pick how each is charged: per sq ft of cabinet, per cabinet, or once per
+          project (lump sum). Tick <strong>Show on quote</strong> to print it as its own line;
+          everything unticked is combined into one "Other" line. Untick{' '}
+          <strong>Add margin</strong> for a price you've already fixed — it goes on the quote
+          as-is. Each project can override this list from its quote.
         </p>
+        <ChargeRatesList
+          rates={draft.othersRates}
+          onChange={(othersRates) => setDraft({ ...draft, othersRates })}
+        />
       </fieldset>
 
       <Separator />
@@ -239,6 +211,22 @@ export function RateCardManager() {
           BWP one of the same size now cost differently, instead of both quietly costing
           whatever the catalogue's flat price happened to be.
         </p>
+        <Label className="flex items-center justify-between gap-3 font-normal">
+          <span className="text-xs text-gray-600">Sheet waste factor (×)</span>
+          <Input
+            type="number"
+            min={1}
+            step={0.01}
+            value={draft.sheetWasteFactor}
+            onChange={(e) => setDraft({ ...draft, sheetWasteFactor: Number(e.target.value) })}
+            className="w-28 text-right"
+          />
+        </Label>
+        <p className="text-[11px] text-gray-500">
+          Board is bought as whole 8×4 sheets, and the offcuts are paid for too. 1.10 means
+          "buy 10% more than the cabinets use." Multiplies the material rates above only.
+          This is your default — a project can override it from its quote.
+        </p>
       </fieldset>
 
       <Separator />
@@ -277,7 +265,26 @@ export function RateCardManager() {
         </Alert>
       )}
 
-      <div className="flex items-center gap-2">
+      {/* STICKY while there are unsaved edits. It used to sit inline
+          at the very bottom of a long form, below Material, waste and
+          Glass — a user editing Labour or Other at the top never saw
+          it, assumed edits applied live, and reported "changing rates
+          doesn't update the quote" (they were never saved). Sticky
+          rather than a second button at the top: one save action,
+          always reachable from wherever the edit was made. It only
+          sticks within this component, so it can't float over the
+          Finishes/Handles sections below once the rate card is
+          scrolled past. */}
+      <div
+        className={
+          dirty
+            ? 'sticky bottom-0 z-10 -mx-2 flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-2 py-2 shadow-sm'
+            : 'flex items-center gap-2'
+        }
+      >
+        {dirty && !saving && (
+          <span className="text-xs text-amber-900">Unsaved rate changes — quotes use the old rates until saved.</span>
+        )}
         <Button type="button" size="sm" onClick={save} disabled={!dirty || saving}>
           {saving ? 'Saving…' : 'Save rates'}
         </Button>
@@ -295,9 +302,10 @@ export function RateCardManager() {
       </div>
 
       <p className="text-[11px] text-gray-500">
-        Changing a rate reprices every open quote immediately. Quotes you've already
-        frozen and sent keep the rates they were sent with.
+        Saving new rates reprices every open quote. Quotes you've already frozen and
+        sent keep the rates they were sent with.
       </p>
     </div>
   );
 }
+

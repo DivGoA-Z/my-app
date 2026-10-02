@@ -2011,6 +2011,10 @@ its old total — probably below what these cabinets cost to make.
   no real number exists for it; it's a deliberate empty slot for
   whatever doesn't fit elsewhere (packing, delivery, a specific job's
   conditions), not a guess dressed up as a placeholder.
+  **Superseded 29 Sep 2026 by §35** — replaced by two itemised lists
+  (`othersRates.perSqFt`/`perUnit`). The ₹0 default survives as "both
+  lists empty"; a non-zero legacy value migrates into one per-cabinet
+  row on load.
 - **`RateCard.marginPercent`** — cost-plus markup on the WHOLE job's
   cost (every subtotal, not just cabinets), answering your question
   about how professional estimating software handles this: cost basis
@@ -3650,3 +3654,395 @@ and a full `npm run build` (all clean), and confirmed working
 end-to-end in the browser: freezing, sharing on WhatsApp, the sidebar
 status flipping to "Sent," and the dashboard dropdown picking up the
 newly-sent quote.
+
+## 35. Pricing stays area-based permanently; "others" itemised; sheet
+    waste factor
+
+**Principle 2 changed** (`docs/PRINCIPLES.md`). It said the panel model
+would *replace* area costing, and that doing it later meant re-deriving
+every quote. Your argument, from the previous session's discussion:
+whether the bottom panel sits between or below the sides moves real
+panel dimensions by one board thickness, invisible next to the area
+estimate's own slop, and price is already `area × rate` computed fresh
+from dimensions with no size table to rebuild. The "re-derive every
+quote" claim was also wrong on its own terms — frozen quotes carry
+their snapshot, so none is ever re-derived. Area pricing is now the
+permanent method; the panel model is a production (cutting-list)
+concern only and no longer blocks pricing. The old text is kept in
+PRINCIPLES.md, marked superseded.
+
+What makes area pricing honest is pricing what the estimate leaves
+out, explicitly. Two things:
+
+**1. `othersRatePerUnit` → `othersRates: { perSqFt, perUnit }`**, each
+a list of `{id, label, rate}`. Per sq ft rows charge on `areaSqFt`
+(the same estimated area site labour uses); per cabinet rows on
+quantity. Why two lists: edge banding genuinely scales with cabinet
+size, so one flat ₹/cabinet number overcharged a 300mm filler and
+undercharged a tall unit. **Internal only** — `RateCardManager` shows
+the breakdown; `BOMLineItem.othersCost` stays one number, and the
+customer quote/PDF/Present mode still show one "Other" line,
+unchanged.
+- Storage: new nullable `rate_cards.others_rates jsonb`. The old
+  `others_rate_per_unit` column is **kept, not dropped** (a drop isn't
+  idempotent-safe against a database whose app isn't upgraded yet) and
+  is read once: when `others_rates` is NULL, a non-zero legacy value
+  becomes one per-cabinet row labelled "Other", so no total moves.
+  Nothing writes the old column any more.
+- **Trap caught during implementation**: that migrated row first got a
+  `crypto.randomUUID()` id. The rate card is part of what
+  `computeQuoteFingerprint` hashes, so a random id regenerated on
+  every load would have marked every frozen quote "design has changed"
+  on every page load until rates were re-saved. Fixed with a fixed id
+  (`'legacy-other'`), and `sanitizeOtherRates` falls back to a
+  position-based id for the same reason. **Rule: nothing reachable from
+  `PricingContext` may be generated non-deterministically on load.**
+
+**2. `sheetWasteFactor`** — multiplies into `materialCost` only
+(`materialArea × wasteFactor × materialRates[substrate]`). Not finish
+(laminate has its own waste, not modelled), not glass (cut to order).
+`materialArea` itself stays the area *used*, so on-screen area and
+bought area are never confused.
+- **Business default on the rate card, per-project override on the
+  layout** (`rate_cards.sheet_waste_factor`,
+  `layouts.sheet_waste_factor`, both nullable). This deliberately
+  differs from margin, whose default is a code constant
+  (`DEFAULT_MARGIN_PERCENT`): how well a workshop nests its cuts is a
+  fact about that workshop, which is what the rate card holds; margin
+  is a commercial decision per job. The override exists because a job
+  of all-600mm units nests far better than one of odd widths.
+- **Seeded at 1 (no waste), not a realistic 1.1** — introducing the
+  field must not silently raise every open quote's material cost by
+  10%, the same rule `PLACEHOLDER_RATES` was built under. It is part
+  of `isPlaceholderRateCard`, so the amber banner stays until the
+  business sets it (or any other rate).
+- The sidebar's override input is blank-means-default with the
+  business value as its placeholder — deliberately not pre-filled, or
+  every project touched would silently pin today's default and stop
+  following the rate card.
+- Clamped to ≥ 1 by one shared `sanitizeWasteFactor`, used by both the
+  rate card and `setSheetWasteFactor`, so the two can't disagree.
+
+**Known one-time side effect, accepted**: adding fields to `RateCard`
+changes every frozen quote's fingerprint once, so existing quotes will
+read "design has changed" after this lands even though no total moved.
+That is `computeQuoteFingerprint`'s documented failure direction (a
+needless revision is a wasted click; a missed one is a wrong price).
+
+**Not done here**: the standalone waste calculator (PRINCIPLES.md
+Principle 2, STATUS plan item 4) — real panels from an *assumed*
+construction convention, nested onto real sheets, to *measure* the
+waste factor this section only lets you *type*.
+
+Verified: `npx tsc --noEmit -p tsconfig.app.json`, `npm run lint`,
+`npm run build`, all clean. **Not verified in the browser** — the rate
+card's two new lists, the waste input, and the sidebar override have
+not been looked at rendered. **`schema.sql` must be re-run against the live
+database before this code is used**: reads are fine (`select('*')`
+simply omits a missing column, and every new field falls back), but
+every WRITE now names the new columns — `saveProject`/autosave sends
+`layouts.sheet_waste_factor` on every save, and saving rates sends
+`rate_cards.others_rates`/`sheet_waste_factor` — and PostgREST rejects
+an unknown column, so saves fail until the migration runs.
+
+## 36. Project charges: hand-entered lump sums, on top, at the price typed
+
+Your request: a business must be able to charge a job however it
+actually charges it — "some extra service worth 20k" added straight to
+the quote, or labour as a lump sum it names itself. Your answers to the
+three open questions, all explicit:
+
+1. **As-is, no margin.** ₹20,000 typed is ₹20,000 on the quote.
+2. **On top, not instead.** A lump-sum labour charge is added to the
+   per-sq-ft site labour, not a replacement for it — "business has an
+   option to add labor or any other charges the way they want so all
+   options should be available." A business that wants lump-sum-only
+   labour can set the per-sq-ft rate to 0.
+3. **Printed in its own category, by name**: labour charges with
+   Labour ("Labour — Installation, flat"), everything else with Other
+   ("Other — Extra service"). Unlike the rate card's itemised others
+   (§35), these are NOT internal — the customer is paying for a named
+   thing.
+
+**Shape**: `RoomLayout.projectCharges = { labor, other }`, each a list
+of `{id, label, amount}`; one nullable `layouts.project_charges jsonb`.
+Edited in `QuoteSidebar` with the same list editor the rate card uses
+(extracted to `components/common/NamedAmountList.tsx` rather than
+duplicated; each caller maps its own field — `rate` vs `amount` — to
+the editor's `value`).
+
+**Why separate BOM fields rather than adding into
+`laborSubtotal`/`othersSubtotal`**: every display (sidebar, Present
+mode, PDF) applies margin by multiplying each category subtotal by
+(1 + margin%). Folding a lump sum into a subtotal would have marked it
+up silently — exactly the "number on the quote nobody chose" failure
+answer 1 rules out. So `BOMSummary` carries `projectLaborCharges`,
+`projectOtherCharges` and `projectChargesTotal`; displays print them
+unmarked; and margin is computed on everything EXCEPT them:
+`marginAmount = (costGrandTotal − projectChargesTotal) × margin%`.
+`grandTotal = costGrandTotal + marginAmount` is unchanged as a formula,
+so nothing that reads it needed touching, and the printed lines still
+sum to the printed total exactly (§15's rule).
+`costGrandTotal` includes the charges: for them cost and price are the
+same number.
+
+- Zero-amount rows are dropped in `calculateBOM` so a half-filled
+  editor row never prints "₹0" to a customer; a blank label prints as
+  "Additional labour"/"Additional charge".
+- A quote frozen before this has none of these fields; the PDF reads
+  them with `?? []` and so prints that quote exactly as it was.
+
+Verified: `npx tsc --noEmit -p tsconfig.app.json`, `npm run lint`,
+`npm run build`, all clean. **Not verified in the browser.** Needs
+`schema.sql` re-run (new `layouts.project_charges`) — layout saves fail
+without it, same as §35.
+
+**Also this round — the rate card's Save button was effectively
+invisible.** You reported that editing labour/other rates didn't update
+the quote. Cause: edits stay in a local draft until **Save rates**
+(deliberately — see RateCardManager's own comment on half-typed values
+repricing everything), and that button sat at the very bottom of a long
+form, below Material, waste and Glass. You never saw it, so nothing was
+ever saved. Fixed by making the save bar sticky, in amber with
+"Unsaved rate changes — quotes use the old rates until saved", whenever
+the draft is dirty. The note under it also claimed "changing a rate
+reprices every open quote immediately", which was false; it now says
+saving does.
+
+## 37. "Others" is one list with a per-row basis — including lump sum
+
+§35's two fixed lists (per sq ft, per cabinet) lasted one session. You
+looked at them rendered and asked for something simpler: **one "Others"
+heading**, a "+ Add" button, and on each row a choice of **per sq ft /
+per cabinet / lump sum**, with **per cabinet as the default** for a new
+row. The lump-sum basis is new — two fixed lists had no room for a
+third kind, and a business-wide charge per job (a delivery fee, a site
+visit) is a real thing businesses charge.
+
+- `RateCard.othersRates` is now `OtherRate[]`, each row
+  `{id, label, rate, basis}`, `basis: 'sqft' | 'cabinet' | 'lumpsum'`.
+  Same `others_rates` jsonb column.
+- **Lump-sum rate-card rows ≠ §36's project charges.** A rate-card lump
+  sum is a business-wide COST charged once on every project: it goes
+  inside the marked-up cost (so it gets margin) and rolls into the
+  customer's single "Other" line. §36's project charges are typed per
+  project, at selling price, never marked up, printed by name. Both
+  exist on purpose; the quote-side behaviour is unchanged ("changes on
+  quote as of now remains").
+- A rate-card lump sum is only charged when there is a layout — a bare
+  cabinet-list price check isn't a project.
+- Loading reads three stored shapes, newest first: the array; the
+  §35 two-list object (converted with each row's own id, so it's
+  deterministic — the §35 fingerprint trap); the original
+  `others_rate_per_unit` scalar.
+- **Save**: a Save rates button at the top of the rate card as well as
+  the sticky amber bar at the bottom (§36), which you said works. You
+  asked for "top and bottom of the catalogue page"; the rate card IS
+  the top of that page, and every other section on it saves per row
+  immediately, so a rate-card Save at the very bottom of the page —
+  below the whole cabinet table — would have been further from the
+  thing it saves, not closer. The sticky bar covers "bottom" wherever
+  you are in the rate card.
+- The list editor (`components/common/NamedAmountList.tsx`) gained an
+  optional per-row `choices` picker rather than the rate card getting
+  its own copy; the sidebar's project charges don't pass it.
+
+Verified: `tsc -p tsconfig.app.json`, lint, build — clean. Not seen in
+a browser.
+
+## 38. Labour moves into the one charges list; every row chooses whether it prints
+
+Your request, on seeing §37: labour belongs in the "others" section,
+not as two separate fields above it — pre-filled with site
+installation and fabrication — and each row gets a tick for whether it
+shows on the quote separately; unticked rows combine into "Other".
+
+**Shape**
+- `RateCard.laborRatePerSqFt` and `fabricationRatePerUnit` are gone.
+  They are now the first two rows of `othersRates`
+  (`DEFAULT_LABOUR_RATES`: "Labour — site installation", ₹150 per sq
+  ft; "Labour — fabrication", ₹2,500 per cabinet), same values, same
+  units, same placeholder status. The section is headed "Labour and
+  other charges".
+- Every row gains `showOnQuote`. Ticked → its own named line on the
+  sidebar, Present mode and PDF, **marked up** like any cost. Unticked
+  → summed into one "Other". New rows start unticked; the two labour
+  rows start ticked, because labour always printed as its own lines —
+  so on upgrade the quote reads the same, with only the labels changed
+  ("Labour — installation"/"Fabrication" → the row labels).
+- `BOMSummary.shownOtherLines` carries the ticked rows (each summed
+  across all cabinets, or once for a lump sum); `othersSubtotal` the
+  rest. Computed from the same per-cabinet figures as the line items,
+  so the tick changes presentation, never the total.
+  `BOMLineItem.laborCost`/`fabricationCost` are removed —
+  `othersCost` now includes labour.
+- **`laborSubtotal`/`fabricationSubtotal` stay on `BOMSummary`,
+  optional, never produced.** Frozen quotes carry them, and the PDF
+  must print such a quote exactly as it was; it prints those two lines
+  only when present.
+
+**Migration** (`lib/rates.ts`'s `withLegacyLabour`): the old
+`labor_rate_per_sqft`/`fabrication_rate_per_unit` columns become the
+two rows on load, at the top, with FIXED ids (`labour-site`,
+`labour-fabrication` — the §35 fingerprint trap again). Every save now
+writes both columns as **0**. That is what makes deletion stick: a
+business that deletes the fabrication row would otherwise get it back
+from the column on the next load. Consequence: an older build of the
+app reading a card saved by this one would see ₹0 labour. Accepted —
+there is one business and one deployed build.
+
+Totals are unchanged by the upgrade: per cabinet, `othersCost` =
+150 × area + 2,500 × qty = the old `laborCost + fabricationCost`.
+Frozen quotes read "design has changed" once (the rate card changed
+shape), same as §35.
+
+Verified: `tsc -p tsconfig.app.json`, lint, build — clean. **Not seen in
+a browser**, and the totals claim above is by reading the code, not a
+run.
+
+## 39. A project can override the whole charges list; "Add margin" absorbs §36
+
+Your request: the rate card is the business level, but a project must be
+able to override it with **all** the same options — per sq ft / per
+cabinet / lump sum and the show-on-quote tick. Asked what should then
+happen to §36's separate "Project charges" box (added as-is, no margin),
+you chose: **merge it in, with a per-row "Add margin" tick.**
+
+**Shape**
+- `RoomLayout.chargeRates?: OtherRate[]`, stored in
+  `layouts.charge_rates jsonb`. **Undefined = follow the business rate
+  card**, so rate changes keep flowing into every project that hasn't
+  customised — same override-by-presence pattern as `sheetWasteFactor`.
+  An array (even empty) = this project's own list. "Customise for this
+  project" copies the business rows into it; "Reset to business rates"
+  drops the copy.
+- `OtherRate.applyMargin` (default true). Only the project list shows
+  the tick; on the rate card it is always true, because a rate-card
+  rate is a cost. Untick it for a price already fixed — ₹20,000 stays
+  ₹20,000.
+- One editor for both lists (`components/common/ChargeRatesList.tsx`),
+  so the rate card and the project can't drift; `allowNoMargin` is the
+  only difference.
+
+**Margin arithmetic** — same rule as §36, now per row: margin is
+charged on `costGrandTotal − unmarkedTotal`; `grandTotal =
+costGrandTotal + marginAmount` is unchanged as a formula. Displays mark
+up a shown row unless `applyMargin === false`; "Other" is
+`markup(othersSubtotal) + othersUnmarkedSubtotal`; a cabinet line is
+`markup(lineTotal − unmarkedCost) + unmarkedCost`, because a fixed-
+price per-cabinet row lands inside the cabinet's own line total. The
+sidebar, Present mode and PDF all follow this, so the printed lines
+still sum to the printed total.
+
+**§36 superseded, not deleted.** `projectCharges` is no longer edited
+anywhere. A project saved with some still prices them —
+`legacyProjectChargeRates` turns them into lump-sum, shown, no-margin
+rows with their own ids, exactly how they priced and printed — and
+customising folds them into `chargeRates` and clears the field so they
+aren't counted twice. `BOMSummary.projectLaborCharges`/
+`projectOtherCharges`/`projectChargesTotal` are now optional and never
+produced; the PDF prints them only for a quote frozen in between.
+
+**Also this round**: the third "labor" row you saw on the rate card
+wasn't created by code — only the two labour rows are seeded. It was
+the "labor ₹500 per cabinet" row you typed and saved earlier. Remove it
+with ✕ and Save rates; it isn't deleted from the database on your
+behalf.
+
+Verified: `tsc -p tsconfig.app.json`, lint, build — clean. **Not seen in
+a browser**; the margin arithmetic is checked by reading the code, not
+by a run. Needs `schema.sql` re-run (new `layouts.charge_rates`).
+
+## 40. "Add margin" on the rate card too — both lists identical
+
+§39 put the Add margin tick on a project's own charges list only, on
+the reasoning that a rate-card rate is always a cost. You asked for the
+two sides to be uniform, and the reasoning didn't hold up anyway: a
+business can have a fixed-price charge it adds to every job (a flat
+delivery fee it quotes as-is), which is exactly a rate-card lump sum
+with no margin. The pricing already honoured `applyMargin` on any row
+regardless of which list it came from, so this was a UI-only change:
+`ChargeRatesList` lost its `allowNoMargin` switch and always shows both
+ticks. Existing rate-card rows all load with Add margin ticked, so no
+total moves.
+
+Verified: `tsc -p tsconfig.app.json`, lint, build — clean. Not seen in
+a browser.
+
+## 41. Cutting list, phase 1 — the carpenter's convention becomes settings
+
+**The blocker, removed rather than waited on.** The cutting list was
+blocked on "how does your carpenter build a cabinet?" because those
+answers change every panel size. Instead, each answer is a setting on
+a new per-business `construction_settings` row, with **every real
+alternative selectable** (your explicit request: the defaults are only
+defaults) and pre-filled with your answers, the common Delhi NCR
+convention:
+
+| Setting | Default | Alternatives |
+|---|---|---|
+| Bottom panel | between the sides | over/under the sides |
+| Top panel | between the sides | over the sides |
+| Back | thin (6mm), grooved in (8mm) | nailed on the rear; full-thickness inset |
+| Base-unit top | two 100mm rails | full top panel |
+| Drawer boxes | tandem / metal-sided | wooden boxes |
+| Carcass board | 18mm | any |
+| Shelf setback | 20mm | any |
+
+Top and bottom are separate settings — you answered only for the
+bottom, and a carpenter can genuinely fit them differently. An amber
+"assumed construction" banner stays up on the settings and on the
+cutting list until "My carpenter has confirmed these settings" is
+ticked — same reasoning as the placeholder-rates banner (Principle 10:
+approximation allowed, never hidden).
+
+**Why its own table, not a column on `rate_cards`.** The rate card is
+reachable from `PricingContext` and so hashed into every frozen
+quote's fingerprint (types/quote.ts). Construction never changes a
+price, so putting it there would mark every frozen quote "design has
+changed" on a groove-depth edit — the §35 cry-wolf failure again.
+Separate table, separate store field, never in `PricingContext`.
+
+**What's listed** (`lib/cutList.ts`, derived on demand like the BOM,
+never stored): per cabinet, sides, top or front/back rails, bottom,
+back, dividers between a mixed front's rows, shelves (the same shelf
+geometry the 3D view draws), and every board front — shutters, drawer
+fronts, trolley and false fronts — with length × width, thickness,
+material, finish (fronts), quantity × cabinet quantity, edge banding
+per edge, and whether grain fixes the orientation (fronts only).
+Carcass depth excludes the 18mm front, matching lib/fronts.ts's
+"fronts are inset into the stated depth"; a nailed-on back also comes
+out of the depth so the cabinet stays as deep as quoted.
+
+**Deliberately NOT listed, and said so on screen** as "Not on this
+list": drawer box parts (phase 3 — the tandem choice is recorded but
+labelled not-yet-applied), tambour shutters (bought as a unit), glass
+(ordered cut to size — the count and tint are listed as a note), and
+the corner carousel's diagonal carcass (listed as a rectangle, flagged).
+Door cabinets have no internal shelf because the design model has none
+yet; the quote doesn't charge for one either, so they agree.
+
+**A real bug caught by running it, not by reading it.** The first
+version rounded to the nearest mm. On an 800mm double-door wall unit
+each leaf is 395.5mm; both rounded up to 396, and 2 × 396 + three 3mm
+reveals = 801mm — doors a millimetre wider than the cabinet. Exact
+halves now round DOWN (`mm()` in cutList.ts): a hair more gap is
+harmless, an oversized door isn't. Checked by bundling `cutList.ts`
+with rolldown and running it under Node on sample cabinets across all
+three back conventions, bottom-over-sides, a mixed front, a glassed
+open-shelf unit at quantity 2 and a corner carousel, with every
+dimension checked against hand arithmetic. That is a real run of the
+real function — but it is not a test suite (there still isn't one),
+and it has not been checked against a carpenter's own cutting list.
+
+**Output**: a Cutting List screen (button beside Present), "For
+cutting" (identical parts merged, cabinet refs listed) or "By cabinet",
+and an Excel export via the existing `xlsxHelpers` — sheets: Cutting
+list, By cabinet, Summary (area and edge-banding metres per board),
+Construction (the settings used, marked ASSUMED if unconfirmed), Notes.
+Excel rather than CSV per Principle 11.
+
+Verified: `tsc -p tsconfig.app.json`, lint, build clean; the Node run
+above. **Not seen in a browser.** Needs `schema.sql` re-run (new
+`construction_settings` table) — until then the settings can't be
+saved, though the cutting list still works on the defaults.

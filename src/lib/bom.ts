@@ -25,7 +25,7 @@ import type { SurfaceFinish } from '../types/finish';
 import { resolveFinish, findFinish } from '../types/finish';
 import { describeFinish } from './materials3d';
 import type { PlacedApplianceItem, ApplianceType } from '../types/appliance';
-import type { RoomLayout, WallOrientation } from '../types/layout';
+import type { ProjectCharge, ProjectCharges, RoomLayout, WallOrientation } from '../types/layout';
 import { computeRoomSurfaceAreas } from './surfaceAreas';
 import { countertopAreaSqM } from './cabinetGeometry';
 import { voidAreaMm2 } from './openings';
@@ -34,7 +34,7 @@ import { resolveAllFixtures, fixtureQuantity } from './fixtures';
 import { CABINET_FACE_LABELS } from '../types/fixture';
 import type { FixtureCatalogItem, LightFixture } from '../types/fixture';
 import type { SurfaceAreaBreakdown } from './surfaceAreas';
-import type { RateCard } from '../types/rates';
+import type { OtherRate, OtherRateBasis, RateCard } from '../types/rates';
 
 export interface BOMLineItem {
   cabinetId: string;
@@ -64,17 +64,30 @@ export interface BOMLineItem {
   // finishedAreaSqM, and why both are still estimates, not the exact
   // panel-by-panel figure the still-blocked panel model would give.
   materialArea: number;
+  // materialArea × sheet waste factor × substrate rate. materialArea
+  // itself stays the area the cabinet USES, not the area bought, so the
+  // two are never confused on screen.
   materialCost: number;
   finishCost: number;
   hardwareCost: number;
-  laborCost: number;
-  // Flat per-cabinet workshop labour (cut/edge-band/assemble the box)
-  // and a deliberate catch-all — see RateCard.fabricationRatePerUnit/
-  // othersRatePerUnit. Both flat regardless of cabinet size, unlike
-  // material/finish (area) or the existing per-sqft labour (site
-  // fitting) — a simplification the rate card's own fields document.
-  fabricationCost: number;
+  // Every RateCard.othersRates row that applies per cabinet, summed —
+  // labour (site installation, fabrication) included, since §38 moved
+  // both into that list: per-sq-ft rows on areaSqFt, per-cabinet rows
+  // on quantity. LUMP-SUM rows are not here — they belong to the
+  // project, not to any cabinet. How these print on the quote (own
+  // line vs rolled into "Other") is decided per ROW at summary level —
+  // see BOMSummary.shownOtherLines — not per cabinet.
+  //
+  // (laborCost and fabricationCost used to be separate fields here;
+  // removed in §38. BOMLineItem is not read from frozen quotes by
+  // anything that needs them.)
   othersCost: number;
+  // The part of othersCost from rows with applyMargin false (a
+  // project's own fixed-price rows, §39) — already a selling price. A
+  // display marking this line up must mark up (lineTotal − unmarkedCost)
+  // and add unmarkedCost back as-is. 0 almost always. Absent on a
+  // frozen line item from before §39 — read it with `?? 0`.
+  unmarkedCost: number;
   // Non-zero only for a cabinet whose front has a glass door (an
   // open-shelf front with FrontLayout.glass set) — the glass panel's
   // own area (lib/fronts.ts's FrontBreakdown.glassAreaMm2), priced by
@@ -178,6 +191,13 @@ export interface CountertopLineItem {
   specifiedTotal: number;
 }
 
+export interface ChargeLine {
+  label: string;
+  amount: number;
+  // false → print `amount` as-is; absent/true → mark it up.
+  applyMargin?: boolean;
+}
+
 export interface BOMSummary {
   lineItems: BOMLineItem[];
   applianceLineItems: ApplianceLineItem[];
@@ -186,16 +206,39 @@ export interface BOMSummary {
   fixtureLineItems: FixtureLineItem[];
   countertopLineItem: CountertopLineItem | null;
   materialSubtotal: number;
-  // See BOMLineItem.fabricationCost/othersCost.
-  fabricationSubtotal: number;
+  // RateCard.othersRates rows, split by the row's own showOnQuote:
+  // ticked rows each become a named line here (amount summed across
+  // every cabinet, or once for a lump sum); every unticked row is
+  // summed into othersSubtotal, printed as one "Other". Both are costs
+  // and both get margin — the tick changes presentation, never price.
+  // Zero-amount rows are dropped so nothing prints "₹0".
+  //
+  // `shownOtherLines` is absent on a summary frozen before §38 — a
+  // reader of a FROZEN summary must use `?? []`.
+  shownOtherLines: ChargeLine[];
+  // Unticked rows, split by margin: othersSubtotal is marked up like
+  // any cost; othersUnmarkedSubtotal (fixed-price rows, §39) is printed
+  // as-is. A display's single "Other" line is
+  // markup(othersSubtotal) + othersUnmarkedSubtotal. The latter is
+  // absent on a summary frozen before §39 — read it with `?? 0`.
   othersSubtotal: number;
+  othersUnmarkedSubtotal: number;
+  // Everything in this summary that is NOT marked up — every
+  // applyMargin:false row's amount, wherever it prints. Margin is
+  // charged on costGrandTotal − unmarkedTotal.
+  unmarkedTotal: number;
+  // LEGACY, never produced since §38 (labour moved into othersRates and
+  // prints through shownOtherLines). Kept on the type, optional, only
+  // because FROZEN quotes carry them and the PDF must still print such
+  // a quote exactly as it was (a frozen quote never changes).
+  laborSubtotal?: number;
+  fabricationSubtotal?: number;
   // See BOMLineItem.glassCost. Zero on a layout with no glass-doored
   // open-shelf cabinets, same as fixtureSubtotal/countertopSubtotal
   // are zero when nothing of that kind exists.
   glassSubtotal: number;
   finishSubtotal: number;
   hardwareSubtotal: number;
-  laborSubtotal: number;
   applianceSubtotal: number;
   surfaceSubtotal: number;
   // Only non-zero for openings the business actually supplies.
@@ -210,17 +253,33 @@ export interface BOMSummary {
   // layout.priceCountertop is on.
   countertopSubtotal: number;
   countertopSpecifiedTotal: number;
+  // LEGACY (§36), never produced since §39 — that session's separate
+  // no-margin "project charges" now arrive as applyMargin:false rows
+  // through shownOtherLines. Optional on the type only so the PDF can
+  // print a quote frozen in between exactly as it was.
+  projectLaborCharges?: ChargeLine[];
+  projectOtherCharges?: ChargeLine[];
+  projectChargesTotal?: number;
   // What this job actually costs the business — every subtotal above,
-  // summed, before margin. Never shown to a customer; see grandTotal.
+  // summed, before margin, PLUS projectChargesTotal (which has no
+  // margin to separate out: for those, cost and price are the same
+  // number). Never shown to a customer; see grandTotal.
   costGrandTotal: number;
   // The percentage actually used to compute marginAmount below —
   // layout.marginPercent if the project set one, DEFAULT_MARGIN_PERCENT
   // otherwise. Carried here so a caller never has to re-derive it (or
   // reach past this summary into the layout) just to display it.
   marginPercent: number;
-  // costGrandTotal × marginPercent / 100 — the business's own
-  // cost-plus markup, as a real number rather than implicit in a
-  // guessed catalogue price. 0 if marginPercent is 0.
+  // The sheet waste factor actually applied to every materialCost —
+  // the layout's override if set, the rate card's default otherwise.
+  // Carried here for the same reason as marginPercent above. Absent on
+  // a summary frozen before it existed, so a reader of a FROZEN
+  // summary must treat it as possibly undefined.
+  sheetWasteFactor: number;
+  // (costGrandTotal − projectChargesTotal) × marginPercent / 100 — the
+  // business's own cost-plus markup on everything it PRICED, as a real
+  // number rather than implicit in a guessed catalogue price. Excludes
+  // project charges (see above). 0 if marginPercent is 0.
   marginAmount: number;
   // What the customer is charged — costGrandTotal + marginAmount. This
   // is what has ALWAYS flowed into the sidebar, the frozen quote and
@@ -335,6 +394,29 @@ export function calculateBOM(
   ctx: PricingContext
 ): BOMSummary {
   const { finishes, handles, fixtureCatalog, rates, layout } = ctx;
+  // Resolved once for the whole layout, not per cabinet — it's a
+  // property of how this job's sheets are bought, not of any one unit.
+  const sheetWasteFactor = layout?.sheetWasteFactor ?? rates.sheetWasteFactor;
+  // The project's own list if it has customised one, the business's
+  // otherwise (RoomLayout.chargeRates) — plus any §36 legacy project
+  // charges, which are empty once a project has been customised.
+  const chargeRates = [
+    ...(layout?.chargeRates ?? rates.othersRates),
+    ...legacyProjectChargeRates(layout?.projectCharges),
+  ];
+  const othersRate = (basis: OtherRateBasis, unmarkedOnly = false) =>
+    sum(
+      chargeRates.filter((r) => r.basis === basis && (!unmarkedOnly || !r.applyMargin)),
+      (r) => r.rate
+    );
+  const othersPerSqFt = othersRate('sqft');
+  const othersPerUnit = othersRate('cabinet');
+  const unmarkedPerSqFt = othersRate('sqft', true);
+  const unmarkedPerUnit = othersRate('cabinet', true);
+  // Once per project — so only when there IS a project. A bare
+  // cabinet-list price check (no layout) isn't a job, and charging it
+  // a delivery fee would be wrong. Same rule inside othersRowAmount.
+  const othersLumpSum = layout ? othersRate('lumpsum') : 0;
   const lineItems: BOMLineItem[] = items.map((item) => {
     // NOT named `layout` — that's the RoomLayout parameter of this
     // function, and shadowing it here would make a later edit reach for
@@ -358,17 +440,25 @@ export function calculateBOM(
 
     const areaSqFt = estimateAreaSqFt(item) * item.quantity;
     const materialArea = carcassAreaSqM(item, glassAreaMm2) * item.quantity;
-    const materialCost = materialArea * (rates.materialRates?.[item.material] ?? 0);
+    const materialCost =
+      materialArea * sheetWasteFactor * (rates.materialRates?.[item.material] ?? 0);
     // item.unitPrice is deliberately NOT read here — see
     // docs/DECISIONS.md §15. It's a reference figure a business sees
     // when browsing the catalogue, not a cost this function counts;
     // every real cost is computed fresh from this cabinet's own
     // material/finish/hardware plus the rate card, so there's nothing
     // left for a flat per-row number to add without double-counting.
-    // Flat per-cabinet, not area-based — see RateCard.
-    // fabricationRatePerUnit/othersRatePerUnit's own comments for why.
-    const fabricationCost = rates.fabricationRatePerUnit * item.quantity;
-    const othersCost = rates.othersRatePerUnit * item.quantity;
+    // Every per-cabinet "others" row, labour included — split by what
+    // each row scales with (chargeRates above). areaSqFt already
+    // includes quantity; the per-cabinet rows need it multiplied in.
+    //
+    // Per-sq-ft rows (site labour among them) are charged on the FULL
+    // front-face area regardless of glass — fitting a glass door isn't
+    // less work than fitting a board one, so estimateAreaSqFt is
+    // deliberately NOT reduced by glassAreaMm2 the way material/finish
+    // are.
+    const othersCost = othersPerSqFt * areaSqFt + othersPerUnit * item.quantity;
+    const unmarkedCost = unmarkedPerSqFt * areaSqFt + unmarkedPerUnit * item.quantity;
     const finish = resolveFinish(finishes, item.finishId);
     const finishArea = finishedAreaSqM(item, glassAreaMm2) * item.quantity;
     const finishCost = finishArea * (finish?.pricePerSqM ?? 0);
@@ -386,13 +476,7 @@ export function calculateBOM(
       cost: h.count * h.unitCost * item.quantity,
     }));
     const hardwareCost = sum(hardwareDetail, (h) => h.cost);
-    const laborCost = areaSqFt * rates.laborRatePerSqFt;
 
-    // Labour (site installation) is charged on the FULL front-face
-    // area regardless of glass — fitting a glass door isn't less
-    // work than fitting a board one, so estimateAreaSqFt is
-    // deliberately NOT reduced by glassAreaMm2 the way material/finish
-    // above are.
     const glassAreaSqFt = (glassAreaMm2 / MM2_PER_SQFT) * item.quantity;
     const glassCost = glassTint ? glassAreaSqFt * rates.glassRates[glassTint] : 0;
 
@@ -414,12 +498,10 @@ export function calculateBOM(
       materialCost,
       finishCost,
       hardwareCost,
-      laborCost,
-      fabricationCost,
       othersCost,
+      unmarkedCost,
       glassCost,
-      lineTotal:
-        materialCost + finishCost + hardwareCost + laborCost + fabricationCost + othersCost + glassCost,
+      lineTotal: materialCost + finishCost + hardwareCost + othersCost + glassCost,
     };
   });
 
@@ -468,15 +550,55 @@ export function calculateBOM(
   // costs the business; grandTotal (below) is what the customer is
   // charged, and is the only one of the two either the frozen quote or
   // the PDF has ever read.
-  const costGrandTotal =
+  const allCost =
     sum(lineItems, (l) => l.lineTotal) +
+    othersLumpSum +
     applianceSubtotal +
     surfaceSubtotal +
     openingSubtotal +
     fixtureSubtotal +
     countertopSubtotal;
+  // Each charge row's whole-project amount, so it can print as its own
+  // line when ticked. Summed over the SAME per-cabinet figures the line
+  // items above used (areaSqFt, quantity), so shownOtherLines + both
+  // "Other" subtotals always equal sum(othersCost) + othersLumpSum
+  // exactly — the ticks can't move the total.
+  const totalAreaSqFt = sum(lineItems, (l) => l.areaSqFt);
+  const totalQuantity = sum(lineItems, (l) => l.quantity);
+  const othersRowAmount = (basis: OtherRateBasis, rate: number) =>
+    basis === 'sqft' ? rate * totalAreaSqFt : basis === 'cabinet' ? rate * totalQuantity : layout ? rate : 0;
+  const othersRows = chargeRates.map((r) => ({
+    label: r.label.trim() || 'Other charge',
+    amount: othersRowAmount(r.basis, r.rate),
+    shown: r.showOnQuote,
+    applyMargin: r.applyMargin,
+  }));
+  // Zero-amount rows dropped so a half-filled editor row never prints
+  // "₹0" on a customer's quote.
+  const shownOtherLines = othersRows
+    .filter((r) => r.shown && r.amount > 0)
+    .map(({ label, amount, applyMargin }) => ({ label, amount, applyMargin }));
+  const unshown = othersRows.filter((r) => !r.shown);
+  const othersSubtotal = sum(
+    unshown.filter((r) => r.applyMargin),
+    (r) => r.amount
+  );
+  const othersUnmarkedSubtotal = sum(
+    unshown.filter((r) => !r.applyMargin),
+    (r) => r.amount
+  );
+  const unmarkedTotal = sum(
+    othersRows.filter((r) => !r.applyMargin),
+    (r) => r.amount
+  );
+
+  // costGrandTotal includes the no-margin rows (for those, cost and
+  // price are the same number); margin is charged on everything else.
+  // grandTotal = costGrandTotal + marginAmount is unchanged as a
+  // formula, so nothing that reads it needed touching.
+  const costGrandTotal = allCost;
   const marginPercent = layout?.marginPercent ?? DEFAULT_MARGIN_PERCENT;
-  const marginAmount = costGrandTotal * (marginPercent / 100);
+  const marginAmount = (allCost - unmarkedTotal) * (marginPercent / 100);
 
   return {
     lineItems,
@@ -486,12 +608,13 @@ export function calculateBOM(
     fixtureLineItems,
     countertopLineItem,
     materialSubtotal: sum(lineItems, (l) => l.materialCost),
-    fabricationSubtotal: sum(lineItems, (l) => l.fabricationCost),
-    othersSubtotal: sum(lineItems, (l) => l.othersCost),
+    shownOtherLines,
+    othersSubtotal,
+    othersUnmarkedSubtotal,
+    unmarkedTotal,
     glassSubtotal: sum(lineItems, (l) => l.glassCost),
     finishSubtotal: sum(lineItems, (l) => l.finishCost),
     hardwareSubtotal: sum(lineItems, (l) => l.hardwareCost),
-    laborSubtotal: sum(lineItems, (l) => l.laborCost),
     applianceSubtotal,
     surfaceSubtotal,
     openingSubtotal,
@@ -501,9 +624,32 @@ export function calculateBOM(
     countertopSpecifiedTotal,
     costGrandTotal,
     marginPercent,
+    sheetWasteFactor,
     marginAmount,
     grandTotal: costGrandTotal + marginAmount,
   };
+}
+
+// §36's short-lived "project charges" (RoomLayout.projectCharges) as
+// charge rows: lump sums, printed by name, never marked up — exactly
+// how they priced and printed then. Labour ones keep their "Labour — "
+// prefix so they still read as labour on the quote. Ids are the
+// charges' own, so this is deterministic (the §35 fingerprint trap).
+// Used here for a project not yet customised, and by the store to fold
+// them into chargeRates when it is.
+export function legacyProjectChargeRates(charges: ProjectCharges | undefined): OtherRate[] {
+  const toRate = (c: ProjectCharge, label: string): OtherRate => ({
+    id: c.id,
+    label,
+    rate: c.amount,
+    basis: 'lumpsum',
+    showOnQuote: true,
+    applyMargin: false,
+  });
+  return [
+    ...(charges?.labor ?? []).map((c) => toRate(c, `Labour — ${c.label.trim() || 'additional'}`)),
+    ...(charges?.other ?? []).map((c) => toRate(c, c.label.trim() || 'Additional charge')),
+  ];
 }
 
 function sum<T>(arr: T[], pick: (item: T) => number): number {
