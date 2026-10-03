@@ -34,6 +34,7 @@ import {
   HARDWARE_RATE_KEYS as HARDWARE_KEYS,
   GLASS_RATE_KEYS as GLASS_KEYS,
   isPlaceholderRateCard,
+  boardLabel,
   sameBoards,
   sameOtherRates,
   type RateCard,
@@ -285,9 +286,13 @@ export function RateCardManager() {
         </div>
         <div className="flex flex-col">
           <label className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-secondary py-3">
-            <span className="flex flex-col">
+            <span className="flex min-w-0 max-w-xl flex-col gap-1">
               <span className="text-[15px] font-medium">Approx sheet waste factor</span>
-              <span className="text-[13px] text-muted-foreground">1.10 means "buy 10% more board than the cabinets use"</span>
+              <span className="text-[13px] text-muted-foreground">
+                Board cost on a quote = board area × that board's rate × this factor. It covers the offcuts you
+                pay for but can't use. Labour, finishes, hardware, handles, glass and edge banding are{' '}
+                <strong className="font-semibold text-foreground">not</strong> multiplied.
+              </span>
             </span>
             <span className="flex h-11 w-40 items-center gap-2 rounded-[10px] border border-input bg-card px-3">
               <span className="text-sm text-muted-foreground">×</span>
@@ -310,6 +315,32 @@ export function RateCardManager() {
             0.5
           )}
         </div>
+        {/* A worked example with the business's own numbers, so "1.10"
+            means something concrete (your question, 4 Oct). */}
+        {(() => {
+          const board = draft.boards.find((b) => b.thicknessMm >= 12 && b.ratePerSqM > 0) ?? draft.boards[0];
+          if (!board) return null;
+          const area = 10;
+          const base = area * board.ratePerSqM;
+          const f = draft.sheetWasteFactor;
+          return (
+            <div className="rounded-xl bg-secondary px-4 py-3 text-[13px] leading-relaxed text-muted-foreground">
+              <span className="font-semibold text-foreground">Example with your rates: </span>
+              cabinets that use {area} m² of {boardLabel(board)} at ₹{board.ratePerSqM.toLocaleString('en-IN')}/m² = ₹
+              {base.toLocaleString('en-IN')} of board.{' '}
+              With Approx at × {f}: ₹{base.toLocaleString('en-IN')} × {f} ={' '}
+              <span className="font-semibold text-foreground">₹{Math.round(base * f).toLocaleString('en-IN')}</span> of board on the
+              quote, before margin. A ₹150/sq ft labour charge stays ₹150/sq ft.
+              {draft.wasteMode === 'calculated' && (
+                <>
+                  {' '}
+                  <span className="font-semibold text-foreground">You're on Calculated</span>, so instead each job uses its own
+                  factor: sheets bought ÷ board the parts use (for example 1.20 if it needs 12 m² of sheets for 10 m² of parts).
+                </>
+              )}
+            </div>
+          );
+        })()}
         {draft.edgeBandingRatePerM > 0 && draft.othersRates.some((r) => /edge/i.test(r.label) && r.rate > 0) && (
           <div className="flex gap-3 rounded-xl bg-warning-soft px-4 py-3 text-sm text-warning-foreground">
             <AlertTriangle className="mt-0.5 size-[18px] shrink-0" strokeWidth={1.8} />

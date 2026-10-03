@@ -5508,3 +5508,42 @@ business. **Trap handled:** RLS turns a refused update into "0 rows
 changed", not an error, so the function checks the returned rows. If
 there are none, it says "re-run supabase/schema.sql" instead of
 reporting a save that didn't happen.
+
+## 79. Waste factor explained with your numbers; Workshop page redesigned
+
+**You asked whether 1.10 means quote = 1.1 × area × rate.** Yes, but
+for **board only**. Confirmed in `calculateBOM`:
+
+> board cost = area × board rate × factor
+
+Labour and other per-sq-ft charges, finishes, hardware, handles, glass
+and edge banding are not multiplied, and margin is added on top
+afterwards. The rate card now says exactly that, under the factor,
+followed by a **live worked example** using the business's own first
+carcass board and factor: "10 m² of HDMR 18mm at ₹1,400/m² = ₹14,000 ×
+1.10 = ₹15,400 of board on the quote, before margin. A ₹150/sq ft labour
+charge stays ₹150/sq ft." When the business is on Calculated, the
+example also explains the measured factor: sheets bought ÷ board the
+parts use. The code confirms that definition: `sheetsAreaSqM /
+partsAreaSqM` in `measuredBoardWaste`. A draft wording that said "18%
+unused → 1.18" was wrong (that's about 1.22) and was corrected before
+commit.
+
+**Workshop page, the same treatment as the Rate card.** Five
+`SectionCard`s: Cabinet depth, How the carcass is joined, Fronts, Drawer
+boxes, Cutting sheets.
+- **Every choice is a set of large option cards, each with a worked
+  example cut by `cabinetCutParts` itself**, using the draft settings
+  with that one choice changed. So an example can never disagree with
+  what the workshop is told to cut. On a 600 × 600 × 720 base unit with
+  18mm board:
+  - bottom between the sides is 564 × 582 with sides 720 × 582; sides
+    standing on it gives 600 × 582 with sides 702 × 582
+  - back: grooved 700 × 580, nailed on 720 × 600, inset 684 × 564
+  - tandem drawer bottom 540 × 489 and back 477 × 176, against wooden
+    side 550 × 196 and bottom 530 × 519
+- **Sizes**: roomy rows with mm inside the box and a line saying what
+  each is for. Only the chosen drawer system's sizes show.
+- **States**: an "assumed, not confirmed" warning; "Confirmed and
+  locked" with Change settings; a confirmation tick card; and the same
+  floating save bar as the Rate card.

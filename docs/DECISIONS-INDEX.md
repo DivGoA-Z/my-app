@@ -320,3 +320,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§77** Rate card = 5 SectionCards (general SectionCard from §71), roomy rate rows, charge and board cards (`NamedAmountList comfortable`; sidebar stays compact), one floating save bar.
 
 **§78** Settings → Business renames `businesses.name` (new RLS update policy). A refused RLS update returns 0 rows, not an error, so the code checks the rows.
+
+**§79** Waste factor = board cost only (area × rate × factor); live example on the rate card. Workshop page = SectionCards + option cards whose examples are cut by `cabinetCutParts`.
