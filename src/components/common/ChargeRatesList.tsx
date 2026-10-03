@@ -49,10 +49,12 @@ export function ChargeRatesList({
   rates,
   onChange,
   inputClassName,
+  comfortable,
 }: {
   rates: OtherRate[];
   onChange: (rates: OtherRate[]) => void;
   inputClassName?: string;
+  comfortable?: boolean;
 }) {
   return (
     <NamedAmountList
@@ -61,6 +63,7 @@ export function ChargeRatesList({
       defaultChoice="cabinet"
       flagOptions={[SHOW_FLAG, MARGIN_FLAG]}
       inputClassName={inputClassName}
+      comfortable={comfortable}
       rows={toRows(rates)}
       onChange={(rows) => onChange(fromRows(rows))}
     />

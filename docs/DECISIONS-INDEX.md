@@ -316,3 +316,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§75** First screenshot pass. Phone overflow had 4 causes (unsized grid, fieldset min-width, fixed grid columns, non-wrapping buttons); overflow is now asserted on every screenshot. Customers board columns are fixed 280px and scroll.
 
 **§76** Catalogue = read-only lists + one `EditPanel` (slide-over / full-screen on phone) for every section; shared `CatalogueKit` + `useItemEditor`. Dropdowns need `h-11!`. Duplicate handles/cabinets found in data (not deleted).
+
+**§77** Rate card = 5 SectionCards (general SectionCard from §71), roomy rate rows, charge and board cards (`NamedAmountList comfortable`; sidebar stays compact), one floating save bar.

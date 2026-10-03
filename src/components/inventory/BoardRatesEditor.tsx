@@ -84,57 +84,70 @@ export function BoardRatesEditor({
     );
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_5.5rem_2.75rem] sm:grid-cols-[minmax(0,1fr)_6rem_7rem_2.75rem] gap-2 text-[13px] font-medium text-muted-foreground">
-        <span>Board</span>
-        <span className="text-right">Thickness (mm)</span>
-        <span className="text-right">₹ per sq m</span>
-        <span />
-      </div>
+    <div className="flex flex-col gap-3">
+      {/* One card per board line (§77): material, thickness and rate on
+          top, its sheet sizes underneath. */}
       {boards.map((b) => (
-        <div key={b.id} className="flex flex-col gap-1 border-b border-border/70 pb-2">
-          <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_5.5rem_2.75rem] sm:grid-cols-[minmax(0,1fr)_6rem_7rem_2.75rem] items-center gap-2">
-            <Select value={b.material} onValueChange={(v) => update(b.id, { material: v as MaterialType })}>
-              <SelectTrigger size="sm" className="w-full min-w-0 [&>span]:truncate">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MATERIAL_RATE_KEYS.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {MATERIAL_RATE_LABELS[m]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              aria-label="Thickness in mm"
-              type="number"
-              min={1}
-              step={1}
-              value={b.thicknessMm}
-              onChange={(e) => update(b.id, { thicknessMm: Number(e.target.value) })}
-              className="text-right"
-            />
-            <Input
-              aria-label="Rate per square metre"
-              type="number"
-              min={0}
-              step={1}
-              value={b.ratePerSqM}
-              onChange={(e) => update(b.id, { ratePerSqM: Number(e.target.value) })}
-              className="text-right"
-            />
+        <div key={b.id} className="flex flex-col gap-3 rounded-xl border border-border bg-background p-3 md:p-4">
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="flex min-w-0 flex-[1_1_200px] flex-col gap-1.5 text-[13px] font-semibold">
+              Material
+              <Select value={b.material} onValueChange={(v) => update(b.id, { material: v as MaterialType })}>
+                <SelectTrigger className="h-11! w-full min-w-0 rounded-[10px] bg-card text-[15px] font-medium [&>span]:truncate">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MATERIAL_RATE_KEYS.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {MATERIAL_RATE_LABELS[m]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+            <label className="flex w-28 flex-col gap-1.5 text-[13px] font-semibold">
+              Thickness
+              <span className="flex h-11 items-center gap-1.5 rounded-[10px] border border-input bg-card px-3">
+                <Input
+                  aria-label="Thickness in mm"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={b.thicknessMm}
+                  onChange={(e) => update(b.id, { thicknessMm: Number(e.target.value) })}
+                  className="h-auto min-w-0 border-0 bg-transparent p-0 text-right font-mono text-[15px] shadow-none focus-visible:ring-0"
+                />
+                <span className="text-sm font-normal text-muted-foreground">mm</span>
+              </span>
+            </label>
+            <label className="flex w-40 flex-col gap-1.5 text-[13px] font-semibold">
+              Rate
+              <span className="flex h-11 items-center gap-1.5 rounded-[10px] border border-input bg-card px-3">
+                <span className="text-sm font-normal text-muted-foreground">₹</span>
+                <Input
+                  aria-label="Rate per square metre"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={b.ratePerSqM}
+                  onChange={(e) => update(b.id, { ratePerSqM: Number(e.target.value) })}
+                  className="h-auto min-w-0 border-0 bg-transparent p-0 text-right font-mono text-[15px] shadow-none focus-visible:ring-0"
+                />
+                <span className="text-sm font-normal text-muted-foreground">/m²</span>
+              </span>
+            </label>
             {/* The default back board can't be removed from here — pick a
                 different default first. Otherwise every back would
                 silently lose its board. */}
             <Button
               type="button"
               variant="ghost"
-              size="xs"
+              size="icon-touch"
               aria-label={`Remove ${boardLabel(b)}`}
               disabled={b.id === defaultBackBoardId || checkingId !== null}
               title={b.id === defaultBackBoardId ? 'This is the default back board — choose another default first' : undefined}
               onClick={() => tryRemove(b)}
+              className="text-muted-foreground hover:text-destructive"
             >
               {checkingId === b.id ? '…' : '✕'}
             </Button>
@@ -143,8 +156,8 @@ export function BoardRatesEditor({
         </div>
       ))}
       {blocked && (
-        <Alert className="border-amber-300 bg-amber-50">
-          <AlertDescription className="text-amber-900">
+        <Alert className="border-warning/30 bg-warning-soft">
+          <AlertDescription className="text-warning-foreground">
             <strong className="font-semibold">{blocked.board} can't be removed — it's in use.</strong>
             {blocked.usage.projectNames.length > 0 && (
               <> Used in project{blocked.usage.projectNames.length === 1 ? '' : 's'}:{' '}
@@ -163,7 +176,7 @@ export function BoardRatesEditor({
       <Button
         type="button"
         variant="outline"
-        size="xs"
+        size="touch"
         className="self-start"
         onClick={() =>
           onChange(
@@ -181,8 +194,8 @@ export function BoardRatesEditor({
           on the price AND the cutting list — because a board was still
           found. Showing the resolved carcass board per material, live,
           means that edit can't happen unseen. */}
-      <div className="mt-1 rounded-md bg-secondary px-2 py-1.5 text-[13px] text-muted-foreground">
-        <span className="font-medium">Carcass board for cabinets with no board chosen: </span>
+      <div className="rounded-xl bg-secondary px-4 py-3 text-[13px] leading-relaxed text-muted-foreground">
+        <span className="font-semibold text-foreground">Carcass board for cabinets with no board chosen: </span>
         {MATERIAL_RATE_KEYS.map((m, i) => {
           const board = defaultCarcassBoard(boards, m);
           return (
@@ -194,10 +207,13 @@ export function BoardRatesEditor({
         })}
       </div>
 
-      <div className="mt-1 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-        <span>Default back board</span>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-secondary pt-3">
+        <span className="flex flex-col">
+          <span className="text-[15px] font-medium">Default back board</span>
+          <span className="text-[13px] text-muted-foreground">What every cabinet's back is cut from</span>
+        </span>
         <Select value={defaultBackBoardId} onValueChange={(v) => onChange(boards, v)}>
-          <SelectTrigger size="sm" className="w-48">
+          <SelectTrigger className="h-11! w-56 rounded-[10px] bg-card text-[15px] font-medium">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -220,53 +236,43 @@ function SheetSizesEditor({ sizes, onChange }: { sizes: SheetSize[]; onChange: (
   const [length, setLength] = useState(DEFAULT_SHEET_SIZE.lengthMm);
   const [width, setWidth] = useState(DEFAULT_SHEET_SIZE.widthMm);
   const exists = sizes.some((z) => z.lengthMm === length && z.widthMm === width);
+  const box = 'h-9 w-20 rounded-lg border border-input bg-card px-2 text-right font-mono text-sm';
   return (
-    <div className="flex flex-wrap items-center gap-1.5 pl-1 text-[13px] text-muted-foreground">
-      <span className="text-muted-foreground">Sheet sizes:</span>
+    <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+      <span className="font-medium">Sheet sizes</span>
       {sizes.length === 0 && (
-        <span className="text-muted-foreground">
-          {DEFAULT_SHEET_SIZE.lengthMm} × {DEFAULT_SHEET_SIZE.widthMm} (default)
+        <span className="inline-flex h-8 items-center rounded-full bg-secondary px-3 font-mono text-[13px]">
+          {DEFAULT_SHEET_SIZE.lengthMm} × {DEFAULT_SHEET_SIZE.widthMm} <span className="ml-1 font-sans">(default)</span>
         </span>
       )}
       {sizes.map((z, i) => (
-        <span key={`${z.lengthMm}x${z.widthMm}`} className="flex items-center gap-1 rounded border border-input bg-secondary px-1.5 py-0.5">
+        <span key={`${z.lengthMm}x${z.widthMm}`} className="inline-flex h-8 items-center gap-1.5 rounded-full bg-secondary pl-3 pr-1 font-mono text-[13px] text-foreground">
           {z.lengthMm} × {z.widthMm}
           <button
             type="button"
             aria-label={`Remove ${z.lengthMm} by ${z.widthMm}`}
-            className="text-muted-foreground hover:text-foreground"
+            className="flex size-6 items-center justify-center rounded-full text-muted-foreground hover:bg-card hover:text-foreground"
             onClick={() => onChange(sizes.filter((_, k) => k !== i))}
           >
             ✕
           </button>
         </span>
       ))}
-      <input
-        type="number"
-        min={1}
-        aria-label="New sheet length in mm"
-        value={length}
-        onChange={(e) => setLength(Number(e.target.value))}
-        className="w-16 rounded border border-input px-1 py-0.5 text-right"
-      />
-      ×
-      <input
-        type="number"
-        min={1}
-        aria-label="New sheet width in mm"
-        value={width}
-        onChange={(e) => setWidth(Number(e.target.value))}
-        className="w-16 rounded border border-input px-1 py-0.5 text-right"
-      />
-      <Button
-        type="button"
-        variant="outline"
-        size="xs"
-        disabled={!(length > 0) || !(width > 0) || exists}
-        onClick={() => onChange([...sizes, { lengthMm: length, widthMm: width }])}
-      >
-        + Add size
-      </Button>
+      <span className="flex items-center gap-1.5">
+        <input type="number" min={1} aria-label="New sheet length in mm" value={length} onChange={(e) => setLength(Number(e.target.value))} className={box} />
+        ×
+        <input type="number" min={1} aria-label="New sheet width in mm" value={width} onChange={(e) => setWidth(Number(e.target.value))} className={box} />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-9"
+          disabled={!(length > 0) || !(width > 0) || exists}
+          onClick={() => onChange([...sizes, { lengthMm: length, widthMm: width }])}
+        >
+          + Add size
+        </Button>
+      </span>
     </div>
   );
 }

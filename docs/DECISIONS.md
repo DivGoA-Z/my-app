@@ -5458,3 +5458,38 @@ tool has been offered.
 
 The screenshot run now also opens and cancels a cabinet's panel, and
 photographs each Catalogue section.
+
+## 77. Rate card redesigned
+
+It was the old dense layout: tiny fieldset legends, paragraphs of
+explanation, 32px inputs, and two Save buttons. It's now five
+`SectionCard`s, each with one line on what it's for and the long text
+behind "How this works":
+- Labour and other charges
+- Hardware
+- Boards
+- Sheet waste and edge banding
+- Glass doors
+
+`SectionCard` is the Catalogue's section frame (§71) made general;
+`CatalogueSection` now wraps it.
+- **Rate rows**: a label with its unit underneath ("Hinge" / "each"),
+  and the rate in a 44px box with ₹ inside it. Glass tints get a colour
+  chip.
+- **Charges**: each charge is a card. Name and ₹ amount sit on top;
+  underneath are a Per sq ft / Per cabinet / Lump sum switch and the
+  Show on quote / Add margin ticks. This is a new `comfortable` mode of
+  `NamedAmountList`. The quote sidebar keeps the compact one-line rows
+  because it's narrow.
+- **Boards**: each line is a card with labelled Material, Thickness (mm
+  inside) and Rate (₹ … /m² inside), and its sheet sizes as chips.
+  Default back board is a proper labelled row.
+- **Waste**: Approx and Calculated are two large choice cards with a
+  one-line explanation each.
+- **Save**: one action. While there are unsaved edits it floats at the
+  bottom of the screen as a dark bar with Discard and a brass Save. The
+  old top Save is gone (the reason the bottom bar is sticky is recorded
+  in the code). The placeholder-rates warning uses the warning tokens.
+
+Three screen tests were updated for the new wording and the single Save
+button; what they check is unchanged.

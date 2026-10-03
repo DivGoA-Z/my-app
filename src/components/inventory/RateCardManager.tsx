@@ -21,12 +21,12 @@
 // app produces is built on values that were invented to be plausible.
 // Someone will otherwise send one.
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
+import { AlertTriangle, GlassWater, HardHat, Layers, Scissors, Wrench } from 'lucide-react';
+import { SectionCard } from '../common/SectionCard';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Label } from '../ui/label';
-import { Separator } from '../ui/separator';
 import { Alert, AlertDescription } from '../ui/alert';
 import { useLayoutStore } from '../../store/layoutStore';
 import {
@@ -41,6 +41,14 @@ import {
 import { GLASS_TINT_LABELS } from '../../types/front';
 import { ChargeRatesList } from '../common/ChargeRatesList';
 import { BoardRatesEditor } from './BoardRatesEditor';
+
+// A colour chip per glass tint, for the rate rows.
+const GLASS_SWATCH: Record<string, string> = {
+  clear: '#E8F1F4',
+  black: '#2B2E31',
+  brown: '#7A5A3E',
+  yellow: '#E2C26A',
+};
 
 // Every editable field, compared by value. Used both for the Save
 // button's enabled state and for the resync below, so the two can't
@@ -134,200 +142,208 @@ export function RateCardManager() {
     }
   }
 
+  // One row of the card: what it is (and its unit) on the left, the rate
+  // in a roomy box with ₹ inside it on the right (§77).
+  const rateRow = (key: string, label: string, hint: string | undefined, value: number, onChange: (n: number) => void, step = 1, extra?: ReactNode) => (
+    <label key={key} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-secondary py-3 last:border-b-0">
+      <span className="flex min-w-0 items-center gap-3">
+        {extra}
+        <span className="flex min-w-0 flex-col">
+          <span className="text-[15px] font-medium">{label}</span>
+          {hint && <span className="text-[13px] text-muted-foreground">{hint}</span>}
+        </span>
+      </span>
+      <span className="flex h-11 w-40 items-center gap-2 rounded-[10px] border border-input bg-card px-3 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30">
+        <span className="text-sm text-muted-foreground">₹</span>
+        <Input
+          type="number"
+          min={0}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="h-auto min-w-0 border-0 bg-transparent p-0 text-right font-mono text-[15px] shadow-none focus-visible:ring-0"
+        />
+      </span>
+    </label>
+  );
+
+  // "Hinge (each)" → label "Hinge", hint "each".
+  const splitUnit = (text: string): [string, string | undefined] => {
+    const m = text.match(/^(.*?)\s*\((.*)\)\s*$/);
+    return m ? [m[1], m[2]] : [text, undefined];
+  };
+
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h3 className="font-semibold text-sm text-foreground">Rate card</h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            The prices that aren't attached to a product. Finishes, handles, fixtures,
-            cabinets and appliances are priced on their own catalogue rows.
+    <div className="flex flex-col gap-6 pb-24">
+      {isPlaceholder && (
+        <div className="flex gap-3 rounded-2xl bg-warning-soft px-4 py-3.5 text-warning-foreground">
+          <AlertTriangle className="mt-0.5 size-5 shrink-0" strokeWidth={1.8} />
+          <p className="text-sm leading-relaxed">
+            <strong className="font-semibold">These are placeholder rates.</strong> They're the right order of
+            magnitude for Delhi NCR retail, but they aren't your prices. Check them against your own purchase
+            invoices before sending a quote built on them.
           </p>
         </div>
-        {/* A second Save at the top, alongside the sticky bar at the
-            bottom — your request, so saving never needs a scroll
-            first. Same handler and same disabled rule as the bottom
-            one; there is still only one draft. */}
-        <Button type="button" size="sm" onClick={save} disabled={!dirty || saving}>
-          {saving ? 'Saving…' : 'Save rates'}
-        </Button>
-      </div>
-
-      {isPlaceholder && (
-        <Alert className="border-amber-300 bg-amber-50">
-          <AlertDescription className="text-amber-900">
-            <strong className="font-semibold">These are placeholder rates.</strong> They're
-            the right order of magnitude for Delhi NCR retail, but they aren't your prices.
-            Check them against your own purchase invoices before sending a quote built on them.
-          </AlertDescription>
-        </Alert>
       )}
 
-      <fieldset className="flex flex-col gap-3">
-        <legend className="text-xs font-medium text-muted-foreground">Labour and other charges (₹)</legend>
-        <p className="text-[13px] text-muted-foreground">
-          Labour, edge banding, packing, delivery — anything that isn't material, hardware or
-          glass. Pick how each is charged: per sq ft (of each cabinet's total board area — every
-          panel, back, shelf and front from the cutting list), per cabinet, or once per project
-          (lump sum). Tick <strong>Show on quote</strong> to print it as its own line;
-          everything unticked is combined into one "Other" line. Untick{' '}
-          <strong>Add margin</strong> for a price you've already fixed — it goes on the quote
-          as-is. Each project can override this list from its quote.
-        </p>
-        <ChargeRatesList
-          rates={draft.othersRates}
-          onChange={(othersRates) => setDraft({ ...draft, othersRates })}
-        />
-      </fieldset>
+      <SectionCard
+        Icon={HardHat}
+        title="Labour and other charges"
+        description="Labour, packing, delivery: anything that isn't material, hardware or glass."
+        help={
+          <>
+            <p>
+              Pick how each is charged: <strong className="text-foreground">per sq ft</strong> of each cabinet's
+              total board area (every panel, back, shelf and front from the cutting list),{' '}
+              <strong className="text-foreground">per cabinet</strong>, or once per project as a{' '}
+              <strong className="text-foreground">lump sum</strong>.
+            </p>
+            <p>
+              Tick <strong className="text-foreground">Show on quote</strong> to print a charge as its own line;
+              unticked ones are combined into one "Other" line. Untick{' '}
+              <strong className="text-foreground">Add margin</strong> for a price you've already fixed: it goes on
+              the quote as it is. Each project can override this list from its quote.
+            </p>
+          </>
+        }
+      >
+        <ChargeRatesList comfortable rates={draft.othersRates} onChange={(othersRates) => setDraft({ ...draft, othersRates })} />
+      </SectionCard>
 
-      <Separator />
+      <SectionCard
+        Icon={Wrench}
+        title="Hardware"
+        description="Fittings priced per piece. Handles are priced on their catalogue rows."
+        help={<p>A drawer channel is priced per <strong className="text-foreground">pair</strong> of runners and a hinge per piece, as each is sold and fitted.</p>}
+      >
+        <div className="flex flex-col">
+          {HARDWARE_KEYS.map((key) => {
+            const [label, hint] = splitUnit(RATE_LABELS[key]);
+            return rateRow(key, label, hint, draft.hardware[key], (n) => setDraft({ ...draft, hardware: { ...draft.hardware, [key]: n } }));
+          })}
+        </div>
+      </SectionCard>
 
-      <fieldset className="flex flex-col gap-3">
-        <legend className="text-xs font-medium text-muted-foreground">Hardware (₹ per unit)</legend>
-        {HARDWARE_KEYS.map((key) => (
-          <Label key={key} className="flex items-center justify-between gap-3 font-normal">
-            <span className="text-xs text-muted-foreground">{RATE_LABELS[key]}</span>
-            <Input
-              type="number"
-              min={0}
-              step={1}
-              value={draft.hardware[key]}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  hardware: { ...draft.hardware, [key]: Number(e.target.value) },
-                })
-              }
-              className="w-28 text-right"
-            />
-          </Label>
-        ))}
-        <p className="text-[13px] text-muted-foreground">
-          A drawer channel is priced per <strong>pair</strong> of runners, and a hinge per
-          individual piece — that's how each is sold and fitted. Handles are priced on their
-          own catalogue rows, not here.
-        </p>
-      </fieldset>
-
-      <Separator />
-
-      <fieldset className="flex flex-col gap-3">
-        <legend className="text-xs font-medium text-muted-foreground">Boards</legend>
-        <p className="text-[13px] text-muted-foreground">
-          Every board you buy, one line per material and thickness — HDMR 18mm and HDMR 6mm are
-          different lines at different prices. Each panel of a cabinet is priced at its own
-          board's rate, on its real area. Each cabinet picks its carcass board in the catalogue
-          (and per cabinet); its back uses the default back board below.
-        </p>
+      <SectionCard
+        Icon={Layers}
+        title="Boards"
+        description="Every board you buy: one line per material and thickness, priced per m²."
+        help={
+          <p>
+            HDMR 18mm and HDMR 6mm are different lines at different prices. Each panel of a cabinet is priced at
+            its own board's rate, on its real area. Each cabinet picks its carcass board in the catalogue (and per
+            cabinet); its back uses the default back board.
+          </p>
+        }
+      >
         <BoardRatesEditor
           boards={draft.boards}
           defaultBackBoardId={draft.defaultBackBoardId}
           onChange={(boards, defaultBackBoardId) => setDraft({ ...draft, boards, defaultBackBoardId })}
         />
+      </SectionCard>
+
+      <SectionCard
+        Icon={Scissors}
+        title="Sheet waste and edge banding"
+        description="What the offcuts add to board cost, and the price of the edge tape."
+      >
         {/* Approx vs calculated sheet waste (§53, your rule): ONE
             experience-based factor everywhere, or each board line's own
             factor measured from each project's sheet layout. */}
-        <div className="flex flex-col gap-1.5">
-          <span className="text-xs text-muted-foreground">Sheet waste on quotes</span>
-          <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Sheet waste on quotes">
+        <div className="flex flex-col gap-2">
+          <span className="text-[13px] font-semibold">Sheet waste on quotes</span>
+          <div role="radiogroup" aria-label="Sheet waste on quotes" className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {(
               [
-                ['approx', 'Approx — one factor'],
-                ['calculated', 'Calculated — per board, from the sheet layout'],
+                ['approx', 'Approx', 'One factor from experience, on every board'],
+                ['calculated', 'Calculated', "Each board's real waste, from the sheet layout"],
               ] as const
-            ).map(([mode, label]) => (
-              <Button
+            ).map(([mode, label, sub]) => (
+              <button
                 key={mode}
                 type="button"
-                size="xs"
-                // Long labels wrap on a phone instead of widening the page (§75).
-                className="h-auto min-h-7 py-1 text-left whitespace-normal"
                 role="radio"
                 aria-checked={draft.wasteMode === mode}
-                variant={draft.wasteMode === mode ? 'secondary' : 'ghost'}
                 onClick={() => setDraft({ ...draft, wasteMode: mode })}
+                className={
+                  draft.wasteMode === mode
+                    ? 'flex flex-col items-start gap-0.5 rounded-xl border-2 border-primary bg-accent px-4 py-3 text-left'
+                    : 'flex flex-col items-start gap-0.5 rounded-xl border border-input bg-card px-4 py-3 text-left hover:bg-secondary'
+                }
               >
-                {draft.wasteMode === mode ? '✓ ' : ''}
-                {label}
-              </Button>
+                <span className="text-[15px] font-semibold">{label}</span>
+                <span className="text-[13px] text-muted-foreground">{sub}</span>
+              </button>
             ))}
           </div>
           <p className="text-[13px] text-muted-foreground">
             {draft.wasteMode === 'approx'
-              ? 'Every quote uses the one factor below (a project can override it from its quote).'
-              : "Every quote lays its own parts out on each board's sheet sizes and uses each board's measured waste — automatically, nothing to fill in. More accurate when boards differ in price. The factor below is kept for when you switch back."}
+              ? 'Every quote uses the factor below (a project can override it from its quote).'
+              : 'Nothing to fill in: every quote measures it. More accurate when boards differ in price. The factor below is kept for when you switch back.'}
           </p>
         </div>
-        <Label className="flex items-center justify-between gap-3 font-normal">
-          <span className="text-xs text-muted-foreground">Edge banding (₹ per running metre)</span>
-          <Input
-            type="number"
-            min={0}
-            step={0.5}
-            value={draft.edgeBandingRatePerM}
-            onChange={(e) => setDraft({ ...draft, edgeBandingRatePerM: Number(e.target.value) })}
-            className="w-28 text-right"
-          />
-        </Label>
-        <p className="text-[13px] text-muted-foreground">
-          Charged on the exact metres the cutting list works out — only the edges that face the
-          customer. ₹0 means not charged here.{' '}
-          {draft.edgeBandingRatePerM > 0 &&
-            draft.othersRates.some((r) => /edge/i.test(r.label) && r.rate > 0) && (
-              <strong className="text-amber-700">
-                You also have an edge-banding row in "Labour and other charges" — remove it, or edge
-                banding is charged twice.
-              </strong>
-            )}
-        </p>
-        <Label className="flex items-center justify-between gap-3 font-normal">
-          <span className={`text-xs ${draft.wasteMode === 'approx' ? 'text-muted-foreground' : 'text-muted-foreground'}`}>
-            Approx sheet waste factor (×)
-          </span>
-          <Input
-            type="number"
-            min={1}
-            step={0.01}
-            value={draft.sheetWasteFactor}
-            onChange={(e) => setDraft({ ...draft, sheetWasteFactor: Number(e.target.value) })}
-            className="w-28 text-right"
-          />
-        </Label>
-        <p className="text-[13px] text-muted-foreground">
-          From experience: board is bought as whole sheets and the offcuts are paid for too. 1.10
-          means "buy 10% more than the cabinets use." Multiplies the board rates above only.
-        </p>
-      </fieldset>
+        <div className="flex flex-col">
+          <label className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-secondary py-3">
+            <span className="flex flex-col">
+              <span className="text-[15px] font-medium">Approx sheet waste factor</span>
+              <span className="text-[13px] text-muted-foreground">1.10 means "buy 10% more board than the cabinets use"</span>
+            </span>
+            <span className="flex h-11 w-40 items-center gap-2 rounded-[10px] border border-input bg-card px-3">
+              <span className="text-sm text-muted-foreground">×</span>
+              <Input
+                type="number"
+                min={1}
+                step={0.01}
+                value={draft.sheetWasteFactor}
+                onChange={(e) => setDraft({ ...draft, sheetWasteFactor: Number(e.target.value) })}
+                className="h-auto min-w-0 border-0 bg-transparent p-0 text-right font-mono text-[15px] shadow-none focus-visible:ring-0"
+              />
+            </span>
+          </label>
+          {rateRow(
+            'edge',
+            'Edge banding',
+            'per running metre, on the edges the customer sees',
+            draft.edgeBandingRatePerM,
+            (n) => setDraft({ ...draft, edgeBandingRatePerM: n }),
+            0.5
+          )}
+        </div>
+        {draft.edgeBandingRatePerM > 0 && draft.othersRates.some((r) => /edge/i.test(r.label) && r.rate > 0) && (
+          <div className="flex gap-3 rounded-xl bg-warning-soft px-4 py-3 text-sm text-warning-foreground">
+            <AlertTriangle className="mt-0.5 size-[18px] shrink-0" strokeWidth={1.8} />
+            You also have an edge-banding row under "Labour and other charges". Remove it, or edge banding is charged
+            twice.
+          </div>
+        )}
+      </SectionCard>
 
-      <Separator />
-
-      <fieldset className="flex flex-col gap-3">
-        <legend className="text-xs font-medium text-muted-foreground">Glass door (₹ per sq ft)</legend>
-        {GLASS_KEYS.map((key) => (
-          <Label key={key} className="flex items-center justify-between gap-3 font-normal">
-            <span className="text-xs text-muted-foreground">{GLASS_TINT_LABELS[key]}</span>
-            <Input
-              type="number"
-              min={0}
-              step={1}
-              value={draft.glassRates[key]}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  glassRates: { ...draft.glassRates, [key]: Number(e.target.value) },
-                })
-              }
-              className="w-28 text-right"
-            />
-          </Label>
-        ))}
-        <p className="text-[13px] text-muted-foreground">
-          An open-shelf front's optional glass door (Front Picker, on a cabinet), charged by
-          the glass panel's own area — sq ft, not sq m, matching site labour's unit rather
-          than the board rates above. Priced separately from Boards: glass is bought
-          and cut as glass, not the cabinet's own board.
-        </p>
-      </fieldset>
+      <SectionCard
+        Icon={GlassWater}
+        title="Glass doors"
+        description="Glass fronts by tint, per sq ft of glass."
+        help={
+          <p>
+            Glass is bought and cut as glass, not from the cabinet's board, so it's priced on its own, by the glass
+            panel's area in sq ft.
+          </p>
+        }
+      >
+        <div className="flex flex-col">
+          {GLASS_KEYS.map((key) =>
+            rateRow(
+              key,
+              GLASS_TINT_LABELS[key],
+              'per sq ft',
+              draft.glassRates[key],
+              (n) => setDraft({ ...draft, glassRates: { ...draft.glassRates, [key]: n } }),
+              1,
+              <span className="size-6 shrink-0 rounded-md ring-1 ring-black/10" style={{ backgroundColor: GLASS_SWATCH[key] }} />
+            )
+          )}
+        </div>
+      </SectionCard>
 
       {error && (
         <Alert variant="destructive">
@@ -335,47 +351,35 @@ export function RateCardManager() {
         </Alert>
       )}
 
-      {/* STICKY while there are unsaved edits. It used to sit inline
-          at the very bottom of a long form, below Material, waste and
-          Glass — a user editing Labour or Other at the top never saw
-          it, assumed edits applied live, and reported "changing rates
-          doesn't update the quote" (they were never saved). Sticky
-          rather than a second button at the top: one save action,
-          always reachable from wherever the edit was made. It only
-          sticks within this component, so it can't float over the
-          Finishes/Handles sections below once the rate card is
-          scrolled past. */}
+      {/* The save bar. It floats at the bottom of the screen while there
+          are unsaved edits, because a user editing a rate near the top
+          once never saw the Save at the bottom of the long form, assumed
+          edits applied live, and reported "changing rates doesn't update
+          the quote". One save action, always reachable. */}
       <div
         className={
           dirty
-            ? 'sticky bottom-0 z-10 -mx-2 flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-2 py-2 shadow-sm'
-            : 'flex items-center gap-2'
+            ? 'sticky bottom-20 z-30 flex flex-wrap items-center gap-3 rounded-2xl bg-sidebar px-4 py-3 text-sidebar-foreground shadow-float md:bottom-4'
+            : 'flex flex-wrap items-center gap-3'
         }
       >
         {dirty && !saving && (
-          <span className="text-xs text-amber-900">Unsaved rate changes — quotes use the old rates until saved.</span>
+          <span className="min-w-0 flex-1 text-sm text-white">Unsaved changes. Quotes use the old rates until you save.</span>
         )}
-        <Button type="button" size="sm" onClick={save} disabled={!dirty || saving}>
-          {saving ? 'Saving…' : 'Save rates'}
-        </Button>
         {dirty && !saving && (
-          <Button
-            type="button"
-            variant="link"
-            size="sm"
-            className="h-auto p-0 text-xs text-muted-foreground"
-            onClick={() => setDraft(rateCard)}
-          >
-            Discard changes
+          <Button type="button" variant="ghost" size="touch" className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-white" onClick={() => setDraft(rateCard)}>
+            Discard
           </Button>
         )}
+        <Button type="button" size="touch" onClick={save} disabled={!dirty || saving} className={dirty ? 'bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90' : ''}>
+          {saving ? 'Saving…' : 'Save rates'}
+        </Button>
+        {!dirty && (
+          <span className="text-[13px] text-muted-foreground">
+            Saving reprices every open quote. Frozen quotes keep the rates they were sent with.
+          </span>
+        )}
       </div>
-
-      <p className="text-[13px] text-muted-foreground">
-        Saving new rates reprices every open quote. Quotes you've already frozen and
-        sent keep the rates they were sent with.
-      </p>
     </div>
   );
 }
-

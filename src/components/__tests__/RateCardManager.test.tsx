@@ -23,28 +23,27 @@ describe('Rate card', () => {
     const user = userEvent.setup();
     const store = resetStore();
     render(<RateCardManager />);
-    expect(screen.queryByText(/Unsaved rate changes/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Unsaved changes\. Quotes use the old rates/)).not.toBeInTheDocument();
     for (const b of screen.getAllByRole('button', { name: 'Save rates' })) expect(b).toBeDisabled();
 
-    const edge = screen.getByLabelText(/Edge banding \(₹ per running metre\)/);
+    const edge = screen.getByLabelText(/Edge banding/);
     await user.clear(edge);
     await user.type(edge, '12');
 
-    expect(screen.getByText(/Unsaved rate changes/)).toBeInTheDocument();
-    const saves = screen.getAllByRole('button', { name: 'Save rates' });
-    expect(saves.length).toBeGreaterThanOrEqual(2); // top and the sticky bar
-    await user.click(saves[0]);
+    expect(screen.getByText(/Unsaved changes\. Quotes use the old rates/)).toBeInTheDocument();
+    // One save action, floating at the bottom while there are edits (§77).
+    await user.click(screen.getByRole('button', { name: 'Save rates' }));
 
     expect(store.updateRateCard).toHaveBeenCalledTimes(1);
     expect(useLayoutStore.getState().rateCard.edgeBandingRatePerM).toBe(12);
-    expect(screen.queryByText(/Unsaved rate changes/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Unsaved changes\. Quotes use the old rates/)).not.toBeInTheDocument();
   });
 
   it('keeps unsaved edits when a board is added from elsewhere (catalogue "+ Add a new board…")', async () => {
     const user = userEvent.setup();
     resetStore();
     render(<RateCardManager />);
-    const edge = screen.getByLabelText(/Edge banding \(₹ per running metre\)/);
+    const edge = screen.getByLabelText(/Edge banding/);
     await user.clear(edge);
     await user.type(edge, '9');
 
@@ -54,7 +53,7 @@ describe('Rate card', () => {
     });
 
     expect(await screen.findByDisplayValue('9')).toBeInTheDocument();
-    expect(screen.getByText(/Unsaved rate changes/)).toBeInTheDocument();
+    expect(screen.getByText(/Unsaved changes\. Quotes use the old rates/)).toBeInTheDocument();
   });
 
   it('the waste switch changes what the page explains', async () => {
@@ -64,6 +63,6 @@ describe('Rate card', () => {
     const group = screen.getByRole('radiogroup', { name: 'Sheet waste on quotes' });
     const calculated = [...group.querySelectorAll('button')].find((b) => /calculated/i.test(b.textContent ?? ''))!;
     await user.click(calculated);
-    expect(screen.getByText(/lays its own parts out on each board's sheet sizes/)).toBeInTheDocument();
+    expect(screen.getByText(/Nothing to fill in: every quote measures it/)).toBeInTheDocument();
   });
 });

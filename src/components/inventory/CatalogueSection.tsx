@@ -10,10 +10,9 @@
 // bar, so the page, the shell and the toolbars' "Manage" links all agree
 // on the sections and their element ids.
 
-import { useState, type ReactNode } from 'react';
-import { ChevronDown } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { SectionCard } from '../common/SectionCard';
 import { CATALOGUE_SECTIONS, catalogueSectionElementId, scrollToCatalogueSection, type CatalogueSectionId } from './catalogueSections';
-import { cn } from '@/lib/utils';
 
 export function CatalogueSection({
   id,
@@ -31,51 +30,18 @@ export function CatalogueSection({
   children: ReactNode;
 }) {
   const meta = CATALOGUE_SECTIONS.find((s) => s.id === id)!;
-  const [showHelp, setShowHelp] = useState(false);
   return (
-    // scroll-mt keeps the heading clear of the sticky jump bar on phones.
-    <section
+    <SectionCard
       id={catalogueSectionElementId(id)}
-      aria-labelledby={`${catalogueSectionElementId(id)}-title`}
-      className="scroll-mt-20 rounded-2xl bg-card shadow-card lg:scroll-mt-6"
+      Icon={meta.Icon}
+      title={meta.label}
+      description={description}
+      count={count}
+      help={help}
+      actions={actions}
     >
-      <header className="flex flex-wrap items-start gap-4 border-b border-border px-4 py-4 md:px-6 md:py-5">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground">
-          <meta.Icon className="size-[22px]" strokeWidth={1.7} />
-        </div>
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <div className="flex items-center gap-2.5">
-            <h2 id={`${catalogueSectionElementId(id)}-title`} className="text-xl font-semibold tracking-tight">
-              {meta.label}
-            </h2>
-            {count !== undefined && (
-              <span className="inline-flex h-6 items-center rounded-full bg-secondary px-2.5 text-xs font-semibold text-muted-foreground">
-                {count}
-              </span>
-            )}
-          </div>
-          <p className="text-[15px] text-muted-foreground">{description}</p>
-          {help && (
-            <button
-              type="button"
-              aria-expanded={showHelp}
-              onClick={() => setShowHelp((v) => !v)}
-              className="flex w-fit items-center gap-1 pt-0.5 text-[13px] font-semibold text-primary"
-            >
-              How this works
-              <ChevronDown className={cn('size-4 transition-transform', showHelp && 'rotate-180')} />
-            </button>
-          )}
-        </div>
-        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
-      </header>
-      {help && showHelp && (
-        <div className="flex flex-col gap-2 border-b border-border bg-background px-4 py-4 text-sm leading-relaxed text-muted-foreground md:px-6">
-          {help}
-        </div>
-      )}
-      <div className="flex flex-col gap-4 px-4 py-4 md:px-6 md:py-5">{children}</div>
-    </section>
+      {children}
+    </SectionCard>
   );
 }
 

@@ -47,6 +47,7 @@ export function NamedAmountList({
   choices,
   defaultChoice,
   flagOptions,
+  comfortable = false,
 }: {
   title?: string;
   rows: NamedAmountRow[];
@@ -56,9 +57,101 @@ export function NamedAmountList({
   choices?: NamedAmountChoice[];
   defaultChoice?: string;
   flagOptions?: NamedAmountFlag[];
+  // The Rate card's roomy layout (§77): each charge is a card with the
+  // name and amount on top, then how it's charged and its ticks. The
+  // quote sidebar keeps the compact one-line rows (it's narrow).
+  comfortable?: boolean;
 }) {
   const update = (id: string, patch: Partial<NamedAmountRow>) =>
     onChange(rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  const addRow = () =>
+    onChange([
+      ...rows,
+      {
+        id: crypto.randomUUID(),
+        label: '',
+        value: 0,
+        choice: defaultChoice,
+        flags: Object.fromEntries((flagOptions ?? []).map((f) => [f.key, f.defaultValue])),
+      },
+    ]);
+
+  if (comfortable) {
+    return (
+      <div className="flex flex-col gap-3">
+        {rows.length === 0 && <p className="text-[15px] text-muted-foreground">Nothing here yet.</p>}
+        {rows.map((r) => (
+          <div key={r.id} className="flex flex-col gap-3 rounded-xl border border-border bg-background p-3 md:p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                aria-label="Name"
+                placeholder={labelPlaceholder}
+                value={r.label}
+                onChange={(e) => update(r.id, { label: e.target.value })}
+                className="h-11 min-w-0 flex-[1_1_220px] rounded-[10px] bg-card text-[15px] font-medium"
+              />
+              <span className="flex h-11 w-36 items-center gap-2 rounded-[10px] border border-input bg-card px-3 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30">
+                <span className="text-sm text-muted-foreground">₹</span>
+                <Input
+                  aria-label="Amount"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={r.value}
+                  onChange={(e) => update(r.id, { value: Number(e.target.value) })}
+                  className="h-auto min-w-0 border-0 bg-transparent p-0 text-right font-mono text-[15px] shadow-none focus-visible:ring-0"
+                />
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-touch"
+                aria-label={`Remove ${r.label || 'row'}`}
+                onClick={() => onChange(rows.filter((x) => x.id !== r.id))}
+                className="text-muted-foreground hover:text-destructive"
+              >
+                ✕
+              </Button>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              {choices && (
+                <div role="radiogroup" aria-label="Charged" className="flex rounded-[10px] bg-secondary p-1">
+                  {choices.map((c) => (
+                    <button
+                      key={c.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={r.choice === c.value}
+                      onClick={() => update(r.id, { choice: c.value })}
+                      className={
+                        r.choice === c.value
+                          ? 'h-9 rounded-lg bg-card px-3 text-sm font-semibold shadow-sm'
+                          : 'h-9 rounded-lg px-3 text-sm font-medium text-muted-foreground hover:text-foreground'
+                      }
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {flagOptions?.map((f) => (
+                <Label key={f.key} className="flex h-9 items-center gap-2 text-sm font-medium">
+                  <Checkbox
+                    checked={r.flags?.[f.key] ?? f.defaultValue}
+                    onCheckedChange={(checked) => update(r.id, { flags: { ...r.flags, [f.key]: checked === true } })}
+                  />
+                  {f.label}
+                </Label>
+              ))}
+            </div>
+          </div>
+        ))}
+        <Button type="button" variant="outline" size="touch" className="self-start" onClick={addRow}>
+          + Add a charge
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-2">
@@ -132,18 +225,7 @@ export function NamedAmountList({
         variant="outline"
         size="xs"
         className="self-start"
-        onClick={() =>
-          onChange([
-            ...rows,
-            {
-              id: crypto.randomUUID(),
-              label: '',
-              value: 0,
-              choice: defaultChoice,
-              flags: Object.fromEntries((flagOptions ?? []).map((f) => [f.key, f.defaultValue])),
-            },
-          ])
-        }
+        onClick={addRow}
       >
         + Add
       </Button>
