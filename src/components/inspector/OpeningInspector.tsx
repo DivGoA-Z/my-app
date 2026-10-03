@@ -80,7 +80,7 @@ const INR = new Intl.NumberFormat('en-IN', {
 // rather than pure white, which is what most flush doors actually are.
 const DEFAULT_LEAF_COLOR = '#e8e4dc';
 
-const inputClass = 'rounded border border-gray-300 px-2 py-1 text-sm';
+const inputClass = 'rounded-[10px] border border-input px-2 py-1 text-sm';
 
 export function OpeningInspector() {
   const selectedOpeningId = useSelectedOpeningId();
@@ -119,12 +119,12 @@ export function OpeningInspector() {
   }
 
   return (
-    <div className="flex w-56 flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4">
+    <div className="flex w-56 flex-col gap-3 rounded-lg border border-border bg-white p-4">
       <div>
-        <h3 className="text-sm font-semibold text-gray-700">
+        <h3 className="text-[19px] font-semibold leading-tight">
           {OPENING_KIND_LABELS[opening.kind]}
         </h3>
-        <p className="text-[11px] text-gray-500">
+        <p className="text-[13px] text-muted-foreground">
           Deducts {deductedSqM.toFixed(2)} m² from {WALL_LABELS[opening.wallId].toLowerCase()}{' '}
           tiling
         </p>
@@ -155,7 +155,7 @@ export function OpeningInspector() {
         </Alert>
       )}
 
-      <div className="flex flex-col gap-1 text-xs text-gray-600">
+      <div className="flex flex-col gap-1 text-xs text-muted-foreground">
         Wall
         <Select
           value={opening.wallId}
@@ -168,7 +168,7 @@ export function OpeningInspector() {
             set({ wallId, daylight: defaultDaylightFor(opening.kind, wallId) });
           }}
         >
-          <SelectTrigger size="sm" className="w-full">
+          <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -181,7 +181,7 @@ export function OpeningInspector() {
         </Select>
       </div>
 
-      <label className="flex items-center justify-between gap-2 text-xs text-gray-600">
+      <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
         Along wall (mm)
         <input
           type="number"
@@ -210,19 +210,19 @@ export function OpeningInspector() {
           onChange={(sillMm) => set({ sillMm })}
         />
       </div>
-      <span className="-mt-1 text-[10px] text-gray-400">
+      <span className="-mt-1 text-xs text-muted-foreground">
         Sill is the height of the bottom edge off the floor — 0 for a door.
       </span>
 
       {opening.kind === 'door' && (
         <>
-          <div className="flex flex-col gap-1 text-xs text-gray-600">
+          <div className="flex flex-col gap-1 text-xs text-muted-foreground">
             Swing
             <Select
               value={opening.swing ?? 'in-right'}
               onValueChange={(value) => set({ swing: value as DoorSwing })}
             >
-              <SelectTrigger size="sm" className="w-full">
+              <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -234,7 +234,7 @@ export function OpeningInspector() {
               </SelectContent>
             </Select>
           </div>
-          <span className="-mt-1 text-[10px] text-gray-400">
+          <span className="-mt-1 text-xs text-muted-foreground">
             {swingBlocksFloor(opening.swing ?? 'in-right') ? (
               <span className="text-amber-700">
                 Reserves {(opening.widthMm / 1000).toFixed(2)}m of floor — nothing can be placed
@@ -245,13 +245,13 @@ export function OpeningInspector() {
             )}
           </span>
 
-          <div className="flex flex-col gap-1 text-xs text-gray-600">
+          <div className="flex flex-col gap-1 text-xs text-muted-foreground">
             Shown as
             <Select
               value={opening.doorState ?? 'closed'}
               onValueChange={(value) => set({ doorState: value as DoorState })}
             >
-              <SelectTrigger size="sm" className="w-full">
+              <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -265,10 +265,10 @@ export function OpeningInspector() {
           </div>
 
           {(opening.doorState ?? 'closed') === 'closed' && (
-            <div className="flex flex-col gap-2 rounded border border-gray-200 p-2">
-              <span className="text-xs font-medium text-gray-700">Door leaf</span>
+            <div className="flex flex-col gap-2 rounded-[10px] border border-border p-2">
+              <span className="text-xs font-medium text-foreground">Door leaf</span>
 
-              <div className="flex flex-col gap-1 text-xs text-gray-600">
+              <div className="flex flex-col gap-1 text-xs text-muted-foreground">
                 Finish
                 <Select
                   value={opening.leafFinishId ?? NO_FINISH_VALUE}
@@ -276,7 +276,7 @@ export function OpeningInspector() {
                     set({ leafFinishId: value === NO_FINISH_VALUE ? undefined : value })
                   }
                 >
-                  <SelectTrigger size="sm" className="w-full">
+                  <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -290,7 +290,7 @@ export function OpeningInspector() {
                 </Select>
               </div>
 
-              <div className="flex flex-col gap-1 text-xs text-gray-600">
+              <div className="flex flex-col gap-1 text-xs text-muted-foreground">
                 Handle
                 <Select
                   value={opening.leafHandleId ?? NO_HANDLE_VALUE}
@@ -298,7 +298,7 @@ export function OpeningInspector() {
                     set({ leafHandleId: value === NO_HANDLE_VALUE ? undefined : value })
                   }
                 >
-                  <SelectTrigger size="sm" className="w-full">
+                  <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -321,7 +321,7 @@ export function OpeningInspector() {
                   match the passage rather than the kitchen, so it wants
                   a one-off colour instead of its own catalogue row. */}
               <div className="flex flex-col gap-1">
-                <span className="text-xs text-gray-600">Colour</span>
+                <span className="text-xs text-muted-foreground">Colour</span>
                 {opening.leafColorOverride ? (
                   <>
                     <ColorPicker
@@ -330,8 +330,8 @@ export function OpeningInspector() {
                     />
                     <Button
                       variant="link"
-                      size="xs"
-                      className="h-auto self-start p-0 text-[10px]"
+                      size="sm"
+                      className="h-auto self-start p-0 text-xs"
                       onClick={() => set({ leafColorOverride: undefined })}
                     >
                       Use the finish's own colour
@@ -340,8 +340,8 @@ export function OpeningInspector() {
                 ) : (
                   <Button
                     variant="link"
-                    size="xs"
-                    className="h-auto self-start p-0 text-[10px]"
+                    size="sm"
+                    className="h-auto self-start p-0 text-xs"
                     onClick={() => set({ leafColorOverride: DEFAULT_LEAF_COLOR })}
                   >
                     Override colour
@@ -354,7 +354,7 @@ export function OpeningInspector() {
       )}
 
       <div className="flex flex-col gap-1 border-t border-gray-100 pt-2">
-        <span className="text-xs font-medium text-gray-700">Seen through it</span>
+        <span className="text-xs font-medium text-foreground">Seen through it</span>
         <Select
           value={
             BACKDROP_PRESETS.some((p) => p.url === opening.backdropUrl)
@@ -366,7 +366,7 @@ export function OpeningInspector() {
             set({ backdropUrl: value });
           }}
         >
-          <SelectTrigger size="sm" className="w-full">
+          <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -384,7 +384,7 @@ export function OpeningInspector() {
           placeholder="/backdrops/urban-balcony.jpg, or a business's own photo URL"
           className={inputClass + ' w-full'}
         />
-        <span className="text-[10px] text-gray-400">
+        <span className="text-xs text-muted-foreground">
           Pick a preset, or paste a business's own site photo URL directly. A photo of the
           actual view, or a generic sky. Empty leaves the opening dark, which reads as a
           rendering fault rather than as a window.
@@ -393,7 +393,7 @@ export function OpeningInspector() {
 
       <DaylightFields opening={opening} onChange={set} />
 
-      <Label className="flex items-center justify-between gap-2 border-t border-gray-100 pt-2 text-xs font-normal text-gray-600">
+      <Label className="flex items-center justify-between gap-2 border-t border-gray-100 pt-2 text-xs font-normal text-muted-foreground">
         Supplied by you
         <Checkbox
           checked={opening.suppliedByUs}
@@ -401,7 +401,7 @@ export function OpeningInspector() {
         />
       </Label>
       {opening.suppliedByUs ? (
-        <label className="flex items-center justify-between gap-2 text-xs text-gray-600">
+        <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
           Price
           <input
             type="number"
@@ -412,12 +412,12 @@ export function OpeningInspector() {
           />
         </label>
       ) : (
-        <span className="-mt-1 text-[10px] text-gray-400">
+        <span className="-mt-1 text-xs text-muted-foreground">
           Prints on the quote as a specification at {INR.format(0)} — existing, by others.
         </span>
       )}
 
-      <Button variant="destructive" size="xs" onClick={() => removeOpening(opening.id)}>
+      <Button variant="destructive" size="sm" onClick={() => removeOpening(opening.id)}>
         Delete
       </Button>
     </div>
@@ -435,7 +435,7 @@ function DaylightFields({
 
   return (
     <div className="flex flex-col gap-1 border-t border-gray-100 pt-2">
-      <Label className="flex items-center justify-between gap-2 text-xs font-medium text-gray-700">
+      <Label className="flex items-center justify-between gap-2 text-xs font-medium text-foreground">
         Light from outside
         <Checkbox
           checked={daylight.enabled}
@@ -453,7 +453,7 @@ function DaylightFields({
               onChange({ daylight: { ...daylight, mode: value as DaylightMode } })
             }
           >
-            <SelectTrigger size="sm" className="w-full">
+            <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -465,7 +465,7 @@ function DaylightFields({
             </SelectContent>
           </Select>
 
-          <label className="flex items-center justify-between gap-2 text-[11px] text-gray-600">
+          <label className="flex items-center justify-between gap-2 text-[13px] text-muted-foreground">
             Brightness
             <input
               type="range"
@@ -480,7 +480,7 @@ function DaylightFields({
             />
           </label>
 
-          <label className="flex items-center justify-between gap-2 text-[11px] text-gray-600">
+          <label className="flex items-center justify-between gap-2 text-[13px] text-muted-foreground">
             Colour temp
             <input
               type="range"
@@ -494,7 +494,7 @@ function DaylightFields({
               className="w-24"
             />
           </label>
-          <span className="text-[10px] text-gray-400">
+          <span className="text-xs text-muted-foreground">
             {daylight.colorTempK}K — warmer light shifts how the finishes read, so approve
             colours under the temperature the kitchen will actually have.
           </span>
@@ -514,7 +514,7 @@ function NumField({
   onChange: (next: number) => void;
 }) {
   return (
-    <label className="flex flex-1 flex-col text-[10px] text-gray-500">
+    <label className="flex flex-1 flex-col text-xs text-muted-foreground">
       {label}
       <input
         type="number"
@@ -522,7 +522,7 @@ function NumField({
         step={50}
         value={value}
         onChange={(e) => onChange(Math.max(0, Number(e.target.value)))}
-        className="w-full rounded border border-gray-300 px-1 py-0.5 text-xs"
+        className="w-full rounded-[10px] border border-input px-1 py-0.5 text-xs"
       />
     </label>
   );

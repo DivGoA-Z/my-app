@@ -17,6 +17,8 @@
 // HOW THE BOX OPENS, a finish is what it looks like. A walnut door and
 // a white door are the same front.
 
+import { CabinetThumb } from '../editor/CabinetThumb';
+import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { useLayoutStore } from '../../store/layoutStore';
 import { Button } from '../ui/button';
@@ -399,30 +401,46 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded border border-gray-200 p-2">
-      <span className="text-xs font-medium text-gray-700">Front</span>
+    <div className="flex flex-col gap-2.5">
+      <span className="text-[13px] font-semibold">Front</span>
 
-      <div className="flex flex-col gap-1 text-xs text-gray-600">
-        Configuration
-        <Select value={layout.kind} onValueChange={(value) => setKind(value as FrontKind)}>
-          <SelectTrigger size="sm" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {FRONT_KINDS.map((k) => (
-              <SelectItem key={k} value={k}>
-                {FRONT_KIND_LABELS[k]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {/* Front choices as pictures (§86), drawn in this cabinet's own
+          size and finish so the customer sees what they'd get. The
+          current choice shows its real settings (drawer count, rows). */}
+      <div role="radiogroup" aria-label="Front" className="grid grid-cols-3 gap-2">
+        {FRONT_KINDS.map((k) => {
+          const on = layout.kind === k;
+          return (
+            <button
+              key={k}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => !on && setKind(k)}
+              className={cn(
+                'flex flex-col items-center gap-1 rounded-xl border p-1.5 text-center transition-colors',
+                on ? 'border-primary bg-accent/50 ring-1 ring-primary' : 'border-border bg-card hover:border-primary/60'
+              )}
+            >
+              <CabinetThumb
+                moduleType={cabinet.moduleType}
+                widthMm={cabinet.widthMm}
+                heightMm={cabinet.heightMm}
+                frontLayout={on ? layout : k === 'mixed' ? { kind: 'mixed', rows: defaultMixedRows() } : { kind: k }}
+                finishId={cabinet.finishId}
+                className="h-12 w-16"
+              />
+              <span className="text-xs font-medium leading-tight">{FRONT_KIND_LABELS[k]}</span>
+            </button>
+          );
+        })}
       </div>
 
       {layout.kind === 'mixed' && (
-        <div className="flex flex-col gap-2 rounded border border-gray-200 bg-gray-50 p-2">
-          <span className="text-[10px] font-medium text-gray-500">Rows, top to bottom</span>
+        <div className="flex flex-col gap-2 rounded-[10px] border border-border bg-secondary p-2">
+          <span className="text-xs font-medium text-muted-foreground">Rows, top to bottom</span>
           {(layout.rows ?? []).map((row, index) => (
-            <div key={index} className="flex flex-col gap-1 rounded border border-gray-200 bg-white p-1.5">
+            <div key={index} className="flex flex-col gap-1 rounded-[10px] border border-border bg-white p-1.5">
               <div className="flex items-center gap-1">
                 <Select
                   value={row.kind}
@@ -438,7 +456,7 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
                     })
                   }
                 >
-                  <SelectTrigger size="sm" className="flex-1">
+                  <SelectTrigger className="flex-1">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -452,7 +470,7 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
                 {(layout.rows?.length ?? 0) > MIN_MIXED_ROWS && (
                   <Button
                     variant="ghost"
-                    size="icon-xs"
+                    size="icon-sm"
                     onClick={() => removeRow(index)}
                     aria-label="Remove row"
                     className="text-red-600 hover:text-red-800"
@@ -463,7 +481,7 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
               </div>
 
               {COUNT_LABELS[row.kind] && (
-                <label className="flex items-center justify-between gap-2 text-[10px] text-gray-500">
+                <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                   {COUNT_LABELS[row.kind]}
                   <input
                     type="number"
@@ -476,14 +494,14 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
                         heightRatios: undefined,
                       })
                     }
-                    className="w-14 rounded border border-gray-300 px-1 py-0.5 text-xs"
+                    className="w-14 rounded-[10px] border border-input px-1 py-0.5 text-xs"
                   />
                 </label>
               )}
 
               {GLASSABLE_FRONT_KINDS.includes(row.kind) && (
-                <div className="flex flex-col gap-1 rounded border border-gray-200 bg-gray-50 p-1.5">
-                  <Label className="flex items-center justify-between gap-2 text-[10px] font-normal text-gray-500">
+                <div className="flex flex-col gap-1 rounded-[10px] border border-border bg-secondary p-1.5">
+                  <Label className="flex items-center justify-between gap-2 text-xs font-normal text-muted-foreground">
                     {glassToggleLabel(row.kind)}
                     <Checkbox
                       checked={Boolean(row.glass)}
@@ -499,7 +517,7 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
                       value={row.glass.tint}
                       onValueChange={(value) => updateRow(index, { glass: { tint: value as GlassTint } })}
                     >
-                      <SelectTrigger size="sm" className="w-full">
+                      <SelectTrigger className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -518,13 +536,13 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
                 (row.kind === 'open-shelf' &&
                   row.glass &&
                   cabinet.widthMm < DOUBLE_DOOR_MIN_WIDTH_MM)) && (
-                <div className="flex items-center justify-between gap-2 text-[10px] text-gray-500">
+                <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                   Hinge side
                   <Select
                     value={row.hinge ?? 'left'}
                     onValueChange={(value) => updateRow(index, { hinge: value as 'left' | 'right' })}
                   >
-                    <SelectTrigger size="sm">
+                    <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -536,7 +554,7 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
               )}
 
               {(row.kind === 'single-door' || row.kind === 'double-door') && isProfileHandle(handle) && (
-                <div className="flex items-center justify-between gap-2 text-[10px] text-gray-500">
+                <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                   {handleOrientationLabel(handle)}
                   <Select
                     value={row.handleOrientation ?? 'horizontal'}
@@ -544,7 +562,7 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
                       updateRow(index, { handleOrientation: value as HandleOrientation })
                     }
                   >
-                    <SelectTrigger size="sm">
+                    <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -555,7 +573,7 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
                 </div>
               )}
 
-              <label className="flex items-center justify-between gap-2 text-[10px] text-gray-500">
+              <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                 Height share
                 <input
                   type="number"
@@ -565,14 +583,14 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
                   onChange={(e) =>
                     updateRow(index, { heightRatio: Math.max(0.2, Number(e.target.value)) })
                   }
-                  className="w-14 rounded border border-gray-300 px-1 py-0.5 text-xs"
+                  className="w-14 rounded-[10px] border border-input px-1 py-0.5 text-xs"
                 />
               </label>
             </div>
           ))}
 
           {(layout.rows?.length ?? 0) < MAX_MIXED_ROWS && (
-            <Button variant="link" size="xs" className="h-auto self-start p-0 text-[10px]" onClick={addRow}>
+            <Button variant="link" size="sm" className="h-auto self-start p-0 text-xs" onClick={addRow}>
               + Add row
             </Button>
           )}
@@ -580,7 +598,7 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
       )}
 
       {countLabel && (
-        <label className="flex items-center justify-between gap-2 text-xs text-gray-600">
+        <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
           {countLabel}
           <input
             type="number"
@@ -608,14 +626,14 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
                 heightRatios: undefined,
               });
             }}
-            className="w-16 rounded border border-gray-300 px-2 py-1 text-sm"
+            className="w-16 rounded-[10px] border border-input px-2 py-1 text-sm"
           />
         </label>
       )}
 
       {GLASSABLE_FRONT_KINDS.includes(layout.kind) && (
-        <div className="flex flex-col gap-1.5 rounded border border-gray-200 bg-gray-50 p-2">
-          <Label className="flex items-center justify-between gap-2 text-xs font-normal text-gray-600">
+        <div className="flex flex-col gap-1.5 rounded-[10px] border border-border bg-secondary p-2">
+          <Label className="flex items-center justify-between gap-2 text-xs font-normal text-muted-foreground">
             {glassToggleLabel(layout.kind)}
             <Checkbox
               checked={Boolean(layout.glass)}
@@ -627,13 +645,13 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
             />
           </Label>
           {layout.glass && (
-            <div className="flex flex-col gap-1 text-xs text-gray-600">
+            <div className="flex flex-col gap-1 text-xs text-muted-foreground">
               Tint
               <Select
                 value={layout.glass.tint}
                 onValueChange={(value) => setLayout({ glass: { tint: value as GlassTint } })}
               >
-                <SelectTrigger size="sm" className="w-full">
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -644,15 +662,15 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
                   ))}
                 </SelectContent>
               </Select>
-              <span className="text-[10px] font-normal text-gray-400">{glassHint(layout.kind)}</span>
+              <span className="text-xs font-normal text-muted-foreground">{glassHint(layout.kind)}</span>
             </div>
           )}
         </div>
       )}
 
       {layout.kind === 'tambour' && (
-        <div className="flex flex-col gap-2 rounded border border-gray-200 bg-gray-50 p-2">
-          <span className="text-[10px] font-medium text-gray-500">
+        <div className="flex flex-col gap-2 rounded-[10px] border border-border bg-secondary p-2">
+          <span className="text-xs font-medium text-muted-foreground">
             Appliance per shelf, bottom to top
           </span>
           {Array.from({ length: tambourSlotCount }, (_, slotIndex) => {
@@ -667,8 +685,8 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
                     ? 'Top slot'
                     : `Slot ${slotIndex + 1} of ${tambourSlotCount}`;
             return (
-              <div key={slotIndex} className="flex flex-col gap-1 rounded border border-gray-200 bg-white p-1.5">
-                <div className="flex flex-col gap-1 text-[11px] text-gray-600">
+              <div key={slotIndex} className="flex flex-col gap-1 rounded-[10px] border border-border bg-white p-1.5">
+                <div className="flex flex-col gap-1 text-[13px] text-muted-foreground">
                   {positionLabel} — {clearance.widthMm}×{clearance.depthMm}×
                   {Math.round(clearance.heightMm)}mm clear
                   <Select
@@ -677,7 +695,7 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
                       pickTambourAppliance(slotIndex, value === NO_APPLIANCE_VALUE ? '' : value)
                     }
                   >
-                    <SelectTrigger size="sm" className="w-full">
+                    <SelectTrigger className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -693,7 +711,7 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
               </div>
             );
           })}
-          <span className="text-[10px] text-gray-400">
+          <span className="text-xs text-muted-foreground">
             Placed centred and resting on the shelf below, facing the same way as the shutter —
             drag it on the canvas afterwards if you want it positioned differently.
           </span>
@@ -706,13 +724,13 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
       )}
 
       {(layout.kind === 'single-door' || isSingleGlassDoor) && (
-        <div className="flex items-center justify-between gap-2 text-xs text-gray-600">
+        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
           Hinge side
           <Select
             value={layout.hinge ?? 'left'}
             onValueChange={(value) => setLayout({ hinge: value as 'left' | 'right' })}
           >
-            <SelectTrigger size="sm">
+            <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -723,7 +741,7 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
         </div>
       )}
 
-      <div className="flex flex-col gap-1 text-xs text-gray-600">
+      <div className="flex flex-col gap-1 text-xs text-muted-foreground">
         Handle
         <Select
           value={handle?.id ?? NO_HANDLE_VALUE}
@@ -731,7 +749,7 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
             updateCabinet(cabinet.id, { handleId: value === NO_HANDLE_VALUE ? '' : value })
           }
         >
-          <SelectTrigger size="sm" className="w-full">
+          <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -751,13 +769,13 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
       </div>
 
       {(layout.kind === 'single-door' || layout.kind === 'double-door') && isProfileHandle(handle) && (
-        <div className="flex items-center justify-between gap-2 text-xs text-gray-600">
+        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
           {handleOrientationLabel(handle)}
           <Select
             value={layout.handleOrientation ?? 'horizontal'}
             onValueChange={(value) => setLayout({ handleOrientation: value as HandleOrientation })}
           >
-            <SelectTrigger size="sm">
+            <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -770,12 +788,12 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
 
       <div className="flex flex-col gap-0.5 border-t border-gray-100 pt-2">
         {breakdown.hardware.length === 0 ? (
-          <span className="text-[10px] text-gray-400">
+          <span className="text-xs text-muted-foreground">
             No hardware for this configuration.
           </span>
         ) : (
           breakdown.hardware.map((h) => (
-            <div key={h.type} className="flex justify-between text-[10px] text-gray-500">
+            <div key={h.type} className="flex justify-between text-xs text-muted-foreground">
               <span>
                 {HARDWARE_LABELS[h.type]} ×{' '}
                 {/* A gola or edge profile is billed by running metre,
@@ -790,7 +808,7 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
         )}
 
         {breakdown.hardware.length > 0 && (
-          <div className="flex justify-between border-t border-gray-100 pt-1 text-[10px] font-medium text-gray-600">
+          <div className="flex justify-between border-t border-gray-100 pt-1 text-xs font-medium text-muted-foreground">
             <span>Hardware{cabinet.quantity > 1 ? ` × ${cabinet.quantity}` : ''}</span>
             <span className="tabular-nums">
               {INR.format(hardwareTotal * cabinet.quantity)}
@@ -802,7 +820,7 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
             see FrontBreakdown.glassAreaMm2's own comment for why it's
             priced separately (by area and tint, not per-piece). */}
         {glassPanel && (
-          <div className="flex justify-between text-[10px] text-gray-500">
+          <div className="flex justify-between text-xs text-muted-foreground">
             <span>
               {GLASS_TINT_LABELS[glassPanel.glassTint!]} glass ({glassAreaSqFt.toFixed(1)} sq ft)
               {cabinet.quantity > 1 ? ` × ${cabinet.quantity}` : ''}
@@ -812,7 +830,7 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
         )}
 
         {isOverridden && (
-          <span className="text-[10px] text-amber-600">
+          <span className="text-xs text-amber-600">
             This cabinet has hand-entered hardware, which overrides the counts above in the
             quote.
           </span>

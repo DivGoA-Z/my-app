@@ -47,7 +47,7 @@ const INR = new Intl.NumberFormat('en-IN', {
   maximumFractionDigits: 0,
 });
 
-const inputClass = 'rounded border border-gray-300 px-2 py-1 text-sm';
+const inputClass = 'rounded-[10px] border border-input px-2 py-1 text-sm';
 
 // 'base-cabinet' -> 'Base Cabinet'
 function moduleLabel(moduleType: string): string {
@@ -109,17 +109,17 @@ export function FixtureInspector() {
     : false;
 
   return (
-    <div className="flex w-56 flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4">
+    <div className="flex w-56 flex-col gap-3 rounded-lg border border-border bg-white p-4">
       <div>
-        <h3 className="text-sm font-semibold text-gray-700">
+        <h3 className="text-[19px] font-semibold leading-tight">
           {placement?.item.label ?? 'Fixture'}
         </h3>
         {placement ? (
-          <p className="flex items-center gap-1.5 text-[11px] text-gray-500">
+          <p className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
             <span
               // The actual rendered colour, so the warmth is visible
               // here rather than being a number you have to imagine.
-              className="inline-block h-3 w-3 rounded-full border border-gray-300"
+              className="inline-block h-3 w-3 rounded-full border border-input"
               style={{ backgroundColor: kelvinToColor(placement.item.colorTempK) }}
             />
             {placement.item.colorTempK}K · {placement.item.lumens} lm
@@ -143,16 +143,16 @@ export function FixtureInspector() {
       )}
 
       {placement && !isVisibleWhenClosed(placement.item.kind) && (
-        <div className="rounded border border-gray-200 bg-gray-50 px-2 py-1.5 text-[10px] text-gray-500">
+        <div className="rounded-[10px] border border-border bg-secondary px-2 py-1.5 text-xs text-muted-foreground">
           Only visible with the drawer open, so it doesn&apos;t appear in the 3D view. It is
           still quoted.
         </div>
       )}
 
-      <div className="flex flex-col gap-1 text-xs text-gray-600">
+      <div className="flex flex-col gap-1 text-xs text-muted-foreground">
         Mounted on
         <Select value={mount.kind} onValueChange={(value) => setMountKind(value as FixtureMount['kind'])}>
-          <SelectTrigger size="sm" className="w-full">
+          <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -168,13 +168,13 @@ export function FixtureInspector() {
 
       {mount.kind === 'cabinet' && (
         <>
-          <div className="flex flex-col gap-1 text-xs text-gray-600">
+          <div className="flex flex-col gap-1 text-xs text-muted-foreground">
             Cabinet
             <Select
               value={mount.cabinetId}
               onValueChange={(value) => set({ mount: { ...mount, cabinetId: value } })}
             >
-              <SelectTrigger size="sm" className="w-full">
+              <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -193,13 +193,13 @@ export function FixtureInspector() {
             </Select>
           </div>
 
-          <div className="flex flex-col gap-1 text-xs text-gray-600">
+          <div className="flex flex-col gap-1 text-xs text-muted-foreground">
             Face
             <Select
               value={mount.face}
               onValueChange={(value) => set({ mount: { ...mount, face: value as CabinetFace } })}
             >
-              <SelectTrigger size="sm" className="w-full">
+              <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -211,7 +211,7 @@ export function FixtureInspector() {
               </SelectContent>
             </Select>
           </div>
-          <span className="-mt-1 text-[10px] text-gray-400">
+          <span className="-mt-1 text-xs text-muted-foreground">
             Moves and resizes with the cabinet, and is removed if the cabinet is deleted.
           </span>
 
@@ -234,7 +234,7 @@ export function FixtureInspector() {
 
       {mount.kind === 'wall' && (
         <>
-          <div className="flex flex-col gap-1 text-xs text-gray-600">
+          <div className="flex flex-col gap-1 text-xs text-muted-foreground">
             Wall
             <Select
               value={mount.wallId}
@@ -242,7 +242,7 @@ export function FixtureInspector() {
                 set({ mount: { ...mount, wallId: value as WallOrientation } })
               }
             >
-              <SelectTrigger size="sm" className="w-full">
+              <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -303,7 +303,7 @@ export function FixtureInspector() {
               onChange={(zMm) => set({ mount: { ...mount, zMm } })}
             />
           </div>
-          <span className="-mt-1 text-[10px] text-gray-400">
+          <span className="-mt-1 text-xs text-muted-foreground">
             Fixed coordinates, attached to nothing — it will not follow a cabinet. Ceiling is at{' '}
             {ceilingHeightMm}mm.
           </span>
@@ -312,13 +312,13 @@ export function FixtureInspector() {
 
       {placement && isVisibleWhenClosed(placement.item.kind) && (
         <>
-          <div className="flex flex-col gap-1 text-xs text-gray-600">
+          <div className="flex flex-col gap-1 text-xs text-muted-foreground">
             Throws
             <Select
               value={fixture.throwDirection ?? defaultThrowFor(placement.item.kind)}
               onValueChange={(value) => set({ throwDirection: value as ThrowDirection })}
             >
-              <SelectTrigger size="sm" className="w-full">
+              <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -330,7 +330,7 @@ export function FixtureInspector() {
               </SelectContent>
             </Select>
           </div>
-          <span className="-mt-1 text-[10px] text-gray-400">
+          <span className="-mt-1 text-xs text-muted-foreground">
             {THROW_HINTS[fixture.throwDirection ?? defaultThrowFor(placement.item.kind)]}
           </span>
         </>
@@ -340,13 +340,13 @@ export function FixtureInspector() {
           strip under a cabinet runs along that cabinet; turning it
           independently would mean nothing. */}
       {linear && (mount.kind === 'ceiling' || mount.kind === 'free') && (
-        <div className="flex items-center justify-between gap-2 text-xs text-gray-600">
+        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
           Run direction
           <Select
             value={String(fixture.runRotationDeg ?? 0)}
             onValueChange={(value) => set({ runRotationDeg: value === '90' ? 90 : 0 })}
           >
-            <SelectTrigger size="sm" className="w-28">
+            <SelectTrigger className="w-28">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -359,7 +359,7 @@ export function FixtureInspector() {
 
       {linear ? (
         <>
-          <label className="flex items-center justify-between gap-2 text-xs text-gray-600">
+          <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
             Run length (mm)
             <input
               type="number"
@@ -373,8 +373,8 @@ export function FixtureInspector() {
           {mount.kind === 'cabinet' && fixture.runLengthMm !== undefined && (
             <Button
               variant="link"
-              size="xs"
-              className="h-auto self-start p-0 text-[10px]"
+              size="sm"
+              className="h-auto self-start p-0 text-xs"
               onClick={() => set({ runLengthMm: undefined })}
             >
               Match the cabinet automatically
@@ -383,7 +383,7 @@ export function FixtureInspector() {
         </>
       ) : (
         <>
-          <label className="flex items-center justify-between gap-2 text-xs text-gray-600">
+          <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
             Quantity
             <input
               type="number"
@@ -408,15 +408,15 @@ export function FixtureInspector() {
         </>
       )}
 
-      <Label className="flex items-center justify-between gap-2 text-xs font-normal text-gray-600">
+      <Label className="flex items-center justify-between gap-2 text-xs font-normal text-muted-foreground">
         Switched on
         <Checkbox checked={fixture.enabled} onCheckedChange={(checked) => set({ enabled: checked === true })} />
       </Label>
-      <span className="-mt-1 text-[10px] text-gray-400">
+      <span className="-mt-1 text-xs text-muted-foreground">
         Affects the render only — it&apos;s still installed, and still quoted.
       </span>
 
-      <label className="flex flex-col gap-1 text-xs text-gray-600">
+      <label className="flex flex-col gap-1 text-xs text-muted-foreground">
         Note for the electrician
         <input
           value={fixture.note ?? ''}
@@ -427,7 +427,7 @@ export function FixtureInspector() {
       </label>
 
       {placement && (
-        <div className="border-t border-gray-100 pt-2 text-[10px] text-gray-500">
+        <div className="border-t border-gray-100 pt-2 text-xs text-muted-foreground">
           {(() => {
             const { amount, unit } = fixtureQuantity(placement);
             return (
@@ -442,7 +442,7 @@ export function FixtureInspector() {
         </div>
       )}
 
-      <Button variant="destructive" size="xs" onClick={() => removeFixture(fixture.id)}>
+      <Button variant="destructive" size="sm" onClick={() => removeFixture(fixture.id)}>
         Delete
       </Button>
     </div>
@@ -469,7 +469,7 @@ function DrawerQuantityHint({
   // than offering "0".
   if (drawers === 0) {
     return (
-      <span className="-mt-1 text-[10px] text-amber-700">
+      <span className="-mt-1 text-xs text-amber-700">
         This cabinet has no drawers or pull-outs — a sensor light here won&apos;t light
         anything.
       </span>
@@ -478,7 +478,7 @@ function DrawerQuantityHint({
 
   if (drawers === current) {
     return (
-      <span className="-mt-1 text-[10px] text-gray-400">
+      <span className="-mt-1 text-xs text-muted-foreground">
         Matches this cabinet&apos;s {drawers} drawer{drawers > 1 ? 's' : ''}.
       </span>
     );
@@ -487,8 +487,8 @@ function DrawerQuantityHint({
   return (
     <Button
       variant="link"
-      size="xs"
-      className="-mt-1 h-auto self-start p-0 text-[10px]"
+      size="sm"
+      className="-mt-1 h-auto self-start p-0 text-xs"
       onClick={() => onUse(drawers)}
     >
       This cabinet has {drawers} drawer{drawers > 1 ? 's' : ''} — use {drawers}
@@ -506,14 +506,14 @@ function NumField({
   onChange: (next: number) => void;
 }) {
   return (
-    <label className="flex flex-1 flex-col text-[10px] text-gray-500">
+    <label className="flex flex-1 flex-col text-xs text-muted-foreground">
       {label}
       <input
         type="number"
         step={50}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full rounded border border-gray-300 px-1 py-0.5 text-xs"
+        className="w-full rounded-[10px] border border-input px-1 py-0.5 text-xs"
       />
     </label>
   );

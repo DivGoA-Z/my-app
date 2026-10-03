@@ -18,6 +18,8 @@
 // with CabinetLayer's double-click-to-rotate, so the two entry points
 // can't drift apart.
 
+import { ChevronDown, Copy, RotateCcw, RotateCw, Trash2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { BoardSelect } from '../common/BoardSelect';
 import { describePanels } from '../../lib/panels';
@@ -57,7 +59,6 @@ export function CabinetInspector({ onOpenDesigner }: { onOpenDesigner?: (cabinet
   const addCabinet = useLayoutStore((state) => state.addCabinet);
   const selectCabinet = useLayoutStore((state) => state.selectCabinet);
 
-  const [isEditingDimensions, setIsEditingDimensions] = useState(false);
 
   const cabinet = cabinets.find((c) => c.id === selectedCabinetId);
 
@@ -103,97 +104,34 @@ export function CabinetInspector({ onOpenDesigner }: { onOpenDesigner?: (cabinet
     );
   }
 
+  // Laid out for designing WITH the customer (§86): what they choose
+  // (finish, front) first and big; workshop settings below; rarely used
+  // alert switches folded away.
   return (
-    <div className="flex w-64 shrink-0 flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700">
-          {formatModuleType(cabinet.moduleType)}
-        </h3>
-        <Button variant="ghost" size="icon-xs" onClick={() => selectCabinet(null)} aria-label="Deselect">
-          ×
-        </Button>
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <span className="text-xs text-gray-500">Rotation: {cabinet.rotationDeg}°</span>
-        <div className="flex gap-2">
-          <Button variant="outline" size="xs" className="h-auto min-h-7 flex-1 py-1 whitespace-normal" onClick={() => handleRotate(-1)}>
-            −90°
-          </Button>
-          <Button variant="outline" size="xs" className="h-auto min-h-7 flex-1 py-1 whitespace-normal" onClick={() => handleRotate(1)}>
-            +90°
-          </Button>
+    <div className="flex flex-col gap-5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="text-[19px] font-semibold leading-tight">{formatModuleType(cabinet.moduleType)}</h3>
+          <span className="font-mono text-[13px] text-muted-foreground">
+            {cabinet.widthMm} × {cabinet.depthMm} × {cabinet.heightMm} mm · {cabinet.rotationDeg}°
+          </span>
         </div>
       </div>
 
-      <label className="flex items-center justify-between gap-2 text-xs text-gray-600">
-        <span>
-          Height off floor (mm)
-          <br />
-          <span className="text-[10px] text-gray-400">0 = sits on the floor</span>
-        </span>
-        <input
-          type="number"
-          min={0}
-          value={cabinet.elevationMm}
-          onChange={(e) => updateCabinet(cabinet.id, { elevationMm: Number(e.target.value) })}
-          className="w-20 shrink-0 rounded border border-gray-300 px-2 py-1 text-xs"
-        />
-      </label>
-
-      <div className="flex flex-col gap-1 text-xs text-gray-600">
-        Board
-        <BoardSelect
-          material={cabinet.material}
-          carcassBoardId={cabinet.carcassBoardId}
-          onChange={(patch) => updateCabinet(cabinet.id, patch)}
-          triggerClassName="w-full"
-        />
-        <span className="text-[10px] text-gray-500">{describePanels(cabinet.panels)}</span>
-        {onOpenDesigner && (
-          <Button
-            type="button"
-            variant="outline"
-            size="xs"
-            className="self-start"
-            onClick={() => onOpenDesigner(cabinet.id)}
-          >
-            Panels & boards…
-          </Button>
-        )}
+      <div className="grid grid-cols-4 gap-2">
+        <QuickAction label="Turn left" onClick={() => handleRotate(-1)}>
+          <RotateCcw />
+        </QuickAction>
+        <QuickAction label="Turn right" onClick={() => handleRotate(1)}>
+          <RotateCw />
+        </QuickAction>
+        <QuickAction label="Duplicate" onClick={handleDuplicate}>
+          <Copy />
+        </QuickAction>
+        <QuickAction label="Delete" onClick={handleDelete} danger>
+          <Trash2 />
+        </QuickAction>
       </div>
-
-      <Label className="flex items-start gap-2 text-xs font-normal text-gray-600">
-        <Checkbox
-          checked={cabinet.ignoreOverlap ?? false}
-          onCheckedChange={(checked) => updateCabinet(cabinet.id, { ignoreOverlap: checked === true })}
-          className="mt-0.5"
-        />
-        <span>
-          Ignore overlap alerts for this item
-          <br />
-          <span className="text-[10px] text-gray-400">
-            e.g. a chimney duct that's meant to run through this cabinet
-          </span>
-        </span>
-      </Label>
-
-      <Label className="flex items-start gap-2 text-xs font-normal text-gray-600">
-        <Checkbox
-          checked={cabinet.ignoreClearance ?? false}
-          onCheckedChange={(checked) =>
-            updateCabinet(cabinet.id, { ignoreClearance: checked === true })
-          }
-          className="mt-0.5"
-        />
-        <span>
-          Ignore door/drawer clearance alerts for this item
-          <br />
-          <span className="text-[10px] text-gray-400">
-            e.g. an L-corner fit you've already checked fits in practice
-          </span>
-        </span>
-      </Label>
 
       <FinishPicker cabinet={cabinet} />
 
@@ -202,43 +140,95 @@ export function CabinetInspector({ onOpenDesigner }: { onOpenDesigner?: (cabinet
           makes that legible in the UI rather than just in the types. */}
       <FrontPicker cabinet={cabinet} />
 
-      <div className="flex flex-col gap-1">
-        <Button
-          variant="link"
-          size="xs"
-          className="h-auto self-start p-0 text-xs"
-          onClick={() => setIsEditingDimensions((open) => !open)}
-        >
-          {isEditingDimensions
-            ? 'Hide dimensions'
-            : `Edit dimensions (${cabinet.widthMm}×${cabinet.depthMm}×${cabinet.heightMm}mm)`}
-        </Button>
-
-        {isEditingDimensions && (
-          // key={cabinet.id} forces a fresh instance (and therefore
-          // fresh initial state) whenever the SELECTED cabinet changes
-          // while this form is open — otherwise its local width/depth/
-          // height state would keep showing the PREVIOUS cabinet's
-          // numbers after switching selection.
-          <DimensionsForm
-            key={cabinet.id}
-            widthMm={cabinet.widthMm}
-            depthMm={cabinet.depthMm}
-            heightMm={cabinet.heightMm}
-            onSubmit={handleDimensionsChange}
+      <div className="flex flex-col gap-2 border-t border-border pt-4">
+        <span className="text-[13px] font-semibold">Size</span>
+        {/* key={cabinet.id} forces a fresh instance (and therefore fresh
+            initial state) whenever the SELECTED cabinet changes —
+            otherwise its local width/depth/height state would keep
+            showing the PREVIOUS cabinet's numbers after switching. */}
+        <DimensionsForm
+          key={`${cabinet.id}-${cabinet.widthMm}-${cabinet.depthMm}-${cabinet.heightMm}`}
+          widthMm={cabinet.widthMm}
+          depthMm={cabinet.depthMm}
+          heightMm={cabinet.heightMm}
+          onSubmit={handleDimensionsChange}
+        />
+        <label className="mt-1 flex flex-col gap-1.5 text-[13px] font-semibold">
+          Height off the floor
+          <input
+            type="number"
+            min={0}
+            value={cabinet.elevationMm}
+            onChange={(e) => updateCabinet(cabinet.id, { elevationMm: Number(e.target.value) })}
+            className="h-10 w-full rounded-[10px] border border-input bg-card px-3 font-mono text-[15px]"
           />
+          <span className="text-xs font-normal text-muted-foreground">0 = stands on the floor</span>
+        </label>
+      </div>
+
+      <div className="flex flex-col gap-2 border-t border-border pt-4">
+        <span className="text-[13px] font-semibold">Board</span>
+        <BoardSelect
+          material={cabinet.material}
+          carcassBoardId={cabinet.carcassBoardId}
+          onChange={(patch) => updateCabinet(cabinet.id, patch)}
+          triggerClassName="h-11! w-full rounded-[10px] text-[15px]"
+        />
+        <span className="text-xs text-muted-foreground">{describePanels(cabinet.panels)}</span>
+        {onOpenDesigner && (
+          <Button type="button" variant="outline" size="touch" className="self-start" onClick={() => onOpenDesigner(cabinet.id)}>
+            Panels & boards…
+          </Button>
         )}
       </div>
 
-      <div className="flex gap-2 border-t border-gray-200 pt-3">
-        <Button variant="outline" size="xs" className="h-auto min-h-7 flex-1 py-1 whitespace-normal" onClick={handleDuplicate}>
-          Duplicate
-        </Button>
-        <Button variant="destructive" size="xs" className="h-auto min-h-7 flex-1 py-1 whitespace-normal" onClick={handleDelete}>
-          Delete
-        </Button>
-      </div>
+      <details className="group rounded-xl border border-border">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 text-[13px] font-semibold">
+          More: design checks for this item
+          <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="flex flex-col gap-3 px-3 pb-3">
+          <Label className="flex items-start gap-2.5 text-sm font-medium">
+            <Checkbox
+              checked={cabinet.ignoreOverlap ?? false}
+              onCheckedChange={(checked) => updateCabinet(cabinet.id, { ignoreOverlap: checked === true })}
+              className="mt-0.5"
+            />
+            <span className="flex flex-col">
+              Ignore overlap alerts
+              <span className="text-xs font-normal text-muted-foreground">e.g. a chimney duct meant to run through this cabinet</span>
+            </span>
+          </Label>
+          <Label className="flex items-start gap-2.5 text-sm font-medium">
+            <Checkbox
+              checked={cabinet.ignoreClearance ?? false}
+              onCheckedChange={(checked) => updateCabinet(cabinet.id, { ignoreClearance: checked === true })}
+              className="mt-0.5"
+            />
+            <span className="flex flex-col">
+              Ignore door/drawer clearance alerts
+              <span className="text-xs font-normal text-muted-foreground">e.g. an L-corner fit you've checked works in practice</span>
+            </span>
+          </Label>
+        </div>
+      </details>
     </div>
+  );
+}
+
+function QuickAction({ label, onClick, danger, children }: { label: string; onClick: () => void; danger?: boolean; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl border border-border bg-card text-xs font-medium transition-colors [&_svg]:size-[18px]',
+        danger ? 'text-destructive hover:bg-destructive/10' : 'hover:bg-secondary'
+      )}
+    >
+      {children}
+      {label}
+    </button>
   );
 }
 
@@ -265,43 +255,33 @@ function DimensionsForm({ widthMm, depthMm, heightMm, onSubmit }: DimensionsForm
         if (!(width > 0 && depth > 0 && height > 0)) return;
         onSubmit(width, depth, height);
       }}
-      className="flex flex-col gap-2 rounded border border-gray-200 bg-gray-50 p-2"
+      className="flex flex-col gap-2"
     >
-      <div className="grid grid-cols-3 gap-1">
-        <label className="flex flex-col text-[10px] text-gray-500">
-          W (mm)
-          <input
-            type="number"
-            min={50}
-            value={width}
-            onChange={(e) => setWidth(Number(e.target.value))}
-            className="rounded border border-gray-300 px-1 py-1 text-xs"
-          />
-        </label>
-        <label className="flex flex-col text-[10px] text-gray-500">
-          D (mm)
-          <input
-            type="number"
-            min={50}
-            value={depth}
-            onChange={(e) => setDepth(Number(e.target.value))}
-            className="rounded border border-gray-300 px-1 py-1 text-xs"
-          />
-        </label>
-        <label className="flex flex-col text-[10px] text-gray-500">
-          H (mm)
-          <input
-            type="number"
-            min={50}
-            value={height}
-            onChange={(e) => setHeight(Number(e.target.value))}
-            className="rounded border border-gray-300 px-1 py-1 text-xs"
-          />
-        </label>
+      <div className="grid grid-cols-3 gap-2">
+        {(
+          [
+            ['Width', width, setWidth],
+            ['Depth', depth, setDepth],
+            ['Height', height, setHeight],
+          ] as const
+        ).map(([label, value, set]) => (
+          <label key={label} className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+            {label}
+            <input
+              type="number"
+              min={50}
+              value={value}
+              onChange={(e) => set(Number(e.target.value))}
+              className="h-10 w-full rounded-[10px] border border-input bg-card px-3 font-mono text-[15px] px-2"
+            />
+          </label>
+        ))}
       </div>
-      <Button type="submit" size="xs">
-        Apply
-      </Button>
+      {(width !== widthMm || depth !== depthMm || height !== heightMm) && (
+        <Button type="submit" size="touch">
+          Apply new size
+        </Button>
+      )}
     </form>
   );
 }

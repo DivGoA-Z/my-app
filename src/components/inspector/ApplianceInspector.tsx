@@ -76,35 +76,35 @@ export function ApplianceInspector() {
   }
 
   return (
-    <div className="flex w-56 flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4">
+    <div className="flex w-56 flex-col gap-3 rounded-lg border border-border bg-white p-4">
       <div>
-        <h3 className="text-sm font-semibold text-gray-700">
+        <h3 className="text-[19px] font-semibold leading-tight">
           {APPLIANCE_TYPE_LABELS[appliance.applianceType]}
         </h3>
-        <p className="text-[11px] text-gray-500">
+        <p className="text-[13px] text-muted-foreground">
           {appliance.widthMm}×{appliance.depthMm}×{appliance.heightMm}mm ·{' '}
           {INR.format(appliance.unitPrice)}
         </p>
       </div>
 
       <div className="flex flex-col gap-1">
-        <span className="text-xs text-gray-600">Rotation — {appliance.rotationDeg}°</span>
+        <span className="text-xs text-muted-foreground">Rotation — {appliance.rotationDeg}°</span>
         <div className="flex gap-2">
-          <Button variant="outline" size="xs" className="h-auto min-h-7 flex-1 py-1 whitespace-normal" onClick={() => handleRotate(-1)}>
+          <Button variant="outline" size="sm" className="h-auto min-h-10 flex-1 py-1 whitespace-normal" onClick={() => handleRotate(-1)}>
             ↺ 90°
           </Button>
-          <Button variant="outline" size="xs" className="h-auto min-h-7 flex-1 py-1 whitespace-normal" onClick={() => handleRotate(1)}>
+          <Button variant="outline" size="sm" className="h-auto min-h-10 flex-1 py-1 whitespace-normal" onClick={() => handleRotate(1)}>
             ↻ 90°
           </Button>
         </div>
         {isTurned && (
-          <span className="text-[10px] text-gray-400">
+          <span className="text-xs text-muted-foreground">
             Occupies {footprintWidthMm}×{footprintHeightMm}mm turned
           </span>
         )}
       </div>
 
-      <label className="flex items-center justify-between gap-2 text-xs text-gray-600">
+      <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
         Off floor (mm)
         <input
           type="number"
@@ -114,14 +114,14 @@ export function ApplianceInspector() {
           onChange={(e) =>
             updateAppliance(appliance.id, { elevationMm: Number(e.target.value) })
           }
-          className="w-20 rounded border border-gray-300 px-2 py-1 text-sm"
+          className="w-20 rounded-[10px] border border-input px-2 py-1 text-sm"
         />
       </label>
-      <span className="-mt-1 text-[10px] text-gray-400">
+      <span className="-mt-1 text-xs text-muted-foreground">
         Height of the bottom face — 850 for something on the counter, higher for a chimney.
       </span>
 
-      <label className="flex items-center justify-between gap-2 text-xs text-gray-600">
+      <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
         Quantity
         <input
           type="number"
@@ -130,11 +130,11 @@ export function ApplianceInspector() {
           onChange={(e) =>
             updateAppliance(appliance.id, { quantity: Math.max(1, Number(e.target.value)) })
           }
-          className="w-16 rounded border border-gray-300 px-2 py-1 text-sm"
+          className="w-16 rounded-[10px] border border-input px-2 py-1 text-sm"
         />
       </label>
 
-      <Label className="flex items-start gap-2 text-xs font-normal text-gray-600">
+      <Label className="flex items-start gap-2 text-xs font-normal text-muted-foreground">
         <Checkbox
           checked={appliance.ignoreOverlap ?? false}
           onCheckedChange={(checked) =>
@@ -145,7 +145,7 @@ export function ApplianceInspector() {
         <span>
           Ignore overlap alerts for this item
           <br />
-          <span className="text-[10px] text-gray-400">
+          <span className="text-xs text-muted-foreground">
             e.g. a chimney duct that's meant to run through a cabinet
           </span>
         </span>
@@ -154,7 +154,7 @@ export function ApplianceInspector() {
       <div className="flex flex-col gap-1">
         <Button
           variant="link"
-          size="xs"
+          size="sm"
           className="h-auto self-start p-0 text-xs"
           onClick={() => setIsEditingDimensions((open) => !open)}
         >
@@ -195,7 +195,7 @@ export function ApplianceInspector() {
         )}
       </div>
 
-      <Button variant="destructive" size="xs" onClick={() => removeAppliance(appliance.id)}>
+      <Button variant="destructive" size="sm" onClick={() => removeAppliance(appliance.id)}>
         Delete
       </Button>
     </div>
@@ -241,7 +241,7 @@ function DimensionsForm({
         <Field label="D" value={d} onChange={setD} />
         <Field label="H" value={h} onChange={setH} />
       </div>
-      <Button type="submit" size="xs">
+      <Button type="submit" size="sm">
         Apply
       </Button>
     </form>
@@ -258,14 +258,14 @@ function Field({
   onChange: (next: string) => void;
 }) {
   return (
-    <label className="flex flex-1 flex-col text-[10px] text-gray-500">
+    <label className="flex flex-1 flex-col text-xs text-muted-foreground">
       {label}
       <input
         type="number"
         min={1}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded border border-gray-300 px-1 py-0.5 text-xs"
+        className="w-full rounded-[10px] border border-input px-1 py-0.5 text-xs"
       />
     </label>
   );

@@ -124,6 +124,16 @@ test('design editor', async ({ page }) => {
   await page.waitForTimeout(1500);
   const dir = `e2e/screens/${test.info().project.name}`;
   await page.screenshot({ path: `${dir}/08-editor.png` });
+  // The cabinet inspector (laptop): click the first cabinet on the plan.
+  if (test.info().project.name === 'laptop') {
+    await page.mouse.click(700, 250);
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${dir}/08-inspector.png`, fullPage: false });
+    const aside = page.getByRole('complementary').last();
+    await aside.evaluate((el) => el.scrollTo(0, 700));
+    await page.screenshot({ path: `${dir}/08-inspector-2.png` });
+    await page.keyboard.press('Escape');
+  }
   // Every tool panel (laptop), for review.
   if (test.info().project.name === 'laptop') {
     for (const tool of ['Cabinets', 'Appliances', 'Pillars', 'Doors', 'Lights', 'Cameras', 'Surfaces']) {

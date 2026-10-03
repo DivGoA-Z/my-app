@@ -8,11 +8,19 @@
 // render: a clear, recognisable sketch, drawn in proportion.
 
 import { useId } from 'react';
-import type { FrontLayout } from '../../types/front';
+import type { FrontLayout, FrontRowLayout } from '../../types/front';
 import { clampCount, defaultFrontLayout } from '../../types/front';
 import type { ModuleType } from '../../types/cabinet';
 import { finishSwatch } from '../../lib/designFinishes';
 import { useLayoutStore } from '../../store/layoutStore';
+
+interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+type Panel = Rect & { handle?: 'h' | 'left' | 'right' };
 
 export function CabinetThumb({
   moduleType,
@@ -47,29 +55,56 @@ export function CabinetThumb({
   const stroke = '#57534b';
   const gap = 1.2;
 
-  // The front panels as rectangles in the cabinet's own frame.
-  const panels: { x: number; y: number; w: number; h: number; handle?: 'v' | 'h' | 'left' | 'right' }[] = [];
+  // The front as rectangles, region by region: the whole front, or each
+  // row of a 'mixed' front (split by its height ratios, top first).
   const inner = { x: x0 + gap, y: y0 + gap, w: w - gap * 2, h: h - gap * 2 };
-  const count = clampCount(front.count ?? 3);
-  switch (front.kind) {
-    case 'double-door': {
-      const half = (inner.w - gap) / 2;
-      panels.push({ ...inner, w: half, handle: 'right' }, { ...inner, x: inner.x + half + gap, w: half, handle: 'left' });
-      break;
+  const panels: Panel[] = [];
+  const openings: Rect[] = [];
+  const shelfLines: number[] = [];
+  const slats: Rect[] = [];
+  const regions: { rect: Rect; row: FrontRowLayout | FrontLayout }[] = [];
+  if (front.kind === 'mixed' && front.rows?.length) {
+    const total = front.rows.reduce((t, r) => t + (r.heightRatio ?? 1), 0);
+    let y = inner.y;
+    for (const row of front.rows) {
+      const rh = (inner.h * (row.heightRatio ?? 1)) / total;
+      regions.push({ rect: { x: inner.x, y, w: inner.w, h: rh - gap }, row });
+      y += rh;
     }
-    case 'drawers':
-    case 'trolley': {
-      const each = (inner.h - gap * (count - 1)) / count;
-      for (let i = 0; i < count; i++) panels.push({ ...inner, y: inner.y + i * (each + gap), h: each, handle: 'h' });
-      break;
-    }
-    case 'open-shelf':
-    case 'appliance-housing':
-      break;
-    default:
-      panels.push({ ...inner, handle: front.hinge === 'right' ? 'left' : 'right' });
+  } else {
+    regions.push({ rect: inner, row: front });
   }
-  const shelves = front.kind === 'open-shelf' ? Math.max(1, count - 1) : 0;
+  for (const { rect, row } of regions) {
+    const count = clampCount(row.count ?? 3);
+    switch (row.kind) {
+      case 'double-door': {
+        const half = (rect.w - gap) / 2;
+        panels.push({ ...rect, w: half, handle: 'right' }, { ...rect, x: rect.x + half + gap, w: half, handle: 'left' });
+        break;
+      }
+      case 'drawers':
+      case 'trolley': {
+        const each = (rect.h - gap * (count - 1)) / count;
+        for (let k = 0; k < count; k++) panels.push({ ...rect, y: rect.y + k * (each + gap), h: each, handle: 'h' });
+        break;
+      }
+      case 'open-shelf':
+        openings.push(rect);
+        for (let k = 1; k < Math.max(2, count); k++) shelfLines.push(rect.y + (k * rect.h) / Math.max(2, count));
+        break;
+      case 'appliance-housing':
+        openings.push(rect);
+        break;
+      case 'tambour':
+        slats.push(rect);
+        break;
+      case 'false-front':
+        panels.push({ ...rect });
+        break;
+      default:
+        panels.push({ ...rect, handle: row.hinge === 'right' ? 'left' : 'right' });
+    }
+  }
 
   return (
     <svg viewBox={`0 0 ${boxW} ${boxH}`} className={className} role="img" aria-label={`${moduleType} front`}>
@@ -80,15 +115,25 @@ export function CabinetThumb({
           </pattern>
         </defs>
       )}
-      {/* Carcass: a darker interior shows through open fronts. */}
-      <rect x={x0} y={y0} width={w} height={h} rx={1} fill={front.kind === 'open-shelf' || front.kind === 'appliance-housing' ? '#d9d5cc' : fill} stroke={stroke} strokeWidth={0.8} />
-      {Array.from({ length: shelves }).map((_, i) => {
-        const y = y0 + ((i + 1) * h) / (shelves + 1);
-        return <line key={i} x1={x0} x2={x0 + w} y1={y} y2={y} stroke={stroke} strokeWidth={0.8} />;
-      })}
+      <rect x={x0} y={y0} width={w} height={h} rx={1} fill={fill} stroke={stroke} strokeWidth={0.8} />
+      {/* Open fronts show the plain interior. */}
+      {openings.map((o, i) => (
+        <rect key={`o${i}`} x={o.x} y={o.y} width={o.w} height={o.h} fill="#d9d5cc" stroke={stroke} strokeWidth={0.5} />
+      ))}
+      {shelfLines.map((y, i) => (
+        <line key={`s${i}`} x1={inner.x} x2={inner.x + inner.w} y1={y} y2={y} stroke={stroke} strokeWidth={0.8} />
+      ))}
       {front.kind === 'appliance-housing' && (
         <rect x={x0 + w * 0.12} y={y0 + h * 0.15} width={w * 0.76} height={h * 0.45} rx={1} fill="#3b3d40" opacity={0.7} />
       )}
+      {slats.map((r, i) => (
+        <g key={`t${i}`}>
+          <rect x={r.x} y={r.y} width={r.w} height={r.h} fill={fill} stroke={stroke} strokeWidth={0.6} />
+          {Array.from({ length: Math.max(3, Math.floor(r.h / 2.5)) }).map((_, k, arr) => (
+            <line key={k} x1={r.x} x2={r.x + r.w} y1={r.y + ((k + 1) * r.h) / (arr.length + 1)} y2={r.y + ((k + 1) * r.h) / (arr.length + 1)} stroke={stroke} strokeWidth={0.3} />
+          ))}
+        </g>
+      ))}
       {panels.map((p, i) => (
         <g key={i}>
           <rect x={p.x} y={p.y} width={p.w} height={p.h} rx={0.8} fill={fill} stroke={stroke} strokeWidth={0.6} />

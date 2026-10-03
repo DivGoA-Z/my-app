@@ -30,7 +30,7 @@ import { OBSTACLE_TYPE_LABELS } from '../../types/layout';
 import { PARTIAL_OBSTACLE_HEIGHT_MM } from '../../lib/collision';
 import { rotateFootprint } from '../../lib/footprint';
 
-const inputClass = 'w-20 shrink-0 rounded border border-gray-300 px-2 py-1 text-xs';
+const inputClass = 'w-20 shrink-0 rounded-[10px] border border-input px-2 py-1 text-xs';
 
 // Same fallback as CabinetInspector, for the same reason — a sane room
 // size to clamp a rotated footprint against before any layout has
@@ -67,21 +67,21 @@ export function ObstacleInspector() {
   }
 
   return (
-    <div className="flex w-64 shrink-0 flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4">
+    <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700">{OBSTACLE_TYPE_LABELS[obstacle.type]}</h3>
-        <Button variant="ghost" size="icon-xs" onClick={() => selectObstacle(null)} aria-label="Deselect">
+        <h3 className="text-[19px] font-semibold leading-tight">{OBSTACLE_TYPE_LABELS[obstacle.type]}</h3>
+        <Button variant="ghost" size="icon-sm" onClick={() => selectObstacle(null)} aria-label="Deselect">
           ×
         </Button>
       </div>
 
       <div className="flex flex-col gap-1">
-        <span className="text-xs text-gray-500">Rotation: {obstacle.rotationDeg}°</span>
+        <span className="text-xs text-muted-foreground">Rotation: {obstacle.rotationDeg}°</span>
         <div className="flex gap-2">
-          <Button variant="outline" size="xs" className="h-auto min-h-7 flex-1 py-1 whitespace-normal" onClick={() => handleRotate(-1)}>
+          <Button variant="outline" size="sm" className="h-auto min-h-10 flex-1 py-1 whitespace-normal" onClick={() => handleRotate(-1)}>
             −90°
           </Button>
-          <Button variant="outline" size="xs" className="h-auto min-h-7 flex-1 py-1 whitespace-normal" onClick={() => handleRotate(1)}>
+          <Button variant="outline" size="sm" className="h-auto min-h-10 flex-1 py-1 whitespace-normal" onClick={() => handleRotate(1)}>
             +90°
           </Button>
         </div>
@@ -98,27 +98,27 @@ export function ObstacleInspector() {
           bypasses grid-snap entirely, same as every other numeric field
           on this panel. */}
       <div className="flex gap-2">
-        <label className="flex flex-1 flex-col gap-1 text-xs text-gray-600">
+        <label className="flex flex-1 flex-col gap-1 text-xs text-muted-foreground">
           X (mm)
           <input
             type="number"
             value={obstacle.x}
             onChange={(e) => updateObstacle(obstacle.id, { x: Number(e.target.value) })}
-            className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+            className="w-full rounded-[10px] border border-input px-2 py-1 text-xs"
           />
         </label>
-        <label className="flex flex-1 flex-col gap-1 text-xs text-gray-600">
+        <label className="flex flex-1 flex-col gap-1 text-xs text-muted-foreground">
           Y (mm)
           <input
             type="number"
             value={obstacle.y}
             onChange={(e) => updateObstacle(obstacle.id, { y: Number(e.target.value) })}
-            className="w-full rounded border border-gray-300 px-2 py-1 text-xs"
+            className="w-full rounded-[10px] border border-input px-2 py-1 text-xs"
           />
         </label>
       </div>
 
-      <div className="flex items-center justify-between gap-2 text-xs text-gray-600">
+      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <span>Width (mm)</span>
         <input
           type="number"
@@ -129,7 +129,7 @@ export function ObstacleInspector() {
         />
       </div>
 
-      <div className="flex items-center justify-between gap-2 text-xs text-gray-600">
+      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <span>Depth (mm)</span>
         <input
           type="number"
@@ -140,11 +140,11 @@ export function ObstacleInspector() {
         />
       </div>
 
-      <Label className="flex items-center justify-between gap-2 text-xs font-normal text-gray-600">
+      <Label className="flex items-center justify-between gap-2 text-xs font-normal text-muted-foreground">
         <span>
           Floor to ceiling
           <br />
-          <span className="text-[10px] text-gray-400">blocks every height, like a structural column</span>
+          <span className="text-xs text-muted-foreground">blocks every height, like a structural column</span>
         </span>
         <Checkbox
           checked={obstacle.floorToCeiling ?? false}
@@ -170,7 +170,7 @@ export function ObstacleInspector() {
 
       {!obstacle.floorToCeiling && (
         <>
-          <label className="flex items-center justify-between gap-2 text-xs text-gray-600">
+          <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
             <span>Height (mm)</span>
             <input
               type="number"
@@ -181,11 +181,11 @@ export function ObstacleInspector() {
             />
           </label>
 
-          <label className="flex items-center justify-between gap-2 text-xs text-gray-600">
+          <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
             <span>
               Height off floor (mm)
               <br />
-              <span className="text-[10px] text-gray-400">
+              <span className="text-xs text-muted-foreground">
                 0 = touches the floor; e.g. a mid-wall electrical fixture doesn't
               </span>
             </span>
@@ -200,7 +200,7 @@ export function ObstacleInspector() {
         </>
       )}
 
-      <Label className="flex items-start gap-2 text-xs font-normal text-gray-600">
+      <Label className="flex items-start gap-2 text-xs font-normal text-muted-foreground">
         <Checkbox
           checked={obstacle.ignoreOverlap ?? false}
           onCheckedChange={(checked) =>
@@ -211,14 +211,14 @@ export function ObstacleInspector() {
         <span>
           Ignore overlap alerts for this item
           <br />
-          <span className="text-[10px] text-gray-400">
+          <span className="text-xs text-muted-foreground">
             e.g. a chimney duct that's meant to run through this obstacle
           </span>
         </span>
       </Label>
 
-      <div className="flex border-t border-gray-200 pt-3">
-        <Button variant="destructive" size="xs" className="flex-1" onClick={() => removeObstacle(obstacle.id)}>
+      <div className="flex border-t border-border pt-3">
+        <Button variant="destructive" size="sm" className="flex-1" onClick={() => removeObstacle(obstacle.id)}>
           Delete
         </Button>
       </div>

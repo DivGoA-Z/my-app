@@ -5773,3 +5773,36 @@ tooltip saying what it downloads.
   forms.
 
 The screenshot run now photographs every tool panel.
+
+## 86. Design editor, stage 3: inspectors and the quote panel
+
+Laid out for designing WITH the customer.
+
+**Cabinet inspector**: name and size at the top, then four large quick
+actions (turn left, turn right, duplicate, delete), then what the
+customer chooses:
+- **Finish as big swatches**: the real texture or colour, a tick on the
+  current one, the type as a caption. It's one grid, not grouped under
+  type headings: grouping left one swatch per row with a small
+  catalogue (tried first, then dropped).
+- **Front as nine picture tiles**, each drawn in this cabinet's own
+  size and finish (`CabinetThumb`, which now also draws mixed rows,
+  tambour slats and a handle-less false front).
+
+Below those come workshop settings: size (always visible, with an
+"Apply new size" button that appears only after a change), height off
+the floor, board, and Panels & boards. The two alert switches are
+folded under "More". The other inspectors (appliance, pillar, light,
+door) and the rest of the front picker get the token restyle.
+
+**Quote panel**:
+- Margin, sheet waste, the charge editor and the Selling/Cost switch
+  move into one fold, **"Your pricing (not shown to the customer)"**,
+  closed by default. Closing it returns to Selling, so the panel can't
+  be left in Cost view by accident. Cost view shows an amber "these are
+  your costs" note.
+- "Includes 25% margin" under the Grand Total now appears only in
+  Cost view; it gave the margin away to anyone reading the screen.
+- Cabinet lines are stacked rows (name and price, then size, front and
+  handle, finish, hardware) instead of a five-column table squeezed
+  into 400px.

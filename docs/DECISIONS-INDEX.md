@@ -334,3 +334,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§84** 3D wall view = only that wall + items against it; neighbour-wall corner pieces as grey ghost blocks (`lib/wallView.ts`). Quote panel toggle in the editor. Cutting-list buttons labelled as downloads.
 
 **§85** Editor stage 2: Cabinets as picture tiles (`CabinetThumb`, front drawing filled with the finish), Appliances tiles, Pillars preset tiles + custom form, other panels restyled.
+
+**§86** Editor stage 3: cabinet inspector (quick actions, big finish swatches, front picture tiles, alerts folded); quote panel pricing fold (closed = Selling), margin note only in Cost view, stacked cabinet rows.
