@@ -124,6 +124,15 @@ test('design editor', async ({ page }) => {
   await page.waitForTimeout(1500);
   const dir = `e2e/screens/${test.info().project.name}`;
   await page.screenshot({ path: `${dir}/08-editor.png` });
+  // Every tool panel (laptop), for review.
+  if (test.info().project.name === 'laptop') {
+    for (const tool of ['Cabinets', 'Appliances', 'Pillars', 'Doors', 'Lights', 'Cameras', 'Surfaces']) {
+      const btn = page.getByRole('navigation', { name: 'Tools' }).getByRole('button', { name: tool });
+      if ((await btn.getAttribute('aria-pressed')) !== 'true') await btn.click();
+      await page.waitForTimeout(300);
+      await page.getByRole('complementary', { name: tool }).screenshot({ path: `${dir}/08-tool-${tool.toLowerCase()}.png` });
+    }
+  }
   await page.getByRole('tab', { name: '3D' }).click();
   await page.waitForTimeout(2500);
   await page.screenshot({ path: `${dir}/08b-editor-3d.png` });

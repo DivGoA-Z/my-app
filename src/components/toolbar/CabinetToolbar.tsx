@@ -18,7 +18,11 @@
 // live) will immediately flag them red. That's expected, not a bug:
 // drag them apart same as any other overlap.
 
+import { useState } from 'react';
+import { toast } from 'sonner';
 import { useLayoutStore } from '../../store/layoutStore';
+import { CabinetThumb } from '../editor/CabinetThumb';
+import { Chips, SearchBox } from '../inventory/CatalogueKit';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
 import { getDefaultElevationMm } from '../../lib/cabinetGeometry';
@@ -45,6 +49,9 @@ export function CabinetToolbar({ onManageInventory }: CabinetToolbarProps) {
   const layoutId = currentLayout?.id ?? '';
 
   const categories = groupByCategory(cabinetCatalog);
+
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('All');
 
   function handleAdd(item: CatalogItem) {
     const newCabinet: PlacedCabinetItem = {
@@ -85,55 +92,71 @@ export function CabinetToolbar({ onManageInventory }: CabinetToolbarProps) {
       quantity: 1,
     };
     addCabinet(newCabinet);
+    toast.success(`Added ${item.label}`, { description: 'It’s in the middle of the room. Drag it into place.' });
   }
 
+  // Search and a category filter over picture tiles (§85).
+  const q = query.trim().toLowerCase();
+  const shown = cabinetCatalog.filter(
+    (c) => (category === 'All' || c.category === category) && (!q || c.label.toLowerCase().includes(q) || c.category.toLowerCase().includes(q))
+  );
+
   return (
-    <div className="flex w-64 flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700">Add Cabinet</h3>
-        <Button variant="link" size="xs" className="h-auto p-0 text-xs" onClick={onManageInventory}>
-          Manage
-        </Button>
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <SearchBox value={query} onChange={setQuery} placeholder="Search cabinets" />
       </div>
+      {categories.length > 1 && <Chips options={['All', ...categories.map(([c]) => c)]} value={category} onChange={setCategory} />}
 
       {isInventoryLoading && (
-        <div className="flex flex-col gap-1.5">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-8 w-full" />
+        <div className="grid grid-cols-2 gap-2.5">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-36 rounded-xl" />
           ))}
         </div>
       )}
-
       {!isInventoryLoading && cabinetCatalog.length === 0 && (
-        <p className="text-xs text-gray-400">
-          No cabinet pieces yet.{' '}
-          <Button variant="link" size="xs" className="h-auto p-0 text-xs" onClick={onManageInventory}>
+        <p className="text-sm text-muted-foreground">
+          No cabinets in your catalogue yet.{' '}
+          <Button variant="link" className="h-auto p-0 text-sm font-semibold" onClick={onManageInventory}>
             Add your first one
           </Button>
-          .
         </p>
       )}
 
-      {categories.map(([category, items]) => (
-        <div key={category} className="flex flex-col gap-1">
-          <span className="rounded bg-gray-100 px-2 py-1.5 text-xs font-medium text-gray-700">
-            {category}
-          </span>
-          <div className="flex flex-col gap-1 pl-1">
-            {items.map((item) => (
-              <Button
-                key={item.id}
-                variant="outline"
-                onClick={() => handleAdd(item)}
-                className="h-auto min-h-8 justify-between py-1 text-left text-xs font-normal whitespace-normal"
-              >
-                <span>{item.label}</span>
-                <span className="shrink-0 text-gray-400">+</span>
-              </Button>
-            ))}
-          </div>
-        </div>
-      ))}
+      <div className="grid grid-cols-2 gap-2.5">
+        {shown.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => handleAdd(item)}
+            title={`Add ${item.label}`}
+            className="group flex flex-col gap-1.5 rounded-xl border border-border bg-card p-2 text-left transition-colors hover:border-primary hover:bg-accent/40"
+          >
+            <div className="flex h-20 items-center justify-center rounded-lg bg-secondary">
+              <CabinetThumb
+                moduleType={item.moduleType}
+                widthMm={item.widthMm}
+                heightMm={item.heightMm}
+                frontLayout={item.frontLayout}
+                finishId={item.finishId}
+                className="h-16 w-20"
+              />
+            </div>
+            <span className="line-clamp-2 text-[13px] font-semibold leading-tight">{item.label}</span>
+            <span className="font-mono text-xs text-muted-foreground">
+              {item.widthMm} × {item.depthMm} × {item.heightMm}
+            </span>
+          </button>
+        ))}
+      </div>
+      {!isInventoryLoading && cabinetCatalog.length > 0 && shown.length === 0 && (
+        <p className="py-4 text-center text-sm text-muted-foreground">Nothing matches.</p>
+      )}
+
+      <Button variant="ghost" size="touch" className="self-start text-primary" onClick={onManageInventory}>
+        Manage catalogue
+      </Button>
     </div>
   );
 }

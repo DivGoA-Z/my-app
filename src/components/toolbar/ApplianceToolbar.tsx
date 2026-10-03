@@ -15,6 +15,10 @@
 // this list is the only way to remove one short of dragging it off
 // the canvas edge (which the room-bounds clamp doesn't actually allow).
 
+import { useState } from 'react';
+import { toast } from 'sonner';
+import { Box, CookingPot, Droplets, Flame, GlassWater, Microwave, Refrigerator, WashingMachine, Wind, X } from 'lucide-react';
+import { Chips } from '../inventory/CatalogueKit';
 import { useLayoutStore } from '../../store/layoutStore';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
@@ -44,6 +48,8 @@ export function ApplianceToolbar({ onManageInventory }: ApplianceToolbarProps) {
   const layoutId = currentLayout?.id ?? '';
 
   const groups = groupByApplianceType(applianceCatalog);
+
+  const [type, setType] = useState('All');
 
   function handleAdd(item: ApplianceCatalogItem) {
     const newAppliance: PlacedApplianceItem = {
@@ -75,85 +81,97 @@ export function ApplianceToolbar({ onManageInventory }: ApplianceToolbarProps) {
       // rather than only ones added afterwards.
     };
     addAppliance(newAppliance);
+    toast.success(`Added ${item.label}`, { description: 'It’s in the middle of the room. Drag it into place.' });
   }
 
+  // Picture tiles with a type filter (§85), as in the Cabinets panel.
+  const shown = applianceCatalog.filter((a) => type === 'All' || APPLIANCE_TYPE_LABELS[a.applianceType] === type);
+
   return (
-    <div className="flex w-64 flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700">Add Appliance</h3>
-        <Button variant="link" size="xs" className="h-auto p-0 text-xs" onClick={onManageInventory}>
-          Manage
-        </Button>
-      </div>
+    <div className="flex flex-col gap-3">
+      {groups.length > 1 && (
+        <Chips options={['All', ...groups.map(([t]) => APPLIANCE_TYPE_LABELS[t])]} value={type} onChange={setType} />
+      )}
 
       {isInventoryLoading && (
-        <div className="flex flex-col gap-1.5">
+        <div className="grid grid-cols-2 gap-2.5">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-8 w-full" />
+            <Skeleton key={i} className="h-28 rounded-xl" />
+          ))}
+        </div>
+      )}
+      {!isInventoryLoading && applianceCatalog.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          No appliances in your catalogue yet.{' '}
+          <Button variant="link" className="h-auto p-0 text-sm font-semibold" onClick={onManageInventory}>
+            Add your first one
+          </Button>
+        </p>
+      )}
+
+      <div className="grid grid-cols-2 gap-2.5">
+        {shown.map((item) => {
+          const Icon = APPLIANCE_ICONS[item.applianceType] ?? Box;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => handleAdd(item)}
+              title={`Add ${item.label}`}
+              className="flex flex-col gap-1.5 rounded-xl border border-border bg-card p-2 text-left transition-colors hover:border-primary hover:bg-accent/40"
+            >
+              <div className="flex h-16 items-center justify-center rounded-lg bg-secondary text-muted-foreground">
+                <Icon className="size-7" strokeWidth={1.5} />
+              </div>
+              <span className="line-clamp-2 text-[13px] font-semibold leading-tight">{item.label}</span>
+              <span className="font-mono text-xs text-muted-foreground">
+                {item.widthMm} × {item.depthMm} × {item.heightMm}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {appliances.length > 0 && (
+        <div className="flex flex-col gap-1.5 border-t border-border pt-3">
+          <span className="text-[13px] font-semibold text-muted-foreground">In this kitchen</span>
+          {appliances.map((a) => (
+            <div key={a.id} className="flex items-center justify-between gap-2 rounded-lg bg-secondary px-3 py-2 text-sm">
+              <span className="truncate">
+                {APPLIANCE_TYPE_LABELS[a.applianceType]} <span className="font-mono text-xs text-muted-foreground">{a.widthMm}×{a.depthMm}</span>
+              </span>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => removeAppliance(a.id)}
+                aria-label={`Remove ${APPLIANCE_TYPE_LABELS[a.applianceType]}`}
+                className="text-muted-foreground hover:text-destructive"
+              >
+                <X />
+              </Button>
+            </div>
           ))}
         </div>
       )}
 
-      {!isInventoryLoading && applianceCatalog.length === 0 && (
-        <p className="text-xs text-gray-400">
-          No appliances yet.{' '}
-          <Button variant="link" size="xs" className="h-auto p-0 text-xs" onClick={onManageInventory}>
-            Add your first one
-          </Button>
-          .
-        </p>
-      )}
-
-      {groups.map(([applianceType, items]) => (
-        <div key={applianceType} className="flex flex-col gap-1">
-          <span className="rounded bg-gray-100 px-2 py-1.5 text-xs font-medium text-gray-700">
-            {APPLIANCE_TYPE_LABELS[applianceType]}
-          </span>
-          <div className="flex flex-col gap-1 pl-1">
-            {items.map((item) => (
-              <Button
-                key={item.id}
-                variant="outline"
-                onClick={() => handleAdd(item)}
-                className="h-auto min-h-8 justify-between py-1 text-left text-xs font-normal whitespace-normal"
-              >
-                <span>{item.label}</span>
-                <span className="shrink-0 text-gray-400">+</span>
-              </Button>
-            ))}
-          </div>
-        </div>
-      ))}
-
-      {appliances.length > 0 && (
-        <div className="flex flex-col gap-2 border-t border-gray-200 pt-3">
-          <h4 className="text-xs font-semibold text-gray-700">Current Appliances</h4>
-          <ul className="flex flex-col gap-1">
-            {appliances.map((a) => (
-              <li
-                key={a.id}
-                className="flex items-center justify-between rounded bg-gray-50 px-2 py-1 text-xs text-gray-600"
-              >
-                <span>
-                  {APPLIANCE_TYPE_LABELS[a.applianceType]} — {a.widthMm}×{a.depthMm}mm
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={() => removeAppliance(a.id)}
-                  aria-label={`Remove ${APPLIANCE_TYPE_LABELS[a.applianceType]}`}
-                  className="text-red-500 hover:text-red-700"
-                >
-                  ×
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <Button variant="ghost" size="touch" className="self-start text-primary" onClick={onManageInventory}>
+        Manage catalogue
+      </Button>
     </div>
   );
 }
+
+const APPLIANCE_ICONS: Partial<Record<ApplianceType, typeof Box>> = {
+  sink: Droplets,
+  stove: Flame,
+  chimney: Wind,
+  oven: CookingPot,
+  otg: CookingPot,
+  fridge: Refrigerator,
+  microwave: Microwave,
+  dishwasher: WashingMachine,
+  'water-purifier': GlassWater,
+};
 
 function groupByApplianceType(
   items: ApplianceCatalogItem[]

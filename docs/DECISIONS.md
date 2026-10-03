@@ -5751,3 +5751,25 @@ names: Excel sheet, Part labels PDF, Cutting list PDF, each with a
 tooltip saying what it downloads.
 
 2 tests (134).
+
+## 85. Design editor, stage 2: tool panels
+
+- **Cabinets**: search, category chips and a 2-column grid of **picture
+  tiles**. Each picture is a `CabinetThumb`: a front drawing generated
+  from the cabinet's size and front (single/double door, drawers, open
+  shelves, trolley, appliance opening), in proportion, wall units hung
+  at the top, and **filled with its finish's real texture or colour**.
+  The tile shows name and size. Tap to add, with a note saying where it
+  went and to drag it into place.
+- **Appliances**: type chips, tiles with a type icon (hob, chimney,
+  sink, fridge…), and an "In this kitchen" list with remove.
+- **Pillars & shafts**: **your presets as one-tap tiles**, then a
+  "Custom size" card (type, width and depth with mm inside, floor to
+  ceiling, height and height off the floor) and an "In this room" list.
+- **Doors, Lights, Cameras, Surfaces**: a consistent restyle. The
+  editor's panel is now the frame (their own boxes are gone), with
+  larger text, token colours, full-size dropdowns and roomier inputs.
+  These are mostly settings rather than catalogues, so they stay as
+  forms.
+
+The screenshot run now photographs every tool panel.

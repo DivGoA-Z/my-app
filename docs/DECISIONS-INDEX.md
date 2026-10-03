@@ -332,3 +332,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§83** Cutting list page redesigned (sticky header with Excel/Labels/Print, view switch, stats strip, board SectionCards, chip cabinet refs). Editor shows a Cutting list icon below lg.
 
 **§84** 3D wall view = only that wall + items against it; neighbour-wall corner pieces as grey ghost blocks (`lib/wallView.ts`). Quote panel toggle in the editor. Cutting-list buttons labelled as downloads.
+
+**§85** Editor stage 2: Cabinets as picture tiles (`CabinetThumb`, front drawing filled with the finish), Appliances tiles, Pillars preset tiles + custom form, other panels restyled.

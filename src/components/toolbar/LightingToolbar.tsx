@@ -122,19 +122,19 @@ export function LightingToolbar() {
   }
 
   return (
-    <div className="flex w-64 flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4">
+    <div className="flex flex-col gap-3">
       <div>
-        <h3 className="text-sm font-semibold text-gray-700">Lighting</h3>
+        <h3 className="text-[15px] font-semibold text-foreground">Lighting</h3>
       </div>
 
       <div className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-gray-700">View</span>
+        <span className="text-xs font-medium text-foreground">View</span>
         <div className="flex flex-col gap-0.5">
           {MODES.map((m) => (
             <Button
               key={m}
               variant="outline"
-              size="xs"
+              size="sm"
               className={
                 mode === m
                   ? 'h-auto min-h-7 justify-start border-blue-400 bg-blue-50 py-1 text-left font-normal whitespace-normal text-blue-800 hover:bg-blue-50'
@@ -146,7 +146,7 @@ export function LightingToolbar() {
             </Button>
           ))}
         </div>
-        <span className="text-[10px] text-gray-400">{LIGHTING_MODE_HINTS[mode]}</span>
+        <span className="text-xs text-muted-foreground">{LIGHTING_MODE_HINTS[mode]}</span>
       </div>
 
       {/* Viewing brightness.
@@ -158,8 +158,8 @@ export function LightingToolbar() {
           nobody is buying. This changes no design data at all. */}
       <div className="flex flex-col gap-1">
         <div className="flex items-baseline justify-between">
-          <span className="text-xs font-medium text-gray-700">Brightness</span>
-          <span className="text-[10px] tabular-nums text-gray-400">
+          <span className="text-xs font-medium text-foreground">Brightness</span>
+          <span className="text-xs tabular-nums text-muted-foreground">
             {stops === 0 ? 'default' : `${stops > 0 ? '+' : ''}${stops.toFixed(1)} stops`}
           </span>
         </div>
@@ -173,14 +173,14 @@ export function LightingToolbar() {
           className="w-full"
         />
         <div className="flex items-baseline justify-between">
-          <span className="text-[10px] text-gray-400">
+          <span className="text-xs text-muted-foreground">
             Affects the picture only — never the quote.
           </span>
           {exposure !== DEFAULT_EXPOSURE && (
             <Button
               variant="link"
-              size="xs"
-              className="h-auto p-0 text-[10px]"
+              size="sm"
+              className="h-auto p-0 text-xs"
               onClick={() => setExposure(DEFAULT_EXPOSURE)}
             >
               Reset
@@ -194,13 +194,13 @@ export function LightingToolbar() {
           on a phone with a setting that makes it unusable, and a shared
           link shouldn't carry someone else's hardware choice. */}
       <div className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-gray-700">Light quality</span>
+        <span className="text-xs font-medium text-foreground">Light quality</span>
         <div className="flex gap-1">
           {QUALITIES.map((q) => (
             <Button
               key={q}
               variant="outline"
-              size="xs"
+              size="sm"
               className={
                 quality === q
                   ? 'h-auto min-h-7 flex-1 py-1 text-center leading-tight whitespace-normal border-blue-400 bg-blue-50 text-blue-800 hover:bg-blue-50'
@@ -212,29 +212,29 @@ export function LightingToolbar() {
             </Button>
           ))}
         </div>
-        <span className="text-[10px] text-gray-400">{LIGHT_QUALITY_HINTS[quality]}</span>
+        <span className="text-xs text-muted-foreground">{LIGHT_QUALITY_HINTS[quality]}</span>
       </div>
 
       {isInventoryLoading ? (
-        <div className="flex flex-col gap-1.5 border-t border-gray-200 pt-3">
+        <div className="flex flex-col gap-1.5 border-t border-border pt-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-7 w-full" />
           ))}
         </div>
       ) : fixtureCatalog.length === 0 ? (
-        <p className="text-xs text-gray-400">No fixtures in your catalogue yet.</p>
+        <p className="text-xs text-muted-foreground">No fixtures in your catalogue yet.</p>
       ) : (
-        <div className="flex flex-col gap-2 border-t border-gray-200 pt-3">
-          <span className="text-xs font-medium text-gray-700">Add</span>
+        <div className="flex flex-col gap-2 border-t border-border pt-3">
+          <span className="text-xs font-medium text-foreground">Add</span>
           {[...byKind.entries()].map(([kind, items]) => (
             <div key={kind} className="flex flex-col gap-1">
-              <span className="rounded bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-700">
+              <span className="rounded bg-secondary px-2 py-1 text-[13px] font-medium text-foreground">
                 {FIXTURE_KIND_LABELS[kind]}
                 {!isVisibleWhenClosed(kind) && (
                   // Said plainly rather than left to be reported as a
                   // rendering bug: an in-drawer light is only visible
                   // with the drawer open, and drawers are modelled shut.
-                  <span className="ml-1 font-normal text-gray-400">— not shown in 3D</span>
+                  <span className="ml-1 font-normal text-muted-foreground">— not shown in 3D</span>
                 )}
               </span>
               <div className="flex flex-col gap-0.5 pl-1">
@@ -242,7 +242,7 @@ export function LightingToolbar() {
                   <Button
                     key={item.id}
                     variant="outline"
-                    size="xs"
+                    size="sm"
                     className="h-auto min-h-7 justify-between py-1 text-left font-normal whitespace-normal"
                     onClick={() =>
                       addFixture(
@@ -256,9 +256,9 @@ export function LightingToolbar() {
                   >
                     <span>
                       {item.label}
-                      <span className="ml-1 text-gray-400">{item.colorTempK}K</span>
+                      <span className="ml-1 text-muted-foreground">{item.colorTempK}K</span>
                     </span>
-                    <span className="shrink-0 text-gray-400">+</span>
+                    <span className="shrink-0 text-muted-foreground">+</span>
                   </Button>
                 ))}
               </div>
@@ -268,7 +268,7 @@ export function LightingToolbar() {
       )}
 
       {emissiveOnly.length > 0 && mode === 'designed' && (
-        <div className="rounded border border-sky-300 bg-sky-50 px-2 py-1.5 text-[10px] text-sky-800">
+        <div className="rounded border border-sky-300 bg-sky-50 px-2 py-1.5 text-xs text-sky-800">
           {/* Not a warning, an explanation. Without it, "I added a
               seventh light and the room didn't get brighter" reads as
               a bug rather than as the deliberate mobile budget. */}
@@ -276,8 +276,8 @@ export function LightingToolbar() {
           light the room at this quality setting — the brightest ones win. Switch to{' '}
           <Button
             variant="link"
-            size="xs"
-            className="h-auto p-0 text-[10px] text-sky-800"
+            size="sm"
+            className="h-auto p-0 text-xs text-sky-800"
             onClick={() => setQuality('all')}
           >
             All lights
@@ -306,11 +306,11 @@ export function LightingToolbar() {
         </Alert>
       )}
 
-      <Label className="flex items-center justify-between gap-2 border-t border-gray-200 pt-3 text-xs font-normal text-gray-600">
+      <Label className="flex items-center justify-between gap-2 border-t border-border pt-3 text-xs font-normal text-muted-foreground">
         Charge electrical work
         <Checkbox checked={priceElectrical} onCheckedChange={(checked) => setPriceElectrical(checked === true)} />
       </Label>
-      <span className="-mt-1 text-[10px] text-gray-400">
+      <span className="-mt-1 text-xs text-muted-foreground">
         {priceElectrical
           ? `Lighting adds ${INR.format(total)} to the quote.`
           : `Off — lighting prints as a specification at ${INR.format(
@@ -319,36 +319,36 @@ export function LightingToolbar() {
       </span>
 
       {placements.length > 0 && (
-        <div className="flex flex-col gap-2 border-t border-gray-200 pt-3">
-          <h4 className="text-xs font-semibold text-gray-700">In this room</h4>
+        <div className="flex flex-col gap-2 border-t border-border pt-3">
+          <h4 className="text-xs font-semibold text-foreground">In this room</h4>
           <ul className="flex flex-col gap-1">
             {placements.map((p) => {
               const { amount } = fixtureQuantity(p);
               return (
                 <li
                   key={p.fixture.id}
-                  className={`flex items-center justify-between rounded px-2 py-1 text-[11px] ${
+                  className={`flex items-center justify-between rounded px-2 py-1 text-[13px] ${
                     p.fixture.id === selectedFixtureId
                       ? 'bg-blue-50 text-blue-800'
-                      : 'bg-gray-50 text-gray-600'
+                      : 'bg-secondary text-muted-foreground'
                   }`}
                 >
                   <Button
                     variant="ghost"
-                    size="xs"
+                    size="sm"
                     className="h-auto min-w-0 flex-1 flex-col items-start justify-start p-0 text-left font-normal whitespace-normal"
                     onClick={() => selectFixture(p.fixture.id)}
                   >
                     <span>
                       {p.item.label}
-                      <span className="ml-1 text-gray-400">
+                      <span className="ml-1 text-muted-foreground">
                         {isLinear(p.item.kind) ? `${amount.toFixed(2)}m` : `×${amount}`}
                       </span>
-                      {!p.fixture.enabled && <span className="ml-1 text-gray-400">(off)</span>}
+                      {!p.fixture.enabled && <span className="ml-1 text-muted-foreground">(off)</span>}
                     </span>
                     {/* Where it is, not just what it is — a list of
                         four identical strips is unusable without it. */}
-                    <div className="text-[10px] text-gray-400">
+                    <div className="text-xs text-muted-foreground">
                       {describeMountShort(p.fixture.mount)} · {Math.round(p.zMm)}mm
                     </div>
                   </Button>
@@ -357,7 +357,7 @@ export function LightingToolbar() {
                     size="icon-xs"
                     onClick={() => removeFixture(p.fixture.id)}
                     aria-label={`Remove ${p.item.label}`}
-                    className="text-red-500 hover:text-red-700"
+                    className="text-muted-foreground hover:text-destructive"
                   >
                     ×
                   </Button>

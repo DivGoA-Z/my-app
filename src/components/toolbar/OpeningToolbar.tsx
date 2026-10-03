@@ -74,10 +74,10 @@ export function OpeningToolbar() {
   }
 
   return (
-    <div className="flex w-64 flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4">
+    <div className="flex flex-col gap-3">
       <div>
-        <h3 className="text-sm font-semibold text-gray-700">Doors &amp; Windows</h3>
-        <p className="text-[11px] text-gray-500">
+        <h3 className="text-[15px] font-semibold text-foreground">Doors &amp; Windows</h3>
+        <p className="text-[13px] text-muted-foreground">
           Openings deduct their area from the wall tiling, and an in-swinging door reserves the
           floor it sweeps. Usually already in place, so nothing is charged unless you mark it as
           supplied by you.
@@ -86,7 +86,7 @@ export function OpeningToolbar() {
 
       {KINDS.map((kind) => (
         <div key={kind} className="flex flex-col gap-1">
-          <span className="rounded bg-gray-100 px-2 py-1.5 text-xs font-medium text-gray-700">
+          <span className="rounded bg-secondary px-2 py-1.5 text-xs font-medium text-foreground">
             {OPENING_KIND_LABELS[kind]}
           </span>
           <div className="flex gap-1 pl-1">
@@ -94,7 +94,7 @@ export function OpeningToolbar() {
               <Button
                 key={wallId}
                 variant="outline"
-                size="xs"
+                size="sm"
                 className="h-auto min-h-6 flex-1 py-1 whitespace-normal font-normal"
                 onClick={() => handleAdd(kind, wallId)}
               >
@@ -148,8 +148,8 @@ export function OpeningToolbar() {
       )}
 
       {openings.length > 0 && (
-        <div className="flex flex-col gap-2 border-t border-gray-200 pt-3">
-          <h4 className="text-xs font-semibold text-gray-700">In this room</h4>
+        <div className="flex flex-col gap-2 border-t border-border pt-3">
+          <h4 className="text-xs font-semibold text-foreground">In this room</h4>
           <ul className="flex flex-col gap-1">
             {openings.map((o) => (
               <li
@@ -157,12 +157,12 @@ export function OpeningToolbar() {
                 className={`flex items-center justify-between rounded px-2 py-1 text-xs ${
                   o.id === selectedOpeningId
                     ? 'bg-blue-50 text-blue-800'
-                    : 'bg-gray-50 text-gray-600'
+                    : 'bg-secondary text-muted-foreground'
                 }`}
               >
                 <Button
                   variant="ghost"
-                  size="xs"
+                  size="sm"
                   className="h-auto flex-1 justify-start p-0 font-normal"
                   onClick={() => selectOpening(o.id)}
                 >
@@ -174,7 +174,7 @@ export function OpeningToolbar() {
                   size="icon-xs"
                   onClick={() => removeOpening(o.id)}
                   aria-label={`Remove ${OPENING_KIND_LABELS[o.kind]}`}
-                  className="text-red-500 hover:text-red-700"
+                  className="text-muted-foreground hover:text-destructive"
                 >
                   ×
                 </Button>

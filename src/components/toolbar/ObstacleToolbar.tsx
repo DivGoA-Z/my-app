@@ -24,6 +24,8 @@
 // this toolbar now fixes: presets now live in the one dropdown, so a
 // newly-saved preset is immediately selectable here too.
 
+import { toast } from 'sonner';
+import { X } from 'lucide-react';
 import { useState } from 'react';
 import { useLayoutStore } from '../../store/layoutStore';
 import { Button } from '../ui/button';
@@ -132,28 +134,71 @@ export function ObstacleToolbar({ onManageInventory }: ObstacleToolbarProps) {
     });
   }
 
+  // A preset is one tap (§85); "Custom size" is for anything else.
+  function addPreset(preset: (typeof obstaclePresets)[number]) {
+    addObstacle({
+      id: crypto.randomUUID(),
+      type: preset.type,
+      x: 0,
+      y: 0,
+      widthMm: preset.widthMm,
+      depthMm: preset.depthMm,
+      floorToCeiling: preset.floorToCeiling,
+      heightMm: preset.heightMm,
+      elevationMm: preset.floorToCeiling ? 0 : preset.elevationMm,
+      rotationDeg: 0,
+    });
+    toast.success(`Added ${preset.label}`, { description: 'It’s in the corner of the room. Drag it into place.' });
+  }
+
+  const sizeBox = (label: string, value: number, onChange: (n: number) => void, min: number, hint?: string) => (
+    <label className="flex flex-col gap-1.5 text-[13px] font-semibold">
+      {label}
+      <span className="flex h-11 items-center gap-1.5 rounded-[10px] border border-input bg-card px-3">
+        <input type="number" min={min} step={10} value={value} onChange={(e) => onChange(Number(e.target.value))} className="h-auto min-w-0 flex-1 border-0 bg-transparent p-0 font-mono text-[15px] outline-none" />
+        <span className="text-sm font-normal text-muted-foreground">mm</span>
+      </span>
+      {hint && <span className="text-xs font-normal text-muted-foreground">{hint}</span>}
+    </label>
+  );
+
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-gray-200 p-4 w-64">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-sm text-gray-700">Add Obstacle</h3>
-        <Button variant="link" size="xs" className="h-auto p-0 text-xs" onClick={onManageInventory}>
-          Manage
-        </Button>
-      </div>
+    <div className="flex flex-col gap-4">
+      {obstaclePresets.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <span className="text-[13px] font-semibold text-muted-foreground">Your presets</span>
+          <div className="grid grid-cols-2 gap-2.5">
+            {obstaclePresets.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => addPreset(preset)}
+                title={`Add ${preset.label}`}
+                className="flex flex-col gap-1 rounded-xl border border-border bg-card p-2.5 text-left transition-colors hover:border-primary hover:bg-accent/40"
+              >
+                <span className="flex h-12 items-center justify-center rounded-lg bg-[repeating-linear-gradient(45deg,#e2dfd8_0_4px,#efede8_4px_10px)]" />
+                <span className="line-clamp-2 text-[13px] font-semibold leading-tight">{preset.label}</span>
+                <span className="font-mono text-xs text-muted-foreground">
+                  {preset.widthMm} × {preset.depthMm}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
-      <div className="flex flex-col gap-3 border-t border-gray-200 pt-3">
-        <span className="text-xs font-medium text-gray-600">Custom Size</span>
-
-        <div className="flex flex-col text-xs text-gray-600 gap-1">
+      <div className="flex flex-col gap-3 rounded-xl border border-border p-3">
+        <span className="text-[15px] font-semibold">Custom size</span>
+        <div className="flex flex-col gap-1.5 text-[13px] font-semibold">
           Type
           <Select value={selection} onValueChange={handleSelectionChange}>
-            <SelectTrigger size="sm" className="w-full">
+            <SelectTrigger className="h-11! w-full rounded-[10px] bg-card text-[15px] font-normal">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {obstaclePresets.length > 0 && (
                 <SelectGroup>
-                  <SelectLabel>Your Presets</SelectLabel>
+                  <SelectLabel>Your presets</SelectLabel>
                   {obstaclePresets.map((preset) => (
                     <SelectItem key={preset.id} value={`${PRESET_OPTION_PREFIX}${preset.id}`}>
                       {preset.label} ({preset.widthMm}×{preset.depthMm}mm)
@@ -162,7 +207,7 @@ export function ObstacleToolbar({ onManageInventory }: ObstacleToolbarProps) {
                 </SelectGroup>
               )}
               <SelectGroup>
-                <SelectLabel>Generic Type</SelectLabel>
+                <SelectLabel>Type</SelectLabel>
                 {ADDABLE_TYPES.map((t) => (
                   <SelectItem key={t} value={`${TYPE_OPTION_PREFIX}${t}`}>
                     {OBSTACLE_TYPE_LABELS[t]}
@@ -172,115 +217,60 @@ export function ObstacleToolbar({ onManageInventory }: ObstacleToolbarProps) {
             </SelectContent>
           </Select>
           {presetLabel && (
-            <span className="text-[10px] font-normal text-gray-400">
-              Loaded from "{presetLabel}" — tweak any field below before adding.
-            </span>
+            <span className="text-xs font-normal text-muted-foreground">Loaded from "{presetLabel}". Change anything before adding.</span>
           )}
         </div>
-
-        <label className="flex flex-col text-xs text-gray-600 gap-1">
-          Width (mm)
-          <input
-            type="number"
-            min={50}
-            step={10}
-            value={widthMm}
-            onChange={(e) => setWidthMm(Number(e.target.value))}
-            className="border border-gray-300 rounded px-2 py-1 text-sm"
-          />
-        </label>
-
-        <label className="flex flex-col text-xs text-gray-600 gap-1">
-          Depth (mm)
-          <input
-            type="number"
-            min={50}
-            step={10}
-            value={depthMm}
-            onChange={(e) => setDepthMm(Number(e.target.value))}
-            className="border border-gray-300 rounded px-2 py-1 text-sm"
-          />
-        </label>
-
-        <Label className="flex items-center justify-between gap-2 text-xs font-normal text-gray-600">
-          <span>
-            Floor to ceiling
-            <br />
-            <span className="text-[10px] text-gray-400">blocks every height, like a column</span>
-          </span>
+        <div className="grid grid-cols-2 gap-2.5">
+          {sizeBox('Width', widthMm, setWidthMm, 50)}
+          {sizeBox('Depth', depthMm, setDepthMm, 50)}
+        </div>
+        <Label className="flex items-center gap-2.5 text-sm font-medium">
           <Checkbox checked={floorToCeiling} onCheckedChange={(checked) => setFloorToCeiling(checked === true)} />
+          <span className="flex flex-col">
+            Floor to ceiling
+            <span className="text-xs font-normal text-muted-foreground">Blocks every height, like a column</span>
+          </span>
         </Label>
-
         {!floorToCeiling && (
-          <>
-            <label className="flex flex-col text-xs text-gray-600 gap-1">
-              Height (mm)
-              <input
-                type="number"
-                min={50}
-                step={10}
-                value={heightMm}
-                onChange={(e) => setHeightMm(Number(e.target.value))}
-                className="border border-gray-300 rounded px-2 py-1 text-sm"
-              />
-            </label>
-
-            <label className="flex flex-col text-xs text-gray-600 gap-1">
-              Height off floor (mm)
-              <span className="text-[10px] font-normal text-gray-400">
-                0 = touches the floor; e.g. a mid-wall electrical fixture doesn't
-              </span>
-              <input
-                type="number"
-                min={0}
-                step={10}
-                value={elevationMm}
-                onChange={(e) => setElevationMm(Number(e.target.value))}
-                className="border border-gray-300 rounded px-2 py-1 text-sm"
-              />
-            </label>
-          </>
+          <div className="grid grid-cols-2 gap-2.5">
+            {sizeBox('Height', heightMm, setHeightMm, 50)}
+            {sizeBox('Off the floor', elevationMm, setElevationMm, 0, 'e.g. a mid-wall box')}
+          </div>
         )}
-
-        <Button size="sm" className="h-auto min-h-8 py-1.5 whitespace-normal" onClick={handleAdd}>
+        <Button size="touch" onClick={handleAdd}>
           + Add {presetLabel ?? OBSTACLE_TYPE_LABELS[type]}
         </Button>
       </div>
 
       {obstacles.length > 0 && (
-        <div className="flex flex-col gap-2 border-t border-gray-200 pt-3">
-          <h4 className="font-semibold text-xs text-gray-700">Current Obstacles</h4>
-          <p className="text-[10px] text-gray-400">
-            Select one on the canvas to edit its size/height, or delete it here.
-          </p>
-          <ul className="flex flex-col gap-1">
-            {obstacles.map((o) => (
-              <li
-                key={o.id}
-                className="flex items-center justify-between text-xs text-gray-600 bg-gray-50 rounded px-2 py-1"
-              >
-                <span>
-                  {OBSTACLE_TYPE_LABELS[o.type]} — {o.widthMm}×{o.depthMm}mm,{' '}
-                  {o.floorToCeiling
-                    ? 'floor to ceiling'
-                    : o.elevationMm > 0
-                      ? `${o.heightMm}mm tall, ${o.elevationMm}mm off floor`
-                      : `${o.heightMm}mm tall`}
+        <div className="flex flex-col gap-1.5 border-t border-border pt-3">
+          <span className="text-[13px] font-semibold text-muted-foreground">In this room</span>
+          {obstacles.map((o) => (
+            <div key={o.id} className="flex items-center justify-between gap-2 rounded-lg bg-secondary px-3 py-2 text-sm">
+              <span className="min-w-0">
+                {OBSTACLE_TYPE_LABELS[o.type]}{' '}
+                <span className="font-mono text-xs text-muted-foreground">
+                  {o.widthMm}×{o.depthMm}
+                  {o.floorToCeiling ? '' : `, ${o.heightMm} high${o.elevationMm > 0 ? `, ${o.elevationMm} up` : ''}`}
                 </span>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={() => removeObstacle(o.id)}
-                  aria-label={`Remove ${OBSTACLE_TYPE_LABELS[o.type]}`}
-                  className="text-red-500 hover:text-red-700"
-                >
-                  ×
-                </Button>
-              </li>
-            ))}
-          </ul>
+              </span>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => removeObstacle(o.id)}
+                aria-label={`Remove ${OBSTACLE_TYPE_LABELS[o.type]}`}
+                className="text-muted-foreground hover:text-destructive"
+              >
+                <X />
+              </Button>
+            </div>
+          ))}
         </div>
       )}
+
+      <Button variant="ghost" size="touch" className="self-start text-primary" onClick={onManageInventory}>
+        Manage presets
+      </Button>
     </div>
   );
 }

@@ -68,15 +68,15 @@ export function CameraToolbar() {
   }
 
   return (
-    <div className="flex w-64 flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4">
+    <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700">Camera Nodes</h3>
-        <Button size="xs" onClick={handleAdd}>
+        <h3 className="text-[15px] font-semibold text-foreground">Camera Nodes</h3>
+        <Button size="sm" onClick={handleAdd}>
           + Add
         </Button>
       </div>
 
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-muted-foreground">
         Drag a camera to reposition it; drag the small circle on its arrow to aim it. Saved for
         the Phase 2 panorama viewer at {DEFAULT_CAMERA_HEIGHT_MM}mm eye height.
       </p>
@@ -88,31 +88,31 @@ export function CameraToolbar() {
       )}
 
       {cameras.length === 0 ? (
-        <p className="text-xs text-gray-400">No camera nodes yet.</p>
+        <p className="text-xs text-muted-foreground">No camera nodes yet.</p>
       ) : (
         <ul className="flex flex-col gap-1">
           {cameras.map((camera) => (
-            <li key={camera.id} className="flex items-center gap-1 rounded bg-gray-50 px-2 py-1">
+            <li key={camera.id} className="flex items-center gap-1 rounded bg-secondary px-2 py-1">
               <input
                 value={camera.label}
                 onChange={(e) => updateCamera(camera.id, { label: e.target.value })}
-                className="w-28 flex-1 rounded border border-gray-200 bg-white px-1.5 py-1 text-xs"
+                className="w-28 flex-1 rounded border border-border bg-white px-1.5 py-1 text-xs"
               />
-              <span className="text-[10px] text-gray-400">{Math.round(camera.viewAngleDeg)}°</span>
+              <span className="text-xs text-muted-foreground">{Math.round(camera.viewAngleDeg)}°</span>
               {camera.panoramaUrl && (
                 <>
                   <Button
                     variant="link"
-                    size="xs"
-                    className="h-auto whitespace-nowrap p-0 text-[10px]"
+                    size="sm"
+                    className="h-auto whitespace-nowrap p-0 text-xs"
                     onClick={() => setViewingCameraId(camera.id)}
                   >
                     View 360°
                   </Button>
                   <Button
                     variant="link"
-                    size="xs"
-                    className="h-auto whitespace-nowrap p-0 text-[10px] text-destructive"
+                    size="sm"
+                    className="h-auto whitespace-nowrap p-0 text-xs text-destructive"
                     onClick={() => handleDeletePanorama(camera.id)}
                   >
                     Delete 360°
@@ -124,7 +124,7 @@ export function CameraToolbar() {
                 size="icon-xs"
                 onClick={() => removeCamera(camera.id)}
                 aria-label={`Remove ${camera.label}`}
-                className="text-red-500 hover:text-red-700"
+                className="text-muted-foreground hover:text-destructive"
               >
                 ×
               </Button>

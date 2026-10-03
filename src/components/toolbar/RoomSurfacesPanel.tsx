@@ -55,10 +55,10 @@ export function RoomSurfacesPanel() {
   const areas = computeRoomSurfaceAreas({ ...currentLayout, obstacles }, cabinets, appliances);
 
   return (
-    <div className="flex w-64 flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4">
+    <div className="flex flex-col gap-3">
       <div>
-        <h3 className="text-sm font-semibold text-gray-700">Room Surfaces</h3>
-        <p className="text-[11px] text-gray-500">
+        <h3 className="text-[15px] font-semibold text-foreground">Room Surfaces</h3>
+        <p className="text-[13px] text-muted-foreground">
           Floor, ceiling and each wall, finished from your materials catalogue.
         </p>
       </div>
@@ -105,7 +105,7 @@ export function RoomSurfacesPanel() {
         onPriceCountertopChange={(priceCountertop) => updateRoomSurfaces({ priceCountertop })}
       />
 
-      <p className="border-t border-gray-200 pt-2 text-[10px] text-gray-400">
+      <p className="border-t border-border pt-2 text-xs text-muted-foreground">
         Areas update as you move cabinets. "Blocked" is area taken up by pillars and shafts —
         there's no surface behind them, so it's never charged.
       </p>
@@ -135,8 +135,8 @@ function SurfaceRow({
   return (
     <div className="flex flex-col gap-1 border-t border-gray-100 pt-2">
       <div className="flex items-baseline justify-between">
-        <span className="text-xs font-medium text-gray-700">{label}</span>
-        <span className="text-[10px] tabular-nums text-gray-400">
+        <span className="text-xs font-medium text-foreground">{label}</span>
+        <span className="text-xs tabular-nums text-muted-foreground">
           {area.exposedSqM.toFixed(2)} m² shown
         </span>
       </div>
@@ -145,7 +145,7 @@ function SurfaceRow({
         value={finishId ?? NO_FINISH_VALUE}
         onValueChange={(value) => onFinishChange(value === NO_FINISH_VALUE ? undefined : value)}
       >
-        <SelectTrigger size="sm" className="w-full">
+        <SelectTrigger className="w-full">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -166,7 +166,7 @@ function SurfaceRow({
               onConcealedChange(value === NO_FINISH_VALUE ? undefined : value)
             }
           >
-            <SelectTrigger size="sm" className="w-full">
+            <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -178,14 +178,14 @@ function SurfaceRow({
               ))}
             </SelectContent>
           </Select>
-          <span className="text-[10px] tabular-nums text-gray-400">
+          <span className="text-xs tabular-nums text-muted-foreground">
             {area.concealedSqM.toFixed(2)} m² hidden behind units
           </span>
         </>
       )}
 
       {area.occupiedSqM > 0 && (
-        <span className="text-[10px] tabular-nums text-amber-600">
+        <span className="text-xs tabular-nums text-amber-600">
           {area.occupiedSqM.toFixed(2)} m² blocked by structure — not charged
         </span>
       )}
@@ -196,7 +196,7 @@ function SurfaceRow({
           uncharged, but a client asking why the tiling area is smaller
           than the room deserves the right reason. */}
       {area.voidSqM > 0 && (
-        <span className="text-[10px] tabular-nums text-sky-600">
+        <span className="text-xs tabular-nums text-sky-600">
           {area.voidSqM.toFixed(2)} m² deducted for doors/windows
         </span>
       )}
@@ -231,15 +231,15 @@ function CountertopRow({
   return (
     <div className="flex flex-col gap-1 border-t border-gray-100 pt-2">
       <div className="flex items-baseline justify-between">
-        <span className="text-xs font-medium text-gray-700">Countertop / slab</span>
-        <span className="text-[10px] tabular-nums text-gray-400">{areaSqM.toFixed(2)} m²</span>
+        <span className="text-xs font-medium text-foreground">Countertop / slab</span>
+        <span className="text-xs tabular-nums text-muted-foreground">{areaSqM.toFixed(2)} m²</span>
       </div>
 
       <Select
         value={finishId ?? NO_FINISH_VALUE}
         onValueChange={(value) => onFinishChange(value === NO_FINISH_VALUE ? undefined : value)}
       >
-        <SelectTrigger size="sm" className="w-full">
+        <SelectTrigger className="w-full">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -252,7 +252,7 @@ function CountertopRow({
         </SelectContent>
       </Select>
 
-      <Label className="flex items-center gap-1.5 text-[10px] font-normal text-gray-500">
+      <Label className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
         <Checkbox
           checked={priceCountertop}
           onCheckedChange={(checked) => onPriceCountertopChange(checked === true)}
@@ -261,7 +261,7 @@ function CountertopRow({
         Charge for it on the quote
       </Label>
       {!priceCountertop && (
-        <span className="text-[10px] text-gray-400">
+        <span className="text-xs text-muted-foreground">
           Off — usually arranged by the homeowner. The slab still shows in the design and prints
           on the quote at ₹0.
         </span>
