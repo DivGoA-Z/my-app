@@ -104,8 +104,9 @@ export function legacyBoardId(material: MaterialType): string {
 export type GlassRates = Record<GlassTint, number>;
 
 // What one "others" row is charged on:
-//   'sqft'    ₹ per sq ft of estimated cabinet area (lib/bom.ts's
-//             estimateAreaSqFt — the same area site labour uses).
+//   'sqft'    ₹ per sq ft of the cabinet's TOTAL area — the real area
+//             of all its cut parts plus any glass door (lib/bom.ts's
+//             areaSqFt, §59; was front face + half a side until then).
 //             For things that grow with cabinet size: edge banding.
 //   'cabinet' ₹ per cabinet, flat regardless of size. The default for
 //             a new row — the most common case, and what the single

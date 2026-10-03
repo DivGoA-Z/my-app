@@ -119,9 +119,25 @@ describe('sheet waste (§53)', () => {
 });
 
 describe('charges and margin (§38-§40)', () => {
-  it('labour rows price as before: 150/sq ft × area + 2,500 per cabinet', () => {
+  it('labour rows: ₹150/sq ft × area + ₹2,500 per cabinet', () => {
     const line = calculateBOM([baseUnit()], [], pricing()).lineItems[0];
     expect(line.othersCost).toBeCloseTo(150 * line.areaSqFt + 2500, 6);
+  });
+  it('per-sq-ft charges use the cabinet\'s TOTAL board area (§59): 22.7 sq ft on the base unit', () => {
+    const line = calculateBOM([baseUnit()], [], pricing()).lineItems[0];
+    expect(line.areaSqFt).toBeCloseTo(line.materialArea * 10.7639, 2);
+    expect(line.areaSqFt).toBeCloseTo(22.70, 1);
+    expect(rupees(150 * line.areaSqFt)).toBe(3406); // 22.706 sq ft × ₹150
+  });
+  it('a glass door still counts toward the labour area', () => {
+    const board = calculateBOM([cabinet('wall-cabinet', 600, 350, 720, { frontLayout: { kind: 'single-door' } })], [], pricing()).lineItems[0];
+    const glass = calculateBOM(
+      [cabinet('wall-cabinet', 600, 350, 720, { frontLayout: { kind: 'single-door', glass: { tint: 'clear' } } })],
+      [],
+      pricing()
+    ).lineItems[0];
+    expect(glass.areaSqFt).toBeCloseTo(board.areaSqFt, 1);
+    expect(glass.materialArea).toBeLessThan(board.materialArea);
   });
   it('a business lump sum is charged once per project, inside the marked-up cost', () => {
     const rates = { othersRates: [...DEFAULT_LABOUR_RATES, { id: 'd', label: 'Delivery', rate: 2000, basis: 'lumpsum' as const, showOnQuote: false, applyMargin: true }] };

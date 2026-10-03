@@ -167,8 +167,9 @@ export function RateCardManager() {
         <legend className="text-xs font-medium text-gray-600">Labour and other charges (₹)</legend>
         <p className="text-[11px] text-gray-500">
           Labour, edge banding, packing, delivery — anything that isn't material, hardware or
-          glass. Pick how each is charged: per sq ft of cabinet, per cabinet, or once per
-          project (lump sum). Tick <strong>Show on quote</strong> to print it as its own line;
+          glass. Pick how each is charged: per sq ft (of each cabinet's total board area — every
+          panel, back, shelf and front from the cutting list), per cabinet, or once per project
+          (lump sum). Tick <strong>Show on quote</strong> to print it as its own line;
           everything unticked is combined into one "Other" line. Untick{' '}
           <strong>Add margin</strong> for a price you've already fixed — it goes on the quote
           as-is. Each project can override this list from its quote.

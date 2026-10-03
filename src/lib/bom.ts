@@ -50,6 +50,9 @@ export interface BOMLineItem {
   depthMm: number;
   heightMm: number;
   quantity: number;
+  // Total area (sq ft, all copies) every per-sq-ft charge is billed on —
+  // the real board area of every part plus any glass door (§59). Until
+  // §59 it was front face + half a side.
   areaSqFt: number;
   // Front-face area the finish is charged on — see finishedAreaSqM.
   finishedAreaSqM: number;
@@ -379,15 +382,12 @@ function finishedAreaSqM(item: PlacedCabinetItem, glassAreaMm2: number): number 
   return frontFaceMm2 / MM2_PER_SQM;
 }
 
-// Simplified surface-area estimate used for labor costing: front face
-// area, plus a discounted allowance for carcass sides/back. Computed
-// in mm² (matching the stored dimensions), then converted to sq ft —
-// labour is billed per sq ft, matching the trade's own convention.
-function estimateAreaSqFt(item: PlacedCabinetItem): number {
-  const frontFaceMm2 = item.widthMm * item.heightMm;
-  const sideAllowanceMm2 = item.depthMm * item.heightMm * 0.5;
-  return (frontFaceMm2 + sideAllowanceMm2) / MM2_PER_SQFT;
-}
+// (estimateAreaSqFt lived here until §59: front face + half a side, the
+// area every per-sq-ft charge — site labour included — was billed on.
+// You decided labour should use the cabinet's TOTAL area, so per-sq-ft
+// charges now use the real board area of the cabinet's parts plus any
+// glass door; see areaSqFt in calculateBOM. On a 600×600×720 base unit
+// that's 7.0 → 22.7 sq ft.)
 
 // (carcassAreaSqM lived here until §42: front face + half a side, the
 // same rough estimate labour uses, standing in for the board a cabinet
@@ -479,7 +479,6 @@ export function calculateBOM(
     const glassTint = frontBreakdown.panels.find((p) => p.glassTint)?.glassTint;
     const glassAreaMm2 = frontBreakdown.glassAreaMm2;
 
-    const areaSqFt = estimateAreaSqFt(item) * item.quantity;
     // REAL board, priced part by part (§42): exactly the parts the
     // cutting list shows for this cabinet — only the panels it actually
     // has (PanelSpec.included), each at its own board line's rate and
@@ -495,6 +494,14 @@ export function calculateBOM(
     // A part with no board line is priced at ₹0 — flagged so the quote
     // sidebar can say so instead of quietly under-quoting (Principle 1).
     const missingBoard = parts.some((p) => !p.boardId);
+    // The area EVERY per-sq-ft charge is billed on — site labour, and any
+    // other per-sq-ft row (§59, your call: total area, not just the
+    // front). The real area of all this cabinet's parts — sides, top or
+    // rails, bottom, back, shelves, drawer boxes, fronts, extra parts —
+    // plus any glass door, because fitting a glass door is no less work
+    // than fitting a board one. Quantity is already in materialArea; the
+    // glass area is per cabinet, so it's multiplied in.
+    const areaSqFt = (materialArea * MM2_PER_SQM + glassAreaMm2 * item.quantity) / MM2_PER_SQFT;
     // item.unitPrice is deliberately NOT read here — see
     // docs/DECISIONS.md §15. It's a reference figure a business sees
     // when browsing the catalogue, not a cost this function counts;
@@ -505,11 +512,8 @@ export function calculateBOM(
     // each row scales with (chargeRates above). areaSqFt already
     // includes quantity; the per-cabinet rows need it multiplied in.
     //
-    // Per-sq-ft rows (site labour among them) are charged on the FULL
-    // front-face area regardless of glass — fitting a glass door isn't
-    // less work than fitting a board one, so estimateAreaSqFt is
-    // deliberately NOT reduced by glassAreaMm2 the way material/finish
-    // are.
+    // Per-sq-ft rows are charged on areaSqFt above — total area, glass
+    // door included.
     const othersCost = othersPerSqFt * areaSqFt + othersPerUnit * item.quantity;
     const unmarkedCost = unmarkedPerSqFt * areaSqFt + unmarkedPerUnit * item.quantity;
     const finish = resolveFinish(finishes, item.finishId);

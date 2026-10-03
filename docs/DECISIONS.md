@@ -4835,3 +4835,26 @@ Measured: the 600×600×720 base unit has 5.184 m of banded edge (sides
 (The test first expected 4.188 m — my own mis-addition; the code was
 right.) No allowance yet for the few centimetres trimmed off each edge.
 70 tests.
+
+## 59. Per-sq-ft charges (site labour included) on the cabinet's total area
+
+Your call: labour should use the TOTAL area, not just the front. Every
+per-sq-ft charge row now bills on `areaSqFt` = the real area of all the
+cabinet's cut parts (sides, top or rails, bottom, back, shelves, drawer
+boxes, fronts, extra parts — exactly what's priced as board) plus any
+glass door area, since fitting a glass door is no less work. Until now
+it was `estimateAreaSqFt`: front face + half a side — removed.
+
+**This is a big, deliberate price change.** 600×600×720 base unit:
+7.0 → 22.7 sq ft, so site labour at the seeded ₹150/sq ft goes ~₹1,046
+→ ₹3,406. ₹150 was a placeholder chosen against the old, smaller area —
+it almost certainly needs lowering to the business's real per-sq-ft
+labour rate for a total-area basis. Any other per-sq-ft row scales the
+same way; notably the business's own "edge banding ₹200/sq ft" row,
+which §58's per-metre rate now replaces. Frozen quotes don't change.
+
+Consequences that follow automatically: unticking a panel reduces
+labour; drawer boxes and extra parts add to it; the glass test shows a
+glass-door cabinet keeps the same labour area as its board twin while
+its board area drops. 72 tests (one more ₹1 correction to my hand
+arithmetic: 22.706 sq ft × ₹150 = ₹3,406).

@@ -330,6 +330,12 @@ and a second real-shade pendant catalogue option.
 - Board nesting, cutting list, hardware boring (Phase 4) — see
   Blocked, below.
 
+**New (§59): labour and every per-sq-ft charge use the cabinet's TOTAL
+board area** (your call) — a base unit goes 7.0 → 22.7 sq ft, so site
+labour at the placeholder ₹150/sq ft jumps ~₹1,046 → ₹3,406. **Lower the
+labour rate to your real total-area figure, and remove the per-sq-ft
+edge-banding row** (edge banding is now per metre).
+
 **New (§58): edge banding by the metre** — rate card "Edge banding (₹ per
 running metre)", charged on the cutting list's exact metres. ₹0 by
 default so nothing double-charges; when you set it, remove the per-sq-ft
@@ -347,7 +353,7 @@ board that was previously never charged.
 
 ## Tests
 
-**`npm test`** (Vitest) — 70 tests on pricing, the cutting list, nesting,
+**`npm test`** (Vitest) — 72 tests on pricing, the cutting list, nesting,
 panels and the catalogue importer, ~0.3s (§55). Run before trusting a
 change to any of those. UI still has no automated tests.
 
