@@ -14,7 +14,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../ui/button';
-import { Alert, AlertDescription } from '../ui/alert';
+import { AlertTriangle, ArrowLeft, FileSpreadsheet, GlassWater, Layers, PlusSquare, Printer, Snowflake, Tags } from 'lucide-react';
+import { SectionCard } from '../common/SectionCard';
 import { useLayoutStore } from '../../store/layoutStore';
 import {
   computeCutList,
@@ -229,7 +230,7 @@ export function CutListView({
         key={ref}
         type="button"
         title={title ? `${title} — open in the Cabinet Designer` : 'Open in the Cabinet Designer'}
-        className="text-blue-700 underline-offset-2 hover:underline"
+        className="inline-flex h-7 items-center rounded-full bg-secondary px-2.5 font-mono text-xs font-semibold text-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
         onClick={() => onOpenDesigner(id)}
       >
         {ref}
@@ -247,15 +248,34 @@ export function CutListView({
   };
   const pdfFileBase = `cutting-list-${(currentProject?.clientName ?? 'project').replace(/[^a-z0-9]+/gi, '-')}${frozen ? `-quote-v${frozen.version}` : ''}`;
 
+  // The page's numbers at a glance (§83), like Home's strip.
+  const totalAreaSqM = cutList.groups.reduce((n, g) => n + g.areaSqM, 0);
+  const totalEdgeM = cutList.groups.reduce((n, g) => n + g.edgeBandM, 0);
+  const glassCount = cutList.glass.reduce((n, g) => n + g.quantity, 0);
+  const stats = [
+    { k: 'Pieces', v: String(totalPieces) },
+    { k: 'Cabinets', v: String(new Set(cutList.parts.map((p) => p.cabinetRef)).size) },
+    { k: 'Boards', v: String(cutList.groups.length) },
+    { k: 'Board area', v: `${totalAreaSqM.toFixed(2)} m²` },
+    { k: 'Edge banding', v: `${totalEdgeM.toFixed(1)} m` },
+    ...(glassCount ? [{ k: 'Glass panels', v: String(glassCount) }] : []),
+  ];
+  const th = 'px-3 py-2.5 font-semibold';
+  const td = 'px-3 py-2.5';
+  const num = 'px-3 py-2.5 text-right font-mono tabular-nums';
+
   return (
-    <div className="flex flex-col gap-4 p-8">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" size="sm" onClick={onClose}>
-          ← Back to 2D
+    <div className="flex min-h-dvh flex-col bg-background text-foreground">
+      {/* Header (§83): back, what this is, which version, how to view it,
+          and the three ways out (Excel, printed list, part labels). */}
+      <header className="sticky top-0 z-30 flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-3 md:px-6">
+        <Button variant="outline" size="icon-touch" onClick={onClose} aria-label="Back">
+          <ArrowLeft />
         </Button>
-        <h2 className="text-sm font-semibold text-gray-800">
-          Cutting list{currentProject ? ` — ${currentProject.clientName}` : ''}
-        </h2>
+        <div className="flex min-w-0 flex-col">
+          <span className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground">Cutting list</span>
+          <span className="truncate text-lg font-extrabold tracking-[-0.02em]">{currentProject?.clientName ?? 'This design'}</span>
+        </div>
         {/* Live design or a frozen quote's list (§60). Always shown, so it
             can be found: quotes frozen before §60 carry no list and are
             listed greyed out with the reason (§66). */}
@@ -263,7 +283,7 @@ export function CutListView({
           aria-label="Which cutting list"
           value={version}
           onChange={(e) => setVersion(e.target.value)}
-          className="rounded border border-gray-300 px-2 py-1 text-xs"
+          className="h-11 min-w-0 max-w-[280px] rounded-[10px] border border-input bg-card px-3 text-sm font-medium"
         >
           <option value="current">Current design</option>
           {quotes.map((q) => (
@@ -274,251 +294,248 @@ export function CutListView({
           ))}
           {quotes.length === 0 && <option disabled>No frozen quotes yet</option>}
         </select>
-        <div className="ml-auto flex items-center gap-1">
+        <div className="flex-1" />
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
-            size="sm"
-            variant={mode === 'cutting' ? 'secondary' : 'ghost'}
-            onClick={() => setMode('cutting')}
-          >
-            For cutting
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={mode === 'cabinet' ? 'secondary' : 'ghost'}
-            onClick={() => setMode('cabinet')}
-          >
-            By cabinet
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={mode === 'sheets' ? 'secondary' : 'ghost'}
-            onClick={() => setMode('sheets')}
-          >
-            Sheets & waste
-          </Button>
-          <Button
-            type="button"
-            size="sm"
+            variant="outline"
+            size="touch"
             disabled={cutList.parts.length === 0}
             onClick={() =>
-              exportWorkbook(
-                cutList,
-                viewSettings,
-                viewBoards,
-                `${currentProject?.clientName ?? ''}${frozen ? `-quote-v${frozen.version}` : ''}`
-              )
+              exportWorkbook(cutList, viewSettings, viewBoards, `${currentProject?.clientName ?? ''}${frozen ? `-quote-v${frozen.version}` : ''}`)
             }
           >
-            Export to Excel
+            <FileSpreadsheet /> Excel
           </Button>
           {/* Printable workshop documents (§64), from the version shown. */}
           <Button
             type="button"
-            size="sm"
             variant="outline"
-            disabled={cutList.parts.length === 0}
-            onClick={() => downloadBlob(generateCutListPdf(cutList, pdfInfo), `${pdfFileBase}.pdf`)}
-          >
-            Print (PDF)
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
+            size="touch"
             disabled={cutList.parts.length === 0}
             onClick={() => downloadBlob(generatePartLabelsPdf(cutList, pdfInfo), `${pdfFileBase}-labels.pdf`)}
           >
-            Part labels (PDF)
+            <Tags /> Labels
+          </Button>
+          <Button
+            type="button"
+            size="touch"
+            disabled={cutList.parts.length === 0}
+            onClick={() => downloadBlob(generateCutListPdf(cutList, pdfInfo), `${pdfFileBase}.pdf`)}
+          >
+            <Printer /> Print
           </Button>
         </div>
-      </div>
+      </header>
 
-      {frozen && (
-        <Alert className="border-blue-300 bg-blue-50">
-          <AlertDescription className="text-blue-900">
-            <strong className="font-semibold">Frozen with quote v{frozen.version}</strong> on{' '}
-            {new Date(frozen.frozenAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
-            {frozen.sentAt ? ' and sent to the customer' : ''} — read-only, exactly as it was then.{' '}
-            {frozenIsLatestAndStale
-              ? 'The design has changed since — cut from this list only if the customer agreed to this version.'
-              : quoteStatus.latest && quoteStatus.latest.id !== frozen.id
-                ? 'A newer quote version exists.'
-                : ''}
-          </AlertDescription>
-        </Alert>
-      )}
+      <div className="flex flex-col gap-5 px-4 py-5 md:px-6 lg:px-8">
+        {frozen && (
+          <div className="flex gap-3 rounded-2xl bg-info/10 px-4 py-3.5 text-sm text-info">
+            <Snowflake className="mt-0.5 size-5 shrink-0" strokeWidth={1.8} />
+            <p>
+              <strong className="font-semibold">Frozen with quote v{frozen.version}</strong> on{' '}
+              {new Date(frozen.frozenAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+              {frozen.sentAt ? ' and sent to the customer' : ''}: read-only, exactly as it was then.{' '}
+              {frozenIsLatestAndStale
+                ? 'The design has changed since — cut from this list only if the customer agreed to this version.'
+                : quoteStatus.latest && quoteStatus.latest.id !== frozen.id
+                  ? 'A newer quote version exists.'
+                  : ''}
+            </p>
+          </div>
+        )}
 
-      {!frozen && !settings.confirmed && (
-        <Alert className="border-amber-300 bg-amber-50">
-          <AlertDescription className="text-amber-900">
-            <strong className="font-semibold">Built on assumed construction.</strong> Part sizes
-            follow the default workshop convention (top and bottom between the sides, grooved
-            back). Confirm or change it with your carpenter in{' '}
-            <Button
-              type="button"
-              variant="link"
-              size="sm"
-              className="h-auto p-0 align-baseline text-amber-900 underline"
-              onClick={onOpenWorkshop}
-            >
+        {!frozen && !settings.confirmed && (
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-warning-soft px-4 py-3.5 text-sm text-warning-foreground">
+            <AlertTriangle className="size-5 shrink-0" strokeWidth={1.8} />
+            {/* min-w lets the button wrap below the text on a phone
+                instead of squeezing it into a narrow column. */}
+            <p className="min-w-[220px] flex-1">
+              <strong className="font-semibold">Built on assumed construction.</strong> Part sizes follow the default
+              workshop convention. Confirm it with your carpenter before anything is cut.
+            </p>
+            <Button type="button" variant="outline" size="touch" className="border-warning/40 bg-transparent text-warning-foreground" onClick={onOpenWorkshop}>
               Workshop settings
-            </Button>{' '}
-            before anything is cut.
-          </AlertDescription>
-        </Alert>
-      )}
+            </Button>
+          </div>
+        )}
 
-      {mode === 'sheets' ? (
-        <SheetLayoutView cutList={cutList} boards={viewBoards} settings={viewSettings} />
-      ) : cutList.parts.length === 0 ? (
-        <p className="text-xs text-gray-500">No cabinets placed yet.</p>
-      ) : (
-        <>
-          <p className="text-xs text-gray-500">
-            {totalPieces} pieces from {cabinets.length} cabinet{cabinets.length === 1 ? '' : 's'}.
-            Sizes in mm, length × width. Edge banding "2L 1W" means both long edges and one short
-            edge. <strong>Grain</strong> parts must not be rotated on the sheet.
-          </p>
-
-          {cutList.groups.map((g) => (
-            <section key={g.key} className="flex flex-col gap-1.5">
-              <div className="flex flex-wrap items-baseline gap-x-3">
-                <h3 className="text-xs font-semibold text-gray-800">{g.label}</h3>
-                <span className="text-[11px] text-gray-500">
-                  {g.pieceCount} pieces · {g.areaSqM.toFixed(2)} m² · {g.edgeBandM.toFixed(1)} m edge
-                  banding
-                </span>
-              </div>
-              <div className="overflow-x-auto rounded-md border border-gray-200">
-                <table className="w-full border-collapse text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-gray-200 bg-gray-50 text-gray-500">
-                      {mode === 'cabinet' && <th className="px-2 py-1.5 font-medium">Cabinet</th>}
-                      <th className="px-2 py-1.5 font-medium">Part</th>
-                      <th className="px-2 py-1.5 text-right font-medium">Length</th>
-                      <th className="px-2 py-1.5 text-right font-medium">Width</th>
-                      <th className="px-2 py-1.5 text-right font-medium">Qty</th>
-                      <th className="px-2 py-1.5 font-medium">Edge</th>
-                      <th className="px-2 py-1.5 font-medium">Grain</th>
-                      {mode === 'cutting' && <th className="px-2 py-1.5 font-medium">Cabinets</th>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {mode === 'cutting'
-                      ? consolidateParts(g.parts).map((p, i) => (
-                          <tr key={i} className="border-b border-gray-100">
-                            <td className="px-2 py-1 text-gray-800">{p.name}</td>
-                            <td className="px-2 py-1 text-right tabular-nums">{p.lengthMm}</td>
-                            <td className="px-2 py-1 text-right tabular-nums">{p.widthMm}</td>
-                            <td className="px-2 py-1 text-right tabular-nums">{p.quantity}</td>
-                            <td className="px-2 py-1">{describeEdgeBanding(p.edgeBanding)}</td>
-                            <td className="px-2 py-1">{p.grainFixed ? 'Grain' : ''}</td>
-                            <td className="px-2 py-1 text-gray-500">
-                              {p.cabinetRefs.map((ref, k) => (
-                                <span key={ref}>
-                                  {k > 0 ? ', ' : ''}
-                                  {refLink(ref)}
-                                </span>
-                              ))}
-                            </td>
-                          </tr>
-                        ))
-                      : g.parts.map((p, i) => (
-                          <tr key={i} className="border-b border-gray-100">
-                            <td className="px-2 py-1 text-gray-500">{refLink(p.cabinetRef, p.cabinetLabel)}</td>
-                            <td className="px-2 py-1 text-gray-800">{p.name}</td>
-                            <td className="px-2 py-1 text-right tabular-nums">{p.lengthMm}</td>
-                            <td className="px-2 py-1 text-right tabular-nums">{p.widthMm}</td>
-                            <td className="px-2 py-1 text-right tabular-nums">{p.quantity}</td>
-                            <td className="px-2 py-1">{describeEdgeBanding(p.edgeBanding)}</td>
-                            <td className="px-2 py-1">{p.grainFixed ? 'Grain' : ''}</td>
-                          </tr>
-                        ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          ))}
-
-          {/* Glass to order (§63) — cut by the glass supplier, not the
-              workshop, so it isn't nested on sheets; same sizes the quote
-              prices glass on. */}
-          {cutList.glass.length > 0 && (
-            <section className="flex flex-col gap-1.5">
-              <div className="flex flex-wrap items-baseline gap-x-3">
-                <h3 className="text-xs font-semibold text-gray-800">Glass to order</h3>
-                <span className="text-[11px] text-gray-500">
-                  {cutList.glass.reduce((n, g) => n + g.quantity, 0)} panels — cut to size by your glass
-                  supplier. Thickness isn't recorded here; add it on the order.
-                </span>
-              </div>
-              <div className="overflow-x-auto rounded-md border border-gray-200">
-                <table className="w-full border-collapse text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-gray-200 bg-gray-50 text-gray-500">
-                      <th className="px-2 py-1.5 font-medium">Cabinet</th>
-                      <th className="px-2 py-1.5 font-medium">Panel</th>
-                      <th className="px-2 py-1.5 text-right font-medium">Height</th>
-                      <th className="px-2 py-1.5 text-right font-medium">Width</th>
-                      <th className="px-2 py-1.5 font-medium">Tint</th>
-                      <th className="px-2 py-1.5 text-right font-medium">Qty</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cutList.glass.map((g, i) => (
-                      <tr key={i} className="border-b border-gray-100">
-                        <td className="px-2 py-1 text-gray-500">{refLink(g.cabinetRef, g.cabinetLabel)}</td>
-                        <td className="px-2 py-1 text-gray-800">{g.name}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">{g.heightMm}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">{g.widthMm}</td>
-                        <td className="px-2 py-1">{g.tint}</td>
-                        <td className="px-2 py-1 text-right tabular-nums">{g.quantity}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          )}
-
-          {cutList.warnings.length > 0 && (
-            <div className="flex flex-col gap-1 rounded-md border border-gray-200 p-3">
-              <h3 className="text-xs font-semibold text-gray-700">Not on this list</h3>
-              <ul className="list-disc pl-4 text-[11px] text-gray-600">
-                {cutList.warnings.map((w, i) => (
-                  <li key={i}>{w}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Loose parts — board pieces that don't belong to any one cabinet
-          (§48). Saved with the project, listed above under their board,
-          and priced inside Material like any panel. Not editable on a
-          frozen list (§60) — a frozen quote never changes. */}
-      {!frozen && (
-      <section className="flex flex-col gap-2 rounded-md border border-gray-200 p-3">
-        <div>
-          <h3 className="text-xs font-semibold text-gray-800">Loose parts (not part of any cabinet)</h3>
-          <p className="text-[11px] text-gray-500">
-            Fillers, a plinth or skirting, end panels. Each is cut, listed above under its board,
-            and charged on the quote like any panel — real area × the board's rate. To change a
-            cabinet's own parts, click its C-number above.
-          </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div role="tablist" aria-label="View" className="flex rounded-xl bg-secondary p-1">
+            {(
+              [
+                ['cutting', 'For cutting'],
+                ['cabinet', 'By cabinet'],
+                ['sheets', 'Sheets & waste'],
+              ] as const
+            ).map(([m, label]) => (
+              <button
+                key={m}
+                type="button"
+                role="tab"
+                aria-selected={mode === m}
+                onClick={() => setMode(m)}
+                className={
+                  mode === m
+                    ? 'h-10 rounded-[9px] bg-card px-4 text-sm font-semibold shadow-sm'
+                    : 'h-10 rounded-[9px] px-4 text-sm font-semibold text-muted-foreground hover:text-foreground'
+                }
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <span className="text-[13px] text-muted-foreground">
+            Sizes in mm, length × width. "2L 1W" edge banding = both long edges and one short edge.
+          </span>
         </div>
-        <ExtraPartsEditor
-          parts={looseParts ?? []}
-          onChange={setLooseParts}
-          requireBoard
-          namePlaceholder="e.g. Filler, left wall"
-        />
-      </section>
-      )}
+
+        {cutList.parts.length > 0 && (
+          <div className={`grid grid-cols-2 overflow-hidden rounded-[20px] bg-card shadow-card sm:grid-cols-3 ${stats.length === 6 ? 'lg:grid-cols-6' : 'lg:grid-cols-5'}`}>
+            {stats.map((st) => (
+              <div key={st.k} className="flex flex-col gap-1 border-b border-r border-secondary px-5 py-4">
+                <span className="text-[13px] font-semibold text-muted-foreground">{st.k}</span>
+                <span className="text-xl font-extrabold tracking-tight">{st.v}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {mode === 'sheets' ? (
+          <SheetLayoutView cutList={cutList} boards={viewBoards} settings={viewSettings} />
+        ) : cutList.parts.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-input bg-card/60 px-6 py-14 text-center text-[15px] text-muted-foreground">
+            No cabinets placed yet. Add cabinets to the design and their parts appear here.
+          </div>
+        ) : (
+          <>
+            {cutList.groups.map((g) => (
+              <SectionCard
+                key={g.key}
+                Icon={Layers}
+                title={g.label}
+                description={`${g.pieceCount} pieces · ${g.areaSqM.toFixed(2)} m² · ${g.edgeBandM.toFixed(1)} m edge banding`}
+              >
+                <div className="-mx-4 overflow-x-auto md:-mx-6">
+                  <table className="w-full border-collapse text-left text-sm">
+                    <thead>
+                      <tr className="border-y border-border bg-secondary text-[13px] text-muted-foreground">
+                        {mode === 'cabinet' && <th className={th + ' pl-4 md:pl-6'}>Cabinet</th>}
+                        <th className={th + (mode === 'cabinet' ? '' : ' pl-4 md:pl-6')}>Part</th>
+                        <th className={th + ' text-right'}>Length</th>
+                        <th className={th + ' text-right'}>Width</th>
+                        <th className={th + ' text-right'}>Qty</th>
+                        <th className={th}>Edge</th>
+                        <th className={th}>Grain</th>
+                        {mode === 'cutting' && <th className={th + ' pr-4 md:pr-6'}>Cabinets</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mode === 'cutting'
+                        ? consolidateParts(g.parts).map((p, i) => (
+                            <tr key={i} className="border-b border-secondary last:border-b-0">
+                              <td className={td + ' pl-4 font-medium md:pl-6'}>{p.name}</td>
+                              <td className={num}>{p.lengthMm}</td>
+                              <td className={num}>{p.widthMm}</td>
+                              <td className={num + ' font-semibold'}>{p.quantity}</td>
+                              <td className={td + ' font-mono text-[13px]'}>{describeEdgeBanding(p.edgeBanding)}</td>
+                              <td className={td}>{p.grainFixed ? <span className="rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning-foreground">Grain</span> : ''}</td>
+                              <td className={td + ' pr-4 md:pr-6'}>
+                                <span className="flex flex-wrap gap-1">{p.cabinetRefs.map((ref) => <span key={ref}>{refLink(ref)}</span>)}</span>
+                              </td>
+                            </tr>
+                          ))
+                        : g.parts.map((p, i) => (
+                            <tr key={i} className="border-b border-secondary last:border-b-0">
+                              <td className={td + ' pl-4 md:pl-6'}>{refLink(p.cabinetRef, p.cabinetLabel)}</td>
+                              <td className={td + ' font-medium'}>{p.name}</td>
+                              <td className={num}>{p.lengthMm}</td>
+                              <td className={num}>{p.widthMm}</td>
+                              <td className={num + ' font-semibold'}>{p.quantity}</td>
+                              <td className={td + ' font-mono text-[13px]'}>{describeEdgeBanding(p.edgeBanding)}</td>
+                              <td className={td}>{p.grainFixed ? <span className="rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning-foreground">Grain</span> : ''}</td>
+                            </tr>
+                          ))}
+                    </tbody>
+                  </table>
+                </div>
+              </SectionCard>
+            ))}
+
+            {/* Glass to order (§63) — cut by the glass supplier, not the
+                workshop, so it isn't nested on sheets; same sizes the quote
+                prices glass on. */}
+            {cutList.glass.length > 0 && (
+              <SectionCard
+                Icon={GlassWater}
+                title="Glass to order"
+                description={`${glassCount} panels, cut to size by your glass supplier. Add the thickness on the order.`}
+              >
+                <div className="-mx-4 overflow-x-auto md:-mx-6">
+                  <table className="w-full border-collapse text-left text-sm">
+                    <thead>
+                      <tr className="border-y border-border bg-secondary text-[13px] text-muted-foreground">
+                        <th className={th + ' pl-4 md:pl-6'}>Cabinet</th>
+                        <th className={th}>Panel</th>
+                        <th className={th + ' text-right'}>Height</th>
+                        <th className={th + ' text-right'}>Width</th>
+                        <th className={th}>Tint</th>
+                        <th className={th + ' pr-4 text-right md:pr-6'}>Qty</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cutList.glass.map((g, i) => (
+                        <tr key={i} className="border-b border-secondary last:border-b-0">
+                          <td className={td + ' pl-4 md:pl-6'}>{refLink(g.cabinetRef, g.cabinetLabel)}</td>
+                          <td className={td + ' font-medium'}>{g.name}</td>
+                          <td className={num}>{g.heightMm}</td>
+                          <td className={num}>{g.widthMm}</td>
+                          <td className={td}>{g.tint}</td>
+                          <td className={num + ' pr-4 font-semibold md:pr-6'}>{g.quantity}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </SectionCard>
+            )}
+
+            {cutList.warnings.length > 0 && (
+              <div className="flex gap-3 rounded-2xl bg-card px-4 py-4 shadow-card md:px-6">
+                <AlertTriangle className="mt-0.5 size-5 shrink-0 text-warning-foreground" strokeWidth={1.8} />
+                <div className="flex flex-col gap-1">
+                  <span className="text-[15px] font-semibold">Not on this list</span>
+                  <ul className="list-disc pl-4 text-sm text-muted-foreground">
+                    {cutList.warnings.map((w, i) => (
+                      <li key={i}>{w}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Loose parts — board pieces that don't belong to any one cabinet
+            (§48). Saved with the project, listed above under their board,
+            and priced inside Material like any panel. Not editable on a
+            frozen list (§60) — a frozen quote never changes. */}
+        {!frozen && (
+          <SectionCard
+            Icon={PlusSquare}
+            title="Loose parts"
+            description="Fillers, a plinth or skirting, end panels: board pieces that aren't part of any cabinet."
+            help={
+              <p>
+                Each is cut, listed above under its board, and charged on the quote like any panel: real area × the
+                board's rate. To change a cabinet's own parts, tap its C-number.
+              </p>
+            }
+          >
+            <ExtraPartsEditor parts={looseParts ?? []} onChange={setLooseParts} requireBoard namePlaceholder="e.g. Filler, left wall" />
+          </SectionCard>
+        )}
+      </div>
     </div>
   );
 }

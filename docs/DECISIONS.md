@@ -5701,3 +5701,23 @@ It reuses the whole 3D renderer, so materials, lighting modes and models
 are identical to the 3D view. It's checked by screenshot on a real
 design (the West wall of Neha Verma's kitchen), and the screenshot run
 now photographs it at all three sizes.
+
+## 83. Cutting list page redesigned
+
+- A sticky header: back; a "CUTTING LIST" label over the customer; a
+  version picker; and **Excel / Labels / Print** at full size, with
+  Print as the primary.
+- Views as a segmented switch, and a stats strip: pieces, cabinets,
+  boards, board area, edge banding, and glass when present.
+- Each board, the glass order and loose parts are `SectionCard`s.
+  Tables use larger text with monospace, right-aligned numbers;
+  cabinet numbers are tappable chips that open the Designer; grain is a
+  badge.
+- The Sheets view summary, waste and sheet drawings are cards.
+- Frozen and assumed-construction states are token-coloured banners.
+  The warning's button wraps below the text on a phone.
+
+The editor now shows a Cutting list icon on tablet and phone; before,
+there was no way to reach it from a design on those screens (found by
+the screenshot run). The screenshot run photographs all three cutting
+list views.

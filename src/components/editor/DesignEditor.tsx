@@ -260,6 +260,11 @@ export function DesignEditor({
         <Button variant="outline" size="touch" className="hidden lg:inline-flex" onClick={() => onOpenCutList()}>
           <Scissors /> Cutting list
         </Button>
+        {/* Smaller screens: the same, as an icon, so the cutting list is
+            always one tap from the design. */}
+        <Button variant="outline" size="icon-touch" className="lg:hidden" aria-label="Cutting list" onClick={() => onOpenCutList()}>
+          <Scissors />
+        </Button>
         <Button variant="outline" size="touch" onClick={onPresent}>
           <Presentation /> <span className="hidden sm:inline">Present</span>
         </Button>

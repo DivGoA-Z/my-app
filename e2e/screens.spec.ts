@@ -134,4 +134,18 @@ test('design editor', async ({ page }) => {
   await page.getByRole('button', { name: /^\S+ checks?$|No issues/ }).click();
   await page.waitForTimeout(400);
   await page.screenshot({ path: `${dir}/08c-editor-checks.png` });
+  await page.getByRole('button', { name: 'Close checks' }).click();
+  // The job's cutting list, its three views (read-only).
+  await page.getByRole('button', { name: /Cutting list/ }).first().click();
+  await expect(page.getByText(/Cutting list/).first()).toBeVisible();
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: `${dir}/09-cutlist.png`, fullPage: true });
+  for (const [tab, file] of [['By cabinet', '09b-cutlist-cabinet'], ['Sheets & waste', '09c-cutlist-sheets']] as const) {
+    const t = page.getByRole('button', { name: tab });
+    if (await t.count()) {
+      await t.first().click();
+      await page.waitForTimeout(1500);
+      await page.screenshot({ path: `${dir}/${file}.png`, fullPage: true });
+    }
+  }
 });

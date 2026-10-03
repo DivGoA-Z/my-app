@@ -84,14 +84,14 @@ export function SheetDrawing({ result, index, trimMm }: { result: NestResult; in
   const spec = { lengthMm: sheet.lengthMm, widthMm: sheet.widthMm, trimMm };
   const used = (sheet.usedAreaMm2 / (spec.lengthMm * spec.widthMm)) * 100;
   return (
-    <figure className="flex flex-col gap-1">
-      <figcaption className="text-[11px] text-gray-500">
+    <figure className="flex flex-col gap-2 rounded-2xl bg-card p-3 shadow-card md:p-4">
+      <figcaption className="text-[13px] font-medium text-muted-foreground">
         Sheet {index + 1} of {result.sheets.length} · {spec.lengthMm}×{spec.widthMm} · {sheet.pieces.length} pieces ·{' '}
         {used.toFixed(0)}% used
       </figcaption>
       <svg
         viewBox={`${-OUTER} ${-OUTER} ${spec.lengthMm + OUTER + 20} ${spec.widthMm + OUTER + 20}`}
-        className="w-full rounded border border-gray-300 bg-white"
+        className="w-full rounded-lg border border-border bg-white"
         role="img"
         aria-label={`Sheet ${index + 1} layout`}
       >
