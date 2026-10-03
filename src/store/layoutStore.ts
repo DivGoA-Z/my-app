@@ -36,6 +36,7 @@ import type { SurfaceFinish } from '../types/finish';
 import type { CameraNode } from '../types/Camera';
 import { calculateBOM, legacyProjectChargeRates } from '../lib/bom';
 import { computeCutList, freezeCutList } from '../lib/cutList';
+import { effectiveConstruction } from '../lib/physicalDepth';
 import { saveProjectBundle, loadProjectBundle } from '../lib/Persistence';
 import { uploadPanorama, deletePanorama } from '../lib/panoramaStorage';
 import {
@@ -320,6 +321,9 @@ interface LayoutStore {
   resetChargeRates: () => void;
   // The project's loose cutting-list parts — RoomLayout.looseParts (§48).
   setLooseParts: (parts: ExtraPart[]) => void;
+  // This project's depth-convention override (RoomLayout.
+  // depthIncludesFront, §61); undefined = follow the business setting.
+  setDepthIncludesFront: (value: boolean | undefined) => void;
   setExposure: (exposure: number) => void;
 
   upsertFixtureCatalogItem: (item: FixtureCatalogItem) => Promise<void>;
@@ -813,6 +817,15 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
     );
   },
 
+  // Undoable like any design edit — it moves the plan, the 3D view, the
+  // cutting list and the price together (§61).
+  setDepthIncludesFront: (value) => {
+    noteDesignEdit('setDepthIncludesFront');
+    set((state) =>
+      state.currentLayout ? { currentLayout: { ...state.currentLayout, depthIncludesFront: value } } : {}
+    );
+  },
+
   // An undoable design edit like any other; priced inside Material.
   setLooseParts: (parts) => {
     noteDesignEdit('setLooseParts');
@@ -1261,7 +1274,9 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
           finishes,
           handles,
           fixtureCatalog,
-          construction: constructionSettings,
+          // The EFFECTIVE settings (project depth override applied, §61)
+          // — what this version was actually priced and cut with.
+          construction: effectiveConstruction(constructionSettings, layoutForQuote),
           layoutId: currentLayout.id,
           // Fingerprints the PRICED INPUTS, not the output — two
           // different designs can total the same rupee figure, and a
@@ -1272,7 +1287,13 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
         // Frozen alongside the price (§60): exactly the parts priced above,
         // from the same inputs.
         cutList: freezeCutList(
-          computeCutList(cabinets, constructionSettings, finishes, rateCard, layoutForQuote.looseParts ?? [])
+          computeCutList(
+            cabinets,
+            effectiveConstruction(constructionSettings, layoutForQuote),
+            finishes,
+            rateCard,
+            layoutForQuote.looseParts ?? []
+          )
         ),
         note,
       });

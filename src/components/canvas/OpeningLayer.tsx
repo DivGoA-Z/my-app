@@ -18,6 +18,7 @@
 // the arc is what's DRAWN, because a square would overstate the
 // conflict to the eye.
 
+import { usePhysicalCabinets } from '../../hooks/usePhysicalCabinets';
 import type Konva from 'konva';
 import { Layer, Group, Rect, Arc, Line, Text } from 'react-konva';
 import { useLayoutStore } from '../../store/layoutStore';
@@ -63,7 +64,7 @@ export function OpeningLayer({
   gridSnapMm = 50,
 }: OpeningLayerProps) {
   const currentLayout = useLayoutStore((state) => state.currentLayout);
-  const cabinets = useLayoutStore((state) => state.cabinets);
+  const cabinets = usePhysicalCabinets();
   const appliances = useLayoutStore((state) => state.appliances);
   const obstacles = useLayoutStore((state) => state.obstacles);
   const updateOpening = useLayoutStore((state) => state.updateOpening);

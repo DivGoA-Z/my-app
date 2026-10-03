@@ -32,6 +32,7 @@
 // a second place to edit a layout from. Click-to-SELECT-and-edit can
 // come later if it turns out to be wanted.
 
+import { usePhysicalCabinets } from '../../hooks/usePhysicalCabinets';
 import { useState } from 'react';
 import type Konva from 'konva';
 import { Stage, Layer, Rect, Text, Line, Arrow } from 'react-konva';
@@ -192,7 +193,7 @@ export function WallElevationView({ onClose }: { onClose: () => void }) {
   const [orientation, setOrientation] = useState<WallOrientation>('north');
   const [clickInfo, setClickInfo] = useState<ClickInfo | null>(null);
   const currentLayout = useLayoutStore((state) => state.currentLayout);
-  const cabinets = useLayoutStore((state) => state.cabinets);
+  const cabinets = usePhysicalCabinets();
   const appliances = useLayoutStore((state) => state.appliances);
   const obstacles = useLayoutStore((state) => state.obstacles);
 

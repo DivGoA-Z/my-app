@@ -35,6 +35,10 @@ const DEFAULT_CEILING_HEIGHT_MM = 2700;
 export function RoomSettingsPanel() {
   const currentLayout = useLayoutStore((state) => state.currentLayout);
   const updateRoomDimensions = useLayoutStore((state) => state.updateRoomDimensions);
+  const setDepthIncludesFront = useLayoutStore((state) => state.setDepthIncludesFront);
+  const businessDepthIncludesFront = useLayoutStore((state) => state.constructionSettings.depthIncludesFront);
+  // 'business' = follow the Workshop setting; otherwise this project's own.
+  const [depthChoice, setDepthChoice] = useState<'business' | 'includes' | 'carcass'>('business');
 
   const [isOpen, setIsOpen] = useState(false);
   const [widthMm, setWidthMm] = useState(0);
@@ -52,11 +56,14 @@ export function RoomSettingsPanel() {
     setWidthMm(currentLayout!.dimensions.widthMm);
     setDepthMm(currentLayout!.dimensions.depthMm);
     setCeilingHeightMm(currentLayout!.dimensions.ceilingHeightMm ?? DEFAULT_CEILING_HEIGHT_MM);
+    const own = currentLayout!.depthIncludesFront;
+    setDepthChoice(own === undefined ? 'business' : own ? 'includes' : 'carcass');
     setIsOpen(true);
   }
 
   function handleApply() {
     updateRoomDimensions({ widthMm, depthMm, ceilingHeightMm });
+    setDepthIncludesFront(depthChoice === 'business' ? undefined : depthChoice === 'includes');
     setIsOpen(false);
   }
 
@@ -114,6 +121,24 @@ export function RoomSettingsPanel() {
               onChange={(e) => setCeilingHeightMm(Number(e.target.value))}
               className="border border-gray-300 rounded px-2 py-1 text-sm"
             />
+          </label>
+
+          {/* This project's override of the Workshop depth convention
+              (§61). It moves the plan, 3D view, collision checks,
+              cutting list and price together. */}
+          <label className="flex flex-col gap-1 text-xs text-gray-600">
+            Cabinet depth (e.g. 600) means…
+            <select
+              value={depthChoice}
+              onChange={(e) => setDepthChoice(e.target.value as typeof depthChoice)}
+              className="rounded border border-gray-300 px-2 py-1 text-sm"
+            >
+              <option value="business">
+                Business default ({businessDepthIncludesFront ? 'includes shutter' : 'carcass only'})
+              </option>
+              <option value="includes">Includes the shutter</option>
+              <option value="carcass">Carcass only (shutter adds in front)</option>
+            </select>
           </label>
 
           <p className="text-[10px] text-gray-400">

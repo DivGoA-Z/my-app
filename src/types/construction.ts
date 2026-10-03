@@ -121,10 +121,11 @@ export interface ConstructionSettings {
   // real mismatch with a carpenter — and it moves every side, top,
   // bottom and shelf on the cutting list by a shutter's thickness (§47).
   //
-  // KNOWN GAP: only the cutting list and price follow this. The 2D plan,
-  // 3D walkthrough and collision checks still treat the stated depth as
-  // the finished cabinet, so with `false` they draw it a shutter's
-  // thickness shallower than it really is.
+  // Followed everywhere since §61 — cutting list, price, and the 2D plan,
+  // 3D view, collision/clearance checks, countertop and floor areas (via
+  // lib/physicalDepth.ts). A project can override it
+  // (RoomLayout.depthIncludesFront). (Until §61 only the cutting list and
+  // price followed it — the plan drew a carcass-only cabinet 18mm short.)
   depthIncludesFront: boolean;
   // Sheet nesting (lib/nesting.ts, §49): the saw blade's cut width
   // (kerf) and how much of each factory edge is trimmed off before

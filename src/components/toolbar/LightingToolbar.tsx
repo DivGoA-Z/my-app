@@ -15,6 +15,7 @@
 //                    colour off under warm light is how the wrong
 //                    material gets ordered.
 
+import { usePhysicalCabinets } from '../../hooks/usePhysicalCabinets';
 import { useLayoutStore } from '../../store/layoutStore';
 import { Button } from '../ui/button';
 import { Alert, AlertDescription } from '../ui/alert';
@@ -79,7 +80,7 @@ function describeMountShort(mount: LightFixture['mount']): string {
 
 export function LightingToolbar() {
   const currentLayout = useLayoutStore((s) => s.currentLayout);
-  const cabinets = useLayoutStore((s) => s.cabinets);
+  const cabinets = usePhysicalCabinets();
   const fixtureCatalog = useLayoutStore((s) => s.fixtureCatalog);
   const isInventoryLoading = useLayoutStore((s) => s.isInventoryLoading);
   const addFixture = useLayoutStore((s) => s.addFixture);

@@ -36,6 +36,8 @@
 // resize, duplicate, and delete from CabinetInspector immediately —
 // there's no separate "recheck" step to wire up.
 
+import { useFrontExtraMm, usePhysicalCabinets } from '../../hooks/usePhysicalCabinets';
+import { storedPositionFromPhysicalCenter } from '../../lib/physicalDepth';
 import { Fragment, useState } from 'react';
 import type Konva from 'konva';
 import { Layer, Group, Rect, Line, Arc, Text } from 'react-konva';
@@ -216,7 +218,14 @@ export function CabinetLayer({
   showOverlapWarnings = true,
   showClearanceWarnings = true,
 }: CabinetLayerProps) {
-  const cabinets = useLayoutStore((state) => state.cabinets);
+  // Drawn, snapped and collision-checked as they PHYSICALLY stand (§61);
+  // edits go to the STORED cabinet (storedById), and a finished drag is
+  // converted back with storedPositionFromPhysicalCenter — otherwise each
+  // drag under "carcass only" would creep the cabinet forward.
+  const cabinets = usePhysicalCabinets();
+  const storedCabinets = useLayoutStore((state) => state.cabinets);
+  const storedById = new Map(storedCabinets.map((c) => [c.id, c]));
+  const frontExtra = useFrontExtraMm();
   const pickAt = usePickAt();
   const obstacles = useLayoutStore((state) => state.obstacles);
   const appliances = useLayoutStore((state) => state.appliances);
@@ -406,10 +415,16 @@ export function CabinetLayer({
               // here would risk nudging a perfectly flush edge-snap off
               // by the grid step.
               const node = e.target;
-              const xMm = (node.x() - widthPx / 2 - originX) / scale;
-              const yMm = (node.y() - depthPx / 2 - originY) / scale;
-
-              updateCabinet(item.id, { x: xMm, y: yMm });
+              const stored = storedById.get(item.id) ?? item;
+              updateCabinet(
+                item.id,
+                storedPositionFromPhysicalCenter(
+                  stored,
+                  (node.x() - originX) / scale,
+                  (node.y() - originY) / scale,
+                  frontExtra
+                )
+              );
               setDragState(null);
             }}
             onClick={(e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -434,8 +449,8 @@ export function CabinetLayer({
               // since a finger is bigger than the offset anyway.
               pickAt((pos.x - originX) / scale, (pos.y - originY) / scale, pos.x, pos.y);
             }}
-            onDblClick={() => updateCabinet(item.id, rotateCabinet(item, 1, widthMm, depthMm))}
-            onDblTap={() => updateCabinet(item.id, rotateCabinet(item, 1, widthMm, depthMm))}
+            onDblClick={() => updateCabinet(item.id, rotateCabinet(storedById.get(item.id) ?? item, 1, widthMm, depthMm))}
+            onDblTap={() => updateCabinet(item.id, rotateCabinet(storedById.get(item.id) ?? item, 1, widthMm, depthMm))}
           >
             {/*
               IMPORTANT: these children are drawn at local (0,0), NOT

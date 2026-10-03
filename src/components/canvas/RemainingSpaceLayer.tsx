@@ -31,6 +31,7 @@
 // — it only measures along the four walls, where kitchen cabinets
 // actually get placed.
 
+import { usePhysicalCabinets } from '../../hooks/usePhysicalCabinets';
 import { Layer, Group, Rect, Text } from 'react-konva';
 import { useLayoutStore } from '../../store/layoutStore';
 import { computeRoomScale } from '../../lib/canvasScale';
@@ -77,7 +78,7 @@ export function RemainingSpaceLayer({
   visible = true,
 }: RemainingSpaceLayerProps) {
   const currentLayout = useLayoutStore((state) => state.currentLayout);
-  const cabinets = useLayoutStore((state) => state.cabinets);
+  const cabinets = usePhysicalCabinets();
   const obstacles = useLayoutStore((state) => state.obstacles);
 
   const { scale, originX, originY } = computeRoomScale(widthMm, depthMm, maxWidthPx, maxHeightPx);

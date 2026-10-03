@@ -222,6 +222,13 @@ export interface RoomLayout {
   // per-project reasoning as marginPercent above; see
   // docs/DECISIONS.md §35.
   sheetWasteFactor?: number;
+  // This project's override of the business's depth convention
+  // (ConstructionSettings.depthIncludesFront, §61): true = the stated
+  // depth includes the shutter, false = carcass only. Undefined = follow
+  // the business setting. Resolved by lib/physicalDepth.ts's
+  // effectiveConstruction, which the cutting list, price, frozen quote,
+  // 2D plan, 3D view and collision checks all use.
+  depthIncludesFront?: boolean;
   // This project's own "Labour and other charges" list, overriding the
   // rate card's (RateCard.othersRates) wholesale. UNDEFINED means
   // "follow the business rates" — so a rate-card change keeps flowing

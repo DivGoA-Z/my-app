@@ -16,6 +16,7 @@
 // single id — most conflicts are between two placed items, and an
 // alert is relevant to a selection if EITHER one matches.
 
+import { usePhysicalCabinets } from './usePhysicalCabinets';
 import { useMemo } from 'react';
 import { useLayoutStore } from '../store/layoutStore';
 import { detectCollisions } from '../lib/collision';
@@ -57,7 +58,7 @@ function describeItem(
 
 export function useDesignAlerts(): DesignAlert[] {
   const currentLayout = useLayoutStore((state) => state.currentLayout);
-  const cabinets = useLayoutStore((state) => state.cabinets);
+  const cabinets = usePhysicalCabinets();
   const obstacles = useLayoutStore((state) => state.obstacles);
   const appliances = useLayoutStore((state) => state.appliances);
 

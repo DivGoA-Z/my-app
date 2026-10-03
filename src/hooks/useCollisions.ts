@@ -6,12 +6,13 @@
 // resolved" gate) can call this and always gets the current, correct
 // result with no manual recompute step.
 
+import { usePhysicalCabinets } from './usePhysicalCabinets';
 import { useMemo } from 'react';
 import { useLayoutStore } from '../store/layoutStore';
 import { detectCollisions } from '../lib/collision';
 
 export function useCollisions() {
-  const cabinets = useLayoutStore((state) => state.cabinets);
+  const cabinets = usePhysicalCabinets();
   const obstacles = useLayoutStore((state) => state.obstacles);
   const appliances = useLayoutStore((state) => state.appliances);
   return useMemo(

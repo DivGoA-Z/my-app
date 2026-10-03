@@ -1040,6 +1040,11 @@ alter table public.layouts add column if not exists charge_rates jsonb;
 -- end panels (§48). Same shape as cabinet_catalog_items.extra_parts.
 -- Listed on the cutting list and priced inside Material. NULL = none.
 alter table public.layouts add column if not exists loose_parts jsonb;
+-- This project's override of the business's depth convention (§61):
+-- true = stated depth includes the shutter, false = carcass only. NULL =
+-- follow construction_settings. Drives the cutting list, the price, and
+-- the plan / 3D / collision geometry alike.
+alter table public.layouts add column if not exists depth_includes_front boolean;
 
 -- Starter set, at plausible Delhi NCR retail. `on conflict do nothing`
 -- so re-running never overwrites a business's own rates — same as the

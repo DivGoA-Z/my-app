@@ -36,6 +36,7 @@ import type { FixtureCatalogItem, LightFixture } from '../types/fixture';
 import type { SurfaceAreaBreakdown } from './surfaceAreas';
 import type { OtherRate, OtherRateBasis, RateCard, WasteMode } from '../types/rates';
 import { measuredBoardWaste, type BoardWaste } from './nesting';
+import { effectiveConstruction, frontExtraMm, physicalCabinets } from './physicalDepth';
 import type { ConstructionSettings } from '../types/construction';
 import { cabinetCutParts, edgeBandMm, loosePartsCut, partAreaSqM, type CutPart } from './cutList';
 
@@ -402,7 +403,15 @@ export function calculateBOM(
   appliances: PlacedApplianceItem[],
   ctx: PricingContext
 ): BOMSummary {
-  const { finishes, handles, fixtureCatalog, rates, construction, layout } = ctx;
+  const { finishes, handles, fixtureCatalog, rates, layout } = ctx;
+  // The business's construction settings with this project's depth
+  // override applied (§61) — what the cutting list and price use.
+  const construction = effectiveConstruction(ctx.construction, layout);
+  // The cabinets as they physically stand (§61): the countertop and the
+  // floor area cabinets occupy are physical, so a carcass-only cabinet's
+  // extra shutter depth counts there. Everything else here prices from
+  // the stored cabinets (the cutting list applies the convention itself).
+  const physicalItems = physicalCabinets(items, frontExtraMm(construction.depthIncludesFront));
   // Resolved once for the whole layout, not per cabinet — it's a
   // property of how this job's sheets are bought, not of any one unit.
   // The APPROX factor: one number, the project's override or the rate
@@ -578,7 +587,7 @@ export function calculateBOM(
   const applianceSubtotal = sum(applianceLineItems, (l) => l.lineTotal);
 
   const surfaceLineItems = layout
-    ? buildSurfaceLineItems(layout, items, appliances, finishes)
+    ? buildSurfaceLineItems(layout, physicalItems, appliances, finishes)
     : [];
   const surfaceSubtotal = sum(surfaceLineItems, (l) => l.lineTotal);
 
@@ -595,7 +604,7 @@ export function calculateBOM(
   const fixtureSubtotal = layout?.priceElectrical ? fixtureSpecifiedTotal : 0;
 
   const countertopLineItem = layout
-    ? buildCountertopLineItem(layout, items, finishes)
+    ? buildCountertopLineItem(layout, physicalItems, finishes)
     : null;
   const countertopSpecifiedTotal = countertopLineItem?.specifiedTotal ?? 0;
   // Same treatment as fixtureSubtotal — the global switch decides

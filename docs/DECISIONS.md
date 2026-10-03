@@ -4364,7 +4364,7 @@ mismatch with a carpenter, so the Workshop page lists it first.
 follow it. The 2D plan, 3D walkthrough and collision still treat the
 stated depth as the finished cabinet, so with "carcass only" they draw
 it 18mm shallower than reality. Fixing that touches footprints,
-collision and clearance everywhere — its own piece of work.
+collision and clearance everywhere — its own piece of work. **Closed in §61.**
 
 **2. Corner rules — all on the Workshop page now.** Top, bottom and back
 already were. The one remaining HARDCODED rule a carpenter could
@@ -4894,3 +4894,56 @@ differently — the PARTS (what to cut) are what's guaranteed frozen.
 One React-compiler snag on the way: it rejects a manual `useMemo` keyed
 on a value found by searching a list; the memo was dropped (the
 compiler memoises the component itself). 73 tests.
+
+## 61. The depth convention everywhere — plan, 3D, collision — with a project override
+
+§47 added "cabinet depth includes the shutter / carcass only", but only
+the cutting list and price followed it: with "carcass only" the plan, 3D
+view and collision checks drew every cabinet 18mm shallower than the
+one built. You asked for a business-level setting (Workshop page),
+overridable per project, with the 2D/3D views and collision/overlap
+alerts following it, and anything else that needed rework.
+
+**One resolver, one footprint.** `lib/physicalDepth.ts`:
+- `effectiveConstruction(settings, layout)` — the business setting with
+  the project's `RoomLayout.depthIncludesFront` on top (new
+  `layouts.depth_includes_front`, edited in Room Settings: Business
+  default / Includes shutter / Carcass only). The cutting list, price,
+  frozen quote (it now stores the EFFECTIVE settings) and geometry all
+  resolve through it, so they can't disagree. That was a gap of its own:
+  before, a project override would have reached nothing.
+- `physicalCabinet(item, extra)` — the cabinet as it physically stands.
+  The extra shutter depth grows on the FRONT only: x/y are the unrotated
+  corner and rotation is about the centre (footprint rule 1), so "depth
+  + 18" alone would grow both faces and push a 180°-turned cabinet's
+  back 9mm into the wall. The centre moves forward by half the extra,
+  along the front direction (the same 0→+y / 90→−x / 180→−y / 270→+x
+  rule `cabinetClearance.ts` already verified).
+- `storedPositionFromPhysicalCenter` — the inverse, for the 2D drag:
+  without it each drag under "carcass only" would save the physical
+  corner as the stored one and creep the cabinet forward.
+
+**Who uses physical cabinets** (`usePhysicalCabinets()`; same array back
+for the default convention, so it costs nothing there): the 2D cabinet,
+appliance, obstacle, opening, fixture and remaining-space layers;
+collisions, door-swing clearance, kitchen checks, design alerts,
+picking; the 3D room; the wall elevation; the lighting/opening toolbars;
+the surfaces panel; and inside `calculateBOM`, the countertop and the
+floor area cabinets occupy (both physical — a carcass-only cabinet's
+slab covers its shutter). **Who keeps stored cabinets**: anything that
+edits (inspector — including the 3D one, which would otherwise show
+"618" for a cabinet typed as 600 — designer, nudging, double-click
+rotation) and pricing/the cutting list (which apply the convention
+themselves). The 2D drag reads physical and writes stored; snapping
+uses physical edges, so carcass-only fronts line up flush.
+
+Geometry uses `FRONT_THICKNESS_MM` (18) for the extra, as the 3D shutter
+already does; the cutting list uses the fronts board's real thickness. A
+25mm shutter would make the picture 7mm short — noted, not fixed.
+
+Tests (86): at every rotation the extra is on the front and the back
+stays put; drag write-back round-trips; the default returns the same
+array; the project override wins; a carcass-only countertop is
+600+40 × 18mm larger; the override reaches the cutting list. Not seen
+in a browser — dragging and the 3D view under "carcass only" are worth
+a look.

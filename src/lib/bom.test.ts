@@ -71,6 +71,26 @@ describe('shelves, extra parts and loose parts (§48)', () => {
   });
 });
 
+describe('depth convention reaches the physical items (§61)', () => {
+  const slab = [{ id: 'stone', label: 'Granite', pricePerSqM: 1000, patternCategory: 'stone' }] as never;
+  const withSlab = (depthIncludesFront: boolean | undefined) =>
+    calculateBOM([baseUnit()], [], {
+      ...pricing({ layout: layout({ countertopFinishId: 'stone', priceCountertop: true, depthIncludesFront }) }),
+      finishes: slab,
+    }).countertopLineItem!;
+  it('a carcass-only cabinet\'s countertop covers the extra shutter depth', () => {
+    const includes = withSlab(undefined);
+    const carcass = withSlab(false);
+    // 600 wide (+ overhang) × 18mm more depth
+    expect(carcass.areaSqM - includes.areaSqM).toBeCloseTo(((600 + 2 * 20) * 18) / 1e6, 4);
+  });
+  it('the project override reaches the cutting list too', () => {
+    const line = (depthIncludesFront: boolean | undefined) =>
+      calculateBOM([baseUnit()], [], pricing({ layout: layout({ depthIncludesFront }) })).lineItems[0];
+    expect(line(false).materialArea).toBeGreaterThan(line(undefined).materialArea);
+  });
+});
+
 describe('drawer boxes are priced (§56)', () => {
   it('a 3-drawer unit pays for its tandem bottoms and backs: +₹1,462 of board', () => {
     const unit = (extra = {}) => cabinet('drawer-unit', 600, 600, 720, { frontLayout: { kind: 'drawers', count: 3 }, ...extra });

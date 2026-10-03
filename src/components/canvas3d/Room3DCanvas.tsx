@@ -56,6 +56,7 @@
 //
 // Install: npm install three @react-three/fiber @react-three/drei
 
+import { usePhysicalCabinets } from '../../hooks/usePhysicalCabinets';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import * as THREE from 'three';
@@ -158,7 +159,7 @@ const HOTSPOT_ACTIVE_COLOR = '#facc15'; // amber-400 — deliberately distinct s
 
 export function Room3DCanvas({ widthMm, depthMm }: Room3DCanvasProps) {
   const currentLayout = useLayoutStore((state) => state.currentLayout);
-  const cabinets = useLayoutStore((state) => state.cabinets);
+  const cabinets = usePhysicalCabinets();
   const obstacles = useLayoutStore((state) => state.obstacles);
   // Every lighting decision in this canvas reads from here, so a mode
   // can't be applied half-way (fixtures neutralised but a warm window
@@ -219,7 +220,11 @@ export function Room3DCanvas({ widthMm, depthMm }: Room3DCanvasProps) {
   // and ignoring anything past a few pixels separates a real click from
   // the tail of a drag.
   const pointerDownAtRef = useRef<{ x: number; y: number } | null>(null);
-  const selectedCabinet = cabinets.find((c) => c.id === selectedCabinetId) ?? null;
+  // The inspector shows and edits the STORED cabinet (§61) — the drawn
+  // one is physical, and under "carcass only" its depth would read 618
+  // where the business typed 600.
+  const storedCabinets = useLayoutStore((state) => state.cabinets);
+  const selectedCabinet = storedCabinets.find((c) => c.id === selectedCabinetId) ?? null;
 
   function wasDrag(clientX: number, clientY: number): boolean {
     const down = pointerDownAtRef.current;
@@ -1464,7 +1469,7 @@ function SceneExposure({ exposure }: { exposure: number }) {
 // the ones that contribute most (see selectRealLights).
 function PlacedFixtures() {
   const currentLayout = useLayoutStore((state) => state.currentLayout);
-  const cabinets = useLayoutStore((state) => state.cabinets);
+  const cabinets = usePhysicalCabinets();
   const fixtureCatalog = useLayoutStore((state) => state.fixtureCatalog);
   const [quality] = useLightQuality();
 

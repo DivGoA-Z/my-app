@@ -51,6 +51,7 @@ import { boardLabel } from '../../types/rates';
 import { cabinetCutParts, describeEdgeBanding, partAreaSqM } from '../../lib/cutList';
 import { normalizePanels, resolvePanels, samePanels } from '../../lib/panels';
 import { hasCountertop } from '../../lib/cabinetGeometry';
+import { useEffectiveConstruction } from '../../hooks/usePhysicalCabinets';
 import { resolveFinish } from '../../types/finish';
 import { CabinetPreview3D } from './CabinetPreview3D';
 
@@ -113,7 +114,11 @@ export function CabinetDesignerPage({ target, onBack }: { target: DesignerTarget
   const catalogue = useLayoutStore((s) => s.cabinetCatalog);
   const cabinets = useLayoutStore((s) => s.cabinets);
   const rateCard = useLayoutStore((s) => s.rateCard);
-  const construction = useLayoutStore((s) => s.constructionSettings);
+  // A placed cabinet is sized by its project's effective settings (the
+  // project's depth override, §61); a catalogue row by the business's.
+  const businessConstruction = useLayoutStore((s) => s.constructionSettings);
+  const projectConstruction = useEffectiveConstruction();
+  const construction = target.kind === 'cabinet' ? projectConstruction : businessConstruction;
   const finishes = useLayoutStore((s) => s.finishes);
   const currentLayout = useLayoutStore((s) => s.currentLayout);
   const updateCabinet = useLayoutStore((s) => s.updateCabinet);

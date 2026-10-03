@@ -22,6 +22,7 @@
 // countertop below it, or a chimney mounted above it, are NOT flagged —
 // see elevationMm on PlacedApplianceItem and lib/collision.ts.
 
+import { usePhysicalCabinets } from '../../hooks/usePhysicalCabinets';
 import { useState } from 'react';
 import type Konva from 'konva';
 import { Layer, Group, Rect, Text } from 'react-konva';
@@ -93,7 +94,7 @@ export function ApplianceLayer({
   showOverlapWarnings = true,
 }: ApplianceLayerProps) {
   const appliances = useLayoutStore((state) => state.appliances);
-  const cabinets = useLayoutStore((state) => state.cabinets);
+  const cabinets = usePhysicalCabinets();
   const obstacles = useLayoutStore((state) => state.obstacles);
   const updateAppliance = useLayoutStore((state) => state.updateAppliance);
   const pickAt = usePickAt();

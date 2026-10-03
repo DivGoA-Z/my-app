@@ -14,6 +14,7 @@
 // the inspector where the host can be named. Ceiling and free mounts do
 // have real x/y, and those are draggable.
 
+import { usePhysicalCabinets } from '../../hooks/usePhysicalCabinets';
 import type Konva from 'konva';
 import { Layer, Group, Circle, Line, Text } from 'react-konva';
 import { useLayoutStore } from '../../store/layoutStore';
@@ -50,7 +51,7 @@ export function FixtureLayer({
   gridSnapMm = 50,
 }: FixtureLayerProps) {
   const currentLayout = useLayoutStore((s) => s.currentLayout);
-  const cabinets = useLayoutStore((s) => s.cabinets);
+  const cabinets = usePhysicalCabinets();
   const fixtureCatalog = useLayoutStore((s) => s.fixtureCatalog);
   const updateFixture = useLayoutStore((s) => s.updateFixture);
   const pickAt = usePickAt();

@@ -140,9 +140,7 @@ top's corner rule now covers rails too, and once you tick "my carpenter
 has confirmed" and save, the page **locks** (deliberate "Change
 settings" to unlock). Edge banding now counts only customer-facing
 edges — newly, the bottom edge of wall-cabinet sides.
-**Known gap:** with "carcass only", the 2D plan / 3D view / collision
-still draw the cabinet 18mm shallower than it really is — only the
-cutting list and price follow the setting.
+(The "carcass only" plan/3D gap noted here was closed in §61.)
 
 **New (§48), not seen in a browser — adding to the cutting list:** the
 list is still never edited directly (it sets the price), but now:
@@ -330,6 +328,13 @@ and a second real-shade pendant catalogue option.
 - Board nesting, cutting list, hardware boring (Phase 4) — see
   Blocked, below.
 
+**New (§61): the depth convention is followed everywhere** — plan, 3D
+view, collision/clearance checks, countertop and floor areas, not just
+the cutting list. Business setting on the Workshop page; per-project
+override in Room Settings. The §47 "18mm shallower" gap is closed. Needs
+`schema.sql` re-run (`layouts.depth_includes_front`). Worth checking
+dragging and 3D under "carcass only".
+
 **New (§60): the cutting list is frozen with each quote** — Cutting
 List page selector "Current design / Quote v3", read-only, laid out with
 that quote's own boards and settings; "Cutting list for v3 →" on the
@@ -358,7 +363,7 @@ board that was previously never charged.
 
 ## Tests
 
-**`npm test`** (Vitest) — 73 tests on pricing, the cutting list, nesting,
+**`npm test`** (Vitest) — 86 tests on pricing, the cutting list, nesting,
 panels and the catalogue importer, ~0.3s (§55). Run before trusting a
 change to any of those. UI still has no automated tests.
 

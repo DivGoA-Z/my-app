@@ -13,6 +13,7 @@
 // so worth surfacing before the clipped area reaches a quote), and
 // in-swinging doors whose arc lands on a cabinet.
 
+import { usePhysicalCabinets } from '../../hooks/usePhysicalCabinets';
 import { useLayoutStore } from '../../store/layoutStore';
 import { Button } from '../ui/button';
 import { Alert, AlertDescription } from '../ui/alert';
@@ -36,7 +37,7 @@ const KINDS: OpeningKind[] = ['door', 'window', 'pass-through'];
 
 export function OpeningToolbar() {
   const currentLayout = useLayoutStore((state) => state.currentLayout);
-  const cabinets = useLayoutStore((state) => state.cabinets);
+  const cabinets = usePhysicalCabinets();
   const appliances = useLayoutStore((state) => state.appliances);
   const obstacles = useLayoutStore((state) => state.obstacles);
   const addOpening = useLayoutStore((state) => state.addOpening);

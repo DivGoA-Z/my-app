@@ -16,6 +16,7 @@
 // missing wall — there's nothing behind it to finish — so it's excluded
 // from both rates rather than billed at the cheap one.
 
+import { usePhysicalCabinets } from '../../hooks/usePhysicalCabinets';
 import { useLayoutStore } from '../../store/layoutStore';
 import { computeRoomSurfaceAreas } from '../../lib/surfaceAreas';
 import type { SurfaceAreaBreakdown } from '../../lib/surfaceAreas';
@@ -40,7 +41,7 @@ const NO_FINISH_VALUE = '__none__';
 
 export function RoomSurfacesPanel() {
   const currentLayout = useLayoutStore((state) => state.currentLayout);
-  const cabinets = useLayoutStore((state) => state.cabinets);
+  const cabinets = usePhysicalCabinets();
   const appliances = useLayoutStore((state) => state.appliances);
   const obstacles = useLayoutStore((state) => state.obstacles);
   const updateRoomSurfaces = useLayoutStore((state) => state.updateRoomSurfaces);

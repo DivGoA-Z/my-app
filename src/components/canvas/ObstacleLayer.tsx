@@ -14,6 +14,7 @@
 // ObstacleInspector, same pattern as CabinetLayer. Clicking anywhere
 // else on the Stage (see RoomCanvas.tsx) deselects.
 
+import { usePhysicalCabinets } from '../../hooks/usePhysicalCabinets';
 import { Layer, Group, Rect, Text } from 'react-konva';
 import type Konva from 'konva';
 import { useLayoutStore } from '../../store/layoutStore';
@@ -62,7 +63,7 @@ export function ObstacleLayer({
   const updateObstacle = useLayoutStore((state) => state.updateObstacle);
   const selectedObstacleId = useSelectedObstacleId();
   const currentLayout = useLayoutStore((state) => state.currentLayout);
-  const cabinets = useLayoutStore((state) => state.cabinets);
+  const cabinets = usePhysicalCabinets();
   const appliances = useLayoutStore((state) => state.appliances);
 
   // Obstacles live in their own store slice rather than on

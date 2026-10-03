@@ -30,6 +30,7 @@ import { ExtraPartsEditor } from '../common/ExtraPartsEditor';
 import { SheetLayoutView } from './SheetLayoutView';
 import { nestParts } from '../../lib/nesting';
 import { useQuoteStatus } from '../../hooks/useQuoteStatus';
+import { useEffectiveConstruction } from '../../hooks/usePhysicalCabinets';
 import { boardSheetSizes, type BoardRate } from '../../types/rates';
 import {
   BACK_FIT_LABELS,
@@ -164,7 +165,8 @@ export function CutListView({
   const looseParts = useLayoutStore((s) => s.currentLayout?.looseParts);
   const setLooseParts = useLayoutStore((s) => s.setLooseParts);
   const finishes = useLayoutStore((s) => s.finishes);
-  const settings = useLayoutStore((s) => s.constructionSettings);
+  // Business settings with this project's depth override applied (§61).
+  const settings = useEffectiveConstruction();
   const rateCard = useLayoutStore((s) => s.rateCard);
   const currentProject = useLayoutStore((s) => s.currentProject);
   const [mode, setMode] = useState<Mode>('cutting');

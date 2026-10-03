@@ -216,7 +216,7 @@ export function ConstructionSettingsManager() {
           labels={DEPTH_CONVENTION_LABELS}
           onChange={(v) => set('depthIncludesFront', v === 'includes-front')}
           disabled={locked}
-          help="Moves every side, top, bottom and shelf by a shutter's thickness — check this one first. The 2D plan and 3D view still draw the stated depth as the finished cabinet either way."
+          help="Moves every side, top, bottom and shelf by a shutter's thickness — check this one first. The plan, 3D view and collision checks follow it too. A project can override it in Room Settings."
         />
         <ChoiceField
           label="Carcass bottom — how it meets the sides"

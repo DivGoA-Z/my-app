@@ -6,6 +6,7 @@
 // the canvas highlight and a warning banner can both read the current,
 // correct result with no manual recompute step.
 
+import { usePhysicalCabinets } from './usePhysicalCabinets';
 import { useMemo } from 'react';
 import { useLayoutStore } from '../store/layoutStore';
 import { detectCabinetReachConflicts, type CabinetReachResult } from '../lib/cabinetClearance';
@@ -13,7 +14,7 @@ import { detectCabinetReachConflicts, type CabinetReachResult } from '../lib/cab
 const EMPTY_RESULT: CabinetReachResult = { issues: [], blockedCabinetIds: new Set() };
 
 export function useCabinetClearance() {
-  const cabinets = useLayoutStore((state) => state.cabinets);
+  const cabinets = usePhysicalCabinets();
   const currentLayout = useLayoutStore((state) => state.currentLayout);
 
   return useMemo(() => {

@@ -22,6 +22,7 @@
 // height to disambiguate with, so there is no way around it. If it ever
 // reads as noisy, requiring a modifier here is a one-line change.
 
+import { usePhysicalCabinets } from './usePhysicalCabinets';
 import { useCallback } from 'react';
 import { useLayoutStore } from '../store/layoutStore';
 import { usePickerStore } from '../store/pickerStore';
@@ -30,7 +31,7 @@ import type { HitCandidate } from '../lib/hitTest';
 
 export function usePickAt() {
   const currentLayout = useLayoutStore((s) => s.currentLayout);
-  const cabinets = useLayoutStore((s) => s.cabinets);
+  const cabinets = usePhysicalCabinets();
   const appliances = useLayoutStore((s) => s.appliances);
   const obstacles = useLayoutStore((s) => s.obstacles);
   const fixtureCatalog = useLayoutStore((s) => s.fixtureCatalog);

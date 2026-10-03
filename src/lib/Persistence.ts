@@ -73,6 +73,8 @@ interface LayoutRow {
   project_charges: RoomLayout['projectCharges'] | null;
   charge_rates: OtherRate[] | null;
   loose_parts: RoomLayout['looseParts'] | null;
+  // §61 — project override of the depth convention; NULL = business setting.
+  depth_includes_front: boolean | null;
   grid_snap_mm: number;
   // Same reasoning as ProjectRow.business_id.
   business_id: string;
@@ -160,6 +162,7 @@ function layoutToRow(
     project_charges: layout.projectCharges ?? null,
     charge_rates: layout.chargeRates ?? null,
     loose_parts: layout.looseParts ?? null,
+    depth_includes_front: layout.depthIncludesFront ?? null,
     grid_snap_mm: layout.gridSnapMm,
     created_at: layout.createdAt,
     updated_at: new Date().toISOString(), // bumped on every save
@@ -211,6 +214,7 @@ function rowToLayout(row: LayoutRow): RoomLayout {
     // rate card's own function so both lists obey the same rules.
     chargeRates: row.charge_rates ? sanitizeOtherRates(row.charge_rates) : undefined,
     looseParts: row.loose_parts ?? undefined,
+    depthIncludesFront: row.depth_includes_front ?? undefined,
     projectCharges: row.project_charges
       ? { labor: row.project_charges.labor ?? [], other: row.project_charges.other ?? [] }
       : undefined,
