@@ -300,3 +300,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§67** All frozen versions are on the quote, each with its PDF and cutting list. WhatsApp share stays on the latest version only.
 
 **§68** UI overhaul's theme ("Calm workshop") lives in `src/index.css` tokens, incl. new warning/info/success. Rebuilt screens use tokens, never raw greys/hex or text-[11px].
+
+**§69** Pipeline gains Installed and Lost (reason required by the `StatusChange` type). New project columns are written only by `lib/customers.ts`, never `projectToRow`. A changed constraint must be dropped and re-added in `schema.sql`.

@@ -110,7 +110,7 @@ create table if not exists public.projects (
   address text not null,
   locality text not null,
   status text not null default 'Lead'
-    check (status in ('Lead', 'Layout Drafted', 'Quote Sent', 'Approved', 'In Production')),
+    check (status in ('Lead', 'Layout Drafted', 'Quote Sent', 'Approved', 'In Production', 'Installed', 'Lost')),
   assigned_to text,
   notes text,
   quote_total numeric,
@@ -119,6 +119,26 @@ create table if not exists public.projects (
 );
 
 alter table public.projects add column if not exists business_id text references public.businesses(id);
+
+-- Pipeline end stages (docs/DECISIONS.md §69, 3 Oct 2026). 'Installed'
+-- ends a job; 'Lost' takes a reason. The status check above only applies
+-- to a FRESH table (create table if not exists never alters an existing
+-- one), so the constraint is dropped and re-added here, which is safe to
+-- re-run. status_changed_at drives follow-ups ("quote sent 3+ days ago")
+-- and "installed in the last 30 days"; it's backfilled from updated_at
+-- once. These columns are written only by lib/customers.ts's dedicated
+-- updates, never by the project save, so a save works before this runs.
+alter table public.projects add column if not exists lost_reason text;
+alter table public.projects add column if not exists lost_note text;
+alter table public.projects add column if not exists install_date date;
+alter table public.projects add column if not exists status_changed_at timestamptz;
+update public.projects set status_changed_at = updated_at where status_changed_at is null;
+alter table public.projects drop constraint if exists projects_status_check;
+alter table public.projects add constraint projects_status_check
+  check (status in ('Lead', 'Layout Drafted', 'Quote Sent', 'Approved', 'In Production', 'Installed', 'Lost'));
+alter table public.projects drop constraint if exists projects_lost_reason_check;
+alter table public.projects add constraint projects_lost_reason_check
+  check (lost_reason is null or lost_reason in ('price', 'went-elsewhere', 'postponed', 'other'));
 
 create table if not exists public.layouts (
   id text primary key,

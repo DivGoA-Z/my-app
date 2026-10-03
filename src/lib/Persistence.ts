@@ -9,7 +9,7 @@
 
 import { sanitizeOtherRates, type OtherRate } from '../types/rates';
 import { supabase } from './Supabaseclient';
-import type { CustomerProject, LeadStatus } from '../types/customer';
+import type { CustomerProject, LeadStatus, LostReason } from '../types/customer';
 import type { RoomLayout, Wall, WallOrientation, Obstacle } from '../types/layout';
 import type { PlacedCabinetItem } from '../types/cabinet';
 import type { PlacedApplianceItem } from '../types/appliance';
@@ -34,6 +34,13 @@ export interface ProjectRow {
   assigned_to: string | null;
   notes: string | null;
   quote_total: number | null;
+  // §69 — read here, but projectToRow never writes them (see
+  // CustomerProject). Optional because a database where schema.sql
+  // hasn't been re-run doesn't have them yet.
+  lost_reason?: LostReason | null;
+  lost_note?: string | null;
+  install_date?: string | null;
+  status_changed_at?: string | null;
   // Required, no default — see the note on projectToRow's `businessId`
   // parameter. Not part of CustomerProject (types/customer.ts): this is
   // purely an RLS/ownership concern, not something the UI reads or
@@ -124,6 +131,10 @@ export function rowToProject(row: ProjectRow): CustomerProject {
     assignedTo: row.assigned_to ?? undefined,
     notes: row.notes ?? undefined,
     quoteTotal: row.quote_total ?? undefined,
+    lostReason: row.lost_reason ?? undefined,
+    lostNote: row.lost_note ?? undefined,
+    installDate: row.install_date ?? undefined,
+    statusChangedAt: row.status_changed_at ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

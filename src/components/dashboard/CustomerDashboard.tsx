@@ -44,14 +44,21 @@ const STATUS_STYLES: Record<LeadStatus, { label: string; className: string }> = 
   'Quote Sent': { label: 'Sent', className: 'bg-amber-100 text-amber-700' },
   Approved: { label: 'Approved', className: 'bg-green-100 text-green-700' },
   'In Production': { label: 'In Production', className: 'bg-purple-100 text-purple-700' },
+  Installed: { label: 'Installed', className: 'bg-gray-200 text-gray-800' },
+  Lost: { label: 'Lost', className: 'bg-red-100 text-red-700' },
 };
 
-const ALL_STATUSES: LeadStatus[] = [
+// Lost is left out of this picker on purpose: moving a customer to Lost
+// needs a reason (§69), and the picker for it comes with the rebuilt
+// Customers page (docs/UX_PLAN.md). A customer already Lost still shows
+// it — see the select below.
+const ALL_STATUSES: Exclude<LeadStatus, 'Lost'>[] = [
   'Lead',
   'Layout Drafted',
   'Quote Sent',
   'Approved',
   'In Production',
+  'Installed',
 ];
 
 const INR_FORMATTER = new Intl.NumberFormat('en-IN', {
@@ -160,16 +167,19 @@ export function CustomerDashboard({ onOpenCanvas, onManageInventory }: CustomerD
     );
   }, [customers, query]);
 
-  async function handleStatusChange(customerId: string, nextStatus: LeadStatus) {
+  async function handleStatusChange(customerId: string, nextStatus: Exclude<LeadStatus, 'Lost'>) {
     const previous = customers;
     setStatusUpdatingId(customerId);
     // Optimistic — the row updates immediately, and rolls back if the
     // write to Supabase actually fails.
     setCustomers((prev) =>
-      prev.map((c) => (c.id === customerId ? { ...c, status: nextStatus } : c))
+      prev.map((c) =>
+        c.id === customerId ? { ...c, status: nextStatus, lostReason: undefined, lostNote: undefined } : c
+      )
     );
     try {
-      await updateCustomerStatus(customerId, nextStatus);
+      const changedAt = await updateCustomerStatus(customerId, { status: nextStatus });
+      setCustomers((prev) => prev.map((c) => (c.id === customerId ? { ...c, statusChangedAt: changedAt } : c)));
     } catch (err) {
       setCustomers(previous);
       setLoadError(err instanceof Error ? err.message : 'Failed to update status.');
@@ -315,7 +325,7 @@ export function CustomerDashboard({ onOpenCanvas, onManageInventory }: CustomerD
                           value={customer.status}
                           disabled={statusUpdatingId === customer.id}
                           onChange={(e) =>
-                            handleStatusChange(customer.id, e.target.value as LeadStatus)
+                            handleStatusChange(customer.id, e.target.value as Exclude<LeadStatus, 'Lost'>)
                           }
                           className={`rounded-full border-0 px-2 py-0.5 text-xs font-medium ${status.className}`}
                         >
@@ -324,6 +334,11 @@ export function CustomerDashboard({ onOpenCanvas, onManageInventory }: CustomerD
                               {STATUS_STYLES[s].label}
                             </option>
                           ))}
+                          {customer.status === 'Lost' && (
+                            <option value="Lost" disabled>
+                              {STATUS_STYLES.Lost.label}
+                            </option>
+                          )}
                         </select>
                       </td>
                       <td className="relative py-2 pr-3 text-right">

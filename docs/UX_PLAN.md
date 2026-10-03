@@ -179,6 +179,22 @@ check it on laptop, tablet and phone.
   same canvas, using the app's real pipeline stages (Lead, Layout
   drafted, Quote sent, Approved, In production).
 
+- 3 Oct, decided on review:
+  - **Home cards:**
+    - Quotes out
+    - Follow-ups due
+    - **Approved jobs (open)**: every approved job not yet installed, with
+      the split "not started / in production". Not "this month"; monthly
+      sales can be a report later.
+    - Installs coming up
+  - "Recent designs" → **Continue designing**: designs not yet approved,
+    edited in the last 7 days.
+  - **Two new pipeline stages:**
+    - **Installed**: the end of a job; the board shows the last 30 days.
+    - **Lost**: off the board, under a filter, and asks for a **reason**
+      (price, went elsewhere, postponed, other).
+  - **In production** gets an **install date**.
+
 ## Review links
 
 - **3 Oct 2026 — design system v0.1 + design editor (laptop, tablet,

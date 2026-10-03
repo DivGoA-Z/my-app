@@ -9,7 +9,7 @@
 
 import { supabase } from './Supabaseclient';
 import { projectToRow, rowToProject, type ProjectRow } from './Persistence';
-import type { CustomerProject, LeadStatus } from '../types/customer';
+import type { CustomerProject, LeadStatus, LostReason } from '../types/customer';
 
 export async function fetchCustomers(): Promise<CustomerProject[]> {
   const { data, error } = await supabase
@@ -36,7 +36,7 @@ export interface NewLeadInput {
 
 // Every new customer starts life as a 'Lead' — that's the entry point
 // of the pipeline (Lead -> Layout Drafted -> Quote Sent -> Approved ->
-// In Production), not something the caller chooses.
+// In Production -> Installed, or Lost), not something the caller chooses.
 //
 // `businessId` required, no default — see projectToRow's own comment.
 export async function createCustomer(
@@ -52,6 +52,7 @@ export async function createCustomer(
     address: input.address,
     locality: input.locality,
     status: 'Lead',
+    statusChangedAt: now,
     assignedTo: input.assignedTo,
     notes: input.notes,
     createdAt: now,
@@ -66,13 +67,43 @@ export async function createCustomer(
   return newProject;
 }
 
-export async function updateCustomerStatus(id: string, status: LeadStatus): Promise<void> {
-  const { error } = await supabase
-    .from('projects')
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq('id', id);
+// A stage change. Moving to Lost REQUIRES a reason — it's in the type, so
+// a screen can't forget to ask (§69, your rule). Leaving Lost clears the
+// reason, so a won-back customer doesn't carry a stale "price".
+export type StatusChange =
+  | { status: Exclude<LeadStatus, 'Lost'> }
+  | { status: 'Lost'; reason: LostReason; note?: string };
+
+export function statusChangeRow(change: StatusChange, now: string) {
+  return {
+    status: change.status,
+    status_changed_at: now,
+    updated_at: now,
+    lost_reason: change.status === 'Lost' ? change.reason : null,
+    lost_note: change.status === 'Lost' ? (change.note?.trim() || null) : null,
+  };
+}
+
+// Returns the time it recorded, so the caller can update its own copy.
+export async function updateCustomerStatus(id: string, change: StatusChange): Promise<string> {
+  const now = new Date().toISOString();
+  const { error } = await supabase.from('projects').update(statusChangeRow(change, now)).eq('id', id);
 
   if (error) {
     throw new Error(`Failed to update status for ${id}: ${error.message}`);
+  }
+  return now;
+}
+
+// The install date of a job in production (§69) — drives "Installs
+// coming up" on Home. null clears it.
+export async function setInstallDate(id: string, installDate: string | null): Promise<void> {
+  const { error } = await supabase
+    .from('projects')
+    .update({ install_date: installDate, updated_at: new Date().toISOString() })
+    .eq('id', id);
+
+  if (error) {
+    throw new Error(`Failed to set install date for ${id}: ${error.message}`);
   }
 }

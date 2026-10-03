@@ -5,7 +5,31 @@ export type LeadStatus =
   | 'Layout Drafted'
   | 'Quote Sent'
   | 'Approved'
-  | 'In Production';
+  | 'In Production'
+  // §69 — the end of a job, and a customer who said no (with a reason).
+  | 'Installed'
+  | 'Lost';
+
+// The pipeline's stages in order, for boards and pickers. Lost is last
+// and kept off the board (it's a filter), but it's still a stage.
+export const LEAD_STATUSES: LeadStatus[] = [
+  'Lead',
+  'Layout Drafted',
+  'Quote Sent',
+  'Approved',
+  'In Production',
+  'Installed',
+  'Lost',
+];
+
+export type LostReason = 'price' | 'went-elsewhere' | 'postponed' | 'other';
+
+export const LOST_REASON_LABELS: Record<LostReason, string> = {
+  price: 'Price',
+  'went-elsewhere': 'Went elsewhere',
+  postponed: 'Postponed',
+  other: 'Other',
+};
 
 export interface CustomerProject {
   id: string;                // UUID
@@ -24,6 +48,13 @@ export interface CustomerProject {
   // load every project's full layout just to show a number. Undefined
   // for a lead with no layout/quote yet.
   quoteTotal?: number;
+  // §69. Set only through lib/customers.ts's status/install-date updates
+  // — never written by the project save (projectToRow), so they can't be
+  // overwritten by a stale copy of the project open in the editor.
+  lostReason?: LostReason;
+  lostNote?: string;
+  installDate?: string;      // YYYY-MM-DD
+  statusChangedAt?: string;  // ISO 8601; when `status` last changed
   createdAt: string;         // ISO 8601 date string
   updatedAt: string;         // ISO 8601 date string
 }

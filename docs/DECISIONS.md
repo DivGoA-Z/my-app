@@ -5142,3 +5142,43 @@ type. What it does NOT fix yet:
 Those go screen by screen as each one is rebuilt. Rule for that work:
 use the tokens (`text-muted-foreground`, `bg-warning-soft`), never raw
 greys or hex values, so a later palette change stays one file.
+
+## 69. Two pipeline end stages: Installed, and Lost with a reason
+
+Reviewing the Home mockup showed the pipeline had no end: "In
+Production" was the last stage, so a finished job stayed active for
+ever, and a customer who said no had nowhere to go. You agreed to two
+additions on 3 Oct:
+- **Installed** ends a job.
+- **Lost** requires a **reason** (price, went elsewhere, postponed,
+  other) plus an optional note.
+
+A job in production also gets an **install date**.
+
+**Data.**
+- New `projects` columns: `lost_reason`, `lost_note`, `install_date` and
+  `status_changed_at`. `status_changed_at` is backfilled from
+  `updated_at`, and is needed for "follow-up due" and "installed in the
+  last 30 days".
+- The status check is dropped and re-added in `schema.sql`. The inline
+  check on `create table if not exists` never changes an existing table,
+  which is a trap worth remembering for any future change to an
+  existing constraint.
+
+**The new columns are written only by `lib/customers.ts`'s dedicated
+updates, never by `projectToRow`.** Two reasons:
+1. A project save keeps working on a database where `schema.sql` hasn't
+   been re-run yet.
+2. A stale copy of the project open in the editor can't overwrite a
+   stage, reason or date set on the Customers page.
+
+**A Lost reason is enforced by the type.** `updateCustomerStatus` takes
+a `StatusChange` where `{status: 'Lost'}` must carry `reason`, so a
+screen can't forget to ask. Leaving Lost clears the reason. The current
+customer list offers Installed but not Lost: the reason picker comes
+with the rebuilt Customers page.
+
+**Home's cards follow from this (your correction).** "Approved jobs
+(open)" counts every job approved and not yet installed, started or
+not, with the split shown. It was not "approved this month", which is a
+sales report, not daily work.

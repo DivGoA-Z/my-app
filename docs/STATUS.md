@@ -65,7 +65,7 @@ merged to `main`.
 
 ## Tests
 
-`npm test` (Vitest): **111 tests**. 94 cover pricing, the cutting list,
+`npm test` (Vitest): **113 tests**. 94 cover pricing, the cutting list,
 nesting, panels, the importer and physical depth. 17 screen tests (React
 Testing Library) cover the rate card, boards, Cabinet Designer, charges,
 the Cutting List and the quote's version list. 3D and 2D drawing is
@@ -74,7 +74,8 @@ still checked by eye.
 ## Your to-dos before using this branch
 
 1. **Re-run `supabase/schema.sql`.** Several new columns; saves fail
-   without them.
+   without them. Re-run again after 3 Oct for the Installed/Lost stages
+   (§69).
 2. **Lower the labour rate.** The ₹150/sq ft placeholder was set against
    the old small area estimate. Labour now bills on total cut-part area
    (a base unit went from 7.0 to 22.7 sq ft).
