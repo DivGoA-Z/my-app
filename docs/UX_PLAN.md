@@ -204,6 +204,13 @@ check it on laptop, tablet and phone.
   toggle, most-used first), sidebar sub-list for its sections, cutting
   list from a customer card (§71).
 
+- 3 Oct: Production page built (§72). Feedback: "not premium enough to
+  show". Two premium directions mocked up for a choice, both using the
+  repo's real CC0 material textures (walnut, quartz, oak, granite, brass):
+  **A Atelier** (dark forest sidebar, brass accent, one white metrics
+  strip, material-photo design cards) and **B Editorial** (serif display
+  type, a material hero band, magazine-style spacing).
+
 ## Review links
 
 - **3 Oct 2026 — design system v0.1 + design editor (laptop, tablet,
