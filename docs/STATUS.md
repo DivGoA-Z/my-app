@@ -65,10 +65,11 @@ merged to `main`.
 
 ## Tests
 
-`npm test` (Vitest): **122 tests**. 94 cover pricing, the cutting list,
-nesting, panels, the importer and physical depth. 17 screen tests (React
-Testing Library) cover the rate card, boards, Cabinet Designer, charges,
-the Cutting List and the quote's version list. 3D and 2D drawing is
+`npm test` (Vitest): **122 tests**. 102 cover pricing, the cutting list,
+nesting, panels, the importer, physical depth and the pipeline rules. 20
+screen tests (React Testing Library) cover the rate card, boards, Cabinet
+Designer, charges, the Cutting List, the quote's version list, Home and
+Customers. 3D and 2D drawing is
 still checked by eye.
 
 ## Your to-dos before using this branch
