@@ -330,9 +330,15 @@ and a second real-shade pendant catalogue option.
 - Board nesting, cutting list, hardware boring (Phase 4) — see
   Blocked, below.
 
+**New (§56): drawer boxes** are on the cutting list and priced — tandem
+(bottom + back per drawer) or wooden (sides, inner front & back, grooved
+bottom), sized by Workshop settings; untick "Drawer boxes" in the
+Designer when bought ready-made. A 3-drawer 600 unit gains ~₹1,462 of
+board that was previously never charged.
+
 ## Tests
 
-**`npm test`** (Vitest) — 57 tests on pricing, the cutting list, nesting,
+**`npm test`** (Vitest) — 64 tests on pricing, the cutting list, nesting,
 panels and the catalogue importer, ~0.3s (§55). Run before trusting a
 change to any of those. UI still has no automated tests.
 

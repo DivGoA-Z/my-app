@@ -245,7 +245,7 @@ export function ConstructionSettingsManager() {
           labels={DRAWER_BOX_LABELS}
           onChange={(v) => set('drawerBox', v)}
           disabled={locked}
-          help="Recorded now, not applied yet — drawer box parts are still to be added to the cutting list (drawer fronts are already listed)."
+          help="Decides which drawer-box parts the workshop cuts — sizes below."
         />
       </div>
 
@@ -269,6 +269,53 @@ export function ConstructionSettingsManager() {
           value={draft.shelfSetbackMm}
           onChange={(v) => set('shelfSetbackMm', v)}
           disabled={locked}
+        />
+      </fieldset>
+
+      {/* Drawer box sizing (§56) — the rules every tandem system's
+          sheet gives; defaults are the common figures. Only the set for
+          the chosen drawer box type is editable. */}
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-xs font-medium text-gray-600">Drawer boxes (mm)</legend>
+        <span className="text-[11px] text-gray-500">
+          Runner length is picked automatically — the longest standard size (270–650) that fits
+          the cabinet. Check these against your drawer system's own sheet.
+        </span>
+        <NumberField
+          label="Tandem: bottom width = inner width minus"
+          value={draft.tandemBottomWidthDeductionMm}
+          onChange={(v) => set('tandemBottomWidthDeductionMm', v)}
+          disabled={locked || draft.drawerBox !== 'tandem'}
+        />
+        <NumberField
+          label="Tandem: bottom depth = runner length minus"
+          value={draft.tandemBottomDepthDeductionMm}
+          onChange={(v) => set('tandemBottomDepthDeductionMm', v)}
+          disabled={locked || draft.drawerBox !== 'tandem'}
+        />
+        <NumberField
+          label="Tandem: back width = inner width minus"
+          value={draft.tandemBackWidthDeductionMm}
+          onChange={(v) => set('tandemBackWidthDeductionMm', v)}
+          disabled={locked || draft.drawerBox !== 'tandem'}
+        />
+        <NumberField
+          label="Tandem: back height = drawer front height minus"
+          value={draft.tandemBackHeightReductionMm}
+          onChange={(v) => set('tandemBackHeightReductionMm', v)}
+          disabled={locked || draft.drawerBox !== 'tandem'}
+        />
+        <NumberField
+          label="Wooden: runner clearance, both sides together"
+          value={draft.woodenSlideClearanceMm}
+          onChange={(v) => set('woodenSlideClearanceMm', v)}
+          disabled={locked || draft.drawerBox !== 'wooden'}
+        />
+        <NumberField
+          label="Wooden: box height = drawer front height minus"
+          value={draft.woodenBoxHeightReductionMm}
+          onChange={(v) => set('woodenBoxHeightReductionMm', v)}
+          disabled={locked || draft.drawerBox !== 'wooden'}
         />
       </fieldset>
 

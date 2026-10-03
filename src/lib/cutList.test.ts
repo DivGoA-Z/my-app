@@ -122,9 +122,48 @@ describe('panels, extra shelves, extra and loose parts', () => {
   });
 });
 
+describe('drawer boxes (§56)', () => {
+  const unit = () => cabinet('drawer-unit', 600, 600, 720, { frontLayout: { kind: 'drawers', count: 3 } });
+  const byName = (ps: CutPart[], name: string) => ps.filter((p) => p.name === name);
+
+  it('tandem: a bottom and a back per drawer, sized from the standard rules', () => {
+    const ps = parts([unit()]);
+    // inner width 564, inner depth 582 → 550mm runner; fronts 236 high
+    expect(byName(ps, 'Drawer bottom').map(size)).toEqual([[540, 489, 18], [540, 489, 18], [540, 489, 18]]);
+    expect(byName(ps, 'Drawer back').map(size)).toEqual([[477, 176, 18], [477, 176, 18], [477, 176, 18]]);
+    expect(byName(ps, 'Drawer side')).toHaveLength(0);
+  });
+  it('wooden: two sides, inner front & back, and a thin grooved bottom per drawer', () => {
+    const ps = parts([unit()], construction({ drawerBox: 'wooden' }));
+    expect(byName(ps, 'Drawer side').map((p) => [p.lengthMm, p.widthMm, p.quantity])).toEqual(
+      Array(3).fill([550, 196, 2])
+    );
+    expect(byName(ps, 'Drawer inner front & back').map((p) => [p.lengthMm, p.widthMm, p.quantity])).toEqual(
+      Array(3).fill([503, 196, 2])
+    );
+    expect(byName(ps, 'Drawer bottom').map(size)).toEqual(Array(3).fill([530, 519, 6]));
+  });
+  it('unticking "Drawer boxes" (bought ready-made) lists none', () => {
+    const ps = parts([{ ...unit(), panels: { drawerBoxes: { included: false } } }]);
+    expect(ps.some((p) => p.name.startsWith('Drawer') && p.kind !== 'front')).toBe(false);
+  });
+  it('a cabinet too shallow for any runner warns instead of guessing', () => {
+    const cl = computeCutList(
+      [cabinet('drawer-unit', 600, 250, 720, { frontLayout: { kind: 'drawers', count: 2 } })],
+      construction(),
+      [],
+      rates,
+      []
+    );
+    expect(cl.parts.some((p) => p.name === 'Drawer bottom')).toBe(false);
+    expect(cl.warnings.some((w) => w.includes('too shallow'))).toBe(true);
+  });
+});
+
 describe('3D positions match the cut sizes (§46)', () => {
   const conventions = [
     construction(),
+    construction({ drawerBox: 'wooden' }),
     construction({ bottomFit: 'over-sides', topFit: 'over-sides', backFit: 'nailed-on' }),
     construction({ backFit: 'inset-full' }),
     construction({ depthIncludesFront: false }),
@@ -139,7 +178,7 @@ describe('3D positions match the cut sizes (§46)', () => {
 
   for (const c of conventions) {
     const ps = computeCutList(cabs, c, [], rates, []).parts.filter((p) => p.role !== 'extra');
-    it(`every box matches its part and sits inside its cabinet (${c.backFit}, ${c.depthIncludesFront ? 'incl. shutter' : 'carcass only'})`, () => {
+    it(`every box matches its part and sits inside its cabinet (${c.backFit}, ${c.drawerBox}, ${c.depthIncludesFront ? 'incl. shutter' : 'carcass only'})`, () => {
       for (const p of ps) {
         const cab = cabs.find((x) => x.id === p.cabinetId)!;
         expect(p.boxes.length).toBe(p.quantity / cab.quantity);
@@ -154,11 +193,14 @@ describe('3D positions match the cut sizes (§46)', () => {
         }
       }
     });
-    it(`no two panels occupy the same space (${c.backFit})`, () => {
+    it(`no two panels occupy the same space (${c.backFit}, ${c.drawerBox}, ${c.depthIncludesFront ? 'incl. shutter' : 'carcass only'})`, () => {
       for (const cab of cabs) {
-        // A grooved back sits IN the grooves, overlapping by design.
+        // A grooved back, and a wooden drawer's grooved bottom, sit IN
+        // their grooves — overlapping the panels around them by design.
+        const grooved = (p: CutPart) =>
+          (p.name === 'Back' && c.backFit === 'grooved') || (p.name === 'Drawer bottom' && c.drawerBox === 'wooden');
         const pieces = ps
-          .filter((p) => p.cabinetId === cab.id && !(p.name === 'Back' && c.backFit === 'grooved'))
+          .filter((p) => p.cabinetId === cab.id && !grooved(p))
           .flatMap((p) => p.boxes);
         const ov = (a: number, as: number, b: number, bs: number) =>
           Math.max(0, Math.min(a + as / 2, b + bs / 2) - Math.max(a - as / 2, b - bs / 2));

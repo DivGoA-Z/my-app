@@ -9,7 +9,7 @@ import { calculateBOM } from './bom';
 import { computeCutList } from './cutList';
 import { nestParts } from './nesting';
 import { DEFAULT_LABOUR_RATES, defaultRateCard } from '../types/rates';
-import { baseUnit, construction, layout, lShapedKitchen, pricing } from '../test/fixtures';
+import { baseUnit, cabinet, construction, layout, lShapedKitchen, pricing } from '../test/fixtures';
 
 const rupees = (n: number) => Math.round(n);
 
@@ -68,6 +68,17 @@ describe('shelves, extra parts and loose parts (§48)', () => {
     }));
     expect(rupees(bom.loosePartsCost)).toBe(151);
     expect(rupees(bom.materialSubtotal)).toBe(2567 + 151);
+  });
+});
+
+describe('drawer boxes are priced (§56)', () => {
+  it('a 3-drawer unit pays for its tandem bottoms and backs: +₹1,462 of board', () => {
+    const unit = (extra = {}) => cabinet('drawer-unit', 600, 600, 720, { frontLayout: { kind: 'drawers', count: 3 }, ...extra });
+    const withBoxes = calculateBOM([unit()], [], pricing()).lineItems[0];
+    const bought = calculateBOM([unit({ panels: { drawerBoxes: { included: false } } })], [], pricing()).lineItems[0];
+    // 3 × (540×489 bottom + 477×176 back) = 1.044036 m² of 18mm HDMR at
+    // ₹1,400 = ₹1,461.65
+    expect(rupees(withBoxes.materialCost - bought.materialCost)).toBe(1462);
   });
 });
 

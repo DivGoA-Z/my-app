@@ -73,9 +73,9 @@ export interface HardwareSpec {
 // thicker) board than the hidden one. 'shelves' covers fixed shelves
 // and the dividers between a mixed front's rows; 'fronts' covers every
 // board front (shutters, drawer/trolley/false fronts, tambour).
-export type PanelRole = 'leftSide' | 'rightSide' | 'top' | 'bottom' | 'back' | 'shelves' | 'fronts';
+export type PanelRole = 'leftSide' | 'rightSide' | 'top' | 'bottom' | 'back' | 'shelves' | 'fronts' | 'drawerBoxes';
 
-export const PANEL_ROLES: PanelRole[] = ['leftSide', 'rightSide', 'top', 'bottom', 'back', 'shelves', 'fronts'];
+export const PANEL_ROLES: PanelRole[] = ['leftSide', 'rightSide', 'top', 'bottom', 'back', 'shelves', 'fronts', 'drawerBoxes'];
 
 export const PANEL_ROLE_LABELS: Record<PanelRole, string> = {
   leftSide: 'Left side',
@@ -85,6 +85,8 @@ export const PANEL_ROLE_LABELS: Record<PanelRole, string> = {
   back: 'Back',
   shelves: 'Shelves & dividers',
   fronts: 'Fronts (shutters, drawer fronts)',
+  // §56 — the boxes behind drawer fronts. Unticked = bought ready-made.
+  drawerBoxes: 'Drawer boxes',
 };
 
 // One panel's choices. EVERY field optional, and absent means the

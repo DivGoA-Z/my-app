@@ -4733,3 +4733,39 @@ Tests sit under `src`, so `tsc -b`/lint check them too; Vite never
 bundles them (nothing imports them). No component or browser tests:
 UI is still checked by eye. CLAUDE.md's "There is no test runner"
 corrected in place.
+
+## 56. Drawer boxes on the cutting list and the price
+
+Every drawer unit was under-quoted: the board inside its drawers was
+never listed or charged. Now every drawer front gets a box behind it —
+rows in the existing cutting list and price (no separate page; your
+worry about complexity), pieces in the Designer's 3D preview, and a new
+**"Drawer boxes"** panel row in the Designer (Built tick + board; untick
+when boxes are bought ready-made; default board = the cabinet's).
+
+- **Tandem / metal-sided** (your default): per drawer, a **bottom**
+  (inner width − 75, runner length − 10) and a **back** (inner width −
+  87, drawer front height − 60), from the drawer-box board; the back's
+  top edge is banded. The metal sides come with the runner system.
+- **Wooden**: per drawer, two **sides** (runner length × box height), an
+  **inner front & back** (box width − 2 × board), and a **bottom** from
+  the thin back board, grooved into all four; box width = inner width −
+  25 (runner clearance), box height = front height − 40.
+- **Runner length** is automatic: the longest standard size, 270–650mm
+  in 50mm steps, that fits the cabinet's inner depth with 10mm spare. A
+  cabinet too shallow for any gets a warning, never a guessed box.
+- All the deductions are Workshop settings (defaults = common tandem
+  figures; each brand publishes its own), only the chosen type's set
+  editable. The old "recorded, not applied yet" note is gone.
+
+Measured: a 600×600×720 3-drawer unit gains 1.044 m² of 18mm board —
+**+₹1,462** at the seeded ₹1,400/m².
+
+**Caught by the new test suite (§55), twice, before shipping:** the
+wooden drawer bottom was drawn in the 3D preview without its grooves —
+16mm smaller than its cut size — which the "every box matches its part"
+test flagged; it's now drawn at cut size, reaching into its grooves like
+a grooved back. (And my own hand arithmetic for the price was ₹1 off;
+the test had the exact figure.) 64 tests now, including tandem and
+wooden sizes, ready-made boxes, too-shallow cabinets, and wooden boxes
+in the geometry/overlap checks.

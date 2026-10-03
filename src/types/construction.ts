@@ -62,10 +62,8 @@ export type BackFit = 'grooved' | 'nailed-on' | 'inset-full';
 //   'tandem' → metal-sided boxes (the channel system supplies the
 //              sides); the workshop cuts only the bottom and back.
 //   'wooden' → the workshop cuts all four sides and the bottom.
-// NOT YET USED by the cutting list — drawer box parts are phase 3
-// (docs/STATUS.md). Stored now so the choice is recorded, and labelled
-// as not-yet-applied in the settings screen rather than silently
-// ignored (Principle 10).
+// Used by the cutting list and price since §56 — see the drawer sizing
+// fields on ConstructionSettings.
 export type DrawerBox = 'tandem' | 'wooden';
 
 export interface ConstructionSettings {
@@ -86,6 +84,20 @@ export interface ConstructionSettings {
   // door closes past them.
   shelfSetbackMm: number;
   drawerBox: DrawerBox;
+  // ---- Drawer box sizing (§56) ----
+  // Defaults follow the common tandem-box rules of thumb; every brand
+  // publishes its own, so a workshop sets these once from its system's
+  // sheet. Runner (nominal) length is picked automatically: the longest
+  // standard length, 270–650mm in 50mm steps, that fits the cabinet's
+  // inner depth with 10mm to spare.
+  // Tandem: the workshop cuts a bottom and a back per drawer.
+  tandemBottomWidthDeductionMm: number; // bottom width = inner width − this
+  tandemBottomDepthDeductionMm: number; // bottom depth = runner length − this
+  tandemBackWidthDeductionMm: number; // back width = inner width − this
+  tandemBackHeightReductionMm: number; // back height = drawer front height − this
+  // Wooden: two sides, an inner front, a back, and a bottom grooved in.
+  woodenSlideClearanceMm: number; // total, both sides — box width = inner width − this
+  woodenBoxHeightReductionMm: number; // box height = drawer front height − this
   // What a cabinet's stated depth (e.g. "600") measures.
   //   true  → the finished cabinet INCLUDING the shutter: the carcass
   //           behind it is 600 − shutter thickness (582). The app's
@@ -130,6 +142,12 @@ export const DEFAULT_CONSTRUCTION: Omit<ConstructionSettings, 'id' | 'createdAt'
   railWidthMm: 100,
   shelfSetbackMm: 20,
   drawerBox: 'tandem',
+  tandemBottomWidthDeductionMm: 75,
+  tandemBottomDepthDeductionMm: 10,
+  tandemBackWidthDeductionMm: 87,
+  tandemBackHeightReductionMm: 60,
+  woodenSlideClearanceMm: 25,
+  woodenBoxHeightReductionMm: 40,
   depthIncludesFront: true,
   kerfMm: 4,
   sheetTrimMm: 10,
@@ -203,6 +221,12 @@ export function sanitizeConstruction(s: Partial<ConstructionSettings> & { id: st
     railWidthMm: positive(s.railWidthMm, d.railWidthMm),
     shelfSetbackMm: nonNegative(s.shelfSetbackMm, d.shelfSetbackMm),
     drawerBox: pick(s.drawerBox, DRAWER_BOXES, d.drawerBox),
+    tandemBottomWidthDeductionMm: nonNegative(s.tandemBottomWidthDeductionMm, d.tandemBottomWidthDeductionMm),
+    tandemBottomDepthDeductionMm: nonNegative(s.tandemBottomDepthDeductionMm, d.tandemBottomDepthDeductionMm),
+    tandemBackWidthDeductionMm: nonNegative(s.tandemBackWidthDeductionMm, d.tandemBackWidthDeductionMm),
+    tandemBackHeightReductionMm: nonNegative(s.tandemBackHeightReductionMm, d.tandemBackHeightReductionMm),
+    woodenSlideClearanceMm: nonNegative(s.woodenSlideClearanceMm, d.woodenSlideClearanceMm),
+    woodenBoxHeightReductionMm: nonNegative(s.woodenBoxHeightReductionMm, d.woodenBoxHeightReductionMm),
     // Missing (a row saved before §47) → the original convention.
     depthIncludesFront: s.depthIncludesFront !== false,
     kerfMm: nonNegative(s.kerfMm, d.kerfMm),

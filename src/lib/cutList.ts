@@ -278,12 +278,16 @@ export function cabinetCutParts(
     part: Pick<CutPart, 'kind' | 'name' | 'quantity' | 'edgeBanding' | 'grainFixed' | 'finish' | 'boxes'> & {
       lengthMm: number;
       widthMm: number;
-    }
+    },
+    // A part cut from a different board than its role's — a wooden drawer
+    // box's bottom is the thin back board, though it belongs to the
+    // drawer boxes (§56).
+    boardOverride?: BoardRate
   ) => {
     const lengthMm = mm(part.lengthMm);
     const widthMm = mm(part.widthMm);
     if (lengthMm <= 0 || widthMm <= 0 || part.quantity <= 0) return;
-    const board: BoardRate | undefined = panels[role].board;
+    const board: BoardRate | undefined = boardOverride ?? panels[role].board;
     parts.push({
       ...part,
       lengthMm,
@@ -539,6 +543,116 @@ export function cabinetCutParts(
       `${cabinetRef}: corner carousel listed as a plain rectangular box — its diagonal front isn't modelled yet. Check with your carpenter.`
     );
   }
+  // ---- Drawer boxes (§56) ----
+  // One box behind every drawer front — panel kinds survive 'mixed'
+  // composition, so a drawer row inside a mixed front counts too. Sized
+  // from the cabinet's inner width, the drawer front's own height, and a
+  // standard runner length; the rules are Workshop settings, defaulted to
+  // the common tandem-box figures. Untick "Drawer boxes" in the Cabinet
+  // Designer when boxes are bought ready-made.
+  const drawerFronts = breakdown.panels.filter((p) => p.kind === 'drawers');
+  if (drawerFronts.length > 0 && has('drawerBoxes')) {
+    // Longest standard runner (270–650mm, 50mm steps) that fits with
+    // 10mm to spare at the back.
+    const runner = [650, 600, 550, 500, 450, 400, 350, 300, 270].find((l) => l <= innerDepth - 10);
+    if (!runner) {
+      warnings.push(`${cabinetRef}: too shallow for standard drawer runners — drawer boxes not listed.`);
+    } else {
+      const tBox = thick('drawerBoxes');
+      const z1 = zFront;
+      const z0 = zFront - runner;
+      const xMid = (xInL + xInR) / 2;
+      for (const f of drawerFronts) {
+        const yBase = f.centerYMm - f.heightMm / 2 + 15; // box floor sits just above the front's bottom edge
+        if (settings.drawerBox === 'tandem') {
+          // Metal sides come with the runner system; the workshop cuts
+          // the bottom and the back.
+          const bottomW = betweenWidth - settings.tandemBottomWidthDeductionMm;
+          const bottomD = runner - settings.tandemBottomDepthDeductionMm;
+          const backW = betweenWidth - settings.tandemBackWidthDeductionMm;
+          const backH = Math.max(50, f.heightMm - settings.tandemBackHeightReductionMm);
+          add('drawerBoxes', {
+            kind: 'carcass',
+            name: 'Drawer bottom',
+            lengthMm: bottomD,
+            widthMm: bottomW,
+            quantity: q,
+            edgeBanding: { length: 0, width: 0 },
+            grainFixed: false,
+            boxes: [box(xMid - bottomW / 2, xMid + bottomW / 2, yBase, yBase + tBox, z1 - bottomD, z1)],
+          });
+          add('drawerBoxes', {
+            kind: 'carcass',
+            name: 'Drawer back',
+            lengthMm: backW,
+            widthMm: backH,
+            quantity: q,
+            // Its top edge shows when the drawer is open.
+            edgeBanding: { length: 1, width: 0 },
+            grainFixed: false,
+            boxes: [box(xMid - backW / 2, xMid + backW / 2, yBase + tBox, yBase + tBox + backH, z0, z0 + tBox)],
+          });
+        } else {
+          // Wooden box: two sides, an inner front and a back from the
+          // drawer-box board; a bottom from the thin back board, grooved
+          // into the four sides.
+          const boxW = betweenWidth - settings.woodenSlideClearanceMm;
+          const boxH = Math.max(50, f.heightMm - settings.woodenBoxHeightReductionMm);
+          const g = settings.grooveDepthMm;
+          const bottomBoard = panels.back.board ?? panels.drawerBoxes.board;
+          const tBottom = bottomBoard?.thicknessMm ?? LEGACY_BOARD_THICKNESS_MM;
+          const xL = xMid - boxW / 2;
+          const xR = xMid + boxW / 2;
+          add('drawerBoxes', {
+            kind: 'carcass',
+            name: 'Drawer side',
+            lengthMm: runner,
+            widthMm: boxH,
+            quantity: 2 * q,
+            edgeBanding: { length: 1, width: 0 },
+            grainFixed: false,
+            boxes: [
+              box(xL, xL + tBox, yBase, yBase + boxH, z0, z1),
+              box(xR - tBox, xR, yBase, yBase + boxH, z0, z1),
+            ],
+          });
+          add('drawerBoxes', {
+            kind: 'carcass',
+            name: 'Drawer inner front & back',
+            lengthMm: boxW - 2 * tBox,
+            widthMm: boxH,
+            quantity: 2 * q,
+            edgeBanding: { length: 1, width: 0 },
+            grainFixed: false,
+            boxes: [
+              box(xL + tBox, xR - tBox, yBase, yBase + boxH, z1 - tBox, z1),
+              box(xL + tBox, xR - tBox, yBase, yBase + boxH, z0, z0 + tBox),
+            ],
+          });
+          // The bottom sits in grooves cut into the inside faces, so —
+          // like a grooved back — it's drawn at its full cut size,
+          // reaching g into each side. (First drawn without the grooves;
+          // the test suite caught the picture disagreeing with the cut
+          // size by 16mm.)
+          add(
+            'drawerBoxes',
+            {
+              kind: 'back',
+              name: 'Drawer bottom',
+              lengthMm: runner - 2 * tBox + 2 * g,
+              widthMm: boxW - 2 * tBox + 2 * g,
+              quantity: q,
+              edgeBanding: { length: 0, width: 0 },
+              grainFixed: false,
+              boxes: [box(xL + tBox - g, xR - tBox + g, yBase + 10, yBase + 10 + tBottom, z0 + tBox - g, z1 - tBox + g)],
+            },
+            bottomBoard
+          );
+        }
+      }
+    }
+  }
+
   // ---- Hand-entered extra parts (§48) ----
   // Board: the part's own, else this cabinet's carcass board. No 3D
   // position — they're not a standard panel, so the Designer's preview
@@ -552,11 +666,6 @@ export function cabinetCutParts(
     if (part) parts.push(part);
   }
 
-  // Panel kinds survive 'mixed' composition (FrontPanel.kind), so this
-  // catches a drawer row inside a mixed front too.
-  if (breakdown.panels.some((p) => p.kind === 'drawers')) {
-    warnings.push(`${cabinetRef}: drawer box parts not listed yet (drawer fronts are).`);
-  }
   return parts;
 }
 

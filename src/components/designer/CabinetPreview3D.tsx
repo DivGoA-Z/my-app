@@ -42,6 +42,8 @@ const EXPLODE_DIR: Record<PanelRole | 'extra', [number, number, number]> = {
   back: [0, 0, -1],
   shelves: [0, 0, 0.4],
   fronts: [0, 0, 1],
+  // Drawer boxes slide out the way a drawer does.
+  drawerBoxes: [0, 0, 0.7],
   // Hand-entered extra parts have no position (no boxes), so this is
   // never actually used — present only to keep the map total.
   extra: [0, 0, 0],

@@ -106,6 +106,7 @@ const ROLE_HINTS: Record<PanelRole, string> = {
   back: 'Often left off a sink unit for the plumbing.',
   shelves: 'Fixed shelves and the dividers between rows.',
   fronts: 'Untick if shutters are bought in ready-made. Finish is chosen separately.',
+  drawerBoxes: 'The box behind each drawer front. Untick if drawer boxes are bought ready-made.',
 };
 
 export function CabinetDesignerPage({ target, onBack }: { target: DesignerTarget; onBack: () => void }) {
