@@ -318,3 +318,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§76** Catalogue = read-only lists + one `EditPanel` (slide-over / full-screen on phone) for every section; shared `CatalogueKit` + `useItemEditor`. Dropdowns need `h-11!`. Duplicate handles/cabinets found in data (not deleted).
 
 **§77** Rate card = 5 SectionCards (general SectionCard from §71), roomy rate rows, charge and board cards (`NamedAmountList comfortable`; sidebar stays compact), one floating save bar.
+
+**§78** Settings → Business renames `businesses.name` (new RLS update policy). A refused RLS update returns 0 rows, not an error, so the code checks the rows.

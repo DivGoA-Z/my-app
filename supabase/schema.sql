@@ -113,6 +113,10 @@ alter table public.businesses enable row level security;
 drop policy if exists "Members read their own business" on public.businesses;
 create policy "Members read their own business" on public.businesses
   for select using (id = public.current_business_id() or public.is_super_admin());
+-- Settings → Business lets a member rename their own business (§78).
+drop policy if exists "Members rename their own business" on public.businesses;
+create policy "Members rename their own business" on public.businesses
+  for update using (id = public.current_business_id()) with check (id = public.current_business_id());
 
 create table if not exists public.projects (
   id text primary key,

@@ -36,6 +36,8 @@ interface AuthStore {
   init: () => void;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  // Settings → Business (§78). Throws on failure so the form can say so.
+  renameBusiness: (name: string) => Promise<void>;
 }
 
 async function fetchBusinessId(userId: string): Promise<string | null> {
@@ -102,6 +104,19 @@ export const useAuthStore = create<AuthStore>((set) => {
       // App.tsx keyed its load on the user id instead. Key on
       // session.user.id, never on `session`.
       supabase.auth.onAuthStateChange((_event, session) => resolveSession(session));
+    },
+
+    renameBusiness: async (name) => {
+      const businessId = useAuthStore.getState().businessId;
+      const trimmed = name.trim();
+      if (!businessId) throw new Error('No business found for this account.');
+      if (!trimmed) throw new Error('The name can’t be empty.');
+      const { data, error } = await supabase.from('businesses').update({ name: trimmed }).eq('id', businessId).select('name');
+      if (error) throw new Error(error.message);
+      // RLS turns a refused update into "0 rows", not an error. Say so,
+      // rather than reporting success for a change that didn't happen.
+      if (!data || data.length === 0) throw new Error('Not saved: re-run supabase/schema.sql to allow renaming.');
+      set({ businessName: trimmed });
     },
 
     signIn: async (email, password) => {

@@ -133,7 +133,7 @@ assumed settings, which is a check, not a blocker.
 
 0. **UI/UX overhaul in progress** (`docs/UX_PLAN.md`). Built: theme (Premium A),
    app shell, Home, Customers, Production, Catalogue, Rate card, Workshop,
-   Settings (§68–§73). Next: the design editor,
+   Settings, sign-in; screenshot checks at 3 sizes (§68–§78). Next: the design editor,
    then inspectors and quote, cutting list, catalogue. The walkthrough
    follows, on the new UI.
 

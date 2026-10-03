@@ -5493,3 +5493,18 @@ behind "How this works":
 
 Three screen tests were updated for the new wording and the single Save
 button; what they check is unchanged.
+
+## 78. Business details in Settings
+
+The sidebar showed the seed name "My Business", and there was no screen
+to change it. Settings now has two `SectionCard`s:
+- **Business**: an editable business name with its own Save. A logo
+  for the quote PDF is noted as coming later.
+- **Account**: who is signed in, and Sign out.
+
+`authStore.renameBusiness` updates `businesses.name`. That needed a new
+RLS policy in `schema.sql`: a member may update only their own
+business. **Trap handled:** RLS turns a refused update into "0 rows
+changed", not an error, so the function checks the returned rows. If
+there are none, it says "re-run supabase/schema.sql" instead of
+reporting a save that didn't happen.

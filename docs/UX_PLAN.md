@@ -214,6 +214,10 @@ check it on laptop, tablet and phone.
 - 3 Oct: **Premium A chosen** and applied to all built screens; Rate card
   and Workshop moved onto the sidebar after Catalogue (§73).
 
+- 4 Oct: screenshots (§74-75); Catalogue lists + edit panel (§76); Rate
+  card in section cards (§77); Business details (§78). Next: the design
+  editor.
+
 ## Review links
 
 - **3 Oct 2026 — design system v0.1 + design editor (laptop, tablet,
