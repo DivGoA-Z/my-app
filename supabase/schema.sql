@@ -61,6 +61,12 @@ create table if not exists public.business_users (
   primary key (business_id, user_id)
 );
 
+-- businesses had no RLS until 3 Oct 2026 (§70): with RLS off, Supabase
+-- serves a table to anyone holding the public anon key, so every
+-- business's name was readable. Members now read only their own row; the
+-- software owner (super_admins) reads all. Defined further down, after
+-- is_super_admin() exists — see "BUSINESSES RLS" below.
+
 alter table public.business_users enable row level security;
 drop policy if exists "Users can read their own membership" on public.business_users;
 create policy "Users can read their own membership" on public.business_users
@@ -101,6 +107,12 @@ security definer
 as $$
   select exists (select 1 from public.super_admins where user_id = auth.uid());
 $$;
+
+-- BUSINESSES RLS (see the note above business_users).
+alter table public.businesses enable row level security;
+drop policy if exists "Members read their own business" on public.businesses;
+create policy "Members read their own business" on public.businesses
+  for select using (id = public.current_business_id() or public.is_super_admin());
 
 create table if not exists public.projects (
   id text primary key,

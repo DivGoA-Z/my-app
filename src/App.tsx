@@ -32,7 +32,10 @@ import { PresentMode } from './components/present/PresentMode';
 import { CutListView } from './components/cutlist/CutListView';
 import { WorkshopSettingsPage } from './components/workshop/WorkshopSettingsPage';
 import { CabinetDesignerPage, type DesignerTarget } from './components/designer/CabinetDesignerPage';
-import { CustomerDashboard } from './components/dashboard/CustomerDashboard';
+import { AppShell, PageHeader, type ShellPage } from './components/shell/AppShell';
+import { HomePage } from './components/home/HomePage';
+import { CustomersPage } from './components/customers/CustomersPage';
+import { SettingsPage, type SettingsTab } from './components/settings/SettingsPage';
 import { useLayoutStore } from './store/layoutStore';
 import { useAuthStore } from './store/authStore';
 import { LoginScreen } from './components/auth/LoginScreen';
@@ -51,10 +54,15 @@ import { Label } from './components/ui/label';
 const DEFAULT_ROOM_WIDTH_MM = 3000;
 const DEFAULT_ROOM_DEPTH_MM = 4000;
 
+// The four shell pages (home, customers, catalogue, settings) sit inside
+// AppShell's navigation; everything else is the design editor and its
+// full-screen sub-views (§70).
 type View =
-  | 'dashboard'
+  | 'home'
+  | 'customers'
+  | 'catalogue'
+  | 'settings'
   | 'canvas'
-  | 'inventory'
   | 'workshop'
   | 'designer'
   | 'preview3d'
@@ -63,10 +71,11 @@ type View =
   | 'cutlist';
 
 function App() {
-  const [view, setView] = useState<View>('dashboard');
-  // Where "Manage Inventory" returns to when closed — the dashboard, or
-  // back into whichever client's layout was open.
-  const [previousView, setPreviousView] = useState<View>('dashboard');
+  const [view, setView] = useState<View>('home');
+  // Where the catalogue's "Back to design" and the Workshop page's Back
+  // return to — set when they're opened from inside a design.
+  const [previousView, setPreviousView] = useState<View>('home');
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('rates');
   const [designerTarget, setDesignerTarget] = useState<DesignerTarget | null>(null);
   // Where the Designer's Back goes. Its OWN slot, not previousView:
   // Manage Inventory's Back reads previousView, so reusing it would make
@@ -128,7 +137,6 @@ function App() {
   const userId = session?.user.id;
   const isAuthLoading = useAuthStore((s) => s.isLoading);
   const authInit = useAuthStore((s) => s.init);
-  const signOut = useAuthStore((s) => s.signOut);
 
   // Cmd+Z / Cmd+Shift+Z, app-wide (skipped while a text field has
   // focus — see the hook's own comment).
@@ -174,7 +182,7 @@ function App() {
     // request from the toolbar's Manage button — otherwise coming back
     // replays that smooth-scroll and the page looks like it refreshed.
     designerScrollY.current = window.scrollY;
-    if (from === 'inventory') setManageSection(undefined);
+    if (from === 'catalogue') setManageSection(undefined);
     setView('designer');
   }
 
@@ -186,7 +194,13 @@ function App() {
   function handleManageInventory(section?: InventorySection) {
     setPreviousView(view);
     setManageSection(section);
-    setView('inventory');
+    setView('catalogue');
+  }
+
+  function navigate(page: ShellPage) {
+    setPreviousView(page);
+    if (page === 'settings') setSettingsTab('rates');
+    setView(page);
   }
 
   // The manual "Save Project" button, distinct from autosave — autosave
@@ -264,52 +278,37 @@ function App() {
         <Room3DCanvas widthMm={roomWidthMm} depthMm={roomDepthMm} />
       </div>
     );
-  } else if (view === 'inventory') {
+  } else if (view === 'catalogue' || view === 'home' || view === 'customers' || view === 'settings') {
     content = (
-      <div className="flex flex-col gap-4 p-8">
-        <Button variant="outline" size="sm" className="self-start" onClick={() => setView(previousView)}>
-          ← Back
-        </Button>
-        <InventoryManager
-          initialSection={manageSection}
-          onOpenDesigner={(itemId) => openDesigner({ kind: 'catalogue', itemId }, 'inventory')}
-        />
-      </div>
-    );
-  } else if (view === 'dashboard') {
-    // CustomerDashboard now fetches its own list from Supabase (see
-    // lib/customers.ts) — no more sample-data.json here at all.
-    content = (
-      <div className="flex flex-col gap-4 p-8">
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" size="sm" onClick={() => handleManageInventory()}>
-            Manage Inventory
-          </Button>
-          {/* Separate from Manage Inventory on purpose — see
-              WorkshopSettingsPage's header comment. */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setPreviousView('dashboard');
-              setView('workshop');
-            }}
-          >
-            Workshop settings
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => signOut()}>
-            Sign out
-          </Button>
-        </div>
-        <CustomerDashboard onOpenCanvas={handleOpenCanvas} onManageInventory={handleManageInventory} />
-      </div>
+      <AppShell page={view} onNavigate={navigate}>
+        {view === 'home' && (
+          <HomePage onOpenDesign={handleOpenCanvas} onNavigate={(p) => navigate(p)} />
+        )}
+        {view === 'customers' && <CustomersPage onOpenDesign={handleOpenCanvas} />}
+        {view === 'settings' && <SettingsPage key={settingsTab} initialTab={settingsTab} />}
+        {view === 'catalogue' && (
+          <div className="flex flex-col gap-5 px-4 py-6 md:px-8 lg:px-10 lg:py-8">
+            {/* Opened from a toolbar's "Manage" inside a design: one tap back. */}
+            {previousView === 'canvas' && (
+              <Button variant="outline" size="touch" className="self-start" onClick={() => setView('canvas')}>
+                ← Back to design
+              </Button>
+            )}
+            <PageHeader title="Catalogue" subtitle="What you pick from when designing" />
+            <InventoryManager
+              initialSection={manageSection}
+              onOpenDesigner={(itemId) => openDesigner({ kind: 'catalogue', itemId }, 'catalogue')}
+            />
+          </div>
+        )}
+      </AppShell>
     );
   } else {
     content = (
       <div className="flex flex-col gap-4 p-8">
         <div className="flex items-center gap-3">
-        <Button variant="outline" size="sm" onClick={() => setView('dashboard')}>
-          ← Back to Pipeline
+        <Button variant="outline" size="sm" onClick={() => setView('customers')}>
+          ← Customers
         </Button>
 
         {currentProject && (

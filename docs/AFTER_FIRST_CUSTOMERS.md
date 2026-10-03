@@ -40,7 +40,9 @@ what has to be true before customer #1 is onboarded by hand.
 - [ ] **A written hand-onboarding runbook** in `docs/SUPABASE_SETUP.md`:
       create the business, its login and its membership, copy the
       starter catalogue, and do a first sign-in check.
-- [ ] **Two-business isolation check** (principle 4). Sign in as each
+- [ ] **Two-business isolation check** (principle 4). Note: the
+      `businesses` table itself had no RLS until 3 Oct (§70) — exactly the
+      kind of gap this check exists to find. Sign in as each
       business and confirm neither sees the other's customers, quotes,
       catalogue, rates or uploaded files.
 - [ ] **Your own super-admin view.** As super admin you bypass RLS and

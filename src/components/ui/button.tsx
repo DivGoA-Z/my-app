@@ -31,6 +31,12 @@ const buttonVariants = cva(
         "icon-sm":
           "size-7 rounded-[min(var(--radius-md),12px)] in-data-[slot=button-group]:rounded-lg",
         "icon-lg": "size-9",
+        // The overhaul's touch sizes (docs/UX_PLAN.md: every action works
+        // by tap, 44px targets). Added beside the dense sizes rather than
+        // replacing them, so screens not yet rebuilt keep their layout.
+        touch: "h-11 gap-2 rounded-[10px] px-4 text-[15px] font-semibold [&_svg:not([class*='size-'])]:size-[18px]",
+        "touch-lg": "h-12 gap-2 rounded-xl px-5 text-[15px] font-semibold [&_svg:not([class*='size-'])]:size-[18px]",
+        "icon-touch": "size-11 rounded-[10px] [&_svg:not([class*='size-'])]:size-5",
       },
     },
     defaultVariants: {

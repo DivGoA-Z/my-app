@@ -5182,3 +5182,56 @@ with the rebuilt Customers page.
 (open)" counts every job approved and not yet installed, started or
 not, with the split shown. It was not "approved this month", which is a
 sales report, not daily work.
+
+## 70. App shell, Home and Customers built
+
+The first screens of the UI overhaul, built from the agreed mockups.
+- **`AppShell`** wraps the four business pages: Home, Customers,
+  Catalogue and Settings. It shows a labelled sidebar on a laptop (lg),
+  an icon rail on a tablet (md) and a bottom tab bar on a phone. The
+  design editor and its sub-screens stay outside the shell as a
+  full-screen workspace; its back button now says "← Customers".
+- **`lib/pipeline.ts`** holds every pipeline rule as pure, tested
+  functions, so Home and Customers can't disagree:
+  - Home's four cards
+  - follow-ups: a stage older than 3 days, or in production with no
+    install date
+  - "Continue designing"
+  - Installed on the board for 30 days
+- **Home**: greeting, the four cards (including "Approved jobs (open)"
+  as you corrected it), the first-run checklist (restyled), the
+  sample-rates banner, Follow up with one action each (WhatsApp, Start
+  design, Open design, Set date), and Continue designing.
+- **Customers** replaces the old dashboard table and keeps everything it
+  did: search, add, open the design, change stage, sent-quote history
+  and 360° views.
+  - Board columns, with drag to move (desktop), plus the same actions
+    in every card's menu (touch).
+  - A list view, which is the only view on a phone.
+  - A Lost filter.
+  - The Lost reason and install date dialogs.
+- **Settings** has three tabs: Rate card (moved out of the catalogue
+  page), Workshop, and Account (sign out). The catalogue is now only
+  what you pick from when designing. The placeholder-rates warning moved
+  with the rate card, and Home repeats it until the rates are replaced.
+
+**Tried and dropped: submenus in the card menu** ("Move to…" opening a
+second menu). Radix closes a submenu when the pointer leaves its
+trigger. That made the screen test fail, and on a phone nested menus
+are fiddly anyway. The stages are listed directly in the menu instead.
+
+**Security fix found along the way:** the `businesses` table had RLS
+off, and Supabase serves such a table to anyone holding the public anon
+key, so every business's name was readable. It now has RLS (members
+read their own row; super admins read all), added in `schema.sql`. The
+shell reads the business name from there.
+
+**Touch sizes:** new Button sizes `touch` (44px), `touch-lg` (48px) and
+`icon-touch`, added alongside the dense ones, so screens not yet rebuilt
+keep their layout.
+
+Tests: 6 pipeline-rule tests and 3 screen tests (Home cards and
+follow-ups; Lost needs a reason; other stages change directly). 122 in
+total. The screen test fails if Lost is allowed without a reason
+(checked by breaking it). **Not yet seen in a browser** at any of the
+three sizes.

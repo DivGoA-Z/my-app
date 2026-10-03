@@ -23,15 +23,16 @@
 
 import { useState } from 'react';
 import { Button } from '../ui/button';
-import { Card, CardContent } from '../ui/card';
-import type { InventorySection } from '../inventory/InventoryManager';
+import { cn } from '@/lib/utils';
 
 export interface FirstRunChecklistProps {
   businessId: string | null;
   isRatesDone: boolean;
   isCatalogueDone: boolean;
   isFirstCustomerDone: boolean;
-  onManageInventory: (section?: InventorySection) => void;
+  // Rates moved to Settings (§70), so each step names its own target.
+  onOpenRates: () => void;
+  onOpenCatalogue: () => void;
   onAddLead: () => void;
 }
 
@@ -55,7 +56,8 @@ export function FirstRunChecklist({
   isRatesDone,
   isCatalogueDone,
   isFirstCustomerDone,
-  onManageInventory,
+  onOpenRates,
+  onOpenCatalogue,
   onAddLead,
 }: FirstRunChecklistProps) {
   const [dismissed, setDismissed] = useState(() => readDismissed(businessId));
@@ -75,43 +77,39 @@ export function FirstRunChecklist({
   }
 
   return (
-    <Card className="border-blue-200 bg-blue-50/50">
-      <CardContent className="flex flex-col gap-3">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700">Getting started</h3>
-            <p className="text-xs text-gray-500">
-              Three things worth doing before sending your first real quote.
-            </p>
-          </div>
-          <Button variant="ghost" size="xs" onClick={dismiss}>
-            Skip
-          </Button>
+    <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 lg:p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-0.5">
+          <h2 className="text-[17px] font-semibold">Getting started</h2>
+          <p className="text-[13px] text-muted-foreground">Three things worth doing before sending your first real quote.</p>
         </div>
+        <Button variant="ghost" size="touch" onClick={dismiss}>
+          Skip
+        </Button>
+      </div>
 
-        <ChecklistStep
-          done={isRatesDone}
-          label="Add your rates"
-          description="Replace the seeded placeholder rates with your own purchase invoice prices."
-          actionLabel="Open rate card"
-          onAction={() => onManageInventory()}
-        />
-        <ChecklistStep
-          done={isCatalogueDone}
-          label="Import your cabinet catalogue"
-          description="Bulk-upload your modules via Excel instead of typing them in one at a time."
-          actionLabel="Import catalogue"
-          onAction={() => onManageInventory('cabinets')}
-        />
-        <ChecklistStep
-          done={isFirstCustomerDone}
-          label="Create your first customer"
-          description="Start a lead, then open its 2D canvas to draw a layout and generate a quote."
-          actionLabel="Add a lead"
-          onAction={onAddLead}
-        />
-      </CardContent>
-    </Card>
+      <ChecklistStep
+        done={isRatesDone}
+        label="Add your rates"
+        description="Replace the sample rates with your own purchase prices."
+        actionLabel="Open rate card"
+        onAction={onOpenRates}
+      />
+      <ChecklistStep
+        done={isCatalogueDone}
+        label="Import your cabinet catalogue"
+        description="Upload your modules from Excel instead of typing them one at a time."
+        actionLabel="Open catalogue"
+        onAction={onOpenCatalogue}
+      />
+      <ChecklistStep
+        done={isFirstCustomerDone}
+        label="Add your first customer"
+        description="Then open their design to draw the kitchen and make a quote."
+        actionLabel="Add customer"
+        onAction={onAddLead}
+      />
+    </section>
   );
 }
 
@@ -129,24 +127,23 @@ function ChecklistStep({
   onAction: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2 ring-1 ring-gray-200">
-      <div className="flex items-start gap-2.5">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border px-3.5 py-3">
+      <div className="flex min-w-0 items-start gap-3">
         <span
-          className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-            done ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'
-          }`}
+          className={cn(
+            'mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+            done ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground'
+          )}
         >
           {done ? '✓' : ''}
         </span>
-        <div>
-          <p className={`text-xs font-medium ${done ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
-            {label}
-          </p>
-          <p className="text-[11px] text-gray-500">{description}</p>
+        <div className="min-w-0">
+          <p className={cn('text-[15px] font-semibold', done && 'text-muted-foreground line-through')}>{label}</p>
+          <p className="text-[13px] text-muted-foreground">{description}</p>
         </div>
       </div>
       {!done && (
-        <Button variant="outline" size="xs" className="shrink-0" onClick={onAction}>
+        <Button variant="outline" size="touch" className="shrink-0" onClick={onAction}>
           {actionLabel}
         </Button>
       )}

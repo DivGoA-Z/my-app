@@ -29,7 +29,6 @@ import { useLayoutStore } from '../../store/layoutStore';
 import { FinishManager } from './FinishManager';
 import { HandleManager } from './HandleManager';
 import { FixtureManager } from './FixtureManager';
-import { RateCardManager } from './RateCardManager';
 import { CabinetCatalogImportExport } from './CabinetCatalogImportExport';
 import { ObstaclePresetImportExport } from './ObstaclePresetImportExport';
 import { ApplianceCatalogImportExport } from './ApplianceCatalogImportExport';
@@ -196,14 +195,12 @@ export function InventoryManager({
         </div>
       ) : (
         <>
-          {/* Rates first — everything below this line is priced off
-              them, and the amber "these are placeholders" banner
-              (RateCardManager's own header comment explains why it
-              must never be removed) should be the first thing a
-              business sees here, not something they have to scroll
-              to find. This was built but never actually rendered
-              anywhere until now — see docs/ISSUES-FIXED.md. */}
-          <RateCardManager />
+          {/* The rate card moved to Settings → Rate card (§70): this
+              page is what you pick from when designing; Settings is how
+              the business prices and builds. Its placeholder banner went
+              with it, and Home shows the same warning until the rates
+              are replaced, so the disclosure is still the first thing a
+              business sees. */}
 
           {/* Finishes first: cabinet rows below reference them, so this
               is the order the data actually depends in. */}

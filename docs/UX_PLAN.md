@@ -195,6 +195,11 @@ check it on laptop, tablet and phone.
       (price, went elsewhere, postponed, other).
   - **In production** gets an **install date**.
 
+- 3 Oct: **built**: app shell (sidebar / icon rail / phone tab bar),
+  Home, Customers (board + list + Lost reason + install date) and
+  Settings (rate card, workshop, account). The rate card moved out of
+  the catalogue. Not yet seen in a browser. Next: the design editor.
+
 ## Review links
 
 - **3 Oct 2026 — design system v0.1 + design editor (laptop, tablet,

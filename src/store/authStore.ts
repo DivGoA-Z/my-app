@@ -22,6 +22,9 @@ import { supabase } from '../lib/Supabaseclient';
 interface AuthStore {
   session: Session | null;
   businessId: string | null;
+  // The business's display name, for the app shell (§70). Best-effort:
+  // a failure leaves it null and the shell shows a generic label.
+  businessName: string | null;
   // True until the FIRST resolution (existing session restored, or
   // confirmed there isn't one) completes — this is what lets App.tsx
   // show a brief loading state instead of flashing the login screen
@@ -46,17 +49,27 @@ async function fetchBusinessId(userId: string): Promise<string | null> {
   return data?.business_id ?? null;
 }
 
+async function fetchBusinessName(businessId: string): Promise<string | null> {
+  const { data } = await supabase.from('businesses').select('name').eq('id', businessId).maybeSingle();
+  return (data as { name?: string } | null)?.name ?? null;
+}
+
 let subscribed = false;
 
 export const useAuthStore = create<AuthStore>((set) => {
   async function resolveSession(session: Session | null) {
     if (!session) {
-      set({ session: null, businessId: null, isLoading: false, error: null });
+      set({ session: null, businessId: null, businessName: null, isLoading: false, error: null });
       return;
     }
     try {
       const businessId = await fetchBusinessId(session.user.id);
       set({ session, businessId, isLoading: false, error: null });
+      if (businessId) {
+        fetchBusinessName(businessId)
+          .then((businessName) => set({ businessName }))
+          .catch(() => {});
+      }
     } catch (err) {
       set({
         session,
@@ -70,6 +83,7 @@ export const useAuthStore = create<AuthStore>((set) => {
   return {
     session: null,
     businessId: null,
+    businessName: null,
     isLoading: true,
     error: null,
 
@@ -104,7 +118,7 @@ export const useAuthStore = create<AuthStore>((set) => {
 
     signOut: async () => {
       await supabase.auth.signOut();
-      set({ session: null, businessId: null, error: null });
+      set({ session: null, businessId: null, businessName: null, error: null });
     },
   };
 });

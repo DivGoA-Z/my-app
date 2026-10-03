@@ -65,7 +65,7 @@ merged to `main`.
 
 ## Tests
 
-`npm test` (Vitest): **113 tests**. 94 cover pricing, the cutting list,
+`npm test` (Vitest): **122 tests**. 94 cover pricing, the cutting list,
 nesting, panels, the importer and physical depth. 17 screen tests (React
 Testing Library) cover the rate card, boards, Cabinet Designer, charges,
 the Cutting List and the quote's version list. 3D and 2D drawing is
@@ -130,8 +130,9 @@ assumed settings, which is a check, not a blocker.
 
 ## Next
 
-0. **UI/UX overhaul first** (decided 3 Oct): plan in `docs/UX_PLAN.md`;
-   the design system and editor mockups are under review. The walkthrough
+0. **UI/UX overhaul in progress** (`docs/UX_PLAN.md`). Built: theme, app
+   shell, Home, Customers, Settings (§68–§70). Next: the design editor,
+   then inspectors and quote, cutting list, catalogue. The walkthrough
    follows, on the new UI.
 
 1. **Your end-to-end walkthrough** (`docs/WALKTHROUGH.md`): a new kitchen from scratch, checking

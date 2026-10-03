@@ -302,3 +302,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§68** UI overhaul's theme ("Calm workshop") lives in `src/index.css` tokens, incl. new warning/info/success. Rebuilt screens use tokens, never raw greys/hex or text-[11px].
 
 **§69** Pipeline gains Installed and Lost (reason required by the `StatusChange` type). New project columns are written only by `lib/customers.ts`, never `projectToRow`. A changed constraint must be dropped and re-added in `schema.sql`.
+
+**§70** App shell + Home + Customers + Settings built. Pipeline rules in `lib/pipeline.ts`. Card menus are flat (submenus close in jsdom and are fiddly on touch). `businesses` RLS was off; fixed.
