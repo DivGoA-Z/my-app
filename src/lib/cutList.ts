@@ -41,10 +41,11 @@
 //   full height and the back stops at the floor of the carcass; no left
 //   side → the bottom runs out to the left edge.
 //
-// KNOWN GAPS, surfaced as warnings rather than silently omitted
-// (Principle 10): drawer box parts (phase 3), glass panels (ordered cut
-// to size from a glass supplier), and the corner carousel's diagonal
-// front carcass (listed as a rectangular box).
+// Glass panels aren't board parts — they're ordered cut to size from a
+// glass supplier — so they're collected into CutList.glass, the order
+// sheet (§63). (This header used to list drawer boxes, glass and the
+// corner carousel as known gaps; all three are handled now — §56, §63,
+// §62.)
 
 import type { ExtraPart, MaterialType, PanelRole, PlacedCabinetItem } from '../types/cabinet';
 import { PANEL_ROLE_LABELS } from '../types/cabinet';
@@ -154,6 +155,23 @@ export interface CutList {
   groups: CutListGroup[];
   // Human-readable, one per known gap that affects THIS layout.
   warnings: string[];
+  // Glass panels to order cut to size from a glass supplier (§63) — not
+  // cut in the workshop, so not board parts, but part of the same job.
+  glass: GlassPiece[];
+}
+
+// One glass panel size to order (§63). Same size the quote prices glass
+// on (the front breakdown's glass panel). Thickness isn't recorded in the
+// app, so the order sheet leaves it for the business to fill in.
+export interface GlassPiece {
+  cabinetRef: string;
+  cabinetLabel: string;
+  name: string;
+  heightMm: number;
+  widthMm: number;
+  tint: string;
+  // Already multiplied by the cabinet's quantity.
+  quantity: number;
 }
 
 // computeFrontBreakdown needs rates to price hardware; the cutting list
@@ -210,7 +228,10 @@ export function cabinetCutParts(
   settings: ConstructionSettings,
   finishes: SurfaceFinish[],
   rates: Pick<RateCard, 'boards' | 'defaultBackBoardId'>,
-  warnings: string[]
+  warnings: string[],
+  // Collects this cabinet's glass panels for the order sheet (§63);
+  // pricing doesn't need them, so it's optional.
+  glassOut?: GlassPiece[]
 ): CutPart[] {
   const W = item.widthMm;
   const H = item.heightMm;
@@ -611,12 +632,17 @@ export function cabinetCutParts(
   // sheets, only a solid colour may — wood, stone and other patterns keep
   // their direction (stone veining too: the cautious choice).
   const frontGrainFixed = settings.frontsFrom === 'prelaminated' && finish?.patternCategory !== 'solid';
-  let glassCount = 0;
-  let glassTint: string | undefined;
   for (const panel of breakdown.panels) {
     if (panel.glassTint) {
-      glassCount++;
-      glassTint = GLASS_TINT_LABELS[panel.glassTint];
+      glassOut?.push({
+        cabinetRef,
+        cabinetLabel: label,
+        name: panel.kind === 'drawers' ? 'Glass drawer front' : 'Glass door',
+        heightMm: mm(panel.heightMm),
+        widthMm: mm(panel.widthMm),
+        tint: GLASS_TINT_LABELS[panel.glassTint],
+        quantity: q,
+      });
       continue;
     }
     if (!has('fronts') || isCarousel) continue;
@@ -649,11 +675,6 @@ export function cabinetCutParts(
       `${cabinetRef}: no ${MATERIAL_RATE_LABELS[item.material]} board on the rate card for its ${[...missing]
         .map((r) => PANEL_ROLE_LABELS[r].toLowerCase())
         .join(', ')} — listed at ${LEGACY_BOARD_THICKNESS_MM}mm and priced at ₹0. Add a board line or pick another board.`
-    );
-  }
-  if (glassCount > 0) {
-    warnings.push(
-      `${cabinetRef}: ${glassCount * q} glass panel${glassCount * q === 1 ? '' : 's'} (${glassTint}) not listed — order cut to size from the glass supplier.`
     );
   }
   if (isCarousel) addCarouselParts();
@@ -847,12 +868,13 @@ export function computeCutList(
   looseParts: ExtraPart[]
 ): CutList {
   const warnings: string[] = [];
+  const glass: GlassPiece[] = [];
   const parts = [
-    ...cabinets.flatMap((item, i) => cabinetCutParts(item, `C${i + 1}`, settings, finishes, rates, warnings)),
+    ...cabinets.flatMap((item, i) => cabinetCutParts(item, `C${i + 1}`, settings, finishes, rates, warnings, glass)),
     ...loosePartsCut(looseParts, rates, warnings),
   ];
 
-  return { parts, groups: groupCutParts(parts), warnings };
+  return { parts, groups: groupCutParts(parts), warnings, glass };
 }
 
 // The cutting list as frozen with a quote (§60): its parts and warnings,
@@ -863,14 +885,16 @@ export function computeCutList(
 export interface FrozenCutList {
   parts: CutPart[];
   warnings: string[];
+  // §63 — absent on lists frozen before the glass order existed.
+  glass?: GlassPiece[];
 }
 
 export function freezeCutList(cl: CutList): FrozenCutList {
-  return { parts: cl.parts.map((p) => ({ ...p, boxes: [] })), warnings: cl.warnings };
+  return { parts: cl.parts.map((p) => ({ ...p, boxes: [] })), warnings: cl.warnings, glass: cl.glass };
 }
 
 export function thawCutList(frozen: FrozenCutList): CutList {
-  return { parts: frozen.parts, groups: groupCutParts(frozen.parts), warnings: frozen.warnings };
+  return { parts: frozen.parts, groups: groupCutParts(frozen.parts), warnings: frozen.warnings, glass: frozen.glass ?? [] };
 }
 
 // Parts → their stacks of sheets (CutPart.stockKey), labelled and sorted.

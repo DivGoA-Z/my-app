@@ -138,6 +138,21 @@ function exportWorkbook(
     { name: 'By cabinet', headers: cabinetHeaders, rows: cabinetRows },
     { name: 'Summary', headers: summaryHeaders, rows: summaryRows },
     { name: 'Sheet layout', headers: layoutHeaders, rows: layoutRows },
+    // To send to the glass supplier (§63). Thickness is left blank: the
+    // app doesn't record it, so the business fills it in.
+    {
+      name: 'Glass order',
+      headers: ['Cabinet', 'Panel', 'Height (mm)', 'Width (mm)', 'Tint', 'Qty', 'Thickness (mm)'],
+      rows: cutList.glass.map((g) => ({
+        Cabinet: g.cabinetRef,
+        Panel: g.name,
+        'Height (mm)': g.heightMm,
+        'Width (mm)': g.widthMm,
+        Tint: g.tint,
+        Qty: g.quantity,
+        'Thickness (mm)': '',
+      })),
+    },
     { name: 'Construction', headers: ['Setting', 'Value'], rows: settingsRows(settings) },
     { name: 'Notes', headers: ['Note'], rows: notes },
   ]);
@@ -391,6 +406,47 @@ export function CutListView({
               </div>
             </section>
           ))}
+
+          {/* Glass to order (§63) — cut by the glass supplier, not the
+              workshop, so it isn't nested on sheets; same sizes the quote
+              prices glass on. */}
+          {cutList.glass.length > 0 && (
+            <section className="flex flex-col gap-1.5">
+              <div className="flex flex-wrap items-baseline gap-x-3">
+                <h3 className="text-xs font-semibold text-gray-800">Glass to order</h3>
+                <span className="text-[11px] text-gray-500">
+                  {cutList.glass.reduce((n, g) => n + g.quantity, 0)} panels — cut to size by your glass
+                  supplier. Thickness isn't recorded here; add it on the order.
+                </span>
+              </div>
+              <div className="overflow-x-auto rounded-md border border-gray-200">
+                <table className="w-full border-collapse text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50 text-gray-500">
+                      <th className="px-2 py-1.5 font-medium">Cabinet</th>
+                      <th className="px-2 py-1.5 font-medium">Panel</th>
+                      <th className="px-2 py-1.5 text-right font-medium">Height</th>
+                      <th className="px-2 py-1.5 text-right font-medium">Width</th>
+                      <th className="px-2 py-1.5 font-medium">Tint</th>
+                      <th className="px-2 py-1.5 text-right font-medium">Qty</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cutList.glass.map((g, i) => (
+                      <tr key={i} className="border-b border-gray-100">
+                        <td className="px-2 py-1 text-gray-500">{refLink(g.cabinetRef, g.cabinetLabel)}</td>
+                        <td className="px-2 py-1 text-gray-800">{g.name}</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{g.heightMm}</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{g.widthMm}</td>
+                        <td className="px-2 py-1">{g.tint}</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{g.quantity}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
           {cutList.warnings.length > 0 && (
             <div className="flex flex-col gap-1 rounded-md border border-gray-200 p-3">

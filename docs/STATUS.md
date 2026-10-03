@@ -328,6 +328,10 @@ and a second real-shade pendant catalogue option.
 - Board nesting, cutting list, hardware boring (Phase 4) — see
   Blocked, below.
 
+**New (§63): glass order sheet** — "Glass to order" on the Cutting List
+page and a Glass order tab in the export: cabinet, size, tint, qty, with
+a blank thickness column to fill in.
+
 **New (§62): corner carousel's real parts** — two returns, two backs,
 pentagon top/bottom, a diagonal door (503mm on a 900 unit, not ~894) —
 on the cutting list and price, matching the 3D shape.
@@ -367,7 +371,7 @@ board that was previously never charged.
 
 ## Tests
 
-**`npm test`** (Vitest) — 91 tests on pricing, the cutting list, nesting,
+**`npm test`** (Vitest) — 93 tests on pricing, the cutting list, nesting,
 panels and the catalogue importer, ~0.3s (§55). Run before trusting a
 change to any of those. UI still has no automated tests.
 

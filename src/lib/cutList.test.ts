@@ -176,6 +176,32 @@ describe('corner carousel (§62)', () => {
   });
 });
 
+describe('glass order (§63)', () => {
+  it('a glass door becomes an order line, not a board part or a warning', () => {
+    const cl = computeCutList(
+      [cabinet('wall-cabinet', 800, 350, 720, { frontLayout: { kind: 'double-door', glass: { tint: 'brown' } }, quantity: 2 })],
+      construction(),
+      [],
+      rates,
+      []
+    );
+    expect(cl.glass.map((g) => [g.heightMm, g.widthMm, g.quantity])).toEqual([[714, 395, 2], [714, 395, 2]]);
+    expect(cl.glass[0].tint).toContain('Brown');
+    expect(cl.parts.some((p) => p.kind === 'front')).toBe(false);
+    expect(cl.warnings.some((w) => w.includes('glass'))).toBe(false);
+  });
+  it('the glass order is frozen with a quote too', () => {
+    const live = computeCutList(
+      [cabinet('wall-cabinet', 600, 350, 720, { frontLayout: { kind: 'single-door', glass: { tint: 'clear' } } })],
+      construction(),
+      [],
+      rates,
+      []
+    );
+    expect(thawCutList(JSON.parse(JSON.stringify(freezeCutList(live)))).glass).toEqual(live.glass);
+  });
+});
+
 describe('freezing with a quote (§60)', () => {
   it('a frozen list drops 3D positions but regroups exactly as the live one', () => {
     const live = computeCutList(lShapedKitchen(), construction(), [], rates, []);

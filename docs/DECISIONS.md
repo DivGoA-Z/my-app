@@ -4976,3 +4976,20 @@ so they're listed as "not drawn here". Board cost changes accordingly
 (much smaller door, slightly bigger top/bottom, shorter returns).
 
 5 new tests (91).
+
+## 63. Glass order sheet
+
+Glass panels used to appear only as a warning ("2 glass panels not
+listed — order cut to size from the glass supplier"). They're now a
+proper order list, `CutList.glass` — one line per glass panel with its
+cabinet, height × width (the same front-breakdown size the quote prices
+glass on), tint and quantity — shown as **"Glass to order"** on the
+Cutting List page and as a **Glass order** tab in the Excel export, ready
+to send to the glass supplier. Glass isn't nested on sheets: the
+supplier cuts it. Frozen with a quote like the rest of the list
+(`FrozenCutList.glass`, absent on older frozen lists). Thickness isn't
+recorded anywhere in the app, so the export leaves a blank Thickness
+column for the business to fill in rather than guessing one. The cut
+list's header comment, which still listed drawer boxes, glass and the
+carousel as known gaps, is corrected — all three are now handled. 93
+tests.
