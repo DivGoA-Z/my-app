@@ -203,6 +203,8 @@ Obligations, not suggestions:
 - `docs/DECISIONS.md`: full archive of reasons and bug history.
 - `docs/PRINCIPLES.md`: what the product is trying to be, plus the
   roadmap.
+- `docs/AFTER_FIRST_CUSTOMERS.md` — work parked until a few customers
+  are onboarded, its principles, and the before-customer-#1 list.
 - `docs/STATUS.md`: snapshot for planning conversations outside the repo.
 - `docs/ISSUES.md` (open) / `docs/ISSUES-FIXED.md` (resolved, dated).
 - `docs/SUPABASE_SETUP.md`, `docs/SETUP_NEW_MACHINE.md`: environment.

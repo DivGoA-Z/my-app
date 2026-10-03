@@ -1,0 +1,84 @@
+# After the first customers
+
+Work deliberately parked until a few businesses (customers) are using
+the app. They are onboarded **by hand** first. Decided 3 Oct 2026: build
+for the businesses that exist, not for imagined ones.
+
+The **Before the first customer** section is the exception. It lists
+what has to be true before customer #1 is onboarded by hand.
+
+## Principles for this phase
+
+1. **Hand-onboard first, automate later.** Run the manual steps for the
+   first few customers and write down every step and every question
+   they ask. Self-serve sign-up then automates a process that's known to
+   work, rather than one that was guessed.
+2. **Each customer's feedback goes in `docs/ISSUES.md`, with who
+   reported it and the date.** What several customers ask for outranks
+   what one asks for, and both outrank what we guess.
+3. **No change to a customer's numbers without telling them.** A
+   pricing or cutting-list change alters live quotes for real
+   businesses now. Frozen quotes never change (CLAUDE.md), but open
+   ones do, and a release note is owed.
+4. **Data isolation is checked, not assumed.** Each business sees only
+   its own data (RLS). It was built for that but only ever ran with
+   one business, so prove it with two before relying on it.
+5. **Placeholders stay labelled.** A new business starts on the seeded
+   rates, and the amber banner stays until that business replaces them.
+6. **Shared things are opt-in.** Anything shared between businesses
+   (catalogue, presets) is a copy the business chooses, never live
+   data another business can change under it.
+
+## Before the first customer (needed for hand-onboarding)
+
+- [ ] **Starter catalogue for a new business.** The seed rows (finishes,
+      cabinets, handles, fixtures, appliances, obstacle presets) belong
+      to `biz_default` only. A business created by hand today starts
+      with an EMPTY catalogue (the rate card and Workshop settings fall
+      back to defaults in-app). We need a one-line SQL step that copies
+      the starter rows into a new business.
+- [ ] **A written hand-onboarding runbook** in `docs/SUPABASE_SETUP.md`:
+      create the business, its login and its membership, copy the
+      starter catalogue, and do a first sign-in check.
+- [ ] **Two-business isolation check** (principle 4). Sign in as each
+      business and confirm neither sees the other's customers, quotes,
+      catalogue, rates or uploaded files.
+- [ ] **Your own super-admin view.** As super admin you bypass RLS and
+      would see every business's data mixed together. Decide whether
+      that's acceptable or whether you need a "view as business X"
+      switch.
+
+## Parked until a few customers are onboarded
+
+- **Self-serve sign-up** and a first-run walkthrough for a new
+  business. Billing and SaaS pricing are an open decision
+  (`docs/PRINCIPLES.md`).
+- **Real rates.** Each business enters its own. Possibly a guided "set
+  your rates" step during onboarding.
+- **Shared / global catalogue toggle.** The shape is in
+  `docs/PRINCIPLES.md`; it needs real businesses to know what they'd
+  share.
+- **Carpenter validation of the cutting list.** Compare one real job's
+  parts and sheet count against what was actually cut, then confirm
+  Workshop settings. It can come from the first customer who has a
+  workshop.
+
+## Deliberately deferred
+
+- **Cabinet cutouts sized to placed appliances** (beyond the sink):
+  - a hob's cutout in the countertop
+  - a built-in oven or microwave opening in a tall unit
+- **Rectilinear (L/U-shaped) rooms**: §27. Rectangle plus pillars
+  covers most Delhi NCR kitchens.
+- **Hardware boring / CNC export**: drilling positions, DXF or
+  panel-saw formats, for workshops with machines.
+- **Offcut reuse across jobs and a board inventory.**
+- **Lighting**: `RectAreaLight` for strip lights (§5) and the `inside`
+  cabinet-light mount.
+- **Draco decoding** for smaller 3D models.
+
+## Not planned (decided)
+
+- **Accept/reject on the WhatsApp quote.** The quote goes out as a PDF
+  link and acceptance happens in conversation, which is how the trade
+  works. Decided 3 Oct 2026.

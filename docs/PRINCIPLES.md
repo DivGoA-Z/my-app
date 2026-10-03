@@ -415,25 +415,22 @@ The rules that matter, and still apply to any new importer:
   lists, glass order, printable sheets and labels (§41–§64).
 - Tests: 111, including screen tests (§55, §66).
 
-**Next, in order:**
-1. **Real-job validation.** Price a real project on the new real-area
-   pricing. Lower the placeholder labour rate to a total-area figure.
-   Compare one job's cutting list and sheet count with the carpenter,
-   then confirm Workshop settings.
-2. **Real rates** replacing placeholders. Deprioritised 28 Sep, but the
-   §42/§59 price changes make it more pressing. The amber banner stays
-   until then.
-3. **A second business**: self-serve or assisted onboarding, then the
-   shared catalogue toggle.
+**Next, in order** (revised 3 Oct 2026; there is no carpenter
+available yet, so real-job validation moves to after the first
+customers):
+1. **End-to-end walkthrough.** Build a new kitchen from scratch to
+   understand the whole app and check functionality and basic
+   calculations (not rates).
+2. **Browser tests** that script those flows.
+3. **Before the first customer** (`docs/AFTER_FIRST_CUSTOMERS.md`):
+   starter catalogue for a new business, hand-onboarding runbook,
+   two-business isolation check.
+4. Onboard the first few customers **by hand**.
 
-**Later / deferred:**
-- appliance-driven cabinet cutouts (beyond the sink)
-- rectilinear rooms (§27)
-- browser (Playwright) tests once a test login exists
-- hardware boring for CNC
-- `RectAreaLight` for strip lights (§5)
-- the `inside` cabinet-light mount
-- Draco decoding
+**Parked until a few customers are onboarded**, with the principles for
+that phase: `docs/AFTER_FIRST_CUSTOMERS.md`. This covers self-serve
+sign-up, real rates, the shared catalogue, carpenter validation and every
+deferred item that used to be listed here.
 
 ### Running alongside all of it
 

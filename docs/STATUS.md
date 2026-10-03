@@ -113,17 +113,14 @@ still checked by eye.
 
 ## Not built
 
-- **Self-serve sign-up** / onboarding a second business; billing.
-- **Shared catalogue toggle** (designed, waits for a second business).
-- **Real rates**: every seeded rate is a placeholder; the amber banner
-  stays.
-- **Cabinet cutouts sized to placed appliances** (only the sink cutout
-  exists).
-- **Rectilinear rooms**: deferred (§27).
-- **Hardware boring / CNC output.**
-- **Browser (Playwright) tests**: need a test login.
-- Draco decoding; `RectAreaLight` strips; the `inside` cabinet-light
-  mount.
+Everything parked for after the first customers (self-serve sign-up,
+real rates, shared catalogue, carpenter validation, appliance cutouts,
+rectilinear rooms, CNC, Draco and others) is listed in
+`docs/AFTER_FIRST_CUSTOMERS.md`, including what must be true **before**
+customer #1 is onboarded by hand (starter catalogue copy, runbook,
+two-business isolation check).
+
+Near term: browser (Playwright) tests, after your end-to-end walkthrough.
 
 ## Blocked
 
@@ -132,11 +129,12 @@ assumed settings, which is a check, not a blocker.
 
 ## Next
 
-1. Real-job validation: your to-dos above.
-2. Merge `charges-and-cutting-list` into `main` once it's been looked at
-   in the browser.
-3. Then the roadmap in `docs/PRINCIPLES.md` Part 2: real rates, then a
-   second business.
+1. **Your end-to-end walkthrough**: a new kitchen from scratch, checking
+   functionality and basic calculations (not rates). Anything found goes
+   in `docs/ISSUES.md`.
+2. Merge `charges-and-cutting-list` into `main`.
+3. Browser tests that script the walkthrough's flows.
+4. The "before the first customer" list in `docs/AFTER_FIRST_CUSTOMERS.md`.
 
 Open issues: none (`docs/ISSUES.md`). Fixed issues are logged in
 `docs/ISSUES-FIXED.md`.
