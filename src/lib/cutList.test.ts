@@ -31,11 +31,10 @@ describe('600×600×720 base unit, default construction', () => {
   it('grooved 6mm back is the inner opening plus 8mm each side', () => {
     expect(size(find(ps, 'Back'))).toEqual([700, 580, 6]);
   });
-  it('shutter is the face minus 3mm reveals, banded all round, grain fixed', () => {
+  it('shutter is the face minus 3mm reveals, banded all round', () => {
     const s = find(ps, 'Shutter');
     expect(size(s)).toEqual([714, 594, 18]);
     expect(s.edgeBanding).toEqual({ length: 2, width: 2 });
-    expect(s.grainFixed).toBe(true);
   });
 });
 
@@ -119,6 +118,32 @@ describe('panels, extra shelves, extra and loose parts', () => {
     const fronts = drawers.filter((p) => p.kind === 'front');
     expect(fronts).toHaveLength(3);
     expect(drawers.some((p) => p.name === 'Shutter')).toBe(false);
+  });
+});
+
+describe('where fronts are cut from (§57)', () => {
+  const finish = (patternCategory: 'solid' | 'wood') => [{ id: 'f', label: 'F', patternCategory }] as never;
+  const shutter = (frontsFrom: 'carcass-board' | 'prelaminated', pattern?: 'solid' | 'wood') =>
+    find(computeCutList([baseUnit({ finishId: 'f' })], construction({ frontsFrom }), pattern ? finish(pattern) : [], rates, []).parts, 'Shutter');
+
+  it('cut from the carcass board and laminated after: may turn, and shares the carcass stack', () => {
+    const s = shutter('carcass-board', 'wood');
+    expect(s.grainFixed).toBe(false);
+    expect(s.stockKey).toBe('board-hdmr-18');
+  });
+  it('pre-laminated wood grain: grain fixed, its own stack per finish', () => {
+    const s = shutter('prelaminated', 'wood');
+    expect(s.grainFixed).toBe(true);
+    expect(s.stockKey).toContain('|front|');
+  });
+  it('pre-laminated solid colour: may turn', () => {
+    expect(shutter('prelaminated', 'solid').grainFixed).toBe(false);
+  });
+  it('shared stock puts carcass and fronts in one group; pre-laminated splits them', () => {
+    const labels = (frontsFrom: 'carcass-board' | 'prelaminated') =>
+      computeCutList(lShapedKitchen(), construction({ frontsFrom }), [], rates, []).groups.map((g) => g.label);
+    expect(labels('carcass-board')).toEqual(['HDMR 18mm — carcass, fronts', 'HDMR 6mm — backs']);
+    expect(labels('prelaminated')).toHaveLength(3);
   });
 });
 

@@ -58,6 +58,7 @@ export async function saveConstructionSettings(
       railWidthMm: c.railWidthMm,
       shelfSetbackMm: c.shelfSetbackMm,
       drawerBox: c.drawerBox,
+      frontsFrom: c.frontsFrom,
       tandemBottomWidthDeductionMm: c.tandemBottomWidthDeductionMm,
       tandemBottomDepthDeductionMm: c.tandemBottomDepthDeductionMm,
       tandemBackWidthDeductionMm: c.tandemBackWidthDeductionMm,

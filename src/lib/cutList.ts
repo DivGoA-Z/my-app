@@ -114,6 +114,12 @@ export interface CutPart {
   // True: the part may NOT be rotated on the sheet (its length must run
   // along the sheet's grain). Phase 2's nesting reads this.
   grainFixed: boolean;
+  // Which physical stack of sheets this part is cut from (§57): the board
+  // line, plus the finish for a front cut from pre-laminated sheets. The
+  // cutting list groups by it and the nesting lays each stack out on its
+  // own sheets. Set where the part is made, from ConstructionSettings.
+  // frontsFrom, so grouping can't drift from that setting.
+  stockKey: string;
   // One box per piece in a SINGLE cabinet (not multiplied by the
   // cabinet's quantity) — see PartBox. Geometry only; pricing never
   // reads it.
@@ -288,8 +294,13 @@ export function cabinetCutParts(
     const widthMm = mm(part.widthMm);
     if (lengthMm <= 0 || widthMm <= 0 || part.quantity <= 0) return;
     const board: BoardRate | undefined = boardOverride ?? panels[role].board;
+    const boardKey = board?.id ?? `missing:${item.material}`;
     parts.push({
       ...part,
+      stockKey:
+        part.kind === 'front' && settings.frontsFrom === 'prelaminated'
+          ? `${boardKey}|front|${part.finish ?? ''}`
+          : boardKey,
       lengthMm,
       widthMm,
       role,
@@ -492,7 +503,13 @@ export function cabinetCutParts(
     }
   }
 
-  const finishLabel = describeFinish(resolveFinish(finishes, item.finishId));
+  const finish = resolveFinish(finishes, item.finishId);
+  const finishLabel = describeFinish(finish);
+  // Grain (§57): a front cut from plain board and laminated after has no
+  // grain at cutting time, so it may turn on the sheet. From pre-laminated
+  // sheets, only a solid colour may — wood, stone and other patterns keep
+  // their direction (stone veining too: the cautious choice).
+  const frontGrainFixed = settings.frontsFrom === 'prelaminated' && finish?.patternCategory !== 'solid';
   let glassCount = 0;
   let glassTint: string | undefined;
   for (const panel of breakdown.panels) {
@@ -510,7 +527,7 @@ export function cabinetCutParts(
       finish: finishLabel,
       quantity: q,
       edgeBanding: { length: 2, width: 2 },
-      grainFixed: true,
+      grainFixed: frontGrainFixed,
       boxes: [
         box(
           panel.centerXMm - panel.widthMm / 2,
@@ -702,6 +719,7 @@ function extraPartToCut(
     quantity,
     edgeBanding: { length: ep.edgeLong, width: ep.edgeShort },
     grainFixed: false,
+    stockKey: board?.id ?? `missing:${fallbackMaterial}`,
     boxes: [],
   };
 }
@@ -747,15 +765,13 @@ export function computeCutList(
     const key = groupKey(part);
     let group = byKey.get(key);
     if (!group) {
-      const kindLabel =
-        part.kind === 'front' ? `fronts, ${part.finish}` : part.kind === 'back' ? 'carcass back' : 'carcass';
       group = {
         key,
-        label: `${part.boardName} — ${kindLabel}`,
+        label: '',
         kind: part.kind,
         material: part.material,
         thicknessMm: part.thicknessMm,
-        finish: part.finish,
+        finish: part.kind === 'front' ? part.finish : undefined,
         parts: [],
         pieceCount: 0,
         areaSqM: 0,
@@ -768,6 +784,23 @@ export function computeCutList(
     group.areaSqM += partAreaSqM(part);
     group.edgeBandM += edgeBandMm(part) / 1000;
   }
+  // Labelled AFTER grouping, by everything the stack holds — since §57 one
+  // board's sheets can carry carcass parts, backs and fronts together
+  // ("HDMR 18mm — carcass, fronts"). A pre-laminated front stack is named
+  // by its finish. The group's `kind` is the most structural thing in it
+  // (carcass, else back, else front), which is what the list sorts on.
+  for (const g of byKey.values()) {
+    const kinds = new Set(g.parts.map((p) => p.kind));
+    g.kind = kinds.has('carcass') ? 'carcass' : kinds.has('back') ? 'back' : 'front';
+    const onlyFronts = kinds.size === 1 && kinds.has('front');
+    const what = onlyFronts
+      ? `fronts, ${g.finish}`
+      : (['carcass', 'back', 'front'] as CutPartKind[])
+          .filter((k) => kinds.has(k))
+          .map((k) => (k === 'carcass' ? 'carcass' : k === 'back' ? 'backs' : 'fronts'))
+          .join(', ');
+    g.label = `${g.parts[0].boardName} — ${what}`;
+  }
 
   const kindOrder: CutPartKind[] = ['carcass', 'back', 'front'];
   const groups = [...byKey.values()].sort(
@@ -776,8 +809,11 @@ export function computeCutList(
   return { parts, groups, warnings };
 }
 
-export function groupKey(p: Pick<CutPart, 'kind' | 'boardId' | 'boardName' | 'finish'>): string {
-  return [p.kind, p.boardId ?? p.boardName, p.finish ?? ''].join('|');
+// One group per physical stack of sheets — see CutPart.stockKey. (Until
+// §57 this was kind + board + finish, which always put backs and fronts
+// on sheets of their own even when cut from the carcass's own board.)
+export function groupKey(p: Pick<CutPart, 'stockKey'>): string {
+  return p.stockKey;
 }
 
 // Real area of ALL copies of one part row, in m².

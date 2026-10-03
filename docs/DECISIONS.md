@@ -4769,3 +4769,45 @@ a grooved back. (And my own hand arithmetic for the price was ₹1 off;
 the test had the exact figure.) 64 tests now, including tandem and
 wooden sizes, ready-made boxes, too-shallow cabinets, and wooden boxes
 in the geometry/overlap checks.
+
+## 57. Fronts cut from the carcass board by default; grain only where it really applies
+
+You confirmed fronts (all cabinet fronts — shutters, drawer/trolley/
+false fronts, tambours; not the room's doors and windows, which aren't
+cut in the workshop) are cut from the same board as the carcass and
+laminated after. New Workshop setting **"Fronts are cut from"**:
+- **Same board as the carcass, laminated after** (default): fronts share
+  that board's sheets with the carcass parts, and may turn on the sheet
+  — plain HDMR/MDF has no grain; the laminate's grain is lined up when
+  it's pressed on.
+- **Pre-laminated sheets**: fronts get their own sheets per finish, and
+  any patterned finish keeps its grain direction; only a solid colour
+  (`patternCategory: 'solid'`) may turn. Stone veining counts as
+  patterned — the cautious choice.
+
+**How**: each `CutPart` now carries a `stockKey` — which physical stack
+of sheets it's cut from (the board line, plus the finish for a
+pre-laminated front) — set where the part is made, from the setting.
+`groupKey` returns it, so the cutting list's groups, the nesting, the
+measured per-board waste and the consolidation all follow the setting
+without each re-deriving it. A side effect, deliberate: a back cut from
+the carcass's own board (an inset 18mm back) now shares its sheets too —
+before, `groupKey` included the part's kind, so backs and fronts always
+got sheets of their own even when cut from the same board. Groups are
+labelled by what they hold ("HDMR 18mm — carcass, fronts").
+
+**Measured on the test kitchen**: 12 sheets with fronts on the carcass
+board (9 of HDMR 18mm carcass + fronts, 3 of 6mm backs) vs 13
+pre-laminated (7 + 3 + 3) — one sheet saved, drawer boxes included.
+
+**Your other question — does a drawer reduce the front?** No double
+counting either way. The drawer FRONTS are the cabinet's front: three
+594×236 drawer fronts (0.421 m²) replace one 594×714 door (0.424 m²);
+the small difference is the reveal gaps. The drawer BOXES sit inside,
+behind the fronts — extra board, never a replacement for any front
+area. Price and cutting list come from the same breakdown, so they
+agree. (Pinned by a test: a drawer unit has three fronts and no shutter.)
+
+Four tests failed when this landed, correctly — they had pinned the old
+grain-always and fronts-on-own-sheets behaviour. They now pin both
+settings: 68 tests.

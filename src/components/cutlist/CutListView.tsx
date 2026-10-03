@@ -33,6 +33,7 @@ import {
   BACK_FIT_LABELS,
   BOTTOM_FIT_LABELS,
   DEPTH_CONVENTION_LABELS,
+  FRONTS_FROM_LABELS,
   TOP_FIT_LABELS,
   type ConstructionSettings,
 } from '../../types/construction';
@@ -49,6 +50,7 @@ function settingsRows(s: ConstructionSettings): Record<string, string | number>[
     { Setting: 'Back panel', Value: BACK_FIT_LABELS[s.backFit] },
     { Setting: 'Groove depth (mm)', Value: s.backFit === 'grooved' ? s.grooveDepthMm : '—' },
     { Setting: 'Rail width (mm)', Value: s.railWidthMm },
+    { Setting: 'Fronts cut from', Value: FRONTS_FROM_LABELS[s.frontsFrom] },
     { Setting: 'Shelf setback (mm)', Value: s.shelfSetbackMm },
   ];
 }

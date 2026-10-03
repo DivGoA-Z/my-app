@@ -30,6 +30,7 @@ import {
   BOTTOM_FIT_LABELS,
   DEPTH_CONVENTION_LABELS,
   DRAWER_BOX_LABELS,
+  FRONTS_FROM_LABELS,
   TOP_FIT_LABELS,
   type ConstructionSettings,
 } from '../../types/construction';
@@ -238,6 +239,14 @@ export function ConstructionSettingsManager() {
           labels={BACK_FIT_LABELS}
           onChange={(v) => set('backFit', v)}
           disabled={locked}
+        />
+        <ChoiceField
+          label="Fronts are cut from"
+          value={draft.frontsFrom}
+          labels={FRONTS_FROM_LABELS}
+          onChange={(v) => set('frontsFrom', v)}
+          disabled={locked}
+          help="From the carcass board: fronts share its sheets and can turn (laminate goes on after). Pre-laminated: fronts get their own sheets per finish, and wood/stone patterns keep their grain."
         />
         <ChoiceField
           label="Drawer boxes"

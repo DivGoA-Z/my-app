@@ -12,7 +12,10 @@ import { construction, lShapedKitchen } from '../test/fixtures';
 
 const cut = { kerfMm: 4, trimMm: 10 };
 const groups = computeCutList(lShapedKitchen(), construction(), [], defaultRateCard(), []).groups;
-const carcass = groups.find((g) => g.label.startsWith('HDMR 18mm — carcass'))!.parts;
+// Carcass parts alone (fronts on their own sheets), so the size-choice
+// tests aren't muddied by tall shutters.
+const carcass = computeCutList(lShapedKitchen(), construction({ frontsFrom: 'prelaminated' }), [], defaultRateCard(), [])
+  .groups.find((g) => g.label === 'HDMR 18mm — carcass')!.parts;
 
 function assertValid(r: NestResult, parts: CutPart[], sizes: { lengthMm: number; widthMm: number }[]) {
   const expected = parts.reduce((t, p) => t + p.quantity, 0);
@@ -41,9 +44,11 @@ describe('nesting on 8×4 sheets', () => {
   it('every board group of the test kitchen lays out validly', () => {
     for (const g of groups) assertValid(nestParts(g.parts, sizes, cut), g.parts, sizes);
   });
-  it('the test kitchen needs 13 sheets in all (7 carcass, 3 backs, 3 fronts)', () => {
-    const counts = groups.map((g) => nestParts(g.parts, sizes, cut).sheets.length);
-    expect(counts.reduce((a, b) => a + b, 0)).toBe(13);
+  it('the test kitchen: 12 sheets with fronts on the carcass board, 13 pre-laminated (§57)', () => {
+    const total = (gs: typeof groups) => gs.reduce((t, g) => t + nestParts(g.parts, sizes, cut).sheets.length, 0);
+    expect(total(groups)).toBe(12);
+    const pre = computeCutList(lShapedKitchen(), construction({ frontsFrom: 'prelaminated' }), [], defaultRateCard(), []).groups;
+    expect(total(pre)).toBe(13);
   });
   it('a part too big for the sheet is reported, never dropped', () => {
     const big = { ...carcass[0], lengthMm: 2500, widthMm: 300, quantity: 1 };

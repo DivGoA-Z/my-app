@@ -66,6 +66,17 @@ export type BackFit = 'grooved' | 'nailed-on' | 'inset-full';
 // fields on ConstructionSettings.
 export type DrawerBox = 'tandem' | 'wooden';
 
+// Where fronts (shutters, drawer fronts…) are cut from (§57).
+//   'carcass-board' → the same plain board as the carcass, laminated
+//                     after cutting: fronts share sheets with carcass
+//                     parts of that board, and can turn on the sheet
+//                     (plain HDMR/MDF has no grain; the laminate's grain
+//                     is lined up when it's pressed on). Your answer.
+//   'prelaminated'  → sheets already laminated: fronts get their own
+//                     sheets per finish, and a patterned finish keeps
+//                     its grain direction (only a solid colour can turn).
+export type FrontsFrom = 'carcass-board' | 'prelaminated';
+
 export interface ConstructionSettings {
   id: string;
   // (carcassThicknessMm and backThicknessMm lived here in §41. Removed in
@@ -84,6 +95,7 @@ export interface ConstructionSettings {
   // door closes past them.
   shelfSetbackMm: number;
   drawerBox: DrawerBox;
+  frontsFrom: FrontsFrom;
   // ---- Drawer box sizing (§56) ----
   // Defaults follow the common tandem-box rules of thumb; every brand
   // publishes its own, so a workshop sets these once from its system's
@@ -142,6 +154,7 @@ export const DEFAULT_CONSTRUCTION: Omit<ConstructionSettings, 'id' | 'createdAt'
   railWidthMm: 100,
   shelfSetbackMm: 20,
   drawerBox: 'tandem',
+  frontsFrom: 'carcass-board',
   tandemBottomWidthDeductionMm: 75,
   tandemBottomDepthDeductionMm: 10,
   tandemBackWidthDeductionMm: 87,
@@ -189,6 +202,11 @@ export const DEPTH_CONVENTION_LABELS: Record<DepthConvention, string> = {
   'carcass-only': 'Carcass only (600 = carcass, shutter adds in front)',
 };
 
+export const FRONTS_FROM_LABELS: Record<FrontsFrom, string> = {
+  'carcass-board': 'Same board as the carcass, laminated after',
+  prelaminated: 'Pre-laminated sheets (own sheets per finish)',
+};
+
 export const DRAWER_BOX_LABELS: Record<DrawerBox, string> = {
   tandem: 'Tandem / metal-sided (cut bottom + back only)',
   wooden: 'Wooden box (cut all sides + bottom)',
@@ -221,6 +239,7 @@ export function sanitizeConstruction(s: Partial<ConstructionSettings> & { id: st
     railWidthMm: positive(s.railWidthMm, d.railWidthMm),
     shelfSetbackMm: nonNegative(s.shelfSetbackMm, d.shelfSetbackMm),
     drawerBox: pick(s.drawerBox, DRAWER_BOXES, d.drawerBox),
+    frontsFrom: s.frontsFrom === 'prelaminated' ? 'prelaminated' : 'carcass-board',
     tandemBottomWidthDeductionMm: nonNegative(s.tandemBottomWidthDeductionMm, d.tandemBottomWidthDeductionMm),
     tandemBottomDepthDeductionMm: nonNegative(s.tandemBottomDepthDeductionMm, d.tandemBottomDepthDeductionMm),
     tandemBackWidthDeductionMm: nonNegative(s.tandemBackWidthDeductionMm, d.tandemBackWidthDeductionMm),
