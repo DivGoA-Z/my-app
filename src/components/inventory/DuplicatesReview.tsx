@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { CopyCheck, X } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
+import { Checkbox } from '../ui/checkbox';
 import { useLayoutStore } from '../../store/layoutStore';
 import { confirmDialog } from '../../store/confirmDialogStore';
 import {
@@ -82,6 +83,38 @@ function useDuplicateGroups(): Group[] {
   ];
 }
 
+// One group: move every reference onto `keep`, then remove the copies.
+async function mergeGroup(g: Group, keep: string): Promise<void> {
+  const removed = g.entries.map((e) => e.id).filter((id) => id !== keep);
+  const s = useLayoutStore.getState();
+  // 1. Move references: saved designs, then the open design in memory
+  //    (so autosave can't write the old ids back), then catalogue rows.
+  await repointDesigns(g.kind, removed, keep);
+  const gone = new Set(removed);
+  if (g.kind === 'handles') {
+    const next = rewriteColumn('handles', s.cabinets as unknown as Record<string, unknown>[], gone, keep);
+    if (next) useLayoutStore.setState({ cabinets: next as unknown as typeof s.cabinets });
+    for (const row of s.cabinetCatalog.filter((c) => c.handleId && gone.has(c.handleId))) {
+      await s.upsertCabinetCatalogItem({ ...row, handleId: keep });
+    }
+  } else if (g.kind === 'appliances') {
+    const next = rewriteColumn('appliances', s.appliances as unknown as Record<string, unknown>[], gone, keep);
+    if (next) useLayoutStore.setState({ appliances: next as unknown as typeof s.appliances });
+  } else if (g.kind === 'fixtures' && s.currentLayout?.fixtures) {
+    const next = rewriteColumn('fixtures', s.currentLayout.fixtures as unknown as Record<string, unknown>[], gone, keep);
+    if (next) useLayoutStore.setState({ currentLayout: { ...s.currentLayout, fixtures: next as unknown as typeof s.currentLayout.fixtures } });
+  }
+  // 2. Only then remove the copies.
+  for (const id of removed) {
+    if (g.kind === 'handles') await s.removeHandle(id);
+    else if (g.kind === 'fixtures') await s.removeFixtureCatalogItem(id);
+    else if (g.kind === 'appliances') await s.removeApplianceCatalogItem(id);
+    else if (g.kind === 'cabinets') await s.removeCabinetCatalogItem(id);
+    else await s.removeObstaclePreset(id);
+  }
+}
+
+
 export function DuplicatesBanner() {
   const groups = useDuplicateGroups();
   const [open, setOpen] = useState(false);
@@ -115,6 +148,8 @@ function ReviewPanel({ groups, onClose }: { groups: Group[]; onClose: () => void
   const [loadError, setLoadError] = useState<string | null>(null);
   const [picked, setPicked] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  // Groups left out of Merge all (the tick on each group).
+  const [excluded, setExcluded] = useState<Set<string>>(new Set());
   // Bumped after a merge, to read usage again.
   const [reload, setReload] = useState(0);
 
@@ -146,41 +181,13 @@ function ReviewPanel({ groups, onClose }: { groups: Group[]; onClose: () => void
   };
   const keepOf = (g: Group) => picked[`${g.kind}|${g.key}`] ?? suggested(g);
 
-  async function mergeGroup(g: Group): Promise<void> {
-    const keep = keepOf(g);
-    const removed = g.entries.map((e) => e.id).filter((id) => id !== keep);
-    const s = useLayoutStore.getState();
-    // 1. Move references: saved designs, then the open design in memory
-    //    (so autosave can't write the old ids back), then catalogue rows.
-    await repointDesigns(g.kind, removed, keep);
-    const gone = new Set(removed);
-    if (g.kind === 'handles') {
-      const next = rewriteColumn('handles', s.cabinets as unknown as Record<string, unknown>[], gone, keep);
-      if (next) useLayoutStore.setState({ cabinets: next as unknown as typeof s.cabinets });
-      for (const row of s.cabinetCatalog.filter((c) => c.handleId && gone.has(c.handleId))) {
-        await s.upsertCabinetCatalogItem({ ...row, handleId: keep });
-      }
-    } else if (g.kind === 'appliances') {
-      const next = rewriteColumn('appliances', s.appliances as unknown as Record<string, unknown>[], gone, keep);
-      if (next) useLayoutStore.setState({ appliances: next as unknown as typeof s.appliances });
-    } else if (g.kind === 'fixtures' && s.currentLayout?.fixtures) {
-      const next = rewriteColumn('fixtures', s.currentLayout.fixtures as unknown as Record<string, unknown>[], gone, keep);
-      if (next) useLayoutStore.setState({ currentLayout: { ...s.currentLayout, fixtures: next as unknown as typeof s.currentLayout.fixtures } });
-    }
-    // 2. Only then remove the copies.
-    for (const id of removed) {
-      if (g.kind === 'handles') await s.removeHandle(id);
-      else if (g.kind === 'fixtures') await s.removeFixtureCatalogItem(id);
-      else if (g.kind === 'appliances') await s.removeApplianceCatalogItem(id);
-      else if (g.kind === 'cabinets') await s.removeCabinetCatalogItem(id);
-      else await s.removeObstaclePreset(id);
-    }
-  }
+  const gidOf = (g: Group) => `${g.kind}|${g.key}`;
+  const differs = (g: Group) => new Set(g.entries.map((e) => e.detail.replace(' · the default handle', ''))).size > 1;
 
-  async function runMerge(list: Group[], label: string) {
+  async function confirmMerge(list: Group[], label: string): Promise<boolean> {
     const copies = list.reduce((n, g) => n + g.entries.length - 1, 0);
-    const differing = list.filter((g) => new Set(g.entries.map((e) => e.detail.replace(' · the default handle', ''))).size > 1).length;
-    const ok = await confirmDialog({
+    const differing = list.filter(differs).length;
+    return confirmDialog({
       title: label,
       description: `${copies} ${copies === 1 ? 'copy' : 'copies'} will be removed. Cabinets, designs and catalogue rows using them switch to the copy you keep. Frozen quotes don't change. This can't be undone.${
         differing ? ` ${differing} ${differing === 1 ? 'group has' : 'groups have'} copies with different prices or sizes: check the kept one in ${differing === 1 ? 'it' : 'each'} first.` : ''
@@ -188,14 +195,16 @@ function ReviewPanel({ groups, onClose }: { groups: Group[]; onClose: () => void
       confirmLabel: 'Merge',
       destructive: false,
     });
-    if (!ok) return;
-    setBusy(list.length === 1 ? `${list[0].kind}|${list[0].key}` : 'all');
+  }
+
+  async function mergeOne(g: Group) {
+    if (!(await confirmMerge([g], `Merge ${g.entries.length} copies of "${g.entries[0].label}"?`))) return;
+    setBusy(gidOf(g));
     try {
-      for (const g of list) await mergeGroup(g);
-      toast.success(list.length === 1 ? 'Merged' : `Merged ${list.length} groups`);
+      await mergeGroup(g, keepOf(g));
+      toast.success('Merged');
       setLayouts(null);
       setReload((n) => n + 1); // re-read usage
-      if (list.length === groups.length) onClose();
     } catch (err) {
       toast.error('Merge stopped part-way', {
         description: `${err instanceof Error ? err.message : 'Unknown error'}. Nothing was left pointing at a removed item; try again.`,
@@ -204,6 +213,27 @@ function ReviewPanel({ groups, onClose }: { groups: Group[]; onClose: () => void
       setBusy(null);
     }
   }
+
+  // Merge all (your request, 4 Oct): the picks are fixed, the panel
+  // closes at once, and the work runs in the background behind ONE
+  // notice — rather than the panel showing groups vanish one by one.
+  async function mergeSelected() {
+    const list = groups.filter((g) => !excluded.has(gidOf(g)));
+    if (list.length === 0) return;
+    if (!(await confirmMerge(list, `Merge ${list.length} ${list.length === 1 ? 'group' : 'groups'} with the picks shown?`))) return;
+    const plan = list.map((g) => ({ g, keep: keepOf(g) }));
+    onClose();
+    const run = async () => {
+      for (const { g, keep } of plan) await mergeGroup(g, keep);
+    };
+    toast.promise(run(), {
+      loading: `Merging ${plan.length} ${plan.length === 1 ? 'group' : 'groups'}…`,
+      success: `Merged ${plan.length} ${plan.length === 1 ? 'group' : 'groups'}`,
+      error: (err) =>
+        `Merge stopped part-way: ${err instanceof Error ? err.message : 'unknown error'}. Nothing was left pointing at a removed item; review again to finish.`,
+    });
+  }
+
 
   const kinds = (Object.keys(KIND_TITLES) as DuplicateKind[]).filter((k) => groups.some((g) => g.kind === k));
 
@@ -234,7 +264,7 @@ function ReviewPanel({ groups, onClose }: { groups: Group[]; onClose: () => void
                 {groups
                   .filter((g) => g.kind === kind)
                   .map((g) => {
-                    const gid = `${g.kind}|${g.key}`;
+                    const gid = gidOf(g);
                     const keep = keepOf(g);
                     return (
                       <article key={gid} className="flex flex-col gap-2 rounded-2xl bg-card p-4 shadow-card">
@@ -244,7 +274,7 @@ function ReviewPanel({ groups, onClose }: { groups: Group[]; onClose: () => void
                             {/* Same name doesn't mean same item: flag copies
                                 whose price or size differ, so a merge never
                                 quietly picks the wrong price. */}
-                            {new Set(g.entries.map((e) => e.detail.replace(' · the default handle', ''))).size > 1 && (
+                            {differs(g) && (
                               <span className="inline-flex h-6 items-center rounded-full bg-warning-soft px-2.5 text-xs font-semibold text-warning-foreground">
                                 Copies differ, check the one kept
                               </span>
@@ -252,12 +282,27 @@ function ReviewPanel({ groups, onClose }: { groups: Group[]; onClose: () => void
                           </span>
                           <Button
                             size="touch"
-                            onClick={() => runMerge([g], `Merge ${g.entries.length} copies of "${g.entries[0].label}"?`)}
+                            onClick={() => mergeOne(g)}
                             disabled={!!busy || !layouts}
                           >
                             {busy === gid ? 'Merging…' : 'Merge'}
                           </Button>
                         </div>
+                        <label className="flex w-fit items-center gap-2 text-sm font-medium text-muted-foreground">
+                          <Checkbox
+                            checked={!excluded.has(gid)}
+                            disabled={!!busy}
+                            onCheckedChange={(c) =>
+                              setExcluded((prev) => {
+                                const next = new Set(prev);
+                                if (c === true) next.delete(gid);
+                                else next.add(gid);
+                                return next;
+                              })
+                            }
+                          />
+                          Include in Merge all
+                        </label>
                         <div role="radiogroup" aria-label={`Keep which copy of ${g.entries[0].label}`} className="flex flex-col gap-1.5">
                           {g.entries.map((e) => {
                             const u = usage(g, e.id);
@@ -308,14 +353,10 @@ function ReviewPanel({ groups, onClose }: { groups: Group[]; onClose: () => void
 
           <footer className="flex flex-wrap items-center gap-2 border-t border-border bg-card px-5 py-4 sm:rounded-bl-3xl sm:px-6">
             <span className="min-w-0 flex-1 text-[13px] text-muted-foreground">
-              Suggested picks: the default handle, else the most used copy, else the oldest.
+              Suggested picks: the default handle, else the most used copy, else the oldest. Untick a group to leave it out.
             </span>
-            <Button
-              size="touch"
-              onClick={() => runMerge(groups, `Merge all ${groups.length} groups with the picks shown?`)}
-              disabled={!!busy || !layouts}
-            >
-              {busy === 'all' ? 'Merging…' : `Merge all ${groups.length}`}
+            <Button size="touch" onClick={mergeSelected} disabled={!!busy || !layouts || excluded.size >= groups.length}>
+              {excluded.size === 0 ? `Merge all ${groups.length}` : `Merge ${groups.length - excluded.size} selected`}
             </Button>
           </footer>
         </DialogPrimitive.Content>

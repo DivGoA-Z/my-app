@@ -52,3 +52,36 @@ describe('Possible duplicates', () => {
     expect(calls).toEqual([`repoint handles h-copy -> ${DEFAULT_HANDLE_ID}`, 'delete h-copy']);
   });
 });
+
+describe('Merge selected', () => {
+  it('closes the panel at once and merges only the ticked groups', async () => {
+    const user = userEvent.setup();
+    calls.length = 0;
+    const removeHandle = vi.fn(async (id: string) => {
+      calls.push(`delete ${id}`);
+    });
+    resetStore({
+      handles: [
+        handle('a1', 'Knob 30mm'), handle('a2', 'knob 30mm'),
+        handle('b1', 'Bar 192mm'), handle('b2', 'BAR 192MM'),
+      ],
+      removeHandle,
+    });
+    const confirmModule = await import('../../store/confirmDialogStore');
+    vi.spyOn(confirmModule, 'confirmDialog').mockResolvedValue(true);
+
+    render(<DuplicatesBanner />);
+    await user.click(screen.getByRole('button', { name: 'Review' }));
+    const dialog = await screen.findByRole('dialog');
+    await vi.waitFor(() => expect(within(dialog).getAllByText(/Not used anywhere|Used:/).length).toBeGreaterThan(0));
+
+    // Leave the "Bar 192mm" group out.
+    const boxes = within(dialog).getAllByRole('checkbox', { name: 'Include in Merge all' });
+    await user.click(boxes[0]);
+    await user.click(within(dialog).getByRole('button', { name: 'Merge 1 selected' }));
+
+    await vi.waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await vi.waitFor(() => expect(removeHandle).toHaveBeenCalledTimes(1));
+    expect(calls.filter((c) => c.startsWith('delete'))).toHaveLength(1);
+  });
+});

@@ -5604,3 +5604,15 @@ noted here.
 
 Also: Rate card and Workshop now use the full page width, like the
 other sidebar pages (they were capped at 5xl and 3xl).
+
+**Follow-up (4 Oct, your request):**
+- **"Merge all" closes the panel at once** and runs in the background
+  behind one notice ("Merging 58 groups…", then "Merged 58 groups"),
+  instead of showing groups vanish one by one. The picks are fixed
+  before the panel closes, and `mergeGroup` is now module-level so it
+  doesn't depend on the panel staying open.
+- **Each group has an "Include in Merge all" tick**, on by default; the
+  button reads "Merge N selected" when any are unticked.
+- A single group's Merge still runs inside the panel. A test covers
+  unticking one group: the panel closes and only the ticked group
+  merges.
