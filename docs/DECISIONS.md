@@ -5277,3 +5277,31 @@ cutting list without going through the editor. It's the workshop's way
 in. The editor's own link stays.
 
 Not seen in a browser yet.
+
+## 72. Production page (the workshop's view)
+
+You agreed to a page for the workshop. It's called **Production** in
+the sidebar, not "Workshop": Settings already has a Workshop tab (the
+construction rules), and two different things called Workshop would
+confuse.
+
+The page lists every Approved and In-production job, soonest install
+date first, grouped "In production" then "Approved, not started". Each
+row has:
+- **Cutting list**, which opens the job's cutting list with print,
+  labels, glass order and Excel
+- the install date, highlighted if it's missing or past
+- one button to move the job along: Start production → Mark installed
+
+The cutting list's Back now returns to wherever it was opened from:
+the design, Customers or Production (`cutListReturn`). The phone tab bar
+now has five items.
+
+Also explained on review: **the two Cabinet Designers are one screen
+with two scopes**. From a catalogue row it edits the template that
+future cabinets start from; from a placed cabinet it edits that cabinet
+in that kitchen only. Today the scope shows only as small grey text
+under the title. When the Designer is rebuilt it gets a coloured banner
+naming the scope.
+
+1 test (123).

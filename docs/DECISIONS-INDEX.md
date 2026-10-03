@@ -306,3 +306,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§70** App shell + Home + Customers + Settings built. Pipeline rules in `lib/pipeline.ts`. Card menus are flat (submenus close in jsdom and are fiddly on touch). `businesses` RLS was off; fixed.
 
 **§71** Catalogue = `CatalogueSection` frames, most-used-first order, help behind "How this works"; sidebar sub-list with scroll-spy; cutting list reachable from a customer card.
+
+**§72** Production page (approved + in-production jobs; cutting list, install date, move along). Named Production to avoid clashing with Settings → Workshop. Cabinet Designer needs a scope banner when rebuilt.

@@ -80,3 +80,21 @@ describe('Customers', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
+
+describe('Production', () => {
+  it('lists approved and in-production jobs and moves them along', async () => {
+    const user = userEvent.setup();
+    resetStore();
+    const { ProductionPage } = await import('../production/ProductionPage');
+    const onOpenCutList = vi.fn();
+    render(<ProductionPage onOpenCutList={onOpenCutList} onOpenDesign={() => {}} />);
+    expect(await screen.findByText('Customer b')).toBeInTheDocument();
+    expect(screen.getByText('Customer c')).toBeInTheDocument();
+    expect(screen.queryByText('Customer a')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Start production' }));
+    expect(updateCustomerStatus).toHaveBeenCalledWith('b', { status: 'In Production' });
+    await user.click(screen.getAllByRole('button', { name: /Cutting list/ })[0]);
+    expect(onOpenCutList).toHaveBeenCalled();
+  });
+});

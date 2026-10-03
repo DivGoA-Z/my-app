@@ -11,7 +11,7 @@
 // its own top bar and a back button to Customers.
 
 import type { ReactNode } from 'react';
-import { Home, Users, LayoutGrid, Settings, LogOut } from 'lucide-react';
+import { Home, Users, Hammer, LayoutGrid, Settings, LogOut } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import {
   CATALOGUE_SECTIONS,
@@ -20,11 +20,12 @@ import {
 } from '../inventory/catalogueSections';
 import { cn } from '@/lib/utils';
 
-export type ShellPage = 'home' | 'customers' | 'catalogue' | 'settings';
+export type ShellPage = 'home' | 'customers' | 'production' | 'catalogue' | 'settings';
 
 const NAV: { page: ShellPage; label: string; Icon: typeof Home }[] = [
   { page: 'home', label: 'Home', Icon: Home },
   { page: 'customers', label: 'Customers', Icon: Users },
+  { page: 'production', label: 'Production', Icon: Hammer },
   { page: 'catalogue', label: 'Catalogue', Icon: LayoutGrid },
   { page: 'settings', label: 'Settings', Icon: Settings },
 ];
@@ -128,7 +129,7 @@ export function AppShell({
 
       <nav
         aria-label="Main"
-        className="fixed inset-x-0 bottom-0 z-40 grid h-[76px] grid-cols-4 border-t border-border bg-card pb-2 md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 grid h-[76px] grid-cols-5 border-t border-border bg-card pb-2 md:hidden"
       >
         {NAV.map(({ page: p, label, Icon }) => (
           <button

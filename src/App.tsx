@@ -36,6 +36,7 @@ import { CabinetDesignerPage, type DesignerTarget } from './components/designer/
 import { AppShell, PageHeader, type ShellPage } from './components/shell/AppShell';
 import { HomePage } from './components/home/HomePage';
 import { CustomersPage } from './components/customers/CustomersPage';
+import { ProductionPage } from './components/production/ProductionPage';
 import { SettingsPage, type SettingsTab } from './components/settings/SettingsPage';
 import { useLayoutStore } from './store/layoutStore';
 import { useAuthStore } from './store/authStore';
@@ -61,6 +62,7 @@ const DEFAULT_ROOM_DEPTH_MM = 4000;
 type View =
   | 'home'
   | 'customers'
+  | 'production'
   | 'catalogue'
   | 'settings'
   | 'canvas'
@@ -86,6 +88,9 @@ function App() {
   // Which frozen quote's cutting list to open on (§60); undefined = the
   // live design.
   const [cutListQuoteId, setCutListQuoteId] = useState<string | undefined>(undefined);
+  // Where the cutting list's Back goes: the design, or the Customers /
+  // Production page it was opened from (§72).
+  const [cutListReturn, setCutListReturn] = useState<View>('canvas');
   // Which catalog section to scroll to when the inventory screen opens —
   // set by whichever toolbar's "Manage" button was clicked, undefined
   // for the dashboard's generic "Manage Inventory" button.
@@ -198,6 +203,15 @@ function App() {
     setView('catalogue');
   }
 
+  // A job's cutting list straight from Customers or Production (§71-72),
+  // without going through the editor.
+  function openJobCutList(projectId: string) {
+    loadProject(projectId);
+    setCutListQuoteId(undefined);
+    setCutListReturn(view);
+    setView('cutlist');
+  }
+
   function navigate(page: ShellPage) {
     setPreviousView(page);
     if (page === 'settings') setSettingsTab('rates');
@@ -237,7 +251,7 @@ function App() {
       <CutListView
         key={cutListQuoteId ?? 'current'}
         initialQuoteId={cutListQuoteId}
-        onClose={() => setView('canvas')}
+        onClose={() => setView(cutListReturn)}
         onOpenWorkshop={() => {
           setPreviousView('cutlist');
           setView('workshop');
@@ -279,22 +293,20 @@ function App() {
         <Room3DCanvas widthMm={roomWidthMm} depthMm={roomDepthMm} />
       </div>
     );
-  } else if (view === 'catalogue' || view === 'home' || view === 'customers' || view === 'settings') {
+  } else if (
+    view === 'catalogue' ||
+    view === 'home' ||
+    view === 'customers' ||
+    view === 'production' ||
+    view === 'settings'
+  ) {
     content = (
       <AppShell page={view} onNavigate={navigate}>
         {view === 'home' && (
           <HomePage onOpenDesign={handleOpenCanvas} onNavigate={(p) => navigate(p)} />
         )}
-        {view === 'customers' && (
-          <CustomersPage
-            onOpenDesign={handleOpenCanvas}
-            onOpenCutList={(projectId) => {
-              loadProject(projectId);
-              setCutListQuoteId(undefined);
-              setView('cutlist');
-            }}
-          />
-        )}
+        {view === 'customers' && <CustomersPage onOpenDesign={handleOpenCanvas} onOpenCutList={openJobCutList} />}
+        {view === 'production' && <ProductionPage onOpenDesign={handleOpenCanvas} onOpenCutList={openJobCutList} />}
         {view === 'settings' && <SettingsPage key={settingsTab} initialTab={settingsTab} />}
         {view === 'catalogue' && (
           <div className="flex flex-col gap-5 px-4 py-6 md:px-8 lg:px-10 lg:py-8">
@@ -356,6 +368,7 @@ function App() {
           size="sm"
           onClick={() => {
             setCutListQuoteId(undefined);
+            setCutListReturn('canvas');
             setView('cutlist');
           }}
         >
@@ -487,6 +500,7 @@ function App() {
           <QuoteSidebar
             onOpenCutList={(quoteId) => {
               setCutListQuoteId(quoteId);
+              setCutListReturn('canvas');
               setView('cutlist');
             }}
           />
