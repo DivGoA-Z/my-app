@@ -4947,3 +4947,32 @@ array; the project override wins; a carcass-only countertop is
 600+40 × 18mm larger; the override reaches the cutting list. Not seen
 in a browser — dragging and the 3D view under "carcass only" are worth
 a look.
+
+## 62. Corner carousel: its real parts on the cutting list and price
+
+You pointed out the 3D view already draws the carousel's diagonal front.
+It did — but the cutting list and price still treated it as the plain
+rectangular box (two full-depth sides, one back, a full-width door), and
+said so in a warning. Now the parts match the 3D shape (the same 0.4
+corner cut as `cornerCarouselGeometry`): the W×D square with its
+front-right corner cut diagonally.
+
+- **Two return panels** at the open edges beside the door, each 60% of
+  its side (720 × 540 on a 900 × 900 unit) — in place of full sides.
+- **Two backs**, one along each wall.
+- **Pentagon top, bottom and any extra shelves** — listed and priced on
+  their W×D bounding rectangle (882 × 882 between the returns): the
+  workshop cuts that rectangle and trims the corner off, a triangle too
+  small to reuse. Their diagonal edge is banded — a new per-part
+  `extraEdgeBandMm`, since a diagonal is neither a long nor a short edge.
+- **The diagonal door**: 509mm edge minus reveals → **503 × 714**,
+  instead of a ~894mm door. Edge banded all round.
+
+Simplifications, stated in the code: returns and backs butt rather than
+follow the back-fit setting; the top is always a full pentagon (no
+rails). The Designer's 3D preview draws the returns, backs and the door
+(rotated onto the diagonal — `PartBox.rotY`); pentagons aren't boxes,
+so they're listed as "not drawn here". Board cost changes accordingly
+(much smaller door, slightly bigger top/bottom, shorter returns).
+
+5 new tests (91).

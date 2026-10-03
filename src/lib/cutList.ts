@@ -55,7 +55,7 @@ import { defaultFrontLayout, GLASS_TINT_LABELS } from '../types/front';
 import type { BoardRate, HardwareRates, RateCard } from '../types/rates';
 import { boardLabel, LEGACY_BOARD_THICKNESS_MM, MATERIAL_RATE_LABELS } from '../types/rates';
 import { hasCountertop } from './cabinetGeometry';
-import { carcassBands, computeFrontBreakdown } from './fronts';
+import { carcassBands, computeFrontBreakdown, REVEAL_MM } from './fronts';
 import { describeFinish } from './materials3d';
 import { resolvePanels } from './panels';
 
@@ -82,6 +82,9 @@ export interface PartBox {
   sx: number;
   sy: number;
   sz: number;
+  // Rotation about the vertical axis, radians (three.js convention) —
+  // only a corner carousel's diagonal door uses it (§62).
+  rotY?: number;
 }
 
 export interface CutPart {
@@ -124,6 +127,12 @@ export interface CutPart {
   // cabinet's quantity) — see PartBox. Geometry only; pricing never
   // reads it.
   boxes: PartBox[];
+  // Banded edge that is neither a "long" nor a "short" edge — a corner
+  // carousel pentagon's diagonal (§62). Per piece, mm.
+  extraEdgeBandMm?: number;
+  // True for a part the panel preview can't draw as a box (a pentagon
+  // top/bottom/shelf, §62) — listed and priced, but noted as not drawn.
+  notDrawn?: boolean;
 }
 
 export interface CutListGroup {
@@ -281,7 +290,8 @@ export function cabinetCutParts(
   const parts: CutPart[] = [];
   const add = (
     role: PanelRole,
-    part: Pick<CutPart, 'kind' | 'name' | 'quantity' | 'edgeBanding' | 'grainFixed' | 'finish' | 'boxes'> & {
+    part: Pick<CutPart, 'kind' | 'name' | 'quantity' | 'edgeBanding' | 'grainFixed' | 'finish' | 'boxes'> &
+      Partial<Pick<CutPart, 'extraEdgeBandMm' | 'notDrawn'>> & {
       lengthMm: number;
       widthMm: number;
     },
@@ -315,6 +325,97 @@ export function cabinetCutParts(
     });
   };
 
+  // ---- Corner carousel (§62) ----
+  // A pentagon, matching the 3D view (Room3DCanvas's cornerCarouselGeometry,
+  // CORNER_CAROUSEL_CUT_FRACTION 0.4): the W×D square with its front-right
+  // corner cut diagonally. Its parts are not the rectangular box's: two
+  // RETURN panels stand at the open edges beside the diagonal door, two
+  // BACKS run along the two walls, the top/bottom are pentagons, and the
+  // door is the diagonal, not the cabinet's width. The standard sections
+  // below are skipped for it (isCarousel). Simplifications, stated:
+  // backs and returns butt rather than follow the back-fit setting; the
+  // top is always a full pentagon (no rails); top/bottom/shelves are
+  // priced and nested on their W×D bounding rectangle — the workshop cuts
+  // that rectangle and trims the corner off, a triangle too small to
+  // reuse — and their diagonal edge is banded (extraEdgeBandMm).
+  const isCarousel = item.moduleType === 'corner-carousel';
+  const addCarouselParts = () => {
+    const D = item.depthMm;
+    const cutW = W * 0.4;
+    const cutD = D * 0.4;
+    const diagonal = Math.hypot(cutW, cutD);
+    const tR = has('rightSide') ? thick('rightSide') : 0;
+    const tF = has('leftSide') ? thick('leftSide') : 0;
+    const topOverC = has('top') && settings.topFit === 'over-sides';
+    const bottomOverC = has('bottom') && settings.bottomFit === 'over-sides';
+    const y0 = -H / 2 + (bottomOverC ? tBottom : 0);
+    const y1 = H / 2 - (topOverC ? tTop : 0);
+    // The return along the depth, at the cabinet's right; and the one
+    // along the width, at its front — each stops where the diagonal starts.
+    if (has('rightSide')) {
+      add('rightSide', {
+        kind: 'carcass', name: 'Return panel (side)', lengthMm: y1 - y0, widthMm: D - cutD, quantity: q,
+        edgeBanding: { length: 1, width: 0 }, grainFixed: false,
+        boxes: [box(W / 2 - tR, W / 2, y0, y1, -D / 2, D / 2 - cutD)],
+      });
+    }
+    if (has('leftSide')) {
+      add('leftSide', {
+        kind: 'carcass', name: 'Return panel (front)', lengthMm: y1 - y0, widthMm: W - cutW, quantity: q,
+        edgeBanding: { length: 1, width: 0 }, grainFixed: false,
+        boxes: [box(-W / 2, W / 2 - cutW, y0, y1, D / 2 - tF, D / 2)],
+      });
+    }
+    // Pentagon top and bottom (and any extra shelves), on their bounding
+    // rectangle inside the returns unless they run over them.
+    const pentagon = (role: PanelRole, name: string, over: boolean, quantity: number) =>
+      add(role, {
+        kind: 'carcass', name, lengthMm: over ? W : W - tR, widthMm: over ? D : D - tF, quantity,
+        edgeBanding: { length: 0, width: 0 }, extraEdgeBandMm: diagonal, grainFixed: false,
+        boxes: [], notDrawn: true,
+      });
+    if (has('top')) pentagon('top', 'Top (pentagon — corner cut off)', topOverC, q);
+    if (has('bottom')) pentagon('bottom', 'Bottom (pentagon — corner cut off)', bottomOverC, q);
+    const extraShelves = has('shelves') ? Math.max(0, Math.floor(panels.shelves.extraCount ?? 0)) : 0;
+    if (extraShelves > 0) pentagon('shelves', 'Shelf (pentagon — corner cut off)', false, extraShelves * q);
+    // Two backs, one along each wall.
+    if (backFitted) {
+      const innerHC = H - tTop - tBottom;
+      const yb = (-H / 2 + tBottom + (H / 2 - tTop)) / 2;
+      add('back', {
+        kind: 'back', name: 'Back (along width)', lengthMm: innerHC, widthMm: W - tR, quantity: q,
+        edgeBanding: { length: 0, width: 0 }, grainFixed: false,
+        boxes: [box(-W / 2, W / 2 - tR, yb - innerHC / 2, yb + innerHC / 2, -D / 2, -D / 2 + tBack)],
+      });
+      add('back', {
+        kind: 'back', name: 'Back (along depth)', lengthMm: innerHC, widthMm: D - tF - tBack, quantity: q,
+        edgeBanding: { length: 0, width: 0 }, grainFixed: false,
+        boxes: [box(-W / 2, -W / 2 + tBack, yb - innerHC / 2, yb + innerHC / 2, -D / 2 + tBack, D / 2 - tF)],
+      });
+    }
+    // The diagonal door, reveals off each end; drawn rotated onto the
+    // diagonal, sitting in or in front of the stated depth per the depth
+    // convention, as every front does.
+    if (has('fronts')) {
+      const nx = cutD / diagonal;
+      const nz = cutW / diagonal;
+      const out = -tFrontInDepth + tFront / 2;
+      const doorW = diagonal - 2 * REVEAL_MM;
+      const doorH = H - 2 * REVEAL_MM;
+      add('fronts', {
+        kind: 'front', name: 'Shutter (diagonal)', lengthMm: doorH, widthMm: doorW, finish: finishLabel, quantity: q,
+        edgeBanding: { length: 2, width: 2 }, grainFixed: frontGrainFixed,
+        boxes: [{
+          cx: (W / 2 + (W / 2 - cutW)) / 2 + nx * out,
+          cy: 0,
+          cz: ((D / 2 - cutD) + D / 2) / 2 + nz * out,
+          sx: doorW, sy: doorH, sz: tFront,
+          rotY: Math.atan2(-cutD, -cutW),
+        }],
+      });
+    }
+  };
+
   // ---- Sides ----
   // Shortened at each end whose panel runs OVER them; an excluded top or
   // bottom doesn't. The top's rule applies to rails too since §47 (it
@@ -332,7 +433,7 @@ export function cabinetCutParts(
   const sideY0 = -H / 2 + (bottomOver ? tBottom : 0);
   const sideY1 = H / 2 - (topOver ? tTop : 0);
   for (const role of ['leftSide', 'rightSide'] as const) {
-    if (!has(role)) continue;
+    if (!has(role) || isCarousel) continue;
     add(role, {
       kind: 'carcass',
       name: role === 'leftSide' ? 'Left side' : 'Right side',
@@ -350,7 +451,7 @@ export function cabinetCutParts(
   }
 
   // ---- Top, or rails ----
-  if (has('top')) {
+  if (has('top') && !isCarousel) {
     if (topStyle === 'rails') {
       add('top', {
         kind: 'carcass',
@@ -387,7 +488,7 @@ export function cabinetCutParts(
   }
 
   // ---- Bottom ----
-  if (has('bottom')) {
+  if (has('bottom') && !isCarousel) {
     add('bottom', {
       kind: 'carcass',
       name: 'Bottom',
@@ -406,7 +507,7 @@ export function cabinetCutParts(
   // The inner opening: between the sides, and between the top (or back
   // rail) and the bottom — each only if that panel is actually built.
   const innerH = H - tTop - tBottom;
-  if (backFitted) {
+  if (backFitted && !isCarousel) {
     const g = settings.grooveDepthMm;
     const [backH, backW] =
       settings.backFit === 'grooved'
@@ -442,7 +543,7 @@ export function cabinetCutParts(
   // handle never changes a panel's size.
   const breakdown = computeFrontBreakdown(layout, W, H, undefined, NO_RATES);
 
-  if (has('shelves')) {
+  if (has('shelves') && !isCarousel) {
     const tShelf = thick('shelves');
     const shelfZ1 = zFront - settings.shelfSetbackMm;
     const shelfZ0 = shelfZ1 - shelfDepth;
@@ -518,7 +619,7 @@ export function cabinetCutParts(
       glassTint = GLASS_TINT_LABELS[panel.glassTint];
       continue;
     }
-    if (!has('fronts')) continue;
+    if (!has('fronts') || isCarousel) continue;
     add('fronts', {
       kind: 'front',
       name: FRONT_PART_NAMES[panel.kind] ?? 'Front',
@@ -555,11 +656,7 @@ export function cabinetCutParts(
       `${cabinetRef}: ${glassCount * q} glass panel${glassCount * q === 1 ? '' : 's'} (${glassTint}) not listed — order cut to size from the glass supplier.`
     );
   }
-  if (item.moduleType === 'corner-carousel') {
-    warnings.push(
-      `${cabinetRef}: corner carousel listed as a plain rectangular box — its diagonal front isn't modelled yet. Check with your carpenter.`
-    );
-  }
+  if (isCarousel) addCarouselParts();
   // ---- Drawer boxes (§56) ----
   // One box behind every drawer front — panel kinds survive 'mixed'
   // composition, so a drawer row inside a mixed front counts too. Sized
@@ -848,7 +945,9 @@ export function partAreaSqM(part: CutPart): number {
 // Running length of edge banding on ALL copies of one part row.
 export function edgeBandMm(part: CutPart): number {
   return (
-    (part.edgeBanding.length * part.lengthMm + part.edgeBanding.width * part.widthMm) *
+    (part.edgeBanding.length * part.lengthMm +
+      part.edgeBanding.width * part.widthMm +
+      (part.extraEdgeBandMm ?? 0)) *
     part.quantity
   );
 }

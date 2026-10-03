@@ -98,6 +98,7 @@ function Piece({
   return (
     <mesh
       position={position}
+      rotation={[0, box.rotY ?? 0, 0]}
       onPointerOver={(e) => {
         e.stopPropagation();
         onHover(part);
@@ -188,8 +189,8 @@ export function CabinetPreview3D({
       </div>
       {undrawnCount > 0 && (
         <span className="text-[11px] text-gray-500">
-          + {undrawnCount} extra part{undrawnCount === 1 ? '' : 's'} not drawn (no fixed position) —
-          listed and priced below.
+          + {undrawnCount} part{undrawnCount === 1 ? '' : 's'} not drawn here (extra parts have no fixed
+          position; a corner carousel's pentagon top/bottom isn't a box) — listed and priced below.
         </span>
       )}
       <div className="flex flex-wrap items-center gap-3 text-[11px] text-gray-600">

@@ -147,6 +147,35 @@ describe('where fronts are cut from (§57)', () => {
   });
 });
 
+describe('corner carousel (§62)', () => {
+  const carousel = () => cabinet('corner-carousel', 900, 900, 720, { frontLayout: { kind: 'single-door' } });
+  const ps = parts([carousel()]);
+
+  it('has two returns at the door edges, not full-depth sides', () => {
+    expect(size(find(ps, 'Return panel (side)'))).toEqual([720, 540, 18]);
+    expect(size(find(ps, 'Return panel (front)'))).toEqual([720, 540, 18]);
+    expect(ps.some((p) => p.name === 'Left side' || p.name === 'Right side')).toBe(false);
+  });
+  it('has a diagonal door — 509mm edge minus reveals — not a 900mm one', () => {
+    const door = find(ps, 'Shutter (diagonal)');
+    expect([door.lengthMm, door.widthMm]).toEqual([714, 503]);
+    expect(ps.filter((p) => p.kind === 'front')).toHaveLength(1);
+  });
+  it('pentagon top/bottom: priced on the bounding rectangle, diagonal edge banded, not drawn', () => {
+    const top = find(ps, 'Top (pentagon — corner cut off)');
+    expect([top.lengthMm, top.widthMm]).toEqual([882, 882]);
+    expect(top.extraEdgeBandMm).toBeCloseTo(Math.hypot(360, 360), 6);
+    expect(top.notDrawn).toBe(true);
+  });
+  it('has two backs, one along each wall', () => {
+    expect(ps.filter((p) => p.kind === 'back').map((p) => p.name).sort()).toEqual(['Back (along depth)', 'Back (along width)']);
+  });
+  it('no longer warns that it is a plain box', () => {
+    const cl = computeCutList([carousel()], construction(), [], rates, []);
+    expect(cl.warnings.some((w) => w.includes('rectangular box'))).toBe(false);
+  });
+});
+
 describe('freezing with a quote (§60)', () => {
   it('a frozen list drops 3D positions but regroups exactly as the live one', () => {
     const live = computeCutList(lShapedKitchen(), construction(), [], rates, []);

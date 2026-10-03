@@ -473,7 +473,7 @@ export function CabinetDesignerPage({ target, onBack }: { target: DesignerTarget
             depthMm={source.depthMm}
             frontColor={resolveFinish(finishes, preview.finishId)?.solidColor}
             highlightRole={litRole}
-            undrawnCount={parts.filter((p) => p.role === 'extra').length}
+            undrawnCount={parts.filter((p) => p.role === 'extra' || p.notDrawn).length}
             onPickRole={(role) => {
               setPickedRole(role);
               document.getElementById(`designer-panel-${role}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
