@@ -66,10 +66,21 @@ Tailwind is **v4**: the CSS entry uses `@import "tailwindcss";`, not the
 v3 `@tailwind base/components/utilities` directives, and there is no
 `tailwind.config.js`.
 
-`npm run dev` / `npm run build` (`tsc -b && vite build`) / `npm run lint`.
+`npm run dev` / `npm run build` (`tsc -b && vite build`) / `npm run lint`
+/ `npm test` (Vitest, `vitest run`).
 
-**There is no test runner.** No vitest, jest or playwright. Correctness
-here is `tsc`, `eslint`, and looking at the render.
+**Tests: Vitest, `npm test`** — added 3 Oct 2026 (`docs/DECISIONS.md`
+§55). This line used to say "There is no test runner … correctness here
+is `tsc`, `eslint`, and looking at the render"; that was true until the
+pricing, cutting-list and nesting code grew big enough that hand-run
+checks kept being thrown away and regressions (a shelf double charge, an
+import that wiped data) slipped through. Tests sit beside the code they
+check (`src/lib/*.test.ts`), with shared builders in `src/test/
+fixtures.ts`. **Run `npm test` before trusting a change to pricing, the
+cutting list, nesting, panels or the importers, and add a test for any
+money or size rule you add or fix.** UI is still checked by `tsc`,
+`eslint` and looking at the render — there are no component or browser
+tests.
 
 **React 19's compiler is active.** It rejects mutating anything
 returned from a hook. This has caused two real errors: writing

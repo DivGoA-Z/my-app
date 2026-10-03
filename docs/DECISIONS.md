@@ -4688,3 +4688,48 @@ their database rows: each sheet carries every field today, so none was
 losing data. They were made robust anyway — each updated row now starts
 from the stored row with the sheet's values laid over it — so a field
 added later without a sheet column can't recreate the bug.
+
+## 55. A test runner: Vitest, 57 tests on the money and size code
+
+You agreed (after asking what a test runner is) to add one. Through
+§35-§54 every price, cut size and sheet layout was checked by a
+throwaway script that was then discarded — so nothing re-checked old
+behaviour when new code landed, which is how the §42 shelf double charge
+and the old import data-wipe went unnoticed. Vitest (built for Vite;
+reads the project's own config) now keeps those checks permanently:
+`npm test` runs them in ~0.3s.
+
+**57 tests, in four files beside the code** (`src/lib/*.test.ts`),
+shared builders in `src/test/fixtures.ts` (a cabinet, the 600×600×720
+base unit, the 11-cabinet L-shaped test kitchen, a layout, a pricing
+context on the app's own seeded rates):
+- `cutList.test.ts` (28): part sizes for every construction convention,
+  half-mm rounds down, customer-facing edge banding, unticked panels,
+  per-panel boards, extra shelves/parts, loose parts, drawer fronts
+  replacing the door; and for four conventions × 12 cabinets, every 3D
+  box matches its cut size, sits inside its cabinet, and no two panels
+  overlap.
+- `bom.test.ts` (14): ₹2,567 board on the base unit; −₹183 for no back;
+  BWP left side; adding a thicker line never moves an old cabinet; no
+  board line → ₹0 AND flagged; extra shelf +₹439 board +₹80 fitting;
+  stiffener; loose parts inside Material; calculated waste = exactly the
+  sheets' cost; approx = one factor; labour rows; business lump sum once
+  per project; fixed-price rows unmarked and lines summing to the total.
+- `nesting.test.ts` (8): every layout valid (each piece once, inside the
+  trimmed sheet, kerf-separated, grain respected, sizes unchanged); 13
+  sheets for the test kitchen; oversize reported; waste formula;
+  multi-size finish-smaller; too-short sizes report long parts; cache.
+- `panels.test.ts` (7): spec normalising/describing; carcass-board
+  fallback pinned to the original 18mm line; the §54 re-import keeping
+  fronts/handles/panels/board/extra parts, and dropping the board on a
+  material change.
+
+**Proved it bites**: re-introducing the old round-half-up bug made
+exactly the "double doors never exceed the cabinet" test fail by name.
+
+Prices are pinned to the SEEDED placeholder rates on purpose — changing
+a seed should make the affected tests fail, so it's a deliberate act.
+Tests sit under `src`, so `tsc -b`/lint check them too; Vite never
+bundles them (nothing imports them). No component or browser tests:
+UI is still checked by eye. CLAUDE.md's "There is no test runner"
+corrected in place.

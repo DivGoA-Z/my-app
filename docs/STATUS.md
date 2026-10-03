@@ -330,6 +330,12 @@ and a second real-shade pendant catalogue option.
 - Board nesting, cutting list, hardware boring (Phase 4) — see
   Blocked, below.
 
+## Tests
+
+**`npm test`** (Vitest) — 57 tests on pricing, the cutting list, nesting,
+panels and the catalogue importer, ~0.3s (§55). Run before trusting a
+change to any of those. UI still has no automated tests.
+
 ## Known unverified
 
 - The Cutting List screen, its Excel export and the Construction
