@@ -44,7 +44,7 @@ const INR = new Intl.NumberFormat('en-IN', {
   maximumFractionDigits: 0,
 });
 
-const inputClass = 'rounded border border-gray-300 px-2 py-1 text-xs';
+const inputClass = 'rounded border border-input px-2 py-1 text-xs';
 
 export function HandleManager() {
   const handles = useLayoutStore((s) => s.handles);
@@ -53,29 +53,21 @@ export function HandleManager() {
 
   return (
     <div className="flex flex-col gap-2">
-      <div>
-        <h2 className="text-sm font-semibold text-gray-700">Your Handles</h2>
-        <p className="text-xs text-gray-500">
-          Hardware for cabinet fronts. <span className="font-medium">Priced by</span> is the one
-          to get right: bar handles and knobs are per piece, gola and edge profiles are cut to
-          length and billed per running metre. Cabinets referencing a handle you delete fall back
-          to the default rather than losing their hardware cost.
-        </p>
-      </div>
+      {/* Title and description: the Catalogue page's section frame (§71). */}
 
       <HandleImportExport />
 
-      <div className="overflow-x-auto rounded-lg border border-gray-200">
-        <table className="w-full border-collapse text-left text-xs">
+      <div className="overflow-x-auto rounded-xl border border-border bg-card">
+        <table className="w-full border-collapse text-left text-sm">
           <thead>
-            <tr className="border-b border-gray-200 bg-gray-50 text-gray-500">
-              <th className="px-2 py-2 font-medium">Name</th>
-              <th className="px-2 py-2 font-medium">Kind</th>
-              <th className="px-2 py-2 font-medium">Length (mm)</th>
-              <th className="px-2 py-2 font-medium">Colour</th>
-              <th className="px-2 py-2 font-medium">Priced by</th>
-              <th className="px-2 py-2 font-medium">Price</th>
-              <th className="px-2 py-2 font-medium" />
+            <tr className="border-b border-border bg-secondary text-[13px] text-muted-foreground">
+              <th className="px-3 py-2.5 font-semibold">Name</th>
+              <th className="px-3 py-2.5 font-semibold">Kind</th>
+              <th className="px-3 py-2.5 font-semibold">Length (mm)</th>
+              <th className="px-3 py-2.5 font-semibold">Colour</th>
+              <th className="px-3 py-2.5 font-semibold">Priced by</th>
+              <th className="px-3 py-2.5 font-semibold">Price</th>
+              <th className="px-3 py-2.5 font-semibold" />
             </tr>
           </thead>
           <tbody>
@@ -138,9 +130,9 @@ function HandleRow({
   }
 
   return (
-    <tr className="border-b border-gray-100">
+    <tr className="border-b border-border/70">
       <Fields draft={draft} setDraft={setDraft} />
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <div className="flex flex-col gap-1">
           <Button size="xs" onClick={handleSave} disabled={isSaving || !isDirty}>
             {isSaving ? '...' : 'Save'}
@@ -195,9 +187,9 @@ function NewHandleRow({ onAdd }: { onAdd: (handle: HandleSpec) => Promise<void> 
   }
 
   return (
-    <tr className="bg-gray-50/50">
+    <tr className="bg-secondary/50">
       <Fields draft={draft} setDraft={setDraft} />
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <Button size="xs" onClick={handleAdd} disabled={isSaving || !draft.label.trim()}>
           {isSaving ? '...' : 'Add'}
         </Button>
@@ -219,7 +211,7 @@ function Fields({
 
   return (
     <>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <input
           value={draft.label}
           onChange={(e) => setDraft({ ...draft, label: e.target.value })}
@@ -228,7 +220,7 @@ function Fields({
         />
       </td>
 
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <Select
           value={draft.kind}
           onValueChange={(value) => {
@@ -257,16 +249,16 @@ function Fields({
         </Select>
       </td>
 
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <input
           type="number"
           min={0}
           value={draft.lengthMm}
           disabled={!isLengthMeaningful}
           onChange={(e) => setDraft({ ...draft, lengthMm: Number(e.target.value) })}
-          className={inputClass + ' w-16 disabled:bg-gray-100'}
+          className={inputClass + ' w-16 disabled:bg-secondary'}
         />
-        <div className="text-[9px] text-gray-400">
+        <div className="text-xs text-muted-foreground">
           {/* Length means different things per kind, and a profile's
               length comes from the panel it's cut to rather than from
               this field. */}
@@ -280,16 +272,16 @@ function Fields({
         </div>
       </td>
 
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <input
           type="color"
           value={draft.colorHex}
           onChange={(e) => setDraft({ ...draft, colorHex: e.target.value })}
-          className="h-7 w-10 rounded border border-gray-300"
+          className="h-7 w-10 rounded border border-input"
         />
       </td>
 
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <Select
           value={draft.pricingMode}
           onValueChange={(value) =>
@@ -306,7 +298,7 @@ function Fields({
         </Select>
       </td>
 
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <input
           type="number"
           min={0}
@@ -314,7 +306,7 @@ function Fields({
           onChange={(e) => setDraft({ ...draft, price: Number(e.target.value) })}
           className={inputClass + ' w-20'}
         />
-        <div className="mt-0.5 text-[9px] text-gray-400">
+        <div className="mt-0.5 text-xs text-muted-foreground">
           {INR.format(draft.price)} {draft.pricingMode === 'per-metre' ? '/ m' : '/ pc'}
         </div>
       </td>

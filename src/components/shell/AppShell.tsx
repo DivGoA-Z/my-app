@@ -13,6 +13,11 @@
 import type { ReactNode } from 'react';
 import { Home, Users, LayoutGrid, Settings, LogOut } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
+import {
+  CATALOGUE_SECTIONS,
+  scrollToCatalogueSection,
+  useActiveCatalogueSection,
+} from '../inventory/catalogueSections';
 import { cn } from '@/lib/utils';
 
 export type ShellPage = 'home' | 'customers' | 'catalogue' | 'settings';
@@ -46,6 +51,7 @@ export function AppShell({
   const businessName = useAuthStore((s) => s.businessName) ?? 'Your business';
   const email = useAuthStore((s) => s.session?.user.email) ?? '';
   const signOut = useAuthStore((s) => s.signOut);
+  const activeSection = useActiveCatalogueSection(page === 'catalogue');
 
   return (
     <div className="flex min-h-dvh bg-background text-foreground">
@@ -73,7 +79,33 @@ export function AppShell({
             <Icon className="size-5" strokeWidth={1.8} />
             {label}
           </button>
-        ))}
+        )).flatMap((item, i) =>
+          // Under Catalogue, while it's open: its sections, to jump to
+          // (laptop only; tablet and phone get the page's jump bar).
+          NAV[i].page === 'catalogue' && page === 'catalogue'
+            ? [
+                item,
+                <div key="catalogue-sections" className="mb-1 ml-5 hidden flex-col border-l border-border pl-2 lg:flex">
+                  {CATALOGUE_SECTIONS.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => scrollToCatalogueSection(s.id)}
+                      aria-current={activeSection === s.id ? 'location' : undefined}
+                      className={cn(
+                        'h-9 rounded-lg px-3 text-left text-sm font-medium transition-colors',
+                        activeSection === s.id
+                          ? 'bg-secondary text-foreground'
+                          : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                      )}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>,
+              ]
+            : [item]
+        )}
         <div className="flex-1" />
         <div className="flex flex-col items-center gap-1 border-t border-border pt-3 lg:flex-row lg:items-center lg:gap-2.5 lg:px-2">
           <div className="hidden min-w-0 flex-1 flex-col lg:flex">

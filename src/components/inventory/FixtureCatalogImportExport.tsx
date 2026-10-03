@@ -26,7 +26,7 @@ import { Checkbox } from '../ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import type { FixtureCatalogItem } from '../../types/fixture';
 
-const inputClass = 'w-full rounded border border-gray-300 px-1.5 py-1 text-xs disabled:bg-gray-100 disabled:text-gray-400';
+const inputClass = 'w-full rounded border border-input px-1.5 py-1 text-xs disabled:bg-secondary disabled:text-muted-foreground';
 
 function revalidate(data: FixtureCatalogItem, priorErrors: string[]): string[] {
   const errors = priorErrors.filter((e) => e.startsWith('Unknown id') || e.includes('appears on more than one row'));
@@ -123,7 +123,7 @@ export function FixtureCatalogImportExport() {
   const hasErrors = rows?.some((r) => r.errors.length > 0) ?? false;
 
   return (
-    <div className="rounded-lg border border-gray-200 p-3">
+    <div className="rounded-xl border border-dashed border-input bg-background px-4 py-3">
       <Button
         type="button"
         variant="link"
@@ -136,7 +136,7 @@ export function FixtureCatalogImportExport() {
 
       {isOpen && (
         <div className="mt-3 flex flex-col gap-3">
-          <p className="text-[11px] text-gray-500">
+          <p className="text-[13px] text-muted-foreground">
             Download your current fixture catalogue, edit in Excel, then upload here. Removing a
             row from the sheet does nothing — type DELETE in the delete column (or check the box
             below after uploading) to actually remove one.
@@ -154,44 +154,44 @@ export function FixtureCatalogImportExport() {
             </Button>
           </div>
 
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && <p className="text-xs text-destructive">{error}</p>}
           {committedCount !== null && (
-            <p className="text-xs text-emerald-700">Saved {committedCount} row{committedCount === 1 ? '' : 's'}.</p>
+            <p className="text-xs text-success">Saved {committedCount} row{committedCount === 1 ? '' : 's'}.</p>
           )}
 
           {rows && rows.length > 0 && (
             <div className="flex flex-col gap-2">
-              <p className="text-xs text-gray-600">
+              <p className="text-xs text-muted-foreground">
                 {newCount} new, {updatedCount} updated, {deleteCount} removed.
-                {hasErrors && <span className="ml-1 text-red-600">Fix every error below before saving.</span>}
+                {hasErrors && <span className="ml-1 text-destructive">Fix every error below before saving.</span>}
               </p>
 
-              <div className="overflow-x-auto rounded-lg border border-gray-200">
-                <table className="w-full border-collapse text-left text-xs">
+              <div className="overflow-x-auto rounded-xl border border-border bg-card">
+                <table className="w-full border-collapse text-left text-sm">
                   <thead>
-                    <tr className="border-b border-gray-200 bg-gray-50 text-gray-500">
-                      <th className="px-2 py-2 font-medium">Row</th>
-                      <th className="px-2 py-2 font-medium">Delete?</th>
-                      <th className="px-2 py-2 font-medium">Label</th>
-                      <th className="px-2 py-2 font-medium">Kind</th>
-                      <th className="px-2 py-2 font-medium">Colour temp (K)</th>
-                      <th className="px-2 py-2 font-medium">Lumens</th>
-                      <th className="px-2 py-2 font-medium">Model path</th>
-                      <th className="px-2 py-2 font-medium">Pricing</th>
-                      <th className="px-2 py-2 font-medium">Price</th>
+                    <tr className="border-b border-border bg-secondary text-[13px] text-muted-foreground">
+                      <th className="px-3 py-2.5 font-semibold">Row</th>
+                      <th className="px-3 py-2.5 font-semibold">Delete?</th>
+                      <th className="px-3 py-2.5 font-semibold">Label</th>
+                      <th className="px-3 py-2.5 font-semibold">Kind</th>
+                      <th className="px-3 py-2.5 font-semibold">Colour temp (K)</th>
+                      <th className="px-3 py-2.5 font-semibold">Lumens</th>
+                      <th className="px-3 py-2.5 font-semibold">Model path</th>
+                      <th className="px-3 py-2.5 font-semibold">Pricing</th>
+                      <th className="px-3 py-2.5 font-semibold">Price</th>
                     </tr>
                   </thead>
                   <tbody>
                     {rows.map((row, index) => (
                       <tr
                         key={row.data.id}
-                        className={row.markedForDeletion ? 'border-b border-gray-100 bg-red-50 align-top' : 'border-b border-gray-100 align-top'}
+                        className={row.markedForDeletion ? 'border-b border-border/70 bg-red-50 align-top' : 'border-b border-border/70 align-top last:border-b-0'}
                       >
-                        <td className="px-2 py-1.5 text-gray-500">
+                        <td className="px-2 py-1.5 text-muted-foreground">
                           {row.rowNumber}
-                          <div className="text-[10px]">{row.markedForDeletion ? 'delete' : row.isNew ? 'new' : 'update'}</div>
+                          <div className="text-xs">{row.markedForDeletion ? 'delete' : row.isNew ? 'new' : 'update'}</div>
                         </td>
-                        <td className="px-2 py-1.5">
+                        <td className="px-3 py-2">
                           <Checkbox
                             checked={row.markedForDeletion}
                             disabled={row.isNew}
@@ -199,10 +199,10 @@ export function FixtureCatalogImportExport() {
                             onCheckedChange={(checked) => toggleDelete(index, checked === true)}
                           />
                         </td>
-                        <td className="px-2 py-1.5">
+                        <td className="px-3 py-2">
                           <input className={inputClass} disabled={row.markedForDeletion} value={row.data.label} onChange={(e) => updateRow(index, { label: e.target.value })} />
                         </td>
-                        <td className="px-2 py-1.5">
+                        <td className="px-3 py-2">
                           <Select
                             disabled={row.markedForDeletion}
                             value={row.data.kind}
@@ -218,16 +218,16 @@ export function FixtureCatalogImportExport() {
                             </SelectContent>
                           </Select>
                         </td>
-                        <td className="px-2 py-1.5">
+                        <td className="px-3 py-2">
                           <input type="number" className={inputClass} disabled={row.markedForDeletion} value={row.data.colorTempK} onChange={(e) => updateRow(index, { colorTempK: Number(e.target.value) })} />
                         </td>
-                        <td className="px-2 py-1.5">
+                        <td className="px-3 py-2">
                           <input type="number" className={inputClass} disabled={row.markedForDeletion} value={row.data.lumens} onChange={(e) => updateRow(index, { lumens: Number(e.target.value) })} />
                         </td>
-                        <td className="px-2 py-1.5">
+                        <td className="px-3 py-2">
                           <input className={inputClass} disabled={row.markedForDeletion} value={row.data.modelUrl ?? ''} onChange={(e) => updateRow(index, { modelUrl: e.target.value || undefined })} />
                         </td>
-                        <td className="px-2 py-1.5">
+                        <td className="px-3 py-2">
                           <Select
                             disabled={row.markedForDeletion}
                             value={row.data.pricingMode}
@@ -243,19 +243,19 @@ export function FixtureCatalogImportExport() {
                             </SelectContent>
                           </Select>
                         </td>
-                        <td className="px-2 py-1.5">
+                        <td className="px-3 py-2">
                           <input type="number" className={inputClass} disabled={row.markedForDeletion} value={row.data.price} onChange={(e) => updateRow(index, { price: Number(e.target.value) })} />
                           {row.markedForDeletion ? (
                             row.errors.length > 0 ? (
-                              <ul className="mt-1 list-disc pl-3 text-[10px] text-red-600">
+                              <ul className="mt-1 list-disc pl-3 text-xs text-destructive">
                                 {row.errors.map((err) => <li key={err}>{err}</li>)}
                               </ul>
                             ) : (
-                              <p className="mt-1 text-[10px] text-red-600">Will be deleted</p>
+                              <p className="mt-1 text-xs text-destructive">Will be deleted</p>
                             )
                           ) : (
                             row.errors.length > 0 && (
-                              <ul className="mt-1 list-disc pl-3 text-[10px] text-red-600">
+                              <ul className="mt-1 list-disc pl-3 text-xs text-destructive">
                                 {row.errors.map((err) => <li key={err}>{err}</li>)}
                               </ul>
                             )

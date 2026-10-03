@@ -25,6 +25,7 @@ import { ApplianceInspector } from './components/inspector/ApplianceInspector';
 import { OpeningInspector } from './components/inspector/OpeningInspector';
 import { FixtureInspector } from './components/inspector/FixtureInspector';
 import { InventoryManager, type InventorySection } from './components/inventory/InventoryManager';
+import { CatalogueJumpBar } from './components/inventory/CatalogueSection';
 import { Room3DCanvas } from './components/canvas3d/Room3DCanvas';
 import { WallElevationView } from './components/elevation/WallElevationView';
 import { QuoteSidebar } from './components/quote/QuoteSidebar';
@@ -284,7 +285,16 @@ function App() {
         {view === 'home' && (
           <HomePage onOpenDesign={handleOpenCanvas} onNavigate={(p) => navigate(p)} />
         )}
-        {view === 'customers' && <CustomersPage onOpenDesign={handleOpenCanvas} />}
+        {view === 'customers' && (
+          <CustomersPage
+            onOpenDesign={handleOpenCanvas}
+            onOpenCutList={(projectId) => {
+              loadProject(projectId);
+              setCutListQuoteId(undefined);
+              setView('cutlist');
+            }}
+          />
+        )}
         {view === 'settings' && <SettingsPage key={settingsTab} initialTab={settingsTab} />}
         {view === 'catalogue' && (
           <div className="flex flex-col gap-5 px-4 py-6 md:px-8 lg:px-10 lg:py-8">
@@ -295,6 +305,7 @@ function App() {
               </Button>
             )}
             <PageHeader title="Catalogue" subtitle="What you pick from when designing" />
+            <CatalogueJumpBar />
             <InventoryManager
               initialSection={manageSection}
               onOpenDesigner={(itemId) => openDesigner({ kind: 'catalogue', itemId }, 'catalogue')}

@@ -15,6 +15,8 @@
 // it's reachable from the dashboard as well as from inside a layout
 // (see App.tsx).
 
+import { CatalogueSection } from './CatalogueSection';
+import { catalogueSectionElementId, type CatalogueSectionId } from './catalogueSections';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
@@ -116,7 +118,7 @@ const INR_FORMATTER = new Intl.NumberFormat('en-IN', {
   maximumFractionDigits: 0,
 });
 
-const inputClass = 'rounded border border-gray-300 px-2 py-1 text-xs';
+const inputClass = 'rounded border border-input px-2 py-1 text-xs';
 
 // Radix Select rejects an empty-string item value, so "no override,
 // fall through to the automatic default" / "no handle chosen" need
@@ -130,13 +132,7 @@ const DEFAULT_HANDLE_VALUE = '__default__';
 // at the top of this file), so without this every "Manage" click landed
 // on the same generic top of the page regardless of which catalog you
 // meant, and you had to scroll to find it yourself.
-export type InventorySection = 'cabinets' | 'obstacles' | 'appliances';
-
-const SECTION_ELEMENT_IDS: Record<InventorySection, string> = {
-  cabinets: 'inventory-section-cabinets',
-  obstacles: 'inventory-section-obstacles',
-  appliances: 'inventory-section-appliances',
-};
+export type InventorySection = CatalogueSectionId;
 
 export function InventoryManager({
   initialSection,
@@ -149,6 +145,9 @@ export function InventoryManager({
   const cabinetCatalog = useLayoutStore((s) => s.cabinetCatalog);
   const obstaclePresets = useLayoutStore((s) => s.obstaclePresets);
   const applianceCatalog = useLayoutStore((s) => s.applianceCatalog);
+  const finishCount = useLayoutStore((s) => s.finishes.length);
+  const handleCount = useLayoutStore((s) => s.handles.length);
+  const fixtureCount = useLayoutStore((s) => s.fixtureCatalog.length);
   const isInventoryLoading = useLayoutStore((s) => s.isInventoryLoading);
   const inventoryError = useLayoutStore((s) => s.inventoryError);
   const upsertCabinetCatalogItem = useLayoutStore((s) => s.upsertCabinetCatalogItem);
@@ -165,7 +164,7 @@ export function InventoryManager({
   // isInventoryLoading ternary below).
   useEffect(() => {
     if (!initialSection) return;
-    document.getElementById(SECTION_ELEMENT_IDS[initialSection])?.scrollIntoView({
+    document.getElementById(catalogueSectionElementId(initialSection))?.scrollIntoView({
       behavior: 'smooth',
       block: 'start',
     });
@@ -173,193 +172,235 @@ export function InventoryManager({
 
   return (
     <div className="flex flex-col gap-6">
-      <div id={SECTION_ELEMENT_IDS.cabinets}>
-        <h2 className="text-sm font-semibold text-gray-700">Your Cabinet Pieces</h2>
-        <p className="text-xs text-gray-500">
-          These show up as "add" buttons in the cabinet toolbar. Name, resize, reprice, or remove
-          them any time — changes apply to every layout you create from now on.
-        </p>
-      </div>
-
       {inventoryError && (
         <Alert variant="destructive">
           <AlertDescription>{inventoryError}</AlertDescription>
         </Alert>
       )}
 
+      {/* The rate card moved to Settings → Rate card (§70): this page is
+          what you pick from when designing; Settings is how the business
+          prices and builds. Its placeholder banner went with it, and Home
+          shows the same warning until the rates are replaced, so the
+          disclosure is still the first thing a business sees.
+
+          Section order changed in §71 from "dependency order" (finishes
+          and handles before the cabinets that reference them) to "most
+          used first": cabinets are what a designer opens this page for,
+          and nothing breaks if a finish is added after a cabinet. */}
       {isInventoryLoading ? (
-        <div className="flex flex-col gap-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-10 w-full" />
+        <div className="flex flex-col gap-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-48 w-full rounded-2xl" />
           ))}
         </div>
       ) : (
         <>
-          {/* The rate card moved to Settings → Rate card (§70): this
-              page is what you pick from when designing; Settings is how
-              the business prices and builds. Its placeholder banner went
-              with it, and Home shows the same warning until the rates
-              are replaced, so the disclosure is still the first thing a
-              business sees. */}
-
-          {/* Finishes first: cabinet rows below reference them, so this
-              is the order the data actually depends in. */}
-          <FinishManager />
-
-          {/* Handles before cabinets for the same reason finishes are:
-              a cabinet row references a handle, so this is the order
-              the data actually depends in. */}
-          <HandleManager />
-
-          <FixtureManager />
-
-          <CabinetCatalogImportExport />
-
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
-            <table className="w-full border-collapse text-left text-xs">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50 text-gray-500">
-                  <th className="px-2 py-2 font-medium">Category</th>
-                  <th className="px-2 py-2 font-medium">Name</th>
-                  <th className="px-2 py-2 font-medium">Type</th>
-                  <th className="px-2 py-2 font-medium">W×D×H (mm)</th>
-                  <th className="px-2 py-2 font-medium">Board</th>
-                  <th className="px-2 py-2 font-medium">Finish</th>
-                  <th className="px-2 py-2 font-medium">Default front</th>
-                  <th className="px-2 py-2 font-medium">Price</th>
-                  <th className="px-2 py-2 font-medium" />
-                </tr>
-              </thead>
-              <tbody>
-                {cabinetCatalog.length === 0 && (
-                  <tr>
-                    <td colSpan={9} className="py-4 text-center text-xs text-gray-400">
-                      No cabinet pieces yet — add your first one below.
-                    </td>
+          <CatalogueSection
+            id="cabinets"
+            count={cabinetCatalog.length}
+            description="Your modules, as they appear in the design editor. Changes apply to designs started from now on."
+            help={
+              <p>
+                Each row is one module you sell. "Panels & boards" opens the Cabinet Designer for the
+                row's default panels, which every cabinet added from it starts with. Bulk-edit the
+                whole list in Excel with the panel below.
+              </p>
+            }
+          >
+            <CabinetCatalogImportExport />
+          <div className="overflow-x-auto rounded-xl border border-border bg-card">
+              <table className="w-full border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-secondary text-[13px] text-muted-foreground">
+                    <th className="px-3 py-2.5 font-semibold">Category</th>
+                    <th className="px-3 py-2.5 font-semibold">Name</th>
+                    <th className="px-3 py-2.5 font-semibold">Type</th>
+                    <th className="px-3 py-2.5 font-semibold">W×D×H (mm)</th>
+                    <th className="px-3 py-2.5 font-semibold">Board</th>
+                    <th className="px-3 py-2.5 font-semibold">Finish</th>
+                    <th className="px-3 py-2.5 font-semibold">Default front</th>
+                    <th className="px-3 py-2.5 font-semibold">Price</th>
+                    <th className="px-3 py-2.5 font-semibold" />
                   </tr>
-                )}
-                {cabinetCatalog.map((item) => (
-                  <CabinetCatalogRow
-                    key={item.id}
-                    item={item}
-                    categorySuggestions={categories}
-                    onSave={upsertCabinetCatalogItem}
-                    onDelete={removeCabinetCatalogItem}
-                    onOpenDesigner={onOpenDesigner}
-                  />
-                ))}
-                <NewCabinetItemRow categorySuggestions={categories} onAdd={upsertCabinetCatalogItem} />
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {cabinetCatalog.length === 0 && (
+                    <tr>
+                      <td colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
+                        No cabinet pieces yet — add your first one below.
+                      </td>
+                    </tr>
+                  )}
+                  {cabinetCatalog.map((item) => (
+                    <CabinetCatalogRow
+                      key={item.id}
+                      item={item}
+                      categorySuggestions={categories}
+                      onSave={upsertCabinetCatalogItem}
+                      onDelete={removeCabinetCatalogItem}
+                      onOpenDesigner={onOpenDesigner}
+                    />
+                  ))}
+                  <NewCabinetItemRow categorySuggestions={categories} onAdd={upsertCabinetCatalogItem} />
+                </tbody>
+              </table>
+            </div>
 
-          <div id={SECTION_ELEMENT_IDS.obstacles}>
-            <h2 className="text-sm font-semibold text-gray-700">Your Obstacle Presets</h2>
-            <p className="text-xs text-gray-500">
-              Quick-add buttons in the obstacle toolbar, for the structural elements you run into
-              over and over (a standard column size, a common duct, etc). Height and "off floor"
-              only apply when floor-to-ceiling is off — otherwise the obstacle's real height
-              tracks the room's own ceiling height, and it always starts at the floor. "Off floor"
-              is what lets a preset like a mid-wall electrical fixture start above the floor with
-              nothing below it.
-            </p>
-          </div>
+          </CatalogueSection>
 
-          <ObstaclePresetImportExport />
+          <CatalogueSection
+            id="appliances"
+            count={applianceCatalog.length}
+            description="Hobs, chimneys, sinks, fridges. Usually customer-supplied; their size drives the cabinets around them."
+            help={
+              <>
+                <p>
+                  <strong className="text-foreground">Elevation</strong> is how high off the floor the
+                  appliance's bottom sits when placed: about 850mm for something on the counter, higher
+                  for a chimney above a hob.
+                </p>
+                <p>
+                  <strong className="text-foreground">Model orientation</strong> corrects a 3D model that
+                  was exported the wrong way up or facing the wrong way. Set it once here. To turn an
+                  appliance in one kitchen, rotate it on the plan instead.
+                </p>
+                <p>
+                  <strong className="text-foreground">Sink cutout</strong> is the hole cut into the
+                  countertop for a sink, a little smaller than the sink by its rim. Leave both at 0 for
+                  a sink that sits on an uncut slab. Shown for sinks only.
+                </p>
+              </>
+            }
+          >
+            <ApplianceCatalogImportExport />
 
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
-            <table className="w-full border-collapse text-left text-xs">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50 text-gray-500">
-                  <th className="px-2 py-2 font-medium">Name</th>
-                  <th className="px-2 py-2 font-medium">Type</th>
-                  <th className="px-2 py-2 font-medium">W×D (mm)</th>
-                  <th className="px-2 py-2 font-medium">Floor-to-ceiling</th>
-                  <th className="px-2 py-2 font-medium">Height (mm)</th>
-                  <th className="px-2 py-2 font-medium">Off floor (mm)</th>
-                  <th className="px-2 py-2 font-medium" />
-                </tr>
-              </thead>
-              <tbody>
-                {obstaclePresets.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="py-4 text-center text-xs text-gray-400">
-                      No obstacle presets yet — add your first one below.
-                    </td>
+            <div className="overflow-x-auto rounded-xl border border-border bg-card">
+              <table className="w-full border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-secondary text-[13px] text-muted-foreground">
+                    <th className="px-3 py-2.5 font-semibold">Name</th>
+                    <th className="px-3 py-2.5 font-semibold">Type</th>
+                    <th className="px-3 py-2.5 font-semibold">W×D×H (mm)</th>
+                    <th className="px-3 py-2.5 font-semibold">Elevation (mm)</th>
+                    <th className="px-3 py-2.5 font-semibold">Sink cutout W×D (mm)</th>
+                    <th className="px-3 py-2.5 font-semibold">3D Model</th>
+                    <th className="px-3 py-2.5 font-semibold">Model orientation</th>
+                    <th className="px-3 py-2.5 font-semibold">Price</th>
+                    <th className="px-3 py-2.5 font-semibold" />
                   </tr>
-                )}
-                {obstaclePresets.map((preset) => (
-                  <ObstaclePresetRow
-                    key={preset.id}
-                    preset={preset}
-                    onSave={upsertObstaclePreset}
-                    onDelete={removeObstaclePreset}
-                  />
-                ))}
-                <NewObstaclePresetRow onAdd={upsertObstaclePreset} />
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {applianceCatalog.length === 0 && (
+                    <tr>
+                      <td colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
+                        No appliances yet — add your first one below.
+                      </td>
+                    </tr>
+                  )}
+                  {applianceCatalog.map((item) => (
+                    <ApplianceCatalogRow
+                      key={item.id}
+                      item={item}
+                      onSave={upsertApplianceCatalogItem}
+                      onDelete={removeApplianceCatalogItem}
+                    />
+                  ))}
+                  <NewApplianceCatalogRow onAdd={upsertApplianceCatalogItem} />
+                </tbody>
+              </table>
+            </div>
+          </CatalogueSection>
 
-          <div id={SECTION_ELEMENT_IDS.appliances}>
-            <h2 className="text-sm font-semibold text-gray-700">Your Appliances</h2>
-            <p className="text-xs text-gray-500">
-              These show up as "add" buttons in the appliance toolbar. defaultElevationMm is how
-              high off the floor the appliance's bottom face sits when placed (e.g. 850mm for
-              something resting on a countertop, higher for a chimney mounted above a hob).
-            </p>
-            <p className="mt-1 text-xs text-gray-500">
-              <span className="font-medium">Model orientation</span> corrects a .glb that was
-              exported the wrong way up or facing the wrong way — set it once here and every
-              appliance placed from this row comes out right. It is not how you aim an appliance
-              in a particular kitchen: for that, double-click the appliance on the floor plan to
-              turn it 90° (shift-double-click turns it back).
-            </p>
-            <p className="mt-1 text-xs text-gray-500">
-              <span className="font-medium">Sink cutout</span> is the hole cut into the
-              countertop for a sink row — smaller than the sink's own W×D by whatever rim that
-              model needs. Leave both at 0 to keep the old behaviour (the sink sits on top of an
-              uncut slab). Only shown for the "sink" appliance type.
-            </p>
-          </div>
+          <CatalogueSection
+            id="finishes"
+            count={finishCount}
+            description="The shutter and laminate materials you stock. Each one's price per m² feeds the quote."
+          >
+            <FinishManager />
+          </CatalogueSection>
 
-          <ApplianceCatalogImportExport />
+          <CatalogueSection
+            id="handles"
+            count={handleCount}
+            description="Hardware for cabinet fronts, priced per piece or per running metre."
+            help={
+              <p>
+                <strong className="text-foreground">Priced by</strong> is the one to get right: bar
+                handles and knobs are per piece; gola and edge profiles are cut to length and billed per
+                running metre. Cabinets using a handle you delete fall back to the default, so they keep
+                a hardware cost.
+              </p>
+            }
+          >
+            <HandleManager />
+          </CatalogueSection>
 
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
-            <table className="w-full border-collapse text-left text-xs">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50 text-gray-500">
-                  <th className="px-2 py-2 font-medium">Name</th>
-                  <th className="px-2 py-2 font-medium">Type</th>
-                  <th className="px-2 py-2 font-medium">W×D×H (mm)</th>
-                  <th className="px-2 py-2 font-medium">Elevation (mm)</th>
-                  <th className="px-2 py-2 font-medium">Sink cutout W×D (mm)</th>
-                  <th className="px-2 py-2 font-medium">3D Model</th>
-                  <th className="px-2 py-2 font-medium">Model orientation</th>
-                  <th className="px-2 py-2 font-medium">Price</th>
-                  <th className="px-2 py-2 font-medium" />
-                </tr>
-              </thead>
-              <tbody>
-                {applianceCatalog.length === 0 && (
-                  <tr>
-                    <td colSpan={9} className="py-4 text-center text-xs text-gray-400">
-                      No appliances yet — add your first one below.
-                    </td>
+          <CatalogueSection
+            id="fixtures"
+            count={fixtureCount}
+            description="Strips, spots, cove and plinth runs for the lighting design."
+            help={
+              <p>
+                Runs are priced per metre, spots and pendants per piece.{' '}
+                <strong className="text-foreground">Lumens</strong> sets how bright a fixture looks in 3D,
+                and decides which fixtures get a real light when a kitchen has more than the 3D view can
+                draw.
+              </p>
+            }
+          >
+            <FixtureManager />
+          </CatalogueSection>
+
+          <CatalogueSection
+            id="obstacles"
+            count={obstaclePresets.length}
+            description="Quick-add sizes for the columns, ducts and shafts you meet on site."
+            help={
+              <p>
+                Height and "off floor" only apply when floor-to-ceiling is off; otherwise the obstacle runs
+                the room's full height from the floor. "Off floor" lets a preset, such as a mid-wall
+                electrical box, start above the floor.
+              </p>
+            }
+          >
+            <ObstaclePresetImportExport />
+
+            <div className="overflow-x-auto rounded-xl border border-border bg-card">
+              <table className="w-full border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-secondary text-[13px] text-muted-foreground">
+                    <th className="px-3 py-2.5 font-semibold">Name</th>
+                    <th className="px-3 py-2.5 font-semibold">Type</th>
+                    <th className="px-3 py-2.5 font-semibold">W×D (mm)</th>
+                    <th className="px-3 py-2.5 font-semibold">Floor-to-ceiling</th>
+                    <th className="px-3 py-2.5 font-semibold">Height (mm)</th>
+                    <th className="px-3 py-2.5 font-semibold">Off floor (mm)</th>
+                    <th className="px-3 py-2.5 font-semibold" />
                   </tr>
-                )}
-                {applianceCatalog.map((item) => (
-                  <ApplianceCatalogRow
-                    key={item.id}
-                    item={item}
-                    onSave={upsertApplianceCatalogItem}
-                    onDelete={removeApplianceCatalogItem}
-                  />
-                ))}
-                <NewApplianceCatalogRow onAdd={upsertApplianceCatalogItem} />
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {obstaclePresets.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
+                        No obstacle presets yet — add your first one below.
+                      </td>
+                    </tr>
+                  )}
+                  {obstaclePresets.map((preset) => (
+                    <ObstaclePresetRow
+                      key={preset.id}
+                      preset={preset}
+                      onSave={upsertObstaclePreset}
+                      onDelete={removeObstaclePreset}
+                    />
+                  ))}
+                  <NewObstaclePresetRow onAdd={upsertObstaclePreset} />
+                </tbody>
+              </table>
+            </div>
+
+          </CatalogueSection>
         </>
       )}
     </div>
@@ -416,8 +457,8 @@ function CabinetCatalogRow({ item, categorySuggestions, onSave, onDelete, onOpen
   }
 
   return (
-    <tr className="border-b border-gray-100 align-top">
-      <td className="px-2 py-1.5">
+    <tr className="border-b border-border/70 align-top last:border-b-0">
+      <td className="px-3 py-2">
         <input
           list="catalog-categories"
           value={draft.category}
@@ -430,14 +471,14 @@ function CabinetCatalogRow({ item, categorySuggestions, onSave, onDelete, onOpen
           ))}
         </datalist>
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <input
           value={draft.label}
           onChange={(e) => setDraft({ ...draft, label: e.target.value })}
           className={inputClass + ' w-36'}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <Select
           value={draft.moduleType}
           onValueChange={(value) => setDraft({ ...draft, moduleType: value as ModuleType })}
@@ -454,7 +495,7 @@ function CabinetCatalogRow({ item, categorySuggestions, onSave, onDelete, onOpen
           </SelectContent>
         </Select>
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <div className="flex gap-1">
           <input
             type="number"
@@ -479,7 +520,7 @@ function CabinetCatalogRow({ item, categorySuggestions, onSave, onDelete, onOpen
           />
         </div>
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <BoardSelect
           material={draft.material}
           carcassBoardId={draft.carcassBoardId}
@@ -487,20 +528,20 @@ function CabinetCatalogRow({ item, categorySuggestions, onSave, onDelete, onOpen
         />
         {/* The panels this product starts with, in one line, and the way
             to change them — the Cabinet Designer (§45). */}
-        <div className="mt-0.5 text-[10px] text-gray-500">{describePanels(item.panels)}</div>
+        <div className="mt-0.5 text-xs text-muted-foreground">{describePanels(item.panels)}</div>
         {onOpenDesigner && (
           <Button
             type="button"
             variant="link"
             size="sm"
-            className="h-auto p-0 text-[11px]"
+            className="h-auto p-0 text-[13px]"
             onClick={() => onOpenDesigner(item.id)}
           >
             Panels & boards…
           </Button>
         )}
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <Select value={draft.finishId} onValueChange={(value) => setDraft({ ...draft, finishId: value })}>
           <SelectTrigger size="sm">
             <SelectValue />
@@ -514,7 +555,7 @@ function CabinetCatalogRow({ item, categorySuggestions, onSave, onDelete, onOpen
           </SelectContent>
         </Select>
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <CatalogFrontFields
           moduleType={draft.moduleType}
           widthMm={draft.widthMm}
@@ -523,7 +564,7 @@ function CabinetCatalogRow({ item, categorySuggestions, onSave, onDelete, onOpen
           onChange={(frontLayout, handleId) => setDraft({ ...draft, frontLayout, handleId })}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <input
           type="number"
           min={0}
@@ -531,9 +572,9 @@ function CabinetCatalogRow({ item, categorySuggestions, onSave, onDelete, onOpen
           onChange={(e) => setDraft({ ...draft, unitPrice: Number(e.target.value) })}
           className={inputClass + ' w-20'}
         />
-        <div className="mt-0.5 text-[10px] text-gray-400">{INR_FORMATTER.format(draft.unitPrice)}</div>
+        <div className="mt-0.5 text-xs text-muted-foreground">{INR_FORMATTER.format(draft.unitPrice)}</div>
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <div className="flex flex-col gap-1">
           <Button size="xs" onClick={handleSave} disabled={isSaving}>
             Save
@@ -542,7 +583,7 @@ function CabinetCatalogRow({ item, categorySuggestions, onSave, onDelete, onOpen
             Delete
           </Button>
         </div>
-        {error && <p className="mt-1 w-24 text-[10px] text-red-600">{error}</p>}
+        {error && <p className="mt-1 w-24 text-xs text-destructive">{error}</p>}
       </td>
     </tr>
   );
@@ -591,8 +632,8 @@ function NewCabinetItemRow({
   }
 
   return (
-    <tr className="bg-gray-50 align-top">
-      <td className="px-2 py-1.5">
+    <tr className="bg-secondary align-top">
+      <td className="px-3 py-2">
         <input
           list="catalog-categories"
           value={draft.category}
@@ -600,7 +641,7 @@ function NewCabinetItemRow({
           className={inputClass + ' w-24'}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <input
           placeholder="New piece name"
           value={draft.label}
@@ -608,7 +649,7 @@ function NewCabinetItemRow({
           className={inputClass + ' w-36'}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <Select
           value={draft.moduleType}
           onValueChange={(value) => setDraft({ ...draft, moduleType: value as ModuleType })}
@@ -625,7 +666,7 @@ function NewCabinetItemRow({
           </SelectContent>
         </Select>
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <div className="flex gap-1">
           <input
             type="number"
@@ -650,14 +691,14 @@ function NewCabinetItemRow({
           />
         </div>
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <BoardSelect
           material={draft.material}
           carcassBoardId={draft.carcassBoardId}
           onChange={(patch) => setDraft({ ...draft, ...patch })}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <Select value={draft.finishId} onValueChange={(value) => setDraft({ ...draft, finishId: value })}>
           <SelectTrigger size="sm">
             <SelectValue />
@@ -671,7 +712,7 @@ function NewCabinetItemRow({
           </SelectContent>
         </Select>
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <CatalogFrontFields
           moduleType={draft.moduleType}
           widthMm={draft.widthMm}
@@ -680,7 +721,7 @@ function NewCabinetItemRow({
           onChange={(frontLayout, handleId) => setDraft({ ...draft, frontLayout, handleId })}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <input
           type="number"
           min={0}
@@ -689,11 +730,11 @@ function NewCabinetItemRow({
           className={inputClass + ' w-20'}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <Button size="xs" onClick={handleAdd} disabled={isSaving}>
           + Add
         </Button>
-        {error && <p className="mt-1 w-24 text-[10px] text-red-600">{error}</p>}
+        {error && <p className="mt-1 w-24 text-xs text-destructive">{error}</p>}
       </td>
     </tr>
   );
@@ -743,15 +784,15 @@ function ObstaclePresetRow({ preset, onSave, onDelete }: ObstaclePresetRowProps)
   }
 
   return (
-    <tr className="border-b border-gray-100 align-top">
-      <td className="px-2 py-1.5">
+    <tr className="border-b border-border/70 align-top last:border-b-0">
+      <td className="px-3 py-2">
         <input
           value={draft.label}
           onChange={(e) => setDraft({ ...draft, label: e.target.value })}
           className={inputClass + ' w-32'}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <Select value={draft.type} onValueChange={(value) => setDraft({ ...draft, type: value as ObstacleType })}>
           <SelectTrigger size="sm">
             <SelectValue />
@@ -765,7 +806,7 @@ function ObstaclePresetRow({ preset, onSave, onDelete }: ObstaclePresetRowProps)
           </SelectContent>
         </Select>
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <div className="flex gap-1">
           <input
             type="number"
@@ -783,13 +824,13 @@ function ObstaclePresetRow({ preset, onSave, onDelete }: ObstaclePresetRowProps)
           />
         </div>
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <Checkbox
           checked={draft.floorToCeiling}
           onCheckedChange={(checked) => setDraft({ ...draft, floorToCeiling: checked === true })}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <input
           type="number"
           min={50}
@@ -798,7 +839,7 @@ function ObstaclePresetRow({ preset, onSave, onDelete }: ObstaclePresetRowProps)
           className={inputClass + ' w-16'}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <input
           type="number"
           min={0}
@@ -807,7 +848,7 @@ function ObstaclePresetRow({ preset, onSave, onDelete }: ObstaclePresetRowProps)
           className={inputClass + ' w-16'}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <div className="flex gap-1">
           <Button size="xs" onClick={handleSave} disabled={isSaving}>
             Save
@@ -816,7 +857,7 @@ function ObstaclePresetRow({ preset, onSave, onDelete }: ObstaclePresetRowProps)
             Delete
           </Button>
         </div>
-        {error && <p className="mt-1 w-24 text-[10px] text-red-600">{error}</p>}
+        {error && <p className="mt-1 w-24 text-xs text-destructive">{error}</p>}
       </td>
     </tr>
   );
@@ -856,8 +897,8 @@ function NewObstaclePresetRow({ onAdd }: { onAdd: (preset: ObstaclePreset) => Pr
   }
 
   return (
-    <tr className="bg-gray-50 align-top">
-      <td className="px-2 py-1.5">
+    <tr className="bg-secondary align-top">
+      <td className="px-3 py-2">
         <input
           placeholder="New preset name"
           value={draft.label}
@@ -865,7 +906,7 @@ function NewObstaclePresetRow({ onAdd }: { onAdd: (preset: ObstaclePreset) => Pr
           className={inputClass + ' w-32'}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <Select value={draft.type} onValueChange={(value) => setDraft({ ...draft, type: value as ObstacleType })}>
           <SelectTrigger size="sm">
             <SelectValue />
@@ -879,7 +920,7 @@ function NewObstaclePresetRow({ onAdd }: { onAdd: (preset: ObstaclePreset) => Pr
           </SelectContent>
         </Select>
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <div className="flex gap-1">
           <input
             type="number"
@@ -897,13 +938,13 @@ function NewObstaclePresetRow({ onAdd }: { onAdd: (preset: ObstaclePreset) => Pr
           />
         </div>
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <Checkbox
           checked={draft.floorToCeiling}
           onCheckedChange={(checked) => setDraft({ ...draft, floorToCeiling: checked === true })}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <input
           type="number"
           min={50}
@@ -912,7 +953,7 @@ function NewObstaclePresetRow({ onAdd }: { onAdd: (preset: ObstaclePreset) => Pr
           className={inputClass + ' w-16'}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <input
           type="number"
           min={0}
@@ -921,11 +962,11 @@ function NewObstaclePresetRow({ onAdd }: { onAdd: (preset: ObstaclePreset) => Pr
           className={inputClass + ' w-16'}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <Button size="xs" onClick={handleAdd} disabled={isSaving}>
           + Add
         </Button>
-        {error && <p className="mt-1 w-24 text-[10px] text-red-600">{error}</p>}
+        {error && <p className="mt-1 w-24 text-xs text-destructive">{error}</p>}
       </td>
     </tr>
   );
@@ -973,15 +1014,15 @@ function ApplianceCatalogRow({ item, onSave, onDelete }: ApplianceCatalogRowProp
   }
 
   return (
-    <tr className="border-b border-gray-100 align-top">
-      <td className="px-2 py-1.5">
+    <tr className="border-b border-border/70 align-top last:border-b-0">
+      <td className="px-3 py-2">
         <input
           value={draft.label}
           onChange={(e) => setDraft({ ...draft, label: e.target.value })}
           className={inputClass + ' w-32'}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <Select
           value={draft.applianceType}
           onValueChange={(value) => setDraft({ ...draft, applianceType: value as ApplianceType })}
@@ -998,7 +1039,7 @@ function ApplianceCatalogRow({ item, onSave, onDelete }: ApplianceCatalogRowProp
           </SelectContent>
         </Select>
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <div className="flex gap-1">
           <input
             type="number"
@@ -1023,7 +1064,7 @@ function ApplianceCatalogRow({ item, onSave, onDelete }: ApplianceCatalogRowProp
           />
         </div>
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <input
           type="number"
           min={0}
@@ -1032,7 +1073,7 @@ function ApplianceCatalogRow({ item, onSave, onDelete }: ApplianceCatalogRowProp
           className={inputClass + ' w-16'}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         {draft.applianceType === 'sink' && (
           <div className="flex gap-1">
             <input
@@ -1056,7 +1097,7 @@ function ApplianceCatalogRow({ item, onSave, onDelete }: ApplianceCatalogRowProp
           </div>
         )}
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         {/* A path under public/, e.g. /models/hob-600.glb. Left empty the
             appliance keeps rendering as a plain box — see
             components/canvas3d/ApplianceModel.tsx. */}
@@ -1067,7 +1108,7 @@ function ApplianceCatalogRow({ item, onSave, onDelete }: ApplianceCatalogRowProp
           className={inputClass + ' w-36'}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <ModelOrientationFields
           xDeg={draft.modelRotationXDeg ?? 0}
           yDeg={draft.modelRotationYDeg ?? 0}
@@ -1076,7 +1117,7 @@ function ApplianceCatalogRow({ item, onSave, onDelete }: ApplianceCatalogRowProp
           }
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <input
           type="number"
           min={0}
@@ -1084,9 +1125,9 @@ function ApplianceCatalogRow({ item, onSave, onDelete }: ApplianceCatalogRowProp
           onChange={(e) => setDraft({ ...draft, unitPrice: Number(e.target.value) })}
           className={inputClass + ' w-20'}
         />
-        <div className="mt-0.5 text-[10px] text-gray-400">{INR_FORMATTER.format(draft.unitPrice)}</div>
+        <div className="mt-0.5 text-xs text-muted-foreground">{INR_FORMATTER.format(draft.unitPrice)}</div>
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <div className="flex flex-col gap-1">
           <Button size="xs" onClick={handleSave} disabled={isSaving}>
             Save
@@ -1095,7 +1136,7 @@ function ApplianceCatalogRow({ item, onSave, onDelete }: ApplianceCatalogRowProp
             Delete
           </Button>
         </div>
-        {error && <p className="mt-1 w-24 text-[10px] text-red-600">{error}</p>}
+        {error && <p className="mt-1 w-24 text-xs text-destructive">{error}</p>}
       </td>
     </tr>
   );
@@ -1140,8 +1181,8 @@ function NewApplianceCatalogRow({
   }
 
   return (
-    <tr className="bg-gray-50 align-top">
-      <td className="px-2 py-1.5">
+    <tr className="bg-secondary align-top">
+      <td className="px-3 py-2">
         <input
           placeholder="New appliance name"
           value={draft.label}
@@ -1149,7 +1190,7 @@ function NewApplianceCatalogRow({
           className={inputClass + ' w-32'}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <Select
           value={draft.applianceType}
           onValueChange={(value) => setDraft({ ...draft, applianceType: value as ApplianceType })}
@@ -1166,7 +1207,7 @@ function NewApplianceCatalogRow({
           </SelectContent>
         </Select>
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <div className="flex gap-1">
           <input
             type="number"
@@ -1191,7 +1232,7 @@ function NewApplianceCatalogRow({
           />
         </div>
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <input
           type="number"
           min={0}
@@ -1200,7 +1241,7 @@ function NewApplianceCatalogRow({
           className={inputClass + ' w-16'}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         {draft.applianceType === 'sink' && (
           <div className="flex gap-1">
             <input
@@ -1224,7 +1265,7 @@ function NewApplianceCatalogRow({
           </div>
         )}
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         {/* A path under public/, e.g. /models/hob-600.glb. Left empty the
             appliance keeps rendering as a plain box — see
             components/canvas3d/ApplianceModel.tsx. */}
@@ -1235,7 +1276,7 @@ function NewApplianceCatalogRow({
           className={inputClass + ' w-36'}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <ModelOrientationFields
           xDeg={draft.modelRotationXDeg ?? 0}
           yDeg={draft.modelRotationYDeg ?? 0}
@@ -1244,7 +1285,7 @@ function NewApplianceCatalogRow({
           }
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <input
           type="number"
           min={0}
@@ -1253,11 +1294,11 @@ function NewApplianceCatalogRow({
           className={inputClass + ' w-20'}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <Button size="xs" onClick={handleAdd} disabled={isSaving}>
           + Add
         </Button>
-        {error && <p className="mt-1 w-24 text-[10px] text-red-600">{error}</p>}
+        {error && <p className="mt-1 w-24 text-xs text-destructive">{error}</p>}
       </td>
     </tr>
   );

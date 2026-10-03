@@ -200,6 +200,10 @@ check it on laptop, tablet and phone.
   Settings (rate card, workshop, account). The rate card moved out of
   the catalogue. Not yet seen in a browser. Next: the design editor.
 
+- 3 Oct: Catalogue page redesigned (section frames, help behind a
+  toggle, most-used first), sidebar sub-list for its sections, cutting
+  list from a customer card (§71).
+
 ## Review links
 
 - **3 Oct 2026 — design system v0.1 + design editor (laptop, tablet,

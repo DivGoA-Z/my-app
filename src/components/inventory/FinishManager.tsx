@@ -56,8 +56,8 @@ function blankFinish(): SurfaceFinish {
   };
 }
 
-const inputClass = 'w-full rounded border border-gray-300 px-2 py-1 text-xs';
-const labelClass = 'flex flex-col gap-1 text-[11px] text-gray-600';
+const inputClass = 'w-full rounded border border-input px-2 py-1 text-xs';
+const labelClass = 'flex flex-col gap-1 text-[13px] text-muted-foreground';
 
 export function FinishManager() {
   const finishes = useLayoutStore((s) => s.finishes);
@@ -118,20 +118,15 @@ export function FinishManager() {
 
   return (
     <section className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-gray-700">Finishes</h3>
-          <p className="text-[11px] text-gray-500">
-            The materials you actually stock. Cabinets reference these, and each one's price per
-            m² feeds the quote.
-          </p>
-        </div>
-        <Button size="sm" onClick={startNew}>
-          + New Finish
+      {/* Title and description come from the Catalogue page's section
+          frame (CatalogueSection, §71). */}
+      <div className="flex justify-end">
+        <Button size="touch" onClick={startNew}>
+          + New finish
         </Button>
       </div>
 
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-xs text-destructive">{error}</p>}
 
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
         {finishes.map((finish) => (
@@ -144,7 +139,7 @@ export function FinishManager() {
           />
         ))}
         {finishes.length === 0 && (
-          <p className="col-span-full text-xs text-gray-400">
+          <p className="col-span-full text-xs text-muted-foreground">
             No finishes yet — add one, or run supabase/schema.sql to seed the defaults.
           </p>
         )}
@@ -180,7 +175,7 @@ function SwatchPreview({ finish, className = '' }: { finish: SurfaceFinish; clas
   if (finish.proceduralKind) {
     return (
       <div
-        className={`flex h-full w-full items-center justify-center bg-linear-to-br from-amber-100 to-amber-300 text-[9px] text-amber-800 ${className}`}
+        className={`flex h-full w-full items-center justify-center bg-linear-to-br from-amber-100 to-amber-300 text-xs text-amber-800 ${className}`}
       >
         {finish.proceduralKind}
       </div>
@@ -205,28 +200,28 @@ function FinishCard({ finish, isEditing, onEdit, onDelete }: FinishCardProps) {
   return (
     <div
       className={`flex overflow-hidden rounded-lg border ${
-        isEditing ? 'border-blue-400 ring-1 ring-blue-200' : 'border-gray-200'
+        isEditing ? 'border-blue-400 ring-1 ring-blue-200' : 'border-border'
       }`}
     >
-      <div className="h-16 w-16 shrink-0 border-r border-gray-200">
+      <div className="h-16 w-16 shrink-0 border-r border-border">
         <SwatchPreview finish={finish} />
       </div>
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 px-2 py-1">
-        <span className="truncate text-xs font-medium text-gray-800">
+        <span className="truncate text-xs font-medium text-foreground">
           {finish.brand ? `${finish.brand} ${finish.label}` : finish.label}
         </span>
-        <span className="truncate text-[10px] text-gray-500">
+        <span className="truncate text-xs text-muted-foreground">
           {finish.finishTypeLabel} · {PATTERN_CATEGORY_LABELS[finish.patternCategory]}
         </span>
-        <span className="text-[10px] text-gray-400">₹{finish.pricePerSqM}/m²</span>
+        <span className="text-xs text-muted-foreground">₹{finish.pricePerSqM}/m²</span>
         <div className="flex gap-2">
-          <Button variant="link" size="xs" className="h-auto p-0 text-[10px]" onClick={onEdit}>
+          <Button variant="link" size="xs" className="h-auto p-0 text-xs" onClick={onEdit}>
             Edit
           </Button>
           <Button
             variant="link"
             size="xs"
-            className="h-auto p-0 text-[10px] text-destructive"
+            className="h-auto p-0 text-xs text-destructive"
             onClick={onDelete}
           >
             Delete
@@ -283,8 +278,8 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-gray-300 bg-gray-50 p-4">
-      <h4 className="text-xs font-semibold text-gray-700">
+    <div className="flex flex-col gap-3 rounded-lg border border-input bg-secondary p-4">
+      <h4 className="text-xs font-semibold text-foreground">
         {isNew ? 'New finish' : `Editing: ${draft.label || 'Untitled'}`}
       </h4>
 
@@ -362,8 +357,8 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
       </div>
 
       {/* Appearance: image or colour, never both */}
-      <div className="flex gap-3 border-t border-gray-200 pt-3">
-        <div className="h-24 w-24 shrink-0 overflow-hidden rounded border border-gray-300">
+      <div className="flex gap-3 border-t border-border pt-3">
+        <div className="h-24 w-24 shrink-0 overflow-hidden rounded border border-input">
           <SwatchPreview finish={draft} />
         </div>
 
@@ -378,17 +373,17 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
                 const file = e.target.files?.[0];
                 if (file) handleUpload(file);
               }}
-              className="text-[11px]"
+              className="text-[13px]"
             />
           </label>
-          {isUploading && <span className="text-[10px] text-gray-500">Uploading…</span>}
-          {uploadError && <span className="text-[10px] text-red-600">{uploadError}</span>}
+          {isUploading && <span className="text-xs text-muted-foreground">Uploading…</span>}
+          {uploadError && <span className="text-xs text-destructive">{uploadError}</span>}
 
           {draft.albedoUrl ? (
             <Button
               variant="link"
               size="xs"
-              className="h-auto self-start p-0 text-[10px]"
+              className="h-auto self-start p-0 text-xs"
               onClick={() =>
                 patch({ albedoUrl: undefined, solidColor: draft.solidColor ?? '#e8e4dc' })
               }
@@ -402,7 +397,7 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
                 type="color"
                 value={draft.solidColor ?? '#e8e4dc'}
                 onChange={(e) => patch({ solidColor: e.target.value })}
-                className="h-7 w-16 cursor-pointer rounded border border-gray-300"
+                className="h-7 w-16 cursor-pointer rounded border border-input"
               />
             </label>
           )}
@@ -415,7 +410,7 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
           albedo it was authored against, so they're only offered once
           there's an image. */}
       {draft.albedoUrl && (
-        <div className="grid grid-cols-2 gap-2 border-t border-gray-200 pt-3">
+        <div className="grid grid-cols-2 gap-2 border-t border-border pt-3">
           <label className={labelClass}>
             Normal map URL
             <input
@@ -424,7 +419,7 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
               placeholder="/textures/wood/normal.jpg"
               className={inputClass}
             />
-            <span className="text-[10px] text-gray-400">
+            <span className="text-xs text-muted-foreground">
               Overrides the relief guessed from the photo's light and shade. Use NormalGL (OpenGL)
               maps — a DirectX one inverts the bumps.
             </span>
@@ -437,7 +432,7 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
               placeholder="/textures/wood/roughness.jpg"
               className={inputClass}
             />
-            <span className="text-[10px] text-gray-400">
+            <span className="text-xs text-muted-foreground">
               Lets sheen vary across the surface — glossy tile against matte grout, which the
               single roughness slider below can't express.
             </span>
@@ -447,7 +442,7 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
 
       {/* Physical scale + tiling — only meaningful for an image */}
       {draft.albedoUrl && (
-        <div className="grid grid-cols-3 gap-2 border-t border-gray-200 pt-3">
+        <div className="grid grid-cols-3 gap-2 border-t border-border pt-3">
           <label className={labelClass}>
             Swatch width (mm)
             <input
@@ -483,7 +478,7 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
               </SelectContent>
             </Select>
           </div>
-          <p className="col-span-3 text-[10px] text-gray-400">
+          <p className="col-span-3 text-xs text-muted-foreground">
             Swatch size is the real area the photo covers — get this wrong and the pattern renders
             at the wrong scale. Mirror tiling flips alternate copies so photographed edges match;
             it costs a little symmetry but removes hard seams.
@@ -492,7 +487,7 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
       )}
 
       {/* Relief + optical response */}
-      <div className="grid grid-cols-2 gap-3 border-t border-gray-200 pt-3">
+      <div className="grid grid-cols-2 gap-3 border-t border-border pt-3">
         <label className={labelClass}>
           Relief depth ({draft.reliefStrength.toFixed(2)})
           <input
@@ -503,7 +498,7 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
             value={draft.reliefStrength}
             onChange={(e) => patch({ reliefStrength: Number(e.target.value) })}
           />
-          <span className="text-[10px] text-gray-400">
+          <span className="text-xs text-muted-foreground">
             Derived from the photo's light and shade. Good for wood and fabric; keep near 0 for
             polished stone, where dark veins are flush, not recessed.
           </span>
@@ -519,7 +514,7 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
             value={draft.roughness}
             onChange={(e) => patch({ roughness: Number(e.target.value) })}
           />
-          <span className="text-[10px] text-gray-400">0 = mirror, 1 = fully matte.</span>
+          <span className="text-xs text-muted-foreground">0 = mirror, 1 = fully matte.</span>
         </label>
 
         <label className={labelClass}>
@@ -532,7 +527,7 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
             value={draft.clearcoat}
             onChange={(e) => patch({ clearcoat: Number(e.target.value) })}
           />
-          <span className="text-[10px] text-gray-400">
+          <span className="text-xs text-muted-foreground">
             The lacquer layer that gives acrylic and PU their depth. 0 for matte laminates.
           </span>
         </label>
@@ -550,7 +545,7 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
         </label>
       </div>
 
-      <div className="flex gap-2 border-t border-gray-200 pt-3">
+      <div className="flex gap-2 border-t border-border pt-3">
         <Button size="sm" onClick={onSave}>
           Save finish
         </Button>

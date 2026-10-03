@@ -138,8 +138,8 @@ export function RateCardManager() {
     <div className="flex flex-col gap-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="font-semibold text-sm text-gray-700">Rate card</h3>
-          <p className="mt-1 text-xs text-gray-500">
+          <h3 className="font-semibold text-sm text-foreground">Rate card</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
             The prices that aren't attached to a product. Finishes, handles, fixtures,
             cabinets and appliances are priced on their own catalogue rows.
           </p>
@@ -164,8 +164,8 @@ export function RateCardManager() {
       )}
 
       <fieldset className="flex flex-col gap-3">
-        <legend className="text-xs font-medium text-gray-600">Labour and other charges (₹)</legend>
-        <p className="text-[11px] text-gray-500">
+        <legend className="text-xs font-medium text-muted-foreground">Labour and other charges (₹)</legend>
+        <p className="text-[13px] text-muted-foreground">
           Labour, edge banding, packing, delivery — anything that isn't material, hardware or
           glass. Pick how each is charged: per sq ft (of each cabinet's total board area — every
           panel, back, shelf and front from the cutting list), per cabinet, or once per project
@@ -183,10 +183,10 @@ export function RateCardManager() {
       <Separator />
 
       <fieldset className="flex flex-col gap-3">
-        <legend className="text-xs font-medium text-gray-600">Hardware (₹ per unit)</legend>
+        <legend className="text-xs font-medium text-muted-foreground">Hardware (₹ per unit)</legend>
         {HARDWARE_KEYS.map((key) => (
           <Label key={key} className="flex items-center justify-between gap-3 font-normal">
-            <span className="text-xs text-gray-600">{RATE_LABELS[key]}</span>
+            <span className="text-xs text-muted-foreground">{RATE_LABELS[key]}</span>
             <Input
               type="number"
               min={0}
@@ -202,7 +202,7 @@ export function RateCardManager() {
             />
           </Label>
         ))}
-        <p className="text-[11px] text-gray-500">
+        <p className="text-[13px] text-muted-foreground">
           A drawer channel is priced per <strong>pair</strong> of runners, and a hinge per
           individual piece — that's how each is sold and fitted. Handles are priced on their
           own catalogue rows, not here.
@@ -212,8 +212,8 @@ export function RateCardManager() {
       <Separator />
 
       <fieldset className="flex flex-col gap-3">
-        <legend className="text-xs font-medium text-gray-600">Boards</legend>
-        <p className="text-[11px] text-gray-500">
+        <legend className="text-xs font-medium text-muted-foreground">Boards</legend>
+        <p className="text-[13px] text-muted-foreground">
           Every board you buy, one line per material and thickness — HDMR 18mm and HDMR 6mm are
           different lines at different prices. Each panel of a cabinet is priced at its own
           board's rate, on its real area. Each cabinet picks its carcass board in the catalogue
@@ -228,7 +228,7 @@ export function RateCardManager() {
             experience-based factor everywhere, or each board line's own
             factor measured from each project's sheet layout. */}
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs text-gray-600">Sheet waste on quotes</span>
+          <span className="text-xs text-muted-foreground">Sheet waste on quotes</span>
           <div className="flex gap-1" role="radiogroup" aria-label="Sheet waste on quotes">
             {(
               [
@@ -250,14 +250,14 @@ export function RateCardManager() {
               </Button>
             ))}
           </div>
-          <p className="text-[11px] text-gray-500">
+          <p className="text-[13px] text-muted-foreground">
             {draft.wasteMode === 'approx'
               ? 'Every quote uses the one factor below (a project can override it from its quote).'
               : "Every quote lays its own parts out on each board's sheet sizes and uses each board's measured waste — automatically, nothing to fill in. More accurate when boards differ in price. The factor below is kept for when you switch back."}
           </p>
         </div>
         <Label className="flex items-center justify-between gap-3 font-normal">
-          <span className="text-xs text-gray-600">Edge banding (₹ per running metre)</span>
+          <span className="text-xs text-muted-foreground">Edge banding (₹ per running metre)</span>
           <Input
             type="number"
             min={0}
@@ -267,7 +267,7 @@ export function RateCardManager() {
             className="w-28 text-right"
           />
         </Label>
-        <p className="text-[11px] text-gray-500">
+        <p className="text-[13px] text-muted-foreground">
           Charged on the exact metres the cutting list works out — only the edges that face the
           customer. ₹0 means not charged here.{' '}
           {draft.edgeBandingRatePerM > 0 &&
@@ -279,7 +279,7 @@ export function RateCardManager() {
             )}
         </p>
         <Label className="flex items-center justify-between gap-3 font-normal">
-          <span className={`text-xs ${draft.wasteMode === 'approx' ? 'text-gray-600' : 'text-gray-400'}`}>
+          <span className={`text-xs ${draft.wasteMode === 'approx' ? 'text-muted-foreground' : 'text-muted-foreground'}`}>
             Approx sheet waste factor (×)
           </span>
           <Input
@@ -291,7 +291,7 @@ export function RateCardManager() {
             className="w-28 text-right"
           />
         </Label>
-        <p className="text-[11px] text-gray-500">
+        <p className="text-[13px] text-muted-foreground">
           From experience: board is bought as whole sheets and the offcuts are paid for too. 1.10
           means "buy 10% more than the cabinets use." Multiplies the board rates above only.
         </p>
@@ -300,10 +300,10 @@ export function RateCardManager() {
       <Separator />
 
       <fieldset className="flex flex-col gap-3">
-        <legend className="text-xs font-medium text-gray-600">Glass door (₹ per sq ft)</legend>
+        <legend className="text-xs font-medium text-muted-foreground">Glass door (₹ per sq ft)</legend>
         {GLASS_KEYS.map((key) => (
           <Label key={key} className="flex items-center justify-between gap-3 font-normal">
-            <span className="text-xs text-gray-600">{GLASS_TINT_LABELS[key]}</span>
+            <span className="text-xs text-muted-foreground">{GLASS_TINT_LABELS[key]}</span>
             <Input
               type="number"
               min={0}
@@ -319,7 +319,7 @@ export function RateCardManager() {
             />
           </Label>
         ))}
-        <p className="text-[11px] text-gray-500">
+        <p className="text-[13px] text-muted-foreground">
           An open-shelf front's optional glass door (Front Picker, on a cabinet), charged by
           the glass panel's own area — sq ft, not sq m, matching site labour's unit rather
           than the board rates above. Priced separately from Boards: glass is bought
@@ -369,7 +369,7 @@ export function RateCardManager() {
         )}
       </div>
 
-      <p className="text-[11px] text-gray-500">
+      <p className="text-[13px] text-muted-foreground">
         Saving new rates reprices every open quote. Quotes you've already frozen and
         sent keep the rates they were sent with.
       </p>

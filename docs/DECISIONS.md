@@ -5235,3 +5235,45 @@ follow-ups; Lost needs a reason; other stages change directly). 122 in
 total. The screen test fails if Lost is allowed without a reason
 (checked by breaking it). **Not yet seen in a browser** at any of the
 three sizes.
+
+## 71. Catalogue page redesign, sidebar sub-list, cutting list from Customers
+
+Your review of the first shell screens: they "look fine, not great". You
+asked for:
+- the Catalogue's sections as a sub-list in the sidebar
+- a properly designed Catalogue page (headings, descriptions, boxes,
+  colours, partitions)
+- an answer to where the cutting list and the other screens now live
+
+**Catalogue.**
+- **One frame per section (`CatalogueSection`).** Each section is a
+  card with:
+  - an icon tile, the title and an item count
+  - ONE line saying what it's for
+  - a divider before the content
+  - the old explanation paragraphs (11px, up to five sentences each)
+    behind a "How this works" toggle, rewritten shorter
+- **Section order: most used first.** Cabinets, Appliances, Finishes,
+  Handles, Light fixtures, Pillars & shafts. This replaces the old
+  "dependency order" (finishes before the cabinets that use them),
+  which served the code, not the person; nothing breaks if a finish is
+  added after a cabinet.
+- **Tables restyled with design-system tokens.** 14px text, roomier
+  cells, and theme colours (secondary header row, muted text, destructive
+  and success colours) instead of raw greys. The Excel panels became
+  dashed "secondary" boxes. This was a mechanical class mapping across
+  `components/inventory/*`, which also restyled the rate-card editors
+  that moved to Settings.
+- **The sidebar sub-list.** Under Catalogue, while it's open, the
+  sections are listed and scroll to on click, with the current section
+  highlighted (an IntersectionObserver scroll-spy). Tablet and phone
+  have no room for it, so the page has a sticky chip bar instead. The
+  section list lives in `catalogueSections.ts`, so the page, the sidebar
+  and the toolbars' "Manage" links agree.
+
+**Cutting list from Customers.** An Approved or In-production customer's
+card menu now has "Cutting list", which loads the project and opens its
+cutting list without going through the editor. It's the workshop's way
+in. The editor's own link stays.
+
+Not seen in a browser yet.

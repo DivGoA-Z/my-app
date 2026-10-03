@@ -66,13 +66,14 @@ interface CardMenuProps {
   history: QuoteHistoryEntry[];
   views: CameraNode[];
   onOpenDesign: (id: string) => void;
+  onOpenCutList?: (id: string) => void;
   moveTo: (c: CustomerProject, s: LeadStatus) => void;
   onSetDate: (c: CustomerProject) => void;
   onPanorama: (cam: CameraNode) => void;
 }
 
 // Every card action in one menu, so nothing needs drag or hover.
-function CardMenu({ c, history, views, onOpenDesign, moveTo, onSetDate, onPanorama }: CardMenuProps) {
+function CardMenu({ c, history, views, onOpenDesign, onOpenCutList, moveTo, onSetDate, onPanorama }: CardMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -84,6 +85,13 @@ function CardMenu({ c, history, views, onOpenDesign, moveTo, onSetDate, onPanora
         <DropdownMenuItem className="h-10" onSelect={() => onOpenDesign(c.id)}>
           Open design
         </DropdownMenuItem>
+        {/* The workshop's way in (§71): an approved job's cutting list,
+            one tap from the customer, without opening the editor. */}
+        {onOpenCutList && (c.status === 'Approved' || c.status === 'In Production') && (
+          <DropdownMenuItem className="h-10" onSelect={() => onOpenCutList(c.id)}>
+            Cutting list
+          </DropdownMenuItem>
+        )}
         {(c.status === 'In Production' || c.status === 'Approved') && (
           <DropdownMenuItem className="h-10" onSelect={() => onSetDate(c)}>
             {c.installDate ? 'Change install date' : 'Set install date'}
@@ -141,7 +149,13 @@ function StagePill({ status }: { status: LeadStatus }) {
   );
 }
 
-export function CustomersPage({ onOpenDesign }: { onOpenDesign: (projectId: string) => void }) {
+export function CustomersPage({
+  onOpenDesign,
+  onOpenCutList,
+}: {
+  onOpenDesign: (projectId: string) => void;
+  onOpenCutList?: (projectId: string) => void;
+}) {
   const { customers, setCustomers, isLoading, error, quoteHistories, panoramas } = useCustomerList();
   const { changeStage, saveInstallDate } = usePipelineActions(customers, setCustomers);
   const [query, setQuery] = useState('');
@@ -306,7 +320,7 @@ export function CustomersPage({ onOpenDesign }: { onOpenDesign: (projectId: stri
                               <span className="block truncate text-[15px] font-semibold">{c.clientName}</span>
                               <span className="block truncate text-[13px] text-muted-foreground">{c.locality || '—'}</span>
                             </button>
-                            <CardMenu c={c} history={quoteHistories[c.id] ?? []} views={panoramas[c.id] ?? []} onOpenDesign={onOpenDesign} moveTo={moveTo} onSetDate={setDating} onPanorama={setPanorama} />
+                            <CardMenu c={c} history={quoteHistories[c.id] ?? []} views={panoramas[c.id] ?? []} onOpenDesign={onOpenDesign} onOpenCutList={onOpenCutList} moveTo={moveTo} onSetDate={setDating} onPanorama={setPanorama} />
                           </div>
                           <div className="flex items-center justify-between gap-2 pt-1">
                             {stage === 'In Production' && !c.installDate ? (
@@ -355,7 +369,7 @@ export function CustomersPage({ onOpenDesign }: { onOpenDesign: (projectId: stri
                     <StagePill status={c.status} />
                     <span className="text-sm font-bold">{c.quoteTotal != null ? INR.format(c.quoteTotal) : '—'}</span>
                   </div>
-                  <CardMenu c={c} history={quoteHistories[c.id] ?? []} views={panoramas[c.id] ?? []} onOpenDesign={onOpenDesign} moveTo={moveTo} onSetDate={setDating} onPanorama={setPanorama} />
+                  <CardMenu c={c} history={quoteHistories[c.id] ?? []} views={panoramas[c.id] ?? []} onOpenDesign={onOpenDesign} onOpenCutList={onOpenCutList} moveTo={moveTo} onSetDate={setDating} onPanorama={setPanorama} />
                 </article>
               );
             })}

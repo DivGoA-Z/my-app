@@ -85,14 +85,14 @@ export function BoardRatesEditor({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="grid grid-cols-[1fr_6rem_7rem_2rem] gap-2 text-[11px] font-medium text-gray-500">
+      <div className="grid grid-cols-[1fr_6rem_7rem_2rem] gap-2 text-[13px] font-medium text-muted-foreground">
         <span>Board</span>
         <span className="text-right">Thickness (mm)</span>
         <span className="text-right">₹ per sq m</span>
         <span />
       </div>
       {boards.map((b) => (
-        <div key={b.id} className="flex flex-col gap-1 border-b border-gray-100 pb-2">
+        <div key={b.id} className="flex flex-col gap-1 border-b border-border/70 pb-2">
           <div className="grid grid-cols-[1fr_6rem_7rem_2rem] items-center gap-2">
             <Select value={b.material} onValueChange={(v) => update(b.id, { material: v as MaterialType })}>
               <SelectTrigger size="sm" className="w-full">
@@ -181,12 +181,12 @@ export function BoardRatesEditor({
           on the price AND the cutting list — because a board was still
           found. Showing the resolved carcass board per material, live,
           means that edit can't happen unseen. */}
-      <div className="mt-1 rounded-md bg-gray-50 px-2 py-1.5 text-[11px] text-gray-600">
+      <div className="mt-1 rounded-md bg-secondary px-2 py-1.5 text-[13px] text-muted-foreground">
         <span className="font-medium">Carcass board for cabinets with no board chosen: </span>
         {MATERIAL_RATE_KEYS.map((m, i) => {
           const board = defaultCarcassBoard(boards, m);
           return (
-            <span key={m} className={board && board.thicknessMm < 12 ? 'font-medium text-red-600' : undefined}>
+            <span key={m} className={board && board.thicknessMm < 12 ? 'font-medium text-destructive' : undefined}>
               {i > 0 ? ' · ' : ''}
               {MATERIAL_RATE_LABELS[m]} → {board ? `${board.thicknessMm}mm` : 'none'}
             </span>
@@ -194,7 +194,7 @@ export function BoardRatesEditor({
         })}
       </div>
 
-      <div className="mt-1 flex items-center justify-between gap-3 text-xs text-gray-600">
+      <div className="mt-1 flex items-center justify-between gap-3 text-xs text-muted-foreground">
         <span>Default back board</span>
         <Select value={defaultBackBoardId} onValueChange={(v) => onChange(boards, v)}>
           <SelectTrigger size="sm" className="w-48">
@@ -221,20 +221,20 @@ function SheetSizesEditor({ sizes, onChange }: { sizes: SheetSize[]; onChange: (
   const [width, setWidth] = useState(DEFAULT_SHEET_SIZE.widthMm);
   const exists = sizes.some((z) => z.lengthMm === length && z.widthMm === width);
   return (
-    <div className="flex flex-wrap items-center gap-1.5 pl-1 text-[11px] text-gray-600">
-      <span className="text-gray-500">Sheet sizes:</span>
+    <div className="flex flex-wrap items-center gap-1.5 pl-1 text-[13px] text-muted-foreground">
+      <span className="text-muted-foreground">Sheet sizes:</span>
       {sizes.length === 0 && (
-        <span className="text-gray-400">
+        <span className="text-muted-foreground">
           {DEFAULT_SHEET_SIZE.lengthMm} × {DEFAULT_SHEET_SIZE.widthMm} (default)
         </span>
       )}
       {sizes.map((z, i) => (
-        <span key={`${z.lengthMm}x${z.widthMm}`} className="flex items-center gap-1 rounded border border-gray-300 bg-gray-50 px-1.5 py-0.5">
+        <span key={`${z.lengthMm}x${z.widthMm}`} className="flex items-center gap-1 rounded border border-input bg-secondary px-1.5 py-0.5">
           {z.lengthMm} × {z.widthMm}
           <button
             type="button"
             aria-label={`Remove ${z.lengthMm} by ${z.widthMm}`}
-            className="text-gray-400 hover:text-gray-700"
+            className="text-muted-foreground hover:text-foreground"
             onClick={() => onChange(sizes.filter((_, k) => k !== i))}
           >
             ✕
@@ -247,7 +247,7 @@ function SheetSizesEditor({ sizes, onChange }: { sizes: SheetSize[]; onChange: (
         aria-label="New sheet length in mm"
         value={length}
         onChange={(e) => setLength(Number(e.target.value))}
-        className="w-16 rounded border border-gray-300 px-1 py-0.5 text-right"
+        className="w-16 rounded border border-input px-1 py-0.5 text-right"
       />
       ×
       <input
@@ -256,7 +256,7 @@ function SheetSizesEditor({ sizes, onChange }: { sizes: SheetSize[]; onChange: (
         aria-label="New sheet width in mm"
         value={width}
         onChange={(e) => setWidth(Number(e.target.value))}
-        className="w-16 rounded border border-gray-300 px-1 py-0.5 text-right"
+        className="w-16 rounded border border-input px-1 py-0.5 text-right"
       />
       <Button
         type="button"

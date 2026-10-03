@@ -30,7 +30,7 @@ const INR = new Intl.NumberFormat('en-IN', {
   maximumFractionDigits: 0,
 });
 
-const inputClass = 'rounded border border-gray-300 px-2 py-1 text-xs';
+const inputClass = 'rounded border border-input px-2 py-1 text-xs';
 
 export function FixtureManager() {
   const fixtureCatalog = useLayoutStore((s) => s.fixtureCatalog);
@@ -39,32 +39,23 @@ export function FixtureManager() {
 
   return (
     <div className="flex flex-col gap-2">
-      <div>
-        <h2 className="text-sm font-semibold text-gray-700">Your Light Fixtures</h2>
-        <p className="text-xs text-gray-500">
-          Strips, spots, cove and plinth runs.{' '}
-          <span className="font-medium">Priced by</span> follows the kind: runs are per metre,
-          spots and pendants per piece. <span className="font-medium">Lumens</span> does double
-          duty — it sets how bright the fixture renders, and decides which fixtures get a real
-          light when a kitchen has more than the 3D view can afford to draw.
-        </p>
-      </div>
+      {/* Title and description: the Catalogue page's section frame (§71). */}
 
       <FixtureCatalogImportExport />
 
-      <div className="overflow-x-auto rounded-lg border border-gray-200">
-        <table className="w-full border-collapse text-left text-xs">
+      <div className="overflow-x-auto rounded-xl border border-border bg-card">
+        <table className="w-full border-collapse text-left text-sm">
           <thead>
-            <tr className="border-b border-gray-200 bg-gray-50 text-gray-500">
-              <th className="px-2 py-2 font-medium">Name</th>
-              <th className="px-2 py-2 font-medium">Kind</th>
-              <th className="px-2 py-2 font-medium">Colour temp</th>
-              <th className="px-2 py-2 font-medium">Lumens</th>
-              <th className="px-2 py-2 font-medium">Priced by</th>
-              <th className="px-2 py-2 font-medium">Price</th>
-              <th className="px-2 py-2 font-medium">3D model</th>
-              <th className="px-2 py-2 font-medium">Model rotation</th>
-              <th className="px-2 py-2 font-medium" />
+            <tr className="border-b border-border bg-secondary text-[13px] text-muted-foreground">
+              <th className="px-3 py-2.5 font-semibold">Name</th>
+              <th className="px-3 py-2.5 font-semibold">Kind</th>
+              <th className="px-3 py-2.5 font-semibold">Colour temp</th>
+              <th className="px-3 py-2.5 font-semibold">Lumens</th>
+              <th className="px-3 py-2.5 font-semibold">Priced by</th>
+              <th className="px-3 py-2.5 font-semibold">Price</th>
+              <th className="px-3 py-2.5 font-semibold">3D model</th>
+              <th className="px-3 py-2.5 font-semibold">Model rotation</th>
+              <th className="px-3 py-2.5 font-semibold" />
             </tr>
           </thead>
           <tbody>
@@ -106,9 +97,9 @@ function Row({
   }
 
   return (
-    <tr className="border-b border-gray-100">
+    <tr className="border-b border-border/70">
       <Fields draft={draft} setDraft={setDraft} />
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <div className="flex flex-col gap-1">
           <Button
             size="xs"
@@ -158,9 +149,9 @@ function NewRow({ onAdd }: { onAdd: (item: FixtureCatalogItem) => Promise<void> 
   const [isSaving, setIsSaving] = useState(false);
 
   return (
-    <tr className="bg-gray-50/50">
+    <tr className="bg-secondary/50">
       <Fields draft={draft} setDraft={setDraft} />
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <Button
           size="xs"
           onClick={async () => {
@@ -192,7 +183,7 @@ function Fields({
 }) {
   return (
     <>
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <input
           value={draft.label}
           onChange={(e) => setDraft({ ...draft, label: e.target.value })}
@@ -201,7 +192,7 @@ function Fields({
         />
       </td>
 
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <Select
           value={draft.kind}
           onValueChange={(value) => {
@@ -228,10 +219,10 @@ function Fields({
         </Select>
       </td>
 
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <div className="flex items-center gap-1.5">
           <span
-            className="inline-block h-4 w-4 shrink-0 rounded-full border border-gray-300"
+            className="inline-block h-4 w-4 shrink-0 rounded-full border border-input"
             style={{ backgroundColor: kelvinToColor(draft.colorTempK) }}
           />
           <input
@@ -246,7 +237,7 @@ function Fields({
         </div>
       </td>
 
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <input
           type="number"
           min={0}
@@ -257,7 +248,7 @@ function Fields({
         />
       </td>
 
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <Select
           value={draft.pricingMode}
           onValueChange={(value) =>
@@ -277,7 +268,7 @@ function Fields({
         </Select>
       </td>
 
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         <input
           type="number"
           min={0}
@@ -285,12 +276,12 @@ function Fields({
           onChange={(e) => setDraft({ ...draft, price: Number(e.target.value) })}
           className={inputClass + ' w-20'}
         />
-        <div className="mt-0.5 text-[9px] text-gray-400">
+        <div className="mt-0.5 text-xs text-muted-foreground">
           {INR.format(draft.price)} {draft.pricingMode === 'per-metre' ? '/ m' : '/ pc'}
         </div>
       </td>
 
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         {/* A path under public/, e.g. /models/lighting/pendant.glb. Left
             empty the fixture keeps rendering as a primitive bar/disc —
             see components/canvas3d/Room3DCanvas.tsx (FixtureInScene). */}
@@ -302,7 +293,7 @@ function Fields({
         />
       </td>
 
-      <td className="px-2 py-1.5">
+      <td className="px-3 py-2">
         {/* Fixed correction for how the file was exported — applied
             before fitting/measurement. Only ever multiples of 90°, same
             convention as the appliance catalogue's model rotation. */}
