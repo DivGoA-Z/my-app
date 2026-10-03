@@ -116,6 +116,10 @@ import type { PlacedApplianceItem, ApplianceType } from '../../types/appliance';
 export interface Room3DCanvasProps {
   widthMm: number;
   depthMm: number;
+  // The 3D wall view (§82): look straight at one wall from across the
+  // room, the wall behind the camera removed, like the wall views in
+  // SketchUp / Planner 5D. Hides the walkthrough and capture controls.
+  wallView?: WallOrientation;
 }
 
 const DEFAULT_CEILING_HEIGHT_MM = 2700;
@@ -158,7 +162,7 @@ const SELECTION_OUTLINE_SCALE = 1.012;
 const HOTSPOT_COLOR = '#2dd4bf'; // teal-400 — matches CameraMarker's teal family
 const HOTSPOT_ACTIVE_COLOR = '#facc15'; // amber-400 — deliberately distinct so "you are here" stands out
 
-export function Room3DCanvas({ widthMm, depthMm }: Room3DCanvasProps) {
+export function Room3DCanvas({ widthMm, depthMm, wallView }: Room3DCanvasProps) {
   const currentLayout = useLayoutStore((state) => state.currentLayout);
   const cabinets = usePhysicalCabinets();
   const obstacles = useLayoutStore((state) => state.obstacles);
@@ -323,6 +327,8 @@ export function Room3DCanvas({ widthMm, depthMm }: Room3DCanvasProps) {
 
   return (
     <div className="flex flex-col gap-2">
+      {!wallView && (
+        <>
       <label className="flex items-center gap-2 self-start text-xs text-gray-600">
         Viewpoint
         <select
@@ -452,6 +458,9 @@ export function Room3DCanvas({ widthMm, depthMm }: Room3DCanvasProps) {
         <p className="text-[10px] text-gray-400">
           Last captured {new Date(selectedCamera.panoramaCapturedAt).toLocaleString()}.
         </p>
+      )}
+
+        </>
       )}
 
       {/* aspect-video (16:9) + max-w instead of a fixed height on a
@@ -615,7 +624,12 @@ export function Room3DCanvas({ widthMm, depthMm }: Room3DCanvasProps) {
 
           <RoomFloor widthM={roomWidthM} depthM={roomDepthM} />
 
-          <RoomWalls widthM={roomWidthM} depthM={roomDepthM} heightM={ceilingHeightM} />
+          <RoomWalls
+            widthM={roomWidthM}
+            depthM={roomDepthM}
+            heightM={ceilingHeightM}
+            hide={wallView ? OPPOSITE_WALL[wallView] : undefined}
+          />
 
           <RoomCeiling widthM={roomWidthM} depthM={roomDepthM} heightM={ceilingHeightM} />
 
@@ -701,7 +715,8 @@ export function Room3DCanvas({ widthMm, depthMm }: Room3DCanvasProps) {
               rendered (not just while locked) so a hotspot click from
               free orbit is how you first enter walkthrough mode, same
               as picking a node from the Viewpoint dropdown above. */}
-          {cameras.map((camera) => (
+          {/* Not in the wall view, where there's no walkthrough to enter. */}
+          {!wallView && cameras.map((camera) => (
             <HotspotMarker
               key={camera.id}
               camera={camera}
@@ -710,7 +725,9 @@ export function Room3DCanvas({ widthMm, depthMm }: Room3DCanvasProps) {
             />
           ))}
 
-          {lockedCamera ? (
+          {wallView ? (
+            <WallViewCamera key={wallView} wall={wallView} widthM={roomWidthM} depthM={roomDepthM} heightM={ceilingHeightM} />
+          ) : lockedCamera ? (
             <AnimatedFirstPersonCamera camera={lockedCamera} fovDeg={firstPersonFovDeg} />
           ) : (
             <OrbitControls target={[roomWidthM / 2, ceilingHeightM / 3, roomDepthM / 2]} />
@@ -1043,6 +1060,8 @@ interface RoomWallsProps {
   widthM: number;
   depthM: number;
   heightM: number;
+  // The wall behind a wall-view camera, left out so it doesn't block it.
+  hide?: WallOrientation;
 }
 
 // Geometry still comes from the room's dimensions (which are always
@@ -1050,7 +1069,7 @@ interface RoomWallsProps {
 // orientation. Keeping those separate means a layout whose walls array
 // is missing or stale still renders a correct room — it just renders it
 // in plaster.
-function RoomWalls({ widthM, depthM, heightM }: RoomWallsProps) {
+function RoomWalls({ widthM, depthM, heightM, hide }: RoomWallsProps) {
   const currentLayout = useLayoutStore((state) => state.currentLayout);
 
   // Walls are no longer one plane each. A single plane cannot have a
@@ -1075,7 +1094,7 @@ function RoomWalls({ widthM, depthM, heightM }: RoomWallsProps) {
 
   return (
     <>
-      {(['north', 'south', 'west', 'east'] as WallOrientation[]).map((orientation) => {
+      {(['north', 'south', 'west', 'east'] as WallOrientation[]).filter((o) => o !== hide).map((orientation) => {
         const wall = walls.find((w) => w.orientation === orientation);
         const horizontal = orientation === 'north' || orientation === 'south';
         const wallLengthMm = (horizontal ? widthM : depthM) / MM_TO_M;
@@ -3190,5 +3209,55 @@ function CameraMarker({ camera }: { camera: CameraNode }) {
       <sphereGeometry args={[0.06, 16, 16]} />
       <meshStandardMaterial color="#0f766e" emissive="#0f766e" emissiveIntensity={0.4} />
     </mesh>
+  );
+}
+
+// ---- 3D wall view (§82) ----
+
+const OPPOSITE_WALL: Record<WallOrientation, WallOrientation> = {
+  north: 'south',
+  south: 'north',
+  west: 'east',
+  east: 'west',
+};
+
+// A camera standing across the room from `wall`, facing it, pulled back
+// just far enough that the whole wall fits the 16:9 frame (with a small
+// margin) — so cabinets, appliances, finishes and lighting on that wall
+// read front-on, with a little of the side walls for depth. Orbit and
+// zoom still work, around the wall's centre. Room x/y → world x/z:
+// north is the z = 0 wall, south z = depth, west x = 0, east x = width.
+function WallViewCamera({
+  wall,
+  widthM,
+  depthM,
+  heightM,
+}: {
+  wall: WallOrientation;
+  widthM: number;
+  depthM: number;
+  heightM: number;
+}) {
+  const fovDeg = 40;
+  const aspect = 16 / 9;
+  const halfV = Math.tan(((fovDeg * Math.PI) / 180) / 2);
+  const along = wall === 'north' || wall === 'south' ? widthM : depthM;
+  const dist = Math.max(heightM / (2 * halfV), along / (2 * halfV * aspect)) * 1.12;
+  const y = heightM / 2;
+  const target: [number, number, number] =
+    wall === 'north' ? [widthM / 2, y, 0] : wall === 'south' ? [widthM / 2, y, depthM] : wall === 'west' ? [0, y, depthM / 2] : [widthM, y, depthM / 2];
+  const position: [number, number, number] =
+    wall === 'north'
+      ? [widthM / 2, y, dist]
+      : wall === 'south'
+        ? [widthM / 2, y, depthM - dist]
+        : wall === 'west'
+          ? [dist, y, depthM / 2]
+          : [widthM - dist, y, depthM / 2];
+  return (
+    <>
+      <PerspectiveCamera makeDefault fov={fovDeg} position={position} />
+      <OrbitControls target={target} maxPolarAngle={Math.PI * 0.62} minDistance={0.5} maxDistance={dist * 2.5} />
+    </>
   );
 }

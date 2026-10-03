@@ -5669,3 +5669,35 @@ popover at all three sizes.
 **Seen in data:** chimney catalogue rows point at
 `/models/range-hood.glb`, which isn't in `public/models`, so the 3D view
 falls back to a box.
+
+## 82. Editor overlay fix; elevation embedded; the 3D wall view
+
+**Overlay (you found it):** the Room pop-up slid under the quote panel.
+The top bar is now `relative z-40`, so its pop-ups always sit above the
+editor body. Reproduced first by screenshot at 1440 and 1280 wide, then
+checked fixed.
+
+**Elevation inside the editor.** `WallElevationView` gained an
+`embedded` mode: no "Back to 2D" (Plan is a tab), the wall chosen by the
+editor, and a width from the space it's given. It used to be a fixed
+900px, which cropped it inside the editor.
+
+**The 3D wall view (your request, "like other popular tools").** The
+Elevation tab now has **Drawing | 3D** plus North / East / South / West
+wall chips, shared by both modes. In 3D, `Room3DCanvas wallView`:
+- **places a camera across the room from the wall, facing it**, pulled
+  back so the whole wall fits a 16:9 frame (`WallViewCamera`; the
+  distance comes from the 40° field of view and the wall's length and
+  height)
+- **leaves out the wall behind the camera**, so it doesn't block the
+  view
+- shows everything on that wall in real finishes and lighting, with a
+  little of the side walls for depth
+- still lets you orbit and zoom around the wall's centre
+- hides the walkthrough and capture controls and the camera floor
+  markers
+
+It reuses the whole 3D renderer, so materials, lighting modes and models
+are identical to the 3D view. It's checked by screenshot on a real
+design (the West wall of Neha Verma's kitchen), and the screenshot run
+now photographs it at all three sizes.

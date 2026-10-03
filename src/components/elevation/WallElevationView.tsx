@@ -189,8 +189,28 @@ function describeClick(
   };
 }
 
-export function WallElevationView({ onClose }: { onClose: () => void }) {
-  const [orientation, setOrientation] = useState<WallOrientation>('north');
+// `embedded` (§82): inside the design editor, which supplies the wall
+// picker (shared with its 3D wall view), the available width, and no
+// "Back to 2D" (Plan is a tab there). Standalone use is unchanged.
+export function WallElevationView({
+  onClose,
+  embedded,
+  orientation: controlledOrientation,
+  onOrientationChange,
+  maxWidthPx,
+}: {
+  onClose?: () => void;
+  embedded?: boolean;
+  orientation?: WallOrientation;
+  onOrientationChange?: (o: WallOrientation) => void;
+  maxWidthPx?: number;
+}) {
+  const [ownOrientation, setOwnOrientation] = useState<WallOrientation>('north');
+  const orientation = controlledOrientation ?? ownOrientation;
+  const setOrientation = (o: WallOrientation) => {
+    setOwnOrientation(o);
+    onOrientationChange?.(o);
+  };
   const [clickInfo, setClickInfo] = useState<ClickInfo | null>(null);
   const currentLayout = useLayoutStore((state) => state.currentLayout);
   const cabinets = usePhysicalCabinets();
@@ -198,6 +218,9 @@ export function WallElevationView({ onClose }: { onClose: () => void }) {
   const obstacles = useLayoutStore((state) => state.obstacles);
 
   if (!currentLayout) return null;
+  // Embedded: as wide as the editor allows, minus the 224px info panel
+  // and its gap beside the drawing.
+  const drawingWidthPx = maxWidthPx ? Math.max(360, Math.min(1400, maxWidthPx - 240)) : MAX_WIDTH_PX;
 
   const { widthMm: roomWidthMm, depthMm: roomDepthMm } = currentLayout.dimensions;
   const wallHeightMm = currentLayout.dimensions.ceilingHeightMm ?? DEFAULT_CEILING_HEIGHT_MM;
@@ -217,7 +240,7 @@ export function WallElevationView({ onClose }: { onClose: () => void }) {
   const { scale, originX, originY } = computeRoomScale(
     wallLengthMm,
     wallHeightMm,
-    MAX_WIDTH_PX,
+    drawingWidthPx,
     MAX_HEIGHT_PX
   );
   const wallWidthPx = wallLengthMm * scale;
@@ -257,7 +280,8 @@ export function WallElevationView({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="flex flex-col gap-4 p-8">
+    <div className={embedded ? 'flex flex-col gap-4' : 'flex flex-col gap-4 p-8'}>
+      {!embedded && (
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="outline" size="sm" onClick={onClose}>
           ← Back to 2D
@@ -289,6 +313,7 @@ export function WallElevationView({ onClose }: { onClose: () => void }) {
           {wallLengthMm}mm long × {wallHeightMm}mm high
         </span>
       </div>
+      )}
 
       <p className="text-xs text-gray-500">
         Outline reference only — read-only, no material or colour. Cabinets solid, appliances
@@ -296,7 +321,7 @@ export function WallElevationView({ onClose }: { onClose: () => void }) {
         space — for its exact dimensions.
       </p>
 
-      <div className="flex gap-4">
+      <div className="flex flex-wrap gap-4">
         <Stage
           width={wallWidthPx + originX * 2}
           height={wallHeightPx + originY * 2}

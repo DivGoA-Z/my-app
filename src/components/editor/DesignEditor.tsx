@@ -67,6 +67,7 @@ import { QuoteSidebar } from '../quote/QuoteSidebar';
 import { Room3DCanvas } from '../canvas3d/Room3DCanvas';
 import { WallElevationView } from '../elevation/WallElevationView';
 import type { InventorySection } from '../inventory/InventoryManager';
+import type { WallOrientation } from '../../types/layout';
 import { useElementSize } from './useElementSize';
 import { cn } from '@/lib/utils';
 
@@ -119,6 +120,10 @@ export function DesignEditor({
   const bom = useBOM();
 
   const [view, setView] = useState<EditorView>('plan');
+  // Elevation: the measured drawing or the 3D wall view, for one wall.
+  const [elevMode, setElevMode] = useState<'drawing' | '3d'>('3d');
+  const [elevWall, setElevWall] = useState<WallOrientation>('north');
+  const { measure: measureElev, width: elevWidth } = useElementSize<HTMLDivElement>();
   // Open the cabinets panel on a laptop; on a tablet or phone the plan
   // starts uncovered (the panel would sit over it).
   const [tool, setTool] = useState<Tool | null>(() =>
@@ -209,7 +214,9 @@ export function DesignEditor({
   return (
     <div className="flex h-dvh flex-col bg-background text-foreground">
       {/* ---- Top bar ---- */}
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border bg-card px-3 md:gap-3 md:px-4">
+      {/* relative z-40: the top bar's pop-ups (Room) must sit above the
+          editor body; the quote panel was painting over them (§82). */}
+      <header className="relative z-40 flex h-16 shrink-0 items-center gap-2 border-b border-border bg-card px-3 md:gap-3 md:px-4">
         <Button variant="outline" size="icon-touch" onClick={onBack} aria-label="Back to customers">
           <ArrowLeft />
         </Button>
@@ -333,8 +340,52 @@ export function DesignEditor({
               <Room3DCanvas widthMm={roomWidthMm} depthMm={roomDepthMm} />
             </div>
           ) : (
-            <div className="flex-1 overflow-y-auto">
-              <WallElevationView onClose={() => setView('plan')} />
+            <div className="flex min-h-0 flex-1 flex-col">
+              {/* One wall picker for both the measured drawing and the 3D
+                  wall view (§82), so switching mode keeps the wall. */}
+              <div className="flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-2.5">
+                <div role="tablist" aria-label="Elevation mode" className="flex rounded-xl bg-secondary p-1">
+                  {(['drawing', '3d'] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      role="tab"
+                      aria-selected={elevMode === m}
+                      onClick={() => setElevMode(m)}
+                      className={cn(
+                        'h-9 rounded-[9px] px-4 text-sm font-semibold',
+                        elevMode === m ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+                      )}
+                    >
+                      {m === 'drawing' ? 'Drawing' : '3D'}
+                    </button>
+                  ))}
+                </div>
+                <div role="radiogroup" aria-label="Wall" className="flex flex-wrap gap-1.5">
+                  {(['north', 'east', 'south', 'west'] as WallOrientation[]).map((w) => (
+                    <button
+                      key={w}
+                      type="button"
+                      role="radio"
+                      aria-checked={elevWall === w}
+                      onClick={() => setElevWall(w)}
+                      className={cn(
+                        'h-9 rounded-full px-3.5 text-sm font-semibold capitalize',
+                        elevWall === w ? 'bg-foreground text-background' : 'bg-secondary text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      {w} wall
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div ref={measureElev} className="min-h-0 flex-1 overflow-auto p-4 md:p-6">
+                {elevMode === 'drawing' ? (
+                  <WallElevationView embedded orientation={elevWall} onOrientationChange={setElevWall} maxWidthPx={elevWidth} />
+                ) : (
+                  <Room3DCanvas widthMm={roomWidthMm} depthMm={roomDepthMm} wallView={elevWall} />
+                )}
+              </div>
             </div>
           )}
         </main>

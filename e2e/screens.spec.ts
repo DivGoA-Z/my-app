@@ -127,6 +127,9 @@ test('design editor', async ({ page }) => {
   await page.getByRole('tab', { name: '3D' }).click();
   await page.waitForTimeout(2500);
   await page.screenshot({ path: `${dir}/08b-editor-3d.png` });
+  await page.getByRole('tab', { name: 'Elevation' }).click();
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: `${dir}/08d-editor-wall3d.png` });
   await page.getByRole('tab', { name: 'Plan' }).click();
   await page.getByRole('button', { name: /^\S+ checks?$|No issues/ }).click();
   await page.waitForTimeout(400);
