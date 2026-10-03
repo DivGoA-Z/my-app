@@ -324,3 +324,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§79** Waste factor = board cost only (area × rate × factor); live example on the rate card. Workshop page = SectionCards + option cards whose examples are cut by `cabinetCutParts`.
 
 **§80** Duplicates merge: same normalised name + same kind; move references (designs fresh, open design in memory, catalogue rows) THEN delete; frozen quotes untouched; groups with differing copies flagged. Rate card/Workshop full width.
+
+**§81** Design editor stage 1: `DesignEditor` frame (top bar with Plan/3D/Elevation views, rail with one tool panel, measured plan size shared by all layers, inspector-or-quote right panel, bottom bar with checks/undo/total/Finalise). Old toolbars/inspectors reused until stages 2-3.

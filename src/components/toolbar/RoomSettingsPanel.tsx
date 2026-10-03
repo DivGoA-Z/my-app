@@ -69,8 +69,8 @@ export function RoomSettingsPanel() {
 
   return (
     <div className="relative">
-      <Button variant="outline" size="sm" onClick={handleOpen}>
-        Room Settings
+      <Button variant="outline" size="touch" onClick={handleOpen}>
+        Room
       </Button>
 
       {isOpen && (

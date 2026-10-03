@@ -105,3 +105,30 @@ test('main screens', async ({ page }) => {
   }
   expect(overflows, 'Pages wider than the screen').toEqual([]);
 });
+
+test('design editor', async ({ page }) => {
+  test.skip(!email || !password, 'Set E2E_EMAIL and E2E_PASSWORD in .env.e2e.local');
+  await page.goto('/');
+  await page.getByLabel('Email').fill(email!);
+  await page.getByLabel('Password').fill(password!);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 20_000 });
+  await go(page, 'Customers');
+  await expect(page.getByRole('heading', { level: 1, name: 'Customers' })).toBeVisible();
+  // Open the first customer's design (opens; nothing is edited or saved).
+  // Prefer a design that has a price (so it has cabinets to show).
+  await page.locator('main article:visible').first().waitFor();
+  const priced = page.locator('main article:visible', { hasText: '₹' }).first().locator('button').first();
+  await (await priced.count() ? priced : page.locator('main article button:visible').first()).click();
+  await expect(page.getByRole('button', { name: /Finalise/ })).toBeVisible({ timeout: 20_000 });
+  await page.waitForTimeout(1500);
+  const dir = `e2e/screens/${test.info().project.name}`;
+  await page.screenshot({ path: `${dir}/08-editor.png` });
+  await page.getByRole('tab', { name: '3D' }).click();
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: `${dir}/08b-editor-3d.png` });
+  await page.getByRole('tab', { name: 'Plan' }).click();
+  await page.getByRole('button', { name: /^\S+ checks?$|No issues/ }).click();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: `${dir}/08c-editor-checks.png` });
+});

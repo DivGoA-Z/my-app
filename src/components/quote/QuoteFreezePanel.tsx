@@ -153,7 +153,8 @@ export function QuoteFreezePanel({ onOpenCutList }: { onOpenCutList?: (quoteId: 
   }
 
   return (
-    <div className="mt-2 flex flex-col gap-2 border-t border-gray-200 pt-3">
+    // id: the editor's "Finalise quote" scrolls here (§81).
+    <div id="quote-finalise" className="mt-2 flex scroll-mt-4 flex-col gap-2 border-t border-gray-200 pt-3">
       {status === 'unquoted' && (
         <p className="text-[11px] text-gray-500">
           Nothing sent yet. Freezing records these figures so they stay fixed even if

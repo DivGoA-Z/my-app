@@ -1,40 +1,15 @@
 // src/App.tsx
 
 import { useEffect, useState, useRef } from 'react';
-import { RoomCanvas } from './components/canvas/RoomCanvas';
-import { CabinetLayer } from './components/canvas/CabinetLayer';
-import { ObstacleLayer } from './components/canvas/ObstacleLayer';
-import { ApplianceLayer } from './components/canvas/ApplianceLayer';
-import { OpeningLayer } from './components/canvas/OpeningLayer';
-import { FixtureLayer } from './components/canvas/FixtureLayer';
-import { RemainingSpaceLayer } from './components/canvas/RemainingSpaceLayer';
-import { PickChooser } from './components/canvas/PickChooser';
-import { CameraLayer } from './components/canvas/CameraLayer';
-import { DesignAlertsPanel } from './components/canvas/DesignAlertsPanel';
-import { ObstacleToolbar } from './components/toolbar/ObstacleToolbar';
-import { CabinetToolbar } from './components/toolbar/CabinetToolbar';
-import { ApplianceToolbar } from './components/toolbar/ApplianceToolbar';
-import { OpeningToolbar } from './components/toolbar/OpeningToolbar';
-import { LightingToolbar } from './components/toolbar/LightingToolbar';
-import { CameraToolbar } from './components/toolbar/CameraToolbar';
-import { RoomSettingsPanel } from './components/toolbar/RoomSettingsPanel';
-import { RoomSurfacesPanel } from './components/toolbar/RoomSurfacesPanel';
-import { CabinetInspector } from './components/inspector/CabinetInspector';
-import { ObstacleInspector } from './components/inspector/ObstacleInspector';
-import { ApplianceInspector } from './components/inspector/ApplianceInspector';
-import { OpeningInspector } from './components/inspector/OpeningInspector';
-import { FixtureInspector } from './components/inspector/FixtureInspector';
 import { InventoryManager, type InventorySection } from './components/inventory/InventoryManager';
 import { CatalogueJumpBar } from './components/inventory/CatalogueSection';
 import { DuplicatesBanner } from './components/inventory/DuplicatesReview';
-import { Room3DCanvas } from './components/canvas3d/Room3DCanvas';
-import { WallElevationView } from './components/elevation/WallElevationView';
-import { QuoteSidebar } from './components/quote/QuoteSidebar';
 import { PresentMode } from './components/present/PresentMode';
 import { CutListView } from './components/cutlist/CutListView';
 import { ConstructionSettingsManager } from './components/workshop/ConstructionSettingsManager';
 import { RateCardManager } from './components/inventory/RateCardManager';
 import { CabinetDesignerPage, type DesignerTarget } from './components/designer/CabinetDesignerPage';
+import { DesignEditor } from './components/editor/DesignEditor';
 import { AppShell, PageHeader, type ShellPage } from './components/shell/AppShell';
 import { HomePage } from './components/home/HomePage';
 import { CustomersPage } from './components/customers/CustomersPage';
@@ -46,11 +21,8 @@ import { LoginScreen } from './components/auth/LoginScreen';
 import { useUndoRedoShortcuts } from './hooks/useUndoRedoShortcuts';
 import { useSelectionShortcuts } from './hooks/useSelectionShortcuts';
 import { Toaster } from './components/ui/sonner';
-import { toast } from 'sonner';
 import { ConfirmDialog } from './components/common/ConfirmDialog';
 import { Button } from './components/ui/button';
-import { Checkbox } from './components/ui/checkbox';
-import { Label } from './components/ui/label';
 
 // Fallback room size shown only before any project has loaded — once a
 // project loads, the room dimensions come from its saved layout instead
@@ -71,8 +43,6 @@ type View =
   | 'settings'
   | 'canvas'
   | 'designer'
-  | 'preview3d'
-  | 'elevation'
   | 'present'
   | 'cutlist';
 
@@ -97,43 +67,9 @@ function App() {
   // set by whichever toolbar's "Manage" button was clicked, undefined
   // for the dashboard's generic "Manage Inventory" button.
   const [manageSection, setManageSection] = useState<InventorySection | undefined>(undefined);
-  // Purely a display preference for the 2D plan — cabinet width×depth×
-  // height labels and the remaining-space gap labels both get dense on
-  // a busy layout. Not persisted: this is about decluttering THIS
-  // session's screen, not a property of the layout itself.
-  const [showDimensions, setShowDimensions] = useState(true);
-  // Same session-only shape as showDimensions, for the red overlap
-  // highlight and the amber clearance highlight/zones — a GLOBAL
-  // master on top of each item's own ignoreOverlap/ignoreClearance
-  // (CabinetInspector). The global only ever hides MORE: turning it
-  // off suppresses the warning everywhere regardless of any item's
-  // own setting, but turning it back on doesn't override an
-  // individual item's mute — that per-item choice still applies
-  // underneath. See CabinetLayerProps' own comment for exactly what
-  // "off" hides.
-  const [showOverlapWarnings, setShowOverlapWarnings] = useState(true);
-  const [showClearanceWarnings, setShowClearanceWarnings] = useState(true);
-  // Third, independent toggle for the trade-ergonomics banner
-  // (aisle width, sink-hob distance, etc — lib/kitchenChecks.ts) —
-  // same "visible by default, hideable on a busy layout" shape as the
-  // other two, since a kitchen with a genuinely tight aisle will keep
-  // showing that finding on every render otherwise.
-  const [showKitchenChecks, setShowKitchenChecks] = useState(true);
-
-  const currentProject = useLayoutStore((s) => s.currentProject);
   const currentLayout = useLayoutStore((s) => s.currentLayout);
-  const isLoading = useLayoutStore((s) => s.isLoading);
-  const loadError = useLayoutStore((s) => s.loadError);
-  const isSaving = useLayoutStore((s) => s.isSaving);
-  const saveError = useLayoutStore((s) => s.saveError);
-  const lastAutosaveAt = useLayoutStore((s) => s.lastAutosaveAt);
   const loadProject = useLayoutStore((s) => s.loadProject);
-  const saveProject = useLayoutStore((s) => s.saveProject);
   const loadInventory = useLayoutStore((s) => s.loadInventory);
-  const undo = useLayoutStore((s) => s.undo);
-  const redo = useLayoutStore((s) => s.redo);
-  const canUndo = useLayoutStore((s) => s.undoStack.length > 0);
-  const canRedo = useLayoutStore((s) => s.redoStack.length > 0);
 
   const session = useAuthStore((s) => s.session);
   // Keyed on the USER, not the session object. Supabase hands back a new
@@ -226,15 +162,6 @@ function App() {
   // "feedback on every action" rule. Reads saveError straight from the
   // store right after the awaited call rather than through the `saveError`
   // hook value above, which is one render behind at this point.
-  async function handleManualSave() {
-    await saveProject();
-    const error = useLayoutStore.getState().saveError;
-    if (error) {
-      toast.error('Failed to save project', { description: error });
-    } else {
-      toast.success('Project saved');
-    }
-  }
 
   const roomWidthMm = currentLayout?.dimensions.widthMm ?? DEFAULT_ROOM_WIDTH_MM;
   const roomDepthMm = currentLayout?.dimensions.depthMm ?? DEFAULT_ROOM_DEPTH_MM;
@@ -272,25 +199,9 @@ function App() {
         }}
       />
     );
-  } else if (view === 'elevation') {
-    content = <WallElevationView onClose={() => setView('canvas')} />;
   } else if (view === 'present') {
     content = (
       <PresentMode widthMm={roomWidthMm} depthMm={roomDepthMm} onExit={() => setView('canvas')} />
-    );
-  } else if (view === 'preview3d') {
-    content = (
-      <div className="flex flex-col gap-4 p-8">
-        <Button variant="outline" size="sm" className="self-start" onClick={() => setView('canvas')}>
-          ← Back to 2D
-        </Button>
-        <p className="text-xs text-gray-500">
-          Drag to orbit, pick a saved camera under "Viewpoint", or click a glowing floor marker to
-          smoothly step into the room at that Camera Node's exact position and direction. Once
-          locked to a node, drag to look around (including down at the floor) without moving.
-        </p>
-        <Room3DCanvas widthMm={roomWidthMm} depthMm={roomDepthMm} />
-      </div>
     );
   } else if (
     view === 'catalogue' ||
@@ -348,186 +259,20 @@ function App() {
       </AppShell>
     );
   } else {
+    // The design editor (§81): its own full-screen frame — top bar, tool
+    // rail, plan/3D/elevation, inspector-or-quote, bottom bar.
     content = (
-      <div className="flex flex-col gap-4 p-8">
-        <div className="flex items-center gap-3">
-        <Button variant="outline" size="sm" onClick={() => setView('customers')}>
-          ← Customers
-        </Button>
-
-        {currentProject && (
-          <span className="text-xs text-gray-500">
-            {currentProject.clientName} — {currentProject.locality}
-          </span>
-        )}
-
-        <div className="ml-auto flex items-center gap-1">
-          <Button variant="outline" size="sm" onClick={undo} disabled={!canUndo} title="Undo (Cmd+Z)">
-            ↶ Undo
-          </Button>
-          <Button variant="outline" size="sm" onClick={redo} disabled={!canRedo} title="Redo (Cmd+Shift+Z)">
-            ↷ Redo
-          </Button>
-        </div>
-
-        <RoomSettingsPanel />
-
-        <Button variant="outline" size="sm" onClick={() => setView('elevation')}>
-          Wall Elevation
-        </Button>
-
-        <Button variant="outline" size="sm" onClick={() => setView('preview3d')}>
-          3D Preview
-        </Button>
-
-        <Button variant="outline" size="sm" onClick={() => setView('present')}>
-          Present
-        </Button>
-
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            setCutListQuoteId(undefined);
-            setCutListReturn('canvas');
-            setView('cutlist');
-          }}
-        >
-          Cutting List
-        </Button>
-
-        <div className="flex items-center gap-2">
-          <Button size="sm" onClick={handleManualSave} disabled={isSaving || !currentProject}>
-            {isSaving ? 'Saving...' : 'Save Project'}
-          </Button>
-          {/* Everything here autosaves a couple of seconds after you
-              stop editing — this button is for "save right now before
-              I close the tab", not the only way anything gets kept. */}
-          {!isSaving && !saveError && lastAutosaveAt && (
-            <span className="text-[11px] text-gray-400">
-              Auto saved {new Date(lastAutosaveAt).toLocaleTimeString()}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {loadError && (
-        <p className="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
-          Failed to load: {loadError}
-        </p>
-      )}
-      {saveError && (
-        <p className="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
-          Failed to save: {saveError}
-        </p>
-      )}
-
-      {isLoading ? (
-        <p className="text-sm text-gray-500">Loading layout...</p>
-      ) : (
-        <div className="flex gap-6">
-          <div className="flex flex-col gap-4">
-            <CabinetToolbar onManageInventory={() => handleManageInventory('cabinets')} />
-            <ObstacleToolbar onManageInventory={() => handleManageInventory('obstacles')} />
-            <ApplianceToolbar onManageInventory={() => handleManageInventory('appliances')} />
-            <OpeningToolbar />
-            <LightingToolbar />
-            <CameraToolbar />
-            <RoomSurfacesPanel />
-          </div>
-
-          <div className="relative flex flex-col gap-3">
-            <DesignAlertsPanel
-              showOverlapWarnings={showOverlapWarnings}
-              showClearanceWarnings={showClearanceWarnings}
-              showKitchenChecks={showKitchenChecks}
-            />
-
-            <div className="flex w-fit flex-col gap-1.5">
-              <Label className="flex items-center gap-2 text-xs font-normal text-gray-600">
-                <Checkbox
-                  checked={showDimensions}
-                  onCheckedChange={(checked) => setShowDimensions(checked === true)}
-                />
-                Show dimensions
-              </Label>
-              <Label className="flex items-center gap-2 text-xs font-normal text-gray-600">
-                <Checkbox
-                  checked={showOverlapWarnings}
-                  onCheckedChange={(checked) => setShowOverlapWarnings(checked === true)}
-                />
-                Show overlap warnings
-              </Label>
-              <Label className="flex items-center gap-2 text-xs font-normal text-gray-600">
-                <Checkbox
-                  checked={showClearanceWarnings}
-                  onCheckedChange={(checked) => setShowClearanceWarnings(checked === true)}
-                />
-                Show clearance warnings
-              </Label>
-              <Label className="flex items-center gap-2 text-xs font-normal text-gray-600">
-                <Checkbox
-                  checked={showKitchenChecks}
-                  onCheckedChange={(checked) => setShowKitchenChecks(checked === true)}
-                />
-                Show kitchen ergonomics checks
-              </Label>
-            </div>
-
-            {/* The overlap chooser. Fixed-positioned itself, but it
-                lives here so it unmounts with the canvas rather than
-                lingering over the dashboard. */}
-            <PickChooser />
-
-            <RoomCanvas widthMm={roomWidthMm} depthMm={roomDepthMm}>
-              <CabinetLayer
-                widthMm={roomWidthMm}
-                depthMm={roomDepthMm}
-                showDimensions={showDimensions}
-                showOverlapWarnings={showOverlapWarnings}
-                showClearanceWarnings={showClearanceWarnings}
-              />
-              <ObstacleLayer widthMm={roomWidthMm} depthMm={roomDepthMm} />
-              <ApplianceLayer
-                widthMm={roomWidthMm}
-                depthMm={roomDepthMm}
-                showOverlapWarnings={showOverlapWarnings}
-              />
-              {/* After appliances so swing arcs and openings draw over
-                  the items they may conflict with. */}
-              <OpeningLayer widthMm={roomWidthMm} depthMm={roomDepthMm} />
-              {/* Last, so fixture markers sit above everything they
-                  might be mounted to. */}
-              <FixtureLayer widthMm={roomWidthMm} depthMm={roomDepthMm} />
-              <CameraLayer widthMm={roomWidthMm} depthMm={roomDepthMm} />
-              {/* Last, purely a readout (listening=false), so its
-                  labels are never hidden under anything else. */}
-              <RemainingSpaceLayer
-                widthMm={roomWidthMm}
-                depthMm={roomDepthMm}
-                visible={showDimensions}
-              />
-            </RoomCanvas>
-          </div>
-
-          <CabinetInspector
-            onOpenDesigner={(cabinetId) => openDesigner({ kind: 'cabinet', cabinetId }, 'canvas')}
-          />
-          <ObstacleInspector />
-          <ApplianceInspector />
-          <OpeningInspector />
-          <FixtureInspector />
-
-          <QuoteSidebar
-            onOpenCutList={(quoteId) => {
-              setCutListQuoteId(quoteId);
-              setCutListReturn('canvas');
-              setView('cutlist');
-            }}
-          />
-        </div>
-      )}
-      </div>
+      <DesignEditor
+        onBack={() => setView('customers')}
+        onPresent={() => setView('present')}
+        onOpenCutList={(quoteId) => {
+          setCutListQuoteId(quoteId);
+          setCutListReturn('canvas');
+          setView('cutlist');
+        }}
+        onOpenDesigner={(cabinetId) => openDesigner({ kind: 'cabinet', cabinetId }, 'canvas')}
+        onManageCatalogue={(section) => handleManageInventory(section)}
+      />
     );
   }
 

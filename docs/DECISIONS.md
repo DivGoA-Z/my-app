@@ -5616,3 +5616,56 @@ other sidebar pages (they were capped at 5xl and 3xl).
 - A single group's Merge still runs inside the panel. A test covers
   unticking one group: the panel closes and only the ticked group
   merges.
+
+## 81. Design editor, stage 1: the frame
+
+The old editor page stacked seven toolbars, four display checkboxes, the
+canvas, every inspector and the quote side by side, with 3D and
+Elevation as separate full-screen pages. It's now **`DesignEditor`**,
+built to the agreed mockup:
+- **Top bar**: back to Customers; the customer; **Plan / 3D /
+  Elevation as views inside the editor** (the separate `preview3d` and
+  `elevation` screens are gone); saved state (click to save now); Room;
+  Cutting list; Present.
+- **Left rail**: Cabinets, Appliances, Pillars, Doors, Lights, Cameras,
+  Surfaces. **One tool panel open at a time**; tap again to close. It's
+  open on a laptop and closed by default on a tablet or phone, where it
+  would cover the plan.
+- **Centre**: the plan now **fills the available space**. Every Konva
+  layer gets the same measured `maxWidthPx`/`maxHeightPx`
+  (`useElementSize`, a callback ref), so they keep sharing one scale. It
+  used to be a fixed 800 × 600.
+- **Right**: the inspector for the selection (by `selection.type`, so
+  the cabinet inspector's "select something" placeholder no longer shows
+  beside another type's inspector), otherwise the quote. Below xl it's a
+  slide-over.
+- **Bottom bar**:
+  - a design-checks button with a count; its popover holds the alerts
+    and the four display switches (their reasoning moved here verbatim
+    from App.tsx)
+  - undo/redo
+  - the live total (tap it for the quote)
+  - **Finalise quote**, which shows the quote and scrolls to its
+    freeze-and-send section (`#quote-finalise`)
+
+Stage 1 deliberately reuses the existing tool panels, inspectors and
+quote inside the frame; they're rebuilt in stages 2 and 3, with
+tablet/phone touch layout in stage 4.
+
+**Found by screenshot and fixed before commit:**
+- the phone bottom bar overflowed (Finalise cut off); it now shows the
+  check count only, hides undo/redo and uses a shorter label
+- "Finalise  quote" had a gap between the words (two flex children
+  inside the button)
+- the phone checks button had no accessible name once it showed only a
+  number
+
+Two lint traps: the React Compiler rejects reading a ref during render
+(hence the callback ref), and its rule treats any property whose name
+ends in "Ref" as a ref, so it's called `measure`. The screenshot run
+now opens a priced design and photographs Plan, 3D and the checks
+popover at all three sizes.
+
+**Seen in data:** chimney catalogue rows point at
+`/models/range-hood.glb`, which isn't in `public/models`, so the 3D view
+falls back to a box.
