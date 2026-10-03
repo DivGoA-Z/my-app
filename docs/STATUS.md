@@ -129,6 +129,10 @@ assumed settings, which is a check, not a blocker.
 
 ## Next
 
+0. **UI/UX overhaul first** (decided 3 Oct): plan in `docs/UX_PLAN.md`;
+   the design system and editor mockups are under review. The walkthrough
+   follows, on the new UI.
+
 1. **Your end-to-end walkthrough** (`docs/WALKTHROUGH.md`): a new kitchen from scratch, checking
    functionality and basic calculations (not rates). Anything found goes
    in `docs/ISSUES.md`.

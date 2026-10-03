@@ -205,6 +205,8 @@ Obligations, not suggestions:
   roadmap.
 - `docs/AFTER_FIRST_CUSTOMERS.md` — work parked until a few customers
   are onboarded, its principles, and the before-customer-#1 list.
+- `docs/UX_PLAN.md` — the UI/UX overhaul: users, tasks, devices, screen
+  map, editor layout, proposed UI principles, mockup links.
 - `docs/WALKTHROUGH.md` — the end-to-end manual test script with expected
   numbers; the basis for the browser tests.
 - `docs/STATUS.md`: snapshot for planning conversations outside the repo.
