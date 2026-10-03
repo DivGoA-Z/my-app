@@ -26,6 +26,7 @@ import { OpeningInspector } from './components/inspector/OpeningInspector';
 import { FixtureInspector } from './components/inspector/FixtureInspector';
 import { InventoryManager, type InventorySection } from './components/inventory/InventoryManager';
 import { CatalogueJumpBar } from './components/inventory/CatalogueSection';
+import { DuplicatesBanner } from './components/inventory/DuplicatesReview';
 import { Room3DCanvas } from './components/canvas3d/Room3DCanvas';
 import { WallElevationView } from './components/elevation/WallElevationView';
 import { QuoteSidebar } from './components/quote/QuoteSidebar';
@@ -310,9 +311,7 @@ function App() {
         {view === 'rates' && (
           <div className="flex flex-col gap-5 px-4 py-6 md:px-8 lg:px-10 lg:py-8">
             <PageHeader title="Rate card" subtitle="What things cost you" />
-            <div className="max-w-5xl">
-              <RateCardManager />
-            </div>
+            <RateCardManager />
           </div>
         )}
         {view === 'workshop' && (
@@ -325,9 +324,7 @@ function App() {
               </Button>
             )}
             <PageHeader title="Workshop" subtitle="How your workshop builds" />
-            <div className="max-w-3xl">
-              <ConstructionSettingsManager />
-            </div>
+            <ConstructionSettingsManager />
           </div>
         )}
         {view === 'settings' && <SettingsPage />}
@@ -341,6 +338,7 @@ function App() {
             )}
             <PageHeader title="Catalogue" subtitle="What you pick from when designing" />
             <CatalogueJumpBar />
+            <DuplicatesBanner />
             <InventoryManager
               initialSection={manageSection}
               onOpenDesigner={(itemId) => openDesigner({ kind: 'catalogue', itemId }, 'catalogue')}

@@ -5547,3 +5547,60 @@ boxes, Cutting sheets.
 - **States**: an "assumed, not confirmed" warning; "Confirmed and
   locked" with Change settings; a confirmation tick card; and the same
   floating save bar as the Rate card.
+
+## 80. Possible duplicates: find and merge, safely
+
+You said the duplicate finding named something you'd sensed but
+couldn't put into words. The data has **60 groups, 110 extra copies**
+(handles, cabinets, fixtures and more): seed rows plus Excel imports
+run more than once.
+
+**What's a duplicate.** Same name, ignoring capitals, spacing and dash
+style ("Bar Handle 128mm — Brushed Steel" = "bar handle 128mm - brushed
+steel"), AND the same kind: a handle's kind, a fixture's kind, an
+appliance's type, a cabinet's type and size, a pillar's type and size.
+Same name with a different size is not a duplicate. The rules are pure
+and tested (`lib/duplicates.ts`).
+
+**What a merge must move first** (found by tracing references):
+- handles: catalogue cabinet rows (`handleId`), and every placed
+  cabinet in every saved design (`layouts.cabinets`)
+- fixtures and appliances: every placed item's `catalogItemId`
+  (`layouts.fixtures`, `layouts.appliances`)
+- cabinets and pillar presets: nothing points back (a placed cabinet
+  copies its row), so copies are simply removed
+- finishes: left out for now. They're referenced from cabinets, walls,
+  floor and countertop, and none are duplicated.
+
+**Order: move references, then delete.** A failure half-way leaves an
+extra row, never a reference to something gone. The steps:
+1. Saved designs are read fresh and only changed rows are written
+   (`repointDesigns`).
+2. The open design in memory is patched too, so autosave can't write
+   the old ids back.
+3. Catalogue rows are updated.
+4. Only then are the copies deleted.
+
+Frozen quotes are never touched. A screen test pins the order: it fails
+if a copy is deleted before its references move (checked by reversing
+the order).
+
+**Review panel** (banner at the top of the Catalogue, then Review): each
+group shows its copies with price and size and "Used: 3 in 2 designs ·
+1 catalogue cabinet". You pick the one to keep:
+- The suggested pick is the default handle if it's in the group (it
+  can't be deleted, so the copies can't be picked instead), else the
+  most used copy, else the oldest.
+- **Groups whose copies differ in price or size are flagged** "Copies
+  differ, check the one kept". The three "Base Cabinet 1200" are
+  ₹17,800, ₹17,800 and ₹10,052, and "oldest" picks ₹10,052. "Merge all"
+  says how many groups differ before it runs.
+
+**Not yet run on real data.** It's tested with the network mocked, and
+the panel was screenshotted open and closed without merging. Known edge
+case: undo history taken before a merge could restore an old id. That's
+harmless, because the item would show the default handle, but it's
+noted here.
+
+Also: Rate card and Workshop now use the full page width, like the
+other sidebar pages (they were capped at 5xl and 3xl).

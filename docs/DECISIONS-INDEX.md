@@ -322,3 +322,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§78** Settings → Business renames `businesses.name` (new RLS update policy). A refused RLS update returns 0 rows, not an error, so the code checks the rows.
 
 **§79** Waste factor = board cost only (area × rate × factor); live example on the rate card. Workshop page = SectionCards + option cards whose examples are cut by `cabinetCutParts`.
+
+**§80** Duplicates merge: same normalised name + same kind; move references (designs fresh, open design in memory, catalogue rows) THEN delete; frozen quotes untouched; groups with differing copies flagged. Rate card/Workshop full width.

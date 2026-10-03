@@ -85,6 +85,15 @@ test('main screens', async ({ page }) => {
       await page.screenshot({ path: `e2e/screens/${test.info().project.name}/04b-catalogue-edit.png` });
       await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
       await expect(page.getByRole('dialog')).toBeHidden();
+      // The duplicates review, opened and closed without merging.
+      const review = page.getByRole('button', { name: 'Review' });
+      if (await review.count()) {
+        await review.click();
+        await expect(page.getByRole('dialog', { name: 'Possible duplicates' })).toBeVisible();
+        await page.waitForTimeout(1500);
+        await page.screenshot({ path: `e2e/screens/${test.info().project.name}/04c-duplicates.png` });
+        await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
+      }
       // Each section on its own, for review (laptop only — the long list
       // makes the full-page shot hard to read).
       if (test.info().project.name === 'laptop') {
