@@ -175,6 +175,9 @@ check it on laptop, tablet and phone.
 
 - 3 Oct: look and editor layout approved; UI principles agreed; theme
   tokens and fonts in `src/index.css` (every screen picks them up).
+- 3 Oct: Home, Customers (board) and Customers (phone) mocked up on the
+  same canvas, using the app's real pipeline stages (Lead, Layout
+  drafted, Quote sent, Approved, In production).
 
 ## Review links
 
