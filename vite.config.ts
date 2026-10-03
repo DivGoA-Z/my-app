@@ -18,6 +18,8 @@ export default defineConfig({
   // would reach the network, so nothing is ever sent.
   test: {
     setupFiles: ['./src/test/setupDom.ts'],
+    // Browser runs (Playwright) live in e2e/ and have their own runner.
+    exclude: ['e2e/**', 'node_modules/**'],
     env: {
       VITE_SUPABASE_URL: 'http://localhost:54321',
       VITE_SUPABASE_ANON_KEY: 'test-anon-key',

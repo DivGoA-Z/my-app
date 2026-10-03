@@ -310,3 +310,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§72** Production page (approved + in-production jobs; cutting list, install date, move along). Named Production to avoid clashing with Settings → Workshop. Cabinet Designer needs a scope banner when rebuilt.
 
 **§73** Premium A applied (dark forest sidebar + brass, shadow-card, eyebrow headers, material photos on design cards). Sidebar: Home · Customers · Production · Catalogue · Rate card · Workshop · Settings; phone uses More.
+
+**§74** `npm run screens` = Playwright photos of every shell page at 3 sizes, using a separate read-only test login (`.env.e2e.local`). Sign-in screen redone in Premium A, checked by screenshot.

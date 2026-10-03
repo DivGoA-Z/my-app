@@ -5343,3 +5343,27 @@ everything built so far:
 
 Tests: 2 for the material picker (125 in total). **Still not seen in a
 browser**: no screenshot tooling exists yet (see STATUS).
+
+## 74. Playwright screenshots, so screens are looked at before you see them
+
+Every screen until now was built from code alone. That's likely part of
+why the first version read as "fine, not great". **`npm run screens`**
+(Playwright, Chromium) starts its own dev server on port 5199, signs in
+with a **separate test login**, and photographs every shell page at
+laptop (1440×900), tablet (iPad landscape) and phone (iPhone 13). The
+photos go to `e2e/screens/<device>/`, git-ignored.
+- Read-only by design: it navigates and looks, and never writes data.
+- Credentials: `E2E_EMAIL` and `E2E_PASSWORD` in `.env.e2e.local`
+  (git-ignored). Setup is in `docs/SUPABASE_SETUP.md` Step 5b. Without
+  them, only the sign-in screen is captured.
+- Vitest now excludes `e2e/`, so the two runners don't pick up each
+  other's files.
+- The same setup is where the planned browser tests will live.
+
+**First use: the sign-in screen**, which was still the plain old design
+(sign-in was planned last, but it's the first impression and cheap). It
+is now Premium A: a walnut material panel with the product line on
+tablet and laptop, and a large brand mark, "Welcome back" and 48px
+fields and button. It was checked by screenshot at all three sizes
+before committing; this is the first screen in the overhaul that
+genuinely was.

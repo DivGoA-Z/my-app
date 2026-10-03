@@ -135,6 +135,30 @@ same first insert again with their UID and no schema change — see
 `docs/DECISIONS.md` for why `business_users` is a table and not a
 column.
 
+## Step 5b — A test login for screenshots (optional)
+
+The app can sign in to itself in a real browser and photograph every
+screen at laptop, tablet and phone size (`npm run screens`, §74). It
+uses a **separate** login, never yours:
+
+1. **Authentication → Users → Add user**: an email like
+   `test+screens@yourdomain` and a password. Tick "Auto confirm user".
+2. Copy its **UID** and, in the **SQL Editor**, run (replacing `<uid>`):
+   ```sql
+   insert into business_users (business_id, user_id) values ('biz_default', '<uid>');
+   ```
+   Do **not** add it to `super_admins`.
+3. In the project folder, create a file called `.env.e2e.local`
+   (git-ignored, like `.env`):
+   ```
+   E2E_EMAIL=test+screens@yourdomain
+   E2E_PASSWORD=the-password
+   ```
+
+It belongs to your business, so screenshots show your real customers
+and catalogue. The screenshot run only looks: it never creates, edits
+or deletes anything.
+
 ## Step 6 — Run
 
 ```bash

@@ -23,3 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 .env
+# Playwright (§74): screenshots and run output stay local
+e2e/screens/
+e2e/.results/
+playwright-report/
