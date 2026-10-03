@@ -1,6 +1,6 @@
 #Issues fixed
 
-Moved here from `docs/Issues.md` once resolved (or, as with the two
+Moved here from `docs/ISSUES.md` (named `Issues.md` until 3 Oct 2026) once resolved (or, as with the two
 below, once investigated and found not to be a code defect). Kept,
 never deleted — see `CLAUDE.md`.
 

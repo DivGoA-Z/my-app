@@ -197,116 +197,55 @@ honest estimate is usable; a silent one is a liability.
 
 ---
 
-## What the three answers change
+## What the three answers changed (condensed 3 Oct 2026)
 
-### Multi-tenant
+*This section and the two after it were planning notes from 17 Sep.
+Most of what they asked for is now built or decided, so they're cut to
+outcomes with pointers. The full original text is in git history
+(before commit "Compress docs").*
 
-- Every table needs a business/org id. Ten tables today.
-- `rate_cards` currently holds **one row with `id = 'default'`**. That is
-  now wrong: one rate card per business.
-- RLS goes from "later" to "the security model" (principle 4).
-- Auth with organisations, invited users, roles.
-- Onboarding: a new business starts with an empty catalogue. Either seed
-  per business on signup, or offer a copyable starter catalogue.
-- Billing, and a support burden — you will be debugging other firms'
-  data without being able to see their site.
+- **Multi-tenant** → `business_id` + RLS on every table, real sign-in,
+  super-admin bypass (`docs/DECISIONS.md` §9). Still open: self-serve
+  sign-up, onboarding a second business, billing.
+- **Sales and production** → a millimetre cutting list built on
+  construction *settings* (§41), with board lines and real-area pricing
+  (§42), nesting (§49–§53), edge banding by the metre (§58), drawer
+  boxes (§56), and printable sheets and labels (§64). Hardware boring
+  for CNC is not started.
+- **Laptop-first** → unchanged; still what keeps the 3D walkthrough
+  affordable.
 
-### Sales *and* production
+## What was cheap now and expensive later
 
-- ~~The panel model (principle 2) replaces area-based costing.~~ No
-  longer — pricing stays area-based permanently; the panel model is
-  for the cutting list only (Principle 2, changed 29 Sep 2026).
-- **Construction convention must be decided before modelling panels.**
-  Is the bottom panel captured between the side panels, or does it sit on
-  top of them? Is the back grooved in or nailed on? These change *every
-  panel dimension in the app*. Indian workshops differ, and this answer
-  has to come from your carpenter, not from me.
-- Edge banding is priced per running metre, per edge, and which edges get
-  banded depends on what's visible.
-- **Board nesting** — fitting panels onto 8×4 sheets with minimum waste —
-  is a genuinely hard problem (2D bin packing). Don't invent an
-  algorithm; use a known heuristic and accept it won't be optimal. This
-  is what makes material cost accurate rather than estimated.
-- Optionally later: hinge boring and channel positions, for CNC output.
+1. Tenant column → **done** (§9).
+2. Panel model before area costing → **withdrawn 29 Sep**. Area pricing
+   is permanent (Principle 2), so nothing needs re-deriving.
+3. Rectilinear room geometry → **deferred 28 Sep** until there's market
+   evidence (§27). It still gets more expensive with every wall-relative
+   feature added.
+4. Undo/redo → **done** (§6).
 
-### Laptop-first
+## Sequencing, and the open decisions
 
-The good news. Keeps the 3D walkthrough, the texture budget and the
-lighting work viable. Revisit only if designs start being made on site.
+The 17 Sep warning still holds: **run real jobs through the app while
+building.** The things only real use can teach are now mostly
+answerable:
 
----
-
-## What's cheap now and expensive later
-
-Do these before feature work, because their cost grows with everything
-built on top:
-
-1. **The tenant column**, on every table, even with one tenant. Adding a
-   column to ten tables today is an afternoon. Retrofitting tenancy into
-   a system with live customer data in multiple firms is a project people
-   write postmortems about.
-2. ~~**The panel model.** Every feature built on area-estimate costing is
-   a feature that has to be re-derived later.~~ Withdrawn 29 Sep 2026 —
-   area costing is permanent (Principle 2), so nothing built on it
-   needs re-deriving. The panel model is still needed for production,
-   but it is no longer cheaper now than later.
-3. **Rectilinear room geometry.** Arbitrary 90°-angle polygons instead of
-   rectangle-plus-pillars. This touches wall building, surface-area
-   costing, opening subtraction, collision and the 3D room. It is a
-   foundation, not a feature.
-4. **Undo/redo.** Cheap to add to a small command surface, painful to
-   retrofit once there are fifty kinds of edit.
-
----
-
-## The honest sequencing problem
-
-Three foundation rewrites before shipping anything to anyone is how
-projects die. But building the exciting half first — libraries, shapes,
-realistic appliances — produces a beautiful tool that can't be put in
-front of a paying customer, because it has no login, invented prices and
-no way to send a quote.
-
-The way through: **run your own business's real jobs through the current
-app while making the foundation decisions above.**
-
-That is not a delay. It is the only way to learn things you cannot learn
-any other way:
-
-- your carpenter's actual construction convention (blocks principle 2)
-- which ergonomic checks designers actually want (principle 6)
-- what the cabinet library really needs to contain
-- whether the quote format closes sales
-- what breaks when a design is used to cut real board
-
-Selling software for a workflow you have not yet run end-to-end is how
-you build the wrong thing extremely well.
-
----
-
-## Open decisions
-
-Needed before the corresponding work can start. Most need real-world
-input rather than more thinking.
-
-1. **Construction convention** — from your carpenter. Blocks the panel
-   model, which blocks everything about production output.
-2. **Board sizes and material stock** — what sheets do your suppliers
-   actually sell, in what thicknesses? Blocks nesting.
-3. **Edge banding rules** — which edges get banded, at what rate.
-4. ~~Does a tenant get isolated catalogues, or a shared starter they
-   fork?~~ **Answered, not yet built**: both — isolated by default,
-   with a per-business toggle to also see a shared/global catalogue.
-   Needs an `is_global` column on the catalogue tables and a
-   `business_settings.show_global_catalog` flag; deferred until a
-   second real business exists to need it (see `docs/DECISIONS.md`,
-   the auth/RLS entry).
-5. **Pricing model for the SaaS itself** — per seat, per business, per
-   quote? Affects nothing technical yet, everything commercially.
-6. **Who is the first paying customer that isn't you?** The answer
-   usually reorders this entire document.
-
----
+1. ~~Construction convention~~ → **decided as settings** with every
+   alternative selectable, labelled "assumed" until the carpenter
+   confirms (§41, §47). Comparing one real job with the carpenter is
+   the remaining check.
+2. ~~Board sizes and stock~~ → **decided**: sheet sizes per board line on
+   the rate card (§52).
+3. ~~Edge banding rules~~ → **decided**: customer-facing edges only (§47),
+   one ₹/m rate (§58, §65).
+4. Isolated vs shared catalogue → **answered, not built**: isolated by
+   default, with an opt-in shared catalogue (`is_global` +
+   `business_settings.show_global_catalog`). Waits for a second
+   business (§9).
+5. **SaaS pricing model**: per seat, per business, or per quote? Open.
+6. **The first paying customer that isn't you.** Open. The answer
+   usually reorders the roadmap.
 
 ## What I cannot validate
 
@@ -318,6 +257,8 @@ specificity as the moat) is a reasonable strategic bet, not a researched
 finding. The market claims in this document are inference from what
 you've told me about Delhi NCR kitchens — treat them as hypotheses to
 test on real customers, not as established facts.
+
+---
 
 ---
 
@@ -376,6 +317,7 @@ So:
 This settles "should this go in Workshop settings?": only if a business
 that never opens that page still gets a correct quote without it.
 
+
 ---
 
 ## Three things we got straight
@@ -409,56 +351,19 @@ carpenter in Delhi is not going to produce GLB files.
 
 ---
 
-## What "professional look and feel" actually means
+---
 
-Beyond undo/redo, in rough order of impact per hour spent.
+## What "professional" turned out to mean (done)
 
-### Adopt a component library
+All built (`docs/DECISIONS.md` §11, §16–§18, §21–§22):
+- shadcn/ui throughout
+- the four states (full, empty, loading, error)
+- a toast on every action
+- in-app confirmation naming the thing being destroyed
+- keyboard shortcuts (delete, escape, arrow-nudge, copy/paste)
+- a first-run checklist
 
-Every element in the app is currently hand-written Tailwind. It works,
-and it is why nothing quite lines up. A component library gives buttons,
-dialogs, inputs, tables, dropdowns and toasts that already agree with
-each other on spacing, radius, colour and focus states.
-
-`shadcn/ui` fits this codebase directly — React plus Tailwind v4, no new
-paradigm, components copied into the repo so they stay editable. This
-single change does more for "feels like real software" than any render
-improvement.
-
-### The four states every screen needs
-
-Most amateur-feeling software only builds the first one:
-
-1. **Full** — data is there.
-2. **Empty** — no data yet. Say what this screen is for and offer the
-   action that fills it. A new business's first login is *all* empty
-   states; it is their first impression of the product.
-3. **Loading** — skeletons, not a spinner on a blank page.
-4. **Error** — what failed, and what to do about it.
-
-### Feedback on every action
-
-- A **toast** on save, freeze, import, delete. Silence after clicking
-  is the most common reason users click twice.
-- **Confirmation on destructive actions**, naming the thing being
-  destroyed.
-- **Disabled buttons during in-flight work**, with the label saying so
-  ("Saving…"), which the rate card already does.
-
-### Consistency rules
-
-One spacing scale, one type scale, one set of colours with fixed
-meanings (amber = needs attention, red = error, green = confirmed). The
-placeholder-rates banner already uses amber this way — make it a
-convention rather than a one-off. **Done, audited rather than
-assumed** — a scan across every toolbar/inspector/dashboard panel
-found the app was already overwhelmingly consistent in practice
-(14 of 16 top-level panels use the exact same `rounded-lg border
-border-gray-200 bg-white p-4` shell; every panel heading uses `text-sm
-font-semibold text-gray-700`; every description line uses `text-xs
-text-gray-400` or `text-gray-500`), just not written down anywhere —
-so it could drift without anyone noticing. Now it's an explicit
-convention rather than an implicit one:
+What stays is the convention, so it doesn't drift:
 
 - **Panel shell**: `rounded-lg border border-gray-200 bg-white p-4`.
   A small popup/dropdown menu (`PickChooser`, the 360° views list) is
@@ -475,266 +380,60 @@ convention rather than an implicit one:
 One real drift already found and fixed: `FirstRunChecklist`'s heading
 used `text-gray-800` instead of the established `-700`.
 
-### Keyboard
+Still open: raw number and text inputs are native everywhere. That's a
+separate design call nobody has made.
 
-Undo/redo, delete, escape to deselect, arrow keys to nudge. Designers
-work fast; a mouse-only tool feels like a toy. **Done** —
-`useSelectionShortcuts` (global, only while the 2D canvas is the
-active view): Delete/Backspace removes whatever's selected (same as
-clicking that item's own Delete button — no confirm dialog, undo
-covers the "oops" case), Escape deselects, arrow keys nudge a
-cabinet/obstacle/appliance (10mm plain, the room's own grid step with
-Shift). Deliberately NOT extended to openings (move along a wall by
-offset, not x/y) or fixtures (position depends on mount kind) — arrow-
-nudging either would need per-kind logic disproportionate to what a
-keyboard shortcut is for; Delete/Escape still cover them. See
-`docs/DECISIONS.md` §22.
+## Inventory import and export (built, §10)
 
-### First-run experience
-
-A new business signs in to nothing. They need: a short setup checklist
-(add your rates → import your catalogue → create your first customer),
-and the ability to skip it. **Built** — `FirstRunChecklist` on the
-dashboard, each step computed from real state rather than a flag, and
-dismissible per business. See `docs/DECISIONS.md` §17.
+Excel round trip for all five catalogues: download current data → edit
+→ upload → validate → fix inline in the browser → commit atomically.
+The rules that matter, and still apply to any new importer:
+- `.xlsx`, not CSV.
+- Units in the headers (`width_mm`). The template carries its own
+  instructions sheet.
+- The row's own `id` column is the match key; blank means new.
+- **A missing row never deletes**; deletion is a typed `delete` column.
+- Validate everything before writing anything.
+- **An update merges onto the stored row** (§54). A partial source must
+  never wipe the fields it doesn't carry.
 
 ---
 
-## Inventory import and export
+## Roadmap
 
-The flow, designed. Applies to **every** catalogue — cabinets,
-appliances, finishes, handles, fixtures — which is the key engineering
-insight: build **one import engine driven by a column spec per
-catalogue**, not five importers.
+**This section changes often. The principles above do not.** Rewritten
+3 Oct 2026. The 21 Sep phase list is done except where noted below. See
+`docs/STATUS.md` for the current snapshot.
 
-### The round trip
+**Done**:
+- Foundations: tenancy and RLS, undo, autosave.
+- Sellable: quote export (PDF + WhatsApp link), Excel import, component
+  library, four states.
+- Good: present mode, glass fronts, pantry/tandem/corner types, kitchen
+  checks including the fridge work triangle (§32), visual assets.
+- Production: cutting list, nesting, measured waste, frozen cutting
+  lists, glass order, printable sheets and labels (§41–§64).
+- Tests: 111, including screen tests (§55, §66).
 
-1. **Download.** Not just a blank template — download the business's
-   **current** inventory, so editing 200 rows means download, edit,
-   re-upload. A blank template is only the first-time case.
-2. **Fill in Excel.** `.xlsx`, not CSV: Excel is what they have, and CSV
-   mangles ₹ and Indian text encodings. (SheetJS handles this.)
-3. **Upload.**
-4. **Validate and show errors in a grid in the browser.**
-5. **Fix inline, in that grid** — not by editing Excel and re-uploading.
-   Re-uploading loses their place and is the difference between a
-   feature people use and one they abandon.
-6. **Preview the effect**: "12 new, 8 updated, 0 removed."
-7. **Commit as one transaction**, into that business's inventory.
+**Next, in order:**
+1. **Real-job validation.** Price a real project on the new real-area
+   pricing. Lower the placeholder labour rate to a total-area figure.
+   Compare one job's cutting list and sheet count with the carpenter,
+   then confirm Workshop settings.
+2. **Real rates** replacing placeholders. Deprioritised 28 Sep, but the
+   §42/§59 price changes make it more pressing. The amber banner stays
+   until then.
+3. **A second business**: self-serve or assisted onboarding, then the
+   shared catalogue toggle.
 
-### Rules that matter
-
-- **The template carries its own instructions.** A second sheet with
-  each column's meaning, its unit, allowed values, and one filled
-  example row. The person completing it is not looking at the app while
-  they do it.
-- **Units in the column headers.** `width_mm`, not `width`. Then
-  validate ranges and flag the obvious mistakes — a `60` in a
-  millimetre column almost certainly means 600.
-- **Match on a business-supplied `code` column.** Present code = update
-  that item; absent = insert new.
-- **A missing row NEVER deletes anything.** Someone will upload a
-  partial sheet. Deletion stays a separate, deliberate action.
-- **All-or-nothing commit.** A partial import leaves the business unsure
-  what is actually in their catalogue, which is worse than a failed one.
-- **Validate everything before writing anything**, and show every error
-  at once. Fixing errors one upload at a time is how people give up.
-
-### Why this matters more than it looks
-
-Onboarding a new business is the moment they decide whether to keep
-paying. If step one is "type in your 180 cabinet modules by hand", most
-will not finish. This flow *is* the onboarding.
-
----
-
-## Next steps
-
-**This section changes often. The principles above do not.**
-
-Ordered by "cheapest now, most expensive later", not by excitement.
-
-### Phase 1 — Foundations (before feature work)
-
-Each of these gets more expensive with everything built on top.
-
-1. ~~Tenant column on all ten tables, plus auth and RLS.~~ **Done** —
-   `business_id` + RLS on all ten (now thirteen, with `businesses`/
-   `business_users`/`super_admins`), real sign-in. One business exists;
-   self-serve sign-up for a second is still not built (see
-   `docs/SUPABASE_SETUP.md`).
-2. **The panel model.** Replace area-estimate costing with real panel
-   decomposition, so price and cutting list derive from one source.
-   *Blocked on:* your carpenter's construction convention. **The
-   costing-only slice of this is now done** — material substrate cost
-   varies by area and by material (`docs/DECISIONS.md` §13), reusing
-   the same rough area estimate labour already used. That is NOT this
-   item: it produces a price, not a cutting list, and doesn't need the
-   carpenter's convention to do it. The real panel model — exact
-   per-panel dimensions — is still fully blocked on that answer.
-   **Reframed 29 Sep 2026** (Principle 2 changed): pricing no longer
-   waits on this at all — area costing is the permanent method, now
-   with an itemised "others" rate and a sheet waste factor
-   (`docs/DECISIONS.md` §35). What remains of this item is the
-   production cutting list only, still blocked on the carpenter's
-   convention. A standalone waste calculator that nests panels from an
-   *assumed* convention is not blocked and is the next step.
-   **Unblocked 29 Sep 2026** (`docs/DECISIONS.md` §41): the
-   carpenter's convention is now a set of business settings with every
-   alternative selectable, pre-filled with the common local convention
-   and labelled "assumed" until confirmed. The cutting list is built on
-   those (Phase 4 item 16) — the carpenter's answer is a settings
-   change, not a blocker.
-3. ~~Undo/redo, while the set of edit actions is still small.~~ **Done**
-   — was already built and documented (`docs/DECISIONS.md`, "Undo/redo
-   + autosave" in §6 Interaction) but this list was never updated to
-   say so; corrected here rather than silently. Debounced by
-   edit-signature (500ms), scoped to the open design only (not
-   catalogues/rates/quotes, which persist immediately per-row, or
-   panorama capture, an irreversible storage side effect).
-4. ~~Autosave, so nothing is ever lost.~~ **Done** — same entry as
-   above, same debounce mechanism reused for a 2s-debounced silent
-   `saveProject` call.
-
-### Phase 2 — Make it sellable
-
-5. ~~Quote export — PDF and WhatsApp link.~~ **Done** — also already
-   built and undocumented-here; corrected for the same reason as 3/4
-   above. A hosted PDF (`lib/quotePdf.ts`, frozen-quote data only,
-   never the live BOM) uploaded to the `quote-pdfs` bucket
-   (`lib/quotePdfStorage.ts`), opened as a `wa.me` deep link
-   pre-filled with that URL (`lib/whatsapp.ts`) — the customer gets a
-   real tappable document, not a manual attachment. See
-   `docs/DECISIONS.md`, "Quote export" in §6.
-6. **Real rates**, replacing every placeholder. **Marked not required
-   for now — explicit product call, 28 Sep 2026.** Partial work exists
-   (hinge/channel hardware rates, material rates by substrate, cost
-   basis vs. selling basis as a separate concept — `docs/DECISIONS.md`
-   §12-15) but bringing in the business's own negotiated invoice
-   prices to replace the market-estimate placeholders is deprioritized
-   rather than pursued further right now. The amber placeholder-rates
-   banner stays either way (principle 10: approximation is allowed,
-   but never hidden) — this item being deprioritized doesn't mean the
-   disclosure goes away.
-7. ~~Inventory import/export, per the design above. This is
-   onboarding.~~ **Done** — Excel round trip (download, edit, upload,
-   validate, fix inline, commit) for all five catalogues. Matching is
-   on each row's own id rather than a new business-assigned code
-   column (see `docs/DECISIONS.md`); no in-sheet Excel dropdowns
-   (SheetJS Pro feature), so allowed values live on an Instructions
-   sheet and the review grid's own `<select>` fields instead.
-8. **Component library and the four states.** The professional finish.
-   **In progress** — shadcn/ui adopted (Radix base, 15 primitives incl.
-   alert-dialog); toasts and an in-app confirm dialog (not the
-   browser's native one) on every save/freeze/import/delete action;
-   every hand-rolled `<button>` in the app migrated to shadcn's Button
-   (one deliberate exception: `ColorPicker`'s colour-swatch cells); the
-   four states (full/empty/loading/error) applied to `CustomerDashboard`
-   and `InventoryManager`; every screen-level hand-rolled error/warning
-   box in the toolbars, inspectors and quote sidebar promoted to the
-   shared `Alert` component (`docs/DECISIONS.md` §16); a first-run
-   checklist on the dashboard (add rates → import catalogue → create
-   first customer, each computed from real state, dismissible per
-   business — `docs/DECISIONS.md` §17); every native select/checkbox in
-   the inspectors, toolbars, `InventoryManager`'s catalogue tables and
-   all 5 Excel import/export review grids migrated to shadcn
-   `Select`/`Checkbox`, plus real `Skeleton` loading states for the 3
-   catalog-driven toolbars (`docs/DECISIONS.md` §18, §21). **Done**.
-   Not done: raw number/text inputs everywhere were left native (a
-   separate design call nobody has made), and consistency rules
-   beyond button colour (spacing/type scale) are still open. See
-   `docs/DECISIONS.md` §11, §16, §17, §18, §21.
-
-### Phase 3 — Make it good
-
-9. **Rectilinear room geometry** — arbitrary 90° shapes. A foundation
-   change, but it does not block selling, so it sits here. **Deferred,
-   28 Sep 2026** — scoped in full (touches ~15-20 files: every wall-
-   relative geometry function, all 8 2D canvas layers, the 3D room
-   shell, persistence) but a multi-session foundation rewrite for a
-   feature whose customer value isn't validated yet. Revisit after
-   real market feedback, or sooner if the panel model (Phase 1 item 2)
-   unblocks first, since that touches walls too. Full scope kept in
-   the plan file rather than lost. See `docs/DECISIONS.md` §27.
-10. **Cabinet library breadth** — tandem, pantry, tambour, corner
-    carousel, wicker baskets. Mostly data entry, which makes it cheap.
-    **Glass fronts, done** — single-door, double-door, drawers and
-    open-shelf fronts can all have their panel(s) made of glass
-    instead of board (clear/black/brown/yellow tint), all-or-nothing
-    per front (a "double door, brown-tint glass" cabinet has both
-    leaves in that glass), priced separately by tint
-    (`RateCard.glassRates`, ₹ per sq ft, with material/finish reduced
-    by the same area so it isn't double-charged) and rendered as real
-    transparent/tinted glass in the 3D view. Same door-swing hardware
-    (hinges, handle) as a board front of the same kind; drawers keep
-    their own channel hardware. See `docs/DECISIONS.md` §19-20.
-    **Tandem/pantry/wicker baskets, done** — tandem was already fully
-    priced (every drawer-unit row already gets tandem-box-rate
-    channels), so this added a genuinely new width (1200mm) rather
-    than a same-size duplicate; pantry needed a real new ModuleType
-    (`pantry-unit`, its own multi-tier wire-basket default front) since
-    a catalogue-row-only attempt turned out to silently lose its front
-    configuration on the Excel round trip; wicker baskets are the
-    pantry unit's own basket hardware, not a separate priced product.
-    See `docs/DECISIONS.md` §23.
-11. **Appliance dimensions first, appearance second.** Appliances are
-    usually customer-supplied in India, so the dimension drives cabinet
-    cutouts and clearances. Photoreal models are the last 10% of appeal
-    at most of the cost. **In progress** — `ApplianceType` widened from
-    6 to 10 values (added `fridge`, `microwave`, `dishwasher`,
-    `water-purifier`), with 5 new starter-catalogue rows at realistic
-    Delhi NCR dimensions. `fridge` specifically unblocks a real
-    sink/hob/fridge work triangle in `checkSinkHobDistance` — not built
-    in this pass, a deliberate follow-up rather than an oversight. The
-    larger version of this item (cabinet cutouts actually sized to a
-    placed appliance, beyond the sink cutout that already exists) is
-    still open. See `docs/DECISIONS.md` §27.
-12. **Kitchen-specific checks** — aisle width, work triangle,
-    sink-to-hob distance, hob not under a window, counter run beside the
-    hob, chimney centred on the hob. This is what makes the software
-    look like it knows the trade. **Done**, except the full work
-    triangle — this app has no fridge `ApplianceType`, so
-    `checkSinkHobDistance` checks the one leg of the triangle it can
-    actually see rather than fabricating a third corner. All five
-    other checks are advisory-only (`lib/kitchenChecks.ts`), a third
-    banner alongside the collision/clearance ones. See
-    `docs/DECISIONS.md` §24.
-13. ~~Present mode — the customer-facing view.~~ **Done** — a new
-    `'present'` screen (`PresentMode.tsx`), not a stripped copy of the
-    editing one: 3D walkthrough (reuses the existing 3D Preview
-    unchanged) plus a new floor-plan sub-view (no grid/dimensions/
-    warnings/toolbars/inspectors, pointer-events disabled so a stray
-    click can't drag a cabinet mid-presentation), and a designer-
-    tapped price reveal showing the same total the PDF/WhatsApp quote
-    already sends a customer. See `docs/DECISIONS.md` §28. **Not
-    verified in a browser** — no browser automation this session.
-14. ~~The visual assets work in `VISUAL_ASSETS_PROMPT.md` — HDRI
-    first, then finish scale, then metals on hardware.~~ **Done**, and
-    turned out to need far less work than that brief assumed — finish
-    scale/relief, window backdrops, and asset weight/lazy-loading were
-    already fully done in an earlier session that never got folded
-    back into the brief. Real remaining work closed this pass: the
-    already-fetched HDRI is now wired in (alongside the existing
-    Lightformer rig, not replacing it), the sink/chimney box fallback
-    now uses real brushed-steel maps, and the pendant fixture's `.glb`
-    is now actually rendered (`FixtureModel.tsx` existed but was never
-    called). Handle texture maps deliberately skipped — no browser
-    available to make the brief's own "does it look convincing enough
-    already" call, so no schema change on a guess. See
-    `docs/DECISIONS.md` §29.
-
-### Phase 4 — Production
-
-15. **Board nesting** — fitting panels onto 8×4 sheets. Genuinely hard
-    (2D bin packing); use a known heuristic, don't invent one. **Done,
-    2 Oct 2026** (`docs/DECISIONS.md` §49) — Jylänki's guillotine
-    packing, all rule combinations, measured waste two ways.
-16. **Cutting list output** for the workshop. **Phase 1 done, 29 Sep
-    2026** (`docs/DECISIONS.md` §41) — carcass, back and front parts
-    per cabinet from configurable construction settings, on-screen and
-    Excel export. Not yet: drawer boxes, corner-carousel geometry, a
-    printable PDF. Item 15 (nesting) is next and no longer blocked.
-17. **Hardware boring positions**, if CNC ever matters.
+**Later / deferred:**
+- appliance-driven cabinet cutouts (beyond the sink)
+- rectilinear rooms (§27)
+- browser (Playwright) tests once a test login exists
+- hardware boring for CNC
+- `RectAreaLight` for strip lights (§5)
+- the `inside` cabinet-light mount
+- Draco decoding
 
 ### Running alongside all of it
 
