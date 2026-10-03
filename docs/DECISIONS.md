@@ -4993,3 +4993,33 @@ column for the business to fill in rather than guessing one. The cut
 list's header comment, which still listed drawer boxes, glass and the
 carousel as known gaps, is corrected — all three are now handled. 93
 tests.
+
+## 64. Printable workshop documents: cutting list PDF and part labels
+
+Two buttons on the Cutting List page, built with the same jsPDF +
+autotable the quote PDF uses, from the same `CutList` and nesting the
+page shows — and from whichever version is selected (live design or a
+frozen quote's list), so paper and screen can't disagree:
+
+- **Print (PDF)** — header (project, version, date) and, if the
+  workshop settings aren't confirmed, the same "ASSUMED settings"
+  warning the screen shows; a parts table per board (identical parts
+  merged, as a saw operator works: part, length, width, qty, edge,
+  grain, cabinets); the glass order; any notes; then one landscape page
+  per nested sheet, every piece drawn and labelled with its cabinet,
+  name, size and "(turned)" where rotated.
+- **Part labels (PDF)** — one label per physical piece, 3 × 8 = 24 per
+  A4 page (the common 63.5 × 33.9 mm sticker sheet): cabinet + part,
+  L × W × thickness, board, edge banding (+ "diagonal" for a carousel
+  pentagon), and "piece n of N" — so every cut piece can be tagged at
+  the saw and matched at assembly.
+
+No prices on either (they're for the workshop). jsPDF's built-in
+Helvetica is WinAnsi-only — "×", "—", "²" print; "₹", arrows and "⟲"
+don't — so rotation is said in words.
+
+Checked by eye: both PDFs were generated from the test kitchen (plus a
+glass door) and their pages rendered to images — page 1 of each via
+macOS `sips`, a sheet page via a small PDFKit script (poppler isn't
+installed). Tables, the assumed-settings warning, the glass order, the
+labels and a sheet layout all read correctly.

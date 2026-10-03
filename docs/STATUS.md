@@ -12,7 +12,7 @@ where reasoning is recorded and `git log` is where the history is.
 
 ---
 
-**Last updated:** 29 Sep 2026
+**Last updated:** 3 Oct 2026
 
 ## Where things stand
 
@@ -328,6 +328,11 @@ and a second real-shade pendant catalogue option.
 - Board nesting, cutting list, hardware boring (Phase 4) — see
   Blocked, below.
 
+**New (§64): printable workshop documents** — Cutting List page:
+"Print (PDF)" (parts per board, glass order, one page per sheet layout)
+and "Part labels (PDF)" (24 stickers per A4, one per piece, "piece n of
+N"). Checked by rendering the pages.
+
 **New (§63): glass order sheet** — "Glass to order" on the Cutting List
 page and a Glass order tab in the export: cabinet, size, tint, qty, with
 a blank thickness column to fill in.
@@ -430,19 +435,28 @@ work-triangle check are both open follow-ups, not started.
 
 ## Next
 
-**First**: re-run `schema.sql`, then look at the rate card's new
-"Other costs" lists, the waste factor, and the sidebar override in the
-browser. Then build the standalone waste calculator (plan item 4).
+**First, before using any of this:** re-run `supabase/schema.sql` (new
+columns since the last run include `rate_cards.waste_mode`,
+`rate_cards.edge_banding_rate_per_m`, `quotes.cut_list`,
+`layouts.depth_includes_front`), then look at a real project:
+- **Prices will have moved a lot** — board on real area (§42), drawer
+  boxes (§56), labour on total area (§59). Lower the ₹150/sq ft labour
+  placeholder to your real total-area rate; set an edge-banding ₹/m and
+  remove the per-sq-ft edge-banding row; check board rates.
+- Try "carcass only" depth in Room Settings and drag a cabinet — the
+  physical-footprint work (§61) is tested but not seen.
+- Print a cutting list and labels; compare one real job's cut list and
+  sheet count with your carpenter's, then confirm and lock Workshop
+  settings.
 
-Earlier backlog, unchanged: Phase 3 items 9, 11, 13, 14 are now scoped and either done (13, 14) or
-partially done and explicitly deferred/scoped (9, 11). Nothing from
-this session has been seen in a browser except the HDRI/metal-texture
-follow-up — that remains the single biggest open item: present mode's
-two sub-views and price breakdown, the four new appliance types placed
-and rendered, and the pendant model's actual orientation once
-`schema.sql` is re-run against the live project. `docs/Issues.md` is
-genuinely empty (see the correction above) — nothing there to triage.
-After that: the fridge work-triangle check,
-appliance-driven cabinet cutouts, and — once the panel-model question
-is answered — all of Phase 4. Full roadmap in `docs/PRINCIPLES.md`,
-Part 2/3.
+**The panel/cutting-list list agreed on 3 Oct is complete** (§55-§64):
+tests, drawer boxes, fronts on the carcass board, edge banding per metre,
+total-area labour, frozen cutting lists, depth convention everywhere,
+corner carousel, glass order, printable sheets.
+
+**Still open in this area**: tape thickness per board for edge banding;
+a per-board front thickness in the 3D/plan geometry (it uses 18mm); the
+carousel's back-fit and rails simplifications; UI has no automated tests.
+Earlier backlog (fridge work-triangle check, appliance-driven cutouts,
+rectilinear rooms) unchanged — see docs/PRINCIPLES.md Part 2.
+

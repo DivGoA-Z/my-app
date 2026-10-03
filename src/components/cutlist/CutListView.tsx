@@ -26,6 +26,7 @@ import {
 } from '../../lib/cutList';
 import { buildWorkbookBlob } from '../../lib/importExport/xlsxHelpers';
 import { downloadBlob } from '../../lib/downloadBlob';
+import { generateCutListPdf, generatePartLabelsPdf } from '../../lib/workshopPdf';
 import { ExtraPartsEditor } from '../common/ExtraPartsEditor';
 import { SheetLayoutView } from './SheetLayoutView';
 import { nestParts } from '../../lib/nesting';
@@ -231,6 +232,14 @@ export function CutListView({
 
   const totalPieces = cutList.groups.reduce((n, g) => n + g.pieceCount, 0);
 
+  const pdfInfo = {
+    projectName: currentProject?.clientName ?? '',
+    versionLabel: frozen ? `Quote v${frozen.version} (frozen ${new Date(frozen.frozenAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})` : 'Current design',
+    boards: viewBoards,
+    settings: viewSettings,
+  };
+  const pdfFileBase = `cutting-list-${(currentProject?.clientName ?? 'project').replace(/[^a-z0-9]+/gi, '-')}${frozen ? `-quote-v${frozen.version}` : ''}`;
+
   return (
     <div className="flex flex-col gap-4 p-8">
       <div className="flex flex-wrap items-center gap-2">
@@ -296,6 +305,25 @@ export function CutListView({
             }
           >
             Export to Excel
+          </Button>
+          {/* Printable workshop documents (§64), from the version shown. */}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={cutList.parts.length === 0}
+            onClick={() => downloadBlob(generateCutListPdf(cutList, pdfInfo), `${pdfFileBase}.pdf`)}
+          >
+            Print (PDF)
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={cutList.parts.length === 0}
+            onClick={() => downloadBlob(generatePartLabelsPdf(cutList, pdfInfo), `${pdfFileBase}-labels.pdf`)}
+          >
+            Part labels (PDF)
           </Button>
         </div>
       </div>
