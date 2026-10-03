@@ -3,7 +3,7 @@
 // docs/DECISIONS.md §41-§48; these make those checks permanent (§55).
 
 import { describe, expect, it } from 'vitest';
-import { computeCutList, type CutPart } from './cutList';
+import { computeCutList, freezeCutList, thawCutList, type CutPart } from './cutList';
 import { defaultRateCard } from '../types/rates';
 import { baseUnit, cabinet, construction, lShapedKitchen } from '../test/fixtures';
 
@@ -144,6 +144,17 @@ describe('where fronts are cut from (§57)', () => {
       computeCutList(lShapedKitchen(), construction({ frontsFrom }), [], rates, []).groups.map((g) => g.label);
     expect(labels('carcass-board')).toEqual(['HDMR 18mm — carcass, fronts', 'HDMR 6mm — backs']);
     expect(labels('prelaminated')).toHaveLength(3);
+  });
+});
+
+describe('freezing with a quote (§60)', () => {
+  it('a frozen list drops 3D positions but regroups exactly as the live one', () => {
+    const live = computeCutList(lShapedKitchen(), construction(), [], rates, []);
+    const frozen = JSON.parse(JSON.stringify(freezeCutList(live))); // as stored in jsonb
+    const thawed = thawCutList(frozen);
+    expect(thawed.parts.every((p) => p.boxes.length === 0)).toBe(true);
+    expect(thawed.groups.map((g) => [g.label, g.pieceCount])).toEqual(live.groups.map((g) => [g.label, g.pieceCount]));
+    expect(thawed.warnings).toEqual(live.warnings);
   });
 });
 

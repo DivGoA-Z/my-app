@@ -14,16 +14,26 @@ import { useMemo } from 'react';
 import { useLayoutStore } from '../../store/layoutStore';
 import type { CutList } from '../../lib/cutList';
 import { nestParts, type CutSpec } from '../../lib/nesting';
-import { boardSheetSizes } from '../../types/rates';
+import { boardSheetSizes, type BoardRate } from '../../types/rates';
+import type { ConstructionSettings } from '../../types/construction';
 import { SheetDrawing } from './SheetDrawing';
 
-export function SheetLayoutView({ cutList }: { cutList: CutList }) {
-  const settings = useLayoutStore((s) => s.constructionSettings);
+// `boards` and `settings` are passed in rather than read from the store:
+// a FROZEN quote's list (§60) is laid out with the boards and workshop
+// settings saved with that quote, not today's.
+export function SheetLayoutView({
+  cutList,
+  boards,
+  settings,
+}: {
+  cutList: CutList;
+  boards: BoardRate[];
+  settings: ConstructionSettings;
+}) {
   const currentLayout = useLayoutStore((s) => s.currentLayout);
   const businessWaste = useLayoutStore((s) => s.rateCard.sheetWasteFactor);
   const wasteMode = useLayoutStore((s) => s.rateCard.wasteMode);
 
-  const boards = useLayoutStore((s) => s.rateCard.boards);
   const cut: CutSpec = useMemo(
     () => ({ kerfMm: settings.kerfMm, trimMm: settings.sheetTrimMm }),
     [settings.kerfMm, settings.sheetTrimMm]

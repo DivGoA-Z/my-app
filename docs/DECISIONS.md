@@ -4858,3 +4858,39 @@ labour; drawer boxes and extra parts add to it; the glass test shows a
 glass-door cabinet keeps the same labour area as its board twin while
 its board area drops. 72 tests (one more ₹1 correction to my hand
 arithmetic: 22.706 sq ft × ₹150 = ₹3,406).
+
+## 60. The cutting list is frozen with each quote
+
+A sent quote's PRICE was frozen, but its cutting list stayed live — so
+if the design changed after quote v3 went out, the workshop could cut a
+different kitchen than the customer agreed to. Now:
+
+- **Freezing a quote saves its cutting list** in `quotes.cut_list`
+  (jsonb, written once like `summary`, never updated): exactly the parts
+  priced in that version, from the same inputs, with their 3D positions
+  dropped to keep each row small (`freezeCutList`). Groups aren't
+  stored — `thawCutList` rebuilds them with the same `groupCutParts` the
+  live list uses (extracted from `computeCutList` for this), so a frozen
+  list groups exactly as it did; a test round-trips one through JSON.
+- **Where you see it** (your question): on the Cutting List page — a
+  selector "Current design / Quote v3 (sent 2 Oct)". A frozen version is
+  read-only: no loose-parts editor, no links into the Designer (those
+  cabinets may have changed or gone), a blue banner saying when it was
+  frozen/sent and — if it's the latest quote and the design has changed
+  since — "cut from this list only if the customer agreed to this
+  version". Its sheet layout and Excel export use the boards (sheet
+  sizes) and workshop settings saved WITH that quote, not today's
+  (`SheetLayoutView` now takes them as props for this). The export's
+  filename carries the version.
+- The quote panel's frozen-quote card has a "Cutting list for v3 →"
+  link that opens straight to that version.
+
+Quotes frozen before this have no cutting list and simply don't appear
+in the selector. The sheet LAYOUT of a frozen list is recomputed from
+its frozen parts and settings rather than stored; that's deterministic,
+but a future change to the packing code could lay the same parts out
+differently — the PARTS (what to cut) are what's guaranteed frozen.
+
+One React-compiler snag on the way: it rejects a manual `useMemo` keyed
+on a value found by searching a list; the memo was dropped (the
+compiler memoises the component itself). 73 tests.

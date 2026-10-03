@@ -755,11 +755,34 @@ export function computeCutList(
     ...loosePartsCut(looseParts, rates, warnings),
   ];
 
-  // Grouped by what's physically the same stock: one board line is one
-  // pile of sheets. Fronts are split by finish too, because a walnut
-  // shutter and a white one are cut from differently laminated boards.
-  // A back is carcass (you pointed that out) but usually a different,
-  // thinner board — so it gets its own group, labelled as carcass.
+  return { parts, groups: groupCutParts(parts), warnings };
+}
+
+// The cutting list as frozen with a quote (§60): its parts and warnings,
+// with the 3D positions dropped (they're only for the Designer's
+// preview, and would bloat every saved quote). Groups aren't stored —
+// they're rebuilt from the parts by groupCutParts, the same function the
+// live list uses, so a frozen list groups exactly as it did.
+export interface FrozenCutList {
+  parts: CutPart[];
+  warnings: string[];
+}
+
+export function freezeCutList(cl: CutList): FrozenCutList {
+  return { parts: cl.parts.map((p) => ({ ...p, boxes: [] })), warnings: cl.warnings };
+}
+
+export function thawCutList(frozen: FrozenCutList): CutList {
+  return { parts: frozen.parts, groups: groupCutParts(frozen.parts), warnings: frozen.warnings };
+}
+
+// Parts → their stacks of sheets (CutPart.stockKey), labelled and sorted.
+// Shared by the live list and a frozen one (§60).
+export function groupCutParts(parts: CutPart[]): CutListGroup[] {
+  // Grouped by what's physically the same stock — CutPart.stockKey: one
+  // board line is one pile of sheets, and since §57 its carcass parts,
+  // backs cut from it, and fronts cut from it (unless fronts come from
+  // pre-laminated sheets, split per finish) all share it.
   const byKey = new Map<string, CutListGroup>();
   for (const part of parts) {
     const key = groupKey(part);
@@ -806,8 +829,9 @@ export function computeCutList(
   const groups = [...byKey.values()].sort(
     (a, b) => kindOrder.indexOf(a.kind) - kindOrder.indexOf(b.kind) || a.label.localeCompare(b.label)
   );
-  return { parts, groups, warnings };
+  return groups;
 }
+
 
 // One group per physical stack of sheets — see CutPart.stockKey. (Until
 // §57 this was kind + board + finish, which always put backs and fronts

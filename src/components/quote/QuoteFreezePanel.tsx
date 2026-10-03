@@ -48,7 +48,9 @@ function formatDate(iso: string): string {
   });
 }
 
-export function QuoteFreezePanel() {
+// onOpenCutList: open the Cutting List page on a frozen quote's own list
+// (§60). App.tsx owns screen switching, so it's passed in.
+export function QuoteFreezePanel({ onOpenCutList }: { onOpenCutList?: (quoteId: string) => void } = {}) {
   const currentProject = useLayoutStore((s) => s.currentProject);
   const loadQuotes = useLayoutStore((s) => s.loadQuotes);
   const freezeCurrentQuote = useLayoutStore((s) => s.freezeCurrentQuote);
@@ -182,6 +184,19 @@ export function QuoteFreezePanel() {
             </p>
           ) : (
             <p className="mt-1.5">Matches the current design.</p>
+          )}
+          {/* The cutting list frozen with this version (§60) — what the
+              workshop should cut if the customer agreed to it. */}
+          {latest.cutList && onOpenCutList && (
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="mt-1 h-auto self-start p-0 text-[11px]"
+              onClick={() => onOpenCutList(latest.id)}
+            >
+              Cutting list for v{latest.version} →
+            </Button>
           )}
 
           <div className="mt-2 flex flex-col gap-1 text-[11px] text-gray-600">

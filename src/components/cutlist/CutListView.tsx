@@ -18,6 +18,7 @@ import { Alert, AlertDescription } from '../ui/alert';
 import { useLayoutStore } from '../../store/layoutStore';
 import {
   computeCutList,
+  thawCutList,
   consolidateParts,
   describeEdgeBanding,
   groupKey,
@@ -28,6 +29,7 @@ import { downloadBlob } from '../../lib/downloadBlob';
 import { ExtraPartsEditor } from '../common/ExtraPartsEditor';
 import { SheetLayoutView } from './SheetLayoutView';
 import { nestParts } from '../../lib/nesting';
+import { useQuoteStatus } from '../../hooks/useQuoteStatus';
 import { boardSheetSizes, type BoardRate } from '../../types/rates';
 import {
   BACK_FIT_LABELS,
@@ -146,6 +148,7 @@ export function CutListView({
   onClose,
   onOpenWorkshop,
   onOpenDesigner,
+  initialQuoteId,
 }: {
   onClose: () => void;
   onOpenWorkshop: () => void;
@@ -153,6 +156,9 @@ export function CutListView({
   // The list itself is never edited directly: it's derived from the
   // design, and the same parts set the price.
   onOpenDesigner: (cabinetId: string) => void;
+  // Open straight to a frozen quote's cutting list (§60) — the quote
+  // panel's "Cutting list" link passes its quote id.
+  initialQuoteId?: string;
 }) {
   const cabinets = useLayoutStore((s) => s.cabinets);
   const looseParts = useLayoutStore((s) => s.currentLayout?.looseParts);
@@ -162,17 +168,36 @@ export function CutListView({
   const rateCard = useLayoutStore((s) => s.rateCard);
   const currentProject = useLayoutStore((s) => s.currentProject);
   const [mode, setMode] = useState<Mode>('cutting');
+  const quotes = useLayoutStore((s) => s.quotes);
+  const quoteStatus = useQuoteStatus();
+  // Which cutting list: the live design, or one frozen with a quote (§60).
+  const frozenQuotes = quotes.filter((q) => q.cutList);
+  const [version, setVersion] = useState<string>(
+    initialQuoteId && frozenQuotes.some((q) => q.id === initialQuoteId) ? initialQuoteId : 'current'
+  );
+  const frozen = version === 'current' ? undefined : frozenQuotes.find((q) => q.id === version);
 
-  const cutList = useMemo(
+  const liveCutList = useMemo(
     () => computeCutList(cabinets, settings, finishes, rateCard, looseParts ?? []),
     [cabinets, settings, finishes, rateCard, looseParts]
   );
+  // A frozen version shows exactly its saved parts, laid out with the
+  // boards (sheet sizes) and workshop settings saved WITH that quote — not
+  // today's — so it reads as it did the day it was frozen.
+  // No manual useMemo here: the React compiler memoises this component
+  // itself, and it rejects a hand-written memo keyed on a value found by
+  // searching a list (it can't prove it stable). Thawing is cheap anyway.
+  const cutList = frozen?.cutList ? thawCutList(frozen.cutList) : liveCutList;
+  const viewBoards = frozen ? frozen.pricingContext.rates.boards : rateCard.boards;
+  const viewSettings = frozen?.pricingContext.construction ?? settings;
+  const frozenIsLatestAndStale = frozen && quoteStatus.latest?.id === frozen.id && quoteStatus.isStale;
 
   // Cabinet ref ("C3") → its id, so a ref on any row can open that
   // cabinet in the Designer. Loose parts have no cabinet.
   const idByRef = new Map(cutList.parts.filter((p) => p.cabinetId).map((p) => [p.cabinetRef, p.cabinetId]));
   const refLink = (ref: string, title?: string) => {
-    const id = idByRef.get(ref);
+    // A frozen list's cabinets may since have changed or gone — no links.
+    const id = frozen ? undefined : idByRef.get(ref);
     if (!id) return <span key={ref} title={title}>{ref}</span>;
     return (
       <button
@@ -198,6 +223,23 @@ export function CutListView({
         <h2 className="text-sm font-semibold text-gray-800">
           Cutting list{currentProject ? ` — ${currentProject.clientName}` : ''}
         </h2>
+        {/* Live design or a frozen quote's list (§60). Only quotes frozen
+            since §60 carry one. */}
+        {frozenQuotes.length > 0 && (
+          <select
+            aria-label="Which cutting list"
+            value={version}
+            onChange={(e) => setVersion(e.target.value)}
+            className="rounded border border-gray-300 px-2 py-1 text-xs"
+          >
+            <option value="current">Current design</option>
+            {frozenQuotes.map((q) => (
+              <option key={q.id} value={q.id}>
+                Quote v{q.version} ({q.sentAt ? 'sent' : 'frozen'} {new Date(q.sentAt ?? q.frozenAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})
+              </option>
+            ))}
+          </select>
+        )}
         <div className="ml-auto flex items-center gap-1">
           <Button
             type="button"
@@ -227,14 +269,36 @@ export function CutListView({
             type="button"
             size="sm"
             disabled={cutList.parts.length === 0}
-            onClick={() => exportWorkbook(cutList, settings, rateCard.boards, currentProject?.clientName ?? '')}
+            onClick={() =>
+              exportWorkbook(
+                cutList,
+                viewSettings,
+                viewBoards,
+                `${currentProject?.clientName ?? ''}${frozen ? `-quote-v${frozen.version}` : ''}`
+              )
+            }
           >
             Export to Excel
           </Button>
         </div>
       </div>
 
-      {!settings.confirmed && (
+      {frozen && (
+        <Alert className="border-blue-300 bg-blue-50">
+          <AlertDescription className="text-blue-900">
+            <strong className="font-semibold">Frozen with quote v{frozen.version}</strong> on{' '}
+            {new Date(frozen.frozenAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+            {frozen.sentAt ? ' and sent to the customer' : ''} — read-only, exactly as it was then.{' '}
+            {frozenIsLatestAndStale
+              ? 'The design has changed since — cut from this list only if the customer agreed to this version.'
+              : quoteStatus.latest && quoteStatus.latest.id !== frozen.id
+                ? 'A newer quote version exists.'
+                : ''}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {!frozen && !settings.confirmed && (
         <Alert className="border-amber-300 bg-amber-50">
           <AlertDescription className="text-amber-900">
             <strong className="font-semibold">Built on assumed construction.</strong> Part sizes
@@ -255,7 +319,7 @@ export function CutListView({
       )}
 
       {mode === 'sheets' ? (
-        <SheetLayoutView cutList={cutList} />
+        <SheetLayoutView cutList={cutList} boards={viewBoards} settings={viewSettings} />
       ) : cutList.parts.length === 0 ? (
         <p className="text-xs text-gray-500">No cabinets placed yet.</p>
       ) : (
@@ -341,7 +405,9 @@ export function CutListView({
 
       {/* Loose parts — board pieces that don't belong to any one cabinet
           (§48). Saved with the project, listed above under their board,
-          and priced inside Material like any panel. */}
+          and priced inside Material like any panel. Not editable on a
+          frozen list (§60) — a frozen quote never changes. */}
+      {!frozen && (
       <section className="flex flex-col gap-2 rounded-md border border-gray-200 p-3">
         <div>
           <h3 className="text-xs font-semibold text-gray-800">Loose parts (not part of any cabinet)</h3>
@@ -358,6 +424,7 @@ export function CutListView({
           namePlaceholder="e.g. Filler, left wall"
         />
       </section>
+      )}
     </div>
   );
 }

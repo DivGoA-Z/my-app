@@ -73,6 +73,9 @@ function App() {
   // catalogue → Designer → back → Back reload the catalogue forever.
   const [designerReturn, setDesignerReturn] = useState<View>('canvas');
   const designerScrollY = useRef(0);
+  // Which frozen quote's cutting list to open on (§60); undefined = the
+  // live design.
+  const [cutListQuoteId, setCutListQuoteId] = useState<string | undefined>(undefined);
   // Which catalog section to scroll to when the inventory screen opens —
   // set by whichever toolbar's "Manage" button was clicked, undefined
   // for the dashboard's generic "Manage Inventory" button.
@@ -214,7 +217,11 @@ function App() {
 
   if (view === 'cutlist') {
     content = (
+      // Keyed by the requested version so opening a different quote's
+      // list starts fresh (the page picks its version once, on mount).
       <CutListView
+        key={cutListQuoteId ?? 'current'}
+        initialQuoteId={cutListQuoteId}
         onClose={() => setView('canvas')}
         onOpenWorkshop={() => {
           setPreviousView('cutlist');
@@ -334,7 +341,14 @@ function App() {
           Present
         </Button>
 
-        <Button variant="outline" size="sm" onClick={() => setView('cutlist')}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setCutListQuoteId(undefined);
+            setView('cutlist');
+          }}
+        >
           Cutting List
         </Button>
 
@@ -460,7 +474,12 @@ function App() {
           <OpeningInspector />
           <FixtureInspector />
 
-          <QuoteSidebar />
+          <QuoteSidebar
+            onOpenCutList={(quoteId) => {
+              setCutListQuoteId(quoteId);
+              setView('cutlist');
+            }}
+          />
         </div>
       )}
       </div>

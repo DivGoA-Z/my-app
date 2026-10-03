@@ -35,6 +35,7 @@ import type { CatalogItem, ObstaclePreset, ApplianceCatalogItem } from '../types
 import type { SurfaceFinish } from '../types/finish';
 import type { CameraNode } from '../types/Camera';
 import { calculateBOM, legacyProjectChargeRates } from '../lib/bom';
+import { computeCutList, freezeCutList } from '../lib/cutList';
 import { saveProjectBundle, loadProjectBundle } from '../lib/Persistence';
 import { uploadPanorama, deletePanorama } from '../lib/panoramaStorage';
 import {
@@ -1268,6 +1269,11 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
           // even if the total happens not to have moved.
           fingerprint: fingerprintPricedInputs(cabinets, appliances, ctx),
         },
+        // Frozen alongside the price (§60): exactly the parts priced above,
+        // from the same inputs.
+        cutList: freezeCutList(
+          computeCutList(cabinets, constructionSettings, finishes, rateCard, layoutForQuote.looseParts ?? [])
+        ),
         note,
       });
       set((state) => ({

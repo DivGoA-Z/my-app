@@ -13,6 +13,7 @@
 //     customer is not a feature. If a quote was frozen in error, freeze
 //     the corrected one as the next version — the history is the point.
 
+import type { FrozenCutList } from './cutList';
 import { supabase } from './Supabaseclient';
 import type { FrozenQuote, FrozenPricingContext } from '../types/quote';
 import { computeQuoteFingerprint } from '../types/quote';
@@ -43,6 +44,8 @@ interface QuoteRow {
   version: number;
   summary: BOMSummary;
   pricing_context: FrozenPricingContext;
+  // §60 — the cutting list frozen with this version. NULL before §60.
+  cut_list: FrozenCutList | null;
   grand_total: number;
   frozen_at: string;
   note: string | null;
@@ -57,6 +60,7 @@ function rowToQuote(row: QuoteRow): FrozenQuote {
     version: row.version,
     summary: row.summary,
     pricingContext: row.pricing_context,
+    cutList: row.cut_list ?? undefined,
     grandTotal: row.grand_total,
     frozenAt: row.frozen_at,
     sentAt: row.sent_at ?? undefined,
@@ -165,6 +169,7 @@ export interface FreezeQuoteInput {
   businessId: string;
   summary: BOMSummary;
   pricingContext: FrozenPricingContext;
+  cutList: FrozenCutList;
   note?: string;
 }
 
@@ -198,6 +203,7 @@ export async function freezeQuote(input: FreezeQuoteInput): Promise<FrozenQuote>
       version,
       summary: input.summary,
       pricing_context: input.pricingContext,
+      cut_list: input.cutList,
       // Derived from the summary, never passed in separately — see the
       // note on FrozenQuote.grandTotal.
       grand_total: input.summary.grandTotal,

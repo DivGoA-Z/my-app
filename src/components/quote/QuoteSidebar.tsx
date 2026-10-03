@@ -54,7 +54,7 @@ function formatApplianceType(applianceType: ApplianceType): string {
   return APPLIANCE_TYPE_LABELS[applianceType];
 }
 
-export function QuoteSidebar() {
+export function QuoteSidebar({ onOpenCutList }: { onOpenCutList?: (quoteId: string) => void } = {}) {
   const bom = useBOM();
   const currentLayout = useLayoutStore((s) => s.currentLayout);
   const setMarginPercent = useLayoutStore((s) => s.setMarginPercent);
@@ -523,7 +523,7 @@ export function QuoteSidebar() {
           sidebar. It was built but never actually composed in here
           before now, which is why Freeze/Download/Share never
           appeared. */}
-      <QuoteFreezePanel />
+      <QuoteFreezePanel onOpenCutList={onOpenCutList} />
     </aside>
   );
 }

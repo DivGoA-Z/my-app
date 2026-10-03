@@ -330,6 +330,11 @@ and a second real-shade pendant catalogue option.
 - Board nesting, cutting list, hardware boring (Phase 4) — see
   Blocked, below.
 
+**New (§60): the cutting list is frozen with each quote** — Cutting
+List page selector "Current design / Quote v3", read-only, laid out with
+that quote's own boards and settings; "Cutting list for v3 →" on the
+quote card. Needs `schema.sql` re-run (`quotes.cut_list`).
+
 **New (§59): labour and every per-sq-ft charge use the cabinet's TOTAL
 board area** (your call) — a base unit goes 7.0 → 22.7 sq ft, so site
 labour at the placeholder ₹150/sq ft jumps ~₹1,046 → ₹3,406. **Lower the
@@ -353,7 +358,7 @@ board that was previously never charged.
 
 ## Tests
 
-**`npm test`** (Vitest) — 72 tests on pricing, the cutting list, nesting,
+**`npm test`** (Vitest) — 73 tests on pricing, the cutting list, nesting,
 panels and the catalogue importer, ~0.3s (§55). Run before trusting a
 change to any of those. UI still has no automated tests.
 

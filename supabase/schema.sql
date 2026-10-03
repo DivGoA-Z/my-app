@@ -1414,6 +1414,11 @@ alter table public.quotes add column if not exists business_id text references p
 -- so a column added to that block alone never reaches a database that
 -- already has this table without this explicit alter too.
 alter table public.quotes add column if not exists sent_at timestamptz;
+-- The cutting list frozen with this version (§60): {parts, warnings}, the
+-- parts without their 3D positions. Written once at freeze time like
+-- `summary`, never updated — the workshop cuts the agreed kitchen even if
+-- the design changes later. NULL on quotes frozen before §60.
+alter table public.quotes add column if not exists cut_list jsonb;
 
 -- ============================================================
 -- CONSTRUCTION SETTINGS (docs/DECISIONS.md §41)

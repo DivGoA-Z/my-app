@@ -23,6 +23,7 @@
 
 import type { ConstructionSettings } from './construction';
 import type { BOMSummary } from '../lib/bom';
+import type { FrozenCutList } from '../lib/cutList';
 import type { RateCard } from './rates';
 import type { SurfaceFinish } from './finish';
 import type { HandleSpec } from './front';
@@ -58,6 +59,11 @@ export interface FrozenQuote {
   version: number;
   summary: BOMSummary;
   pricingContext: FrozenPricingContext;
+  // The cutting list as it stood when this version was frozen (§60) —
+  // so a workshop cuts the kitchen the customer agreed to, not whatever
+  // the design has become since. Absent on quotes frozen before §60.
+  // Shown read-only on the Cutting List page ("Quote v3").
+  cutList?: FrozenCutList;
   // Copied out of summary so a list of quotes can be rendered without
   // parsing every snapshot. DERIVED — never write it independently of
   // summary.grandTotal.
