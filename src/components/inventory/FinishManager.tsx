@@ -21,6 +21,9 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
+import { EditPanel } from '../common/EditPanel';
+import { NewButton } from './CatalogueKit';
+import { finishSwatch } from '../../lib/designFinishes';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { confirmDialog } from '../../store/confirmDialogStore';
 import { useLayoutStore } from '../../store/layoutStore';
@@ -56,8 +59,8 @@ function blankFinish(): SurfaceFinish {
   };
 }
 
-const inputClass = 'w-full rounded border border-input px-2 py-1 text-xs';
-const labelClass = 'flex flex-col gap-1 text-[13px] text-muted-foreground';
+const inputClass = 'h-11 w-full rounded-[10px] border border-input bg-card px-3 text-[15px]';
+const labelClass = 'flex flex-col gap-1.5 text-[13px] font-semibold text-foreground';
 
 export function FinishManager() {
   const finishes = useLayoutStore((s) => s.finishes);
@@ -121,21 +124,16 @@ export function FinishManager() {
       {/* Title and description come from the Catalogue page's section
           frame (CatalogueSection, §71). */}
       <div className="flex justify-end">
-        <Button size="touch" onClick={startNew}>
-          + New finish
-        </Button>
+        <NewButton label="New finish" onClick={startNew} />
       </div>
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
-
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
         {finishes.map((finish) => (
           <FinishCard
             key={finish.id}
             finish={finish}
             isEditing={editingId === finish.id}
             onEdit={() => startEdit(finish)}
-            onDelete={() => handleDelete(finish)}
           />
         ))}
         {finishes.length === 0 && (
@@ -145,15 +143,19 @@ export function FinishManager() {
         )}
       </div>
 
-      {draft && (
-        <FinishEditor
-          draft={draft}
-          setDraft={setDraft}
-          onSave={handleSave}
-          onCancel={cancel}
-          isNew={!finishes.some((f) => f.id === draft.id)}
-        />
-      )}
+      <EditPanel
+        open={!!draft}
+        onOpenChange={(o) => !o && cancel()}
+        title={draft && finishes.some((f) => f.id === draft.id) ? draft.label || 'Finish' : 'New finish'}
+        onSave={handleSave}
+        saveLabel={draft && finishes.some((f) => f.id === draft.id) ? 'Save' : 'Add finish'}
+        error={error}
+        onDelete={draft && finishes.some((f) => f.id === draft.id) ? () => handleDelete(draft) : undefined}
+      >
+        {draft && (
+          <FinishEditor draft={draft} setDraft={setDraft} />
+        )}
+      </EditPanel>
     </section>
   );
 }
@@ -172,14 +174,11 @@ function SwatchPreview({ finish, className = '' }: { finish: SurfaceFinish; clas
       />
     );
   }
-  if (finish.proceduralKind) {
-    return (
-      <div
-        className={`flex h-full w-full items-center justify-center bg-linear-to-br from-amber-100 to-amber-300 text-xs text-amber-800 ${className}`}
-      >
-        {finish.proceduralKind}
-      </div>
-    );
+  // A generated finish now shows its texture's colour map (the same
+  // files the 3D view uses) instead of a yellow "wood" placeholder (§76).
+  const sw = finishSwatch(finish);
+  if (sw?.image) {
+    return <img src={sw.image} alt={finish.label} className={`h-full w-full object-cover ${className}`} />;
   }
   return (
     <div
@@ -193,54 +192,42 @@ interface FinishCardProps {
   finish: SurfaceFinish;
   isEditing: boolean;
   onEdit: () => void;
-  onDelete: () => void;
 }
 
-function FinishCard({ finish, isEditing, onEdit, onDelete }: FinishCardProps) {
+function FinishCard({ finish, isEditing, onEdit }: FinishCardProps) {
   return (
-    <div
-      className={`flex overflow-hidden rounded-lg border ${
-        isEditing ? 'border-blue-400 ring-1 ring-blue-200' : 'border-border'
+    <button
+      type="button"
+      onClick={onEdit}
+      className={`flex flex-col overflow-hidden rounded-2xl bg-card text-left shadow-card transition-shadow hover:shadow-float ${
+        isEditing ? 'ring-2 ring-primary' : ''
       }`}
     >
-      <div className="h-16 w-16 shrink-0 border-r border-border">
+      <div className="h-24 w-full border-b border-border">
         <SwatchPreview finish={finish} />
       </div>
-      <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 px-2 py-1">
-        <span className="truncate text-xs font-medium text-foreground">
+      <div className="flex min-w-0 flex-col gap-0.5 px-3.5 py-3">
+        <span className="truncate text-[15px] font-semibold">
           {finish.brand ? `${finish.brand} ${finish.label}` : finish.label}
         </span>
-        <span className="truncate text-xs text-muted-foreground">
+        <span className="truncate text-[13px] text-muted-foreground">
           {finish.finishTypeLabel} · {PATTERN_CATEGORY_LABELS[finish.patternCategory]}
         </span>
-        <span className="text-xs text-muted-foreground">₹{finish.pricePerSqM}/m²</span>
-        <div className="flex gap-2">
-          <Button variant="link" size="xs" className="h-auto p-0 text-xs" onClick={onEdit}>
-            Edit
-          </Button>
-          <Button
-            variant="link"
-            size="xs"
-            className="h-auto p-0 text-xs text-destructive"
-            onClick={onDelete}
-          >
-            Delete
-          </Button>
-        </div>
+        <span className="pt-1 text-sm font-bold">
+          ₹{finish.pricePerSqM.toLocaleString('en-IN')}
+          <span className="font-normal text-muted-foreground"> / m²</span>
+        </span>
       </div>
-    </div>
+    </button>
   );
 }
 
 interface FinishEditorProps {
   draft: SurfaceFinish;
   setDraft: (finish: SurfaceFinish) => void;
-  onSave: () => void;
-  onCancel: () => void;
-  isNew: boolean;
 }
 
-function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditorProps) {
+function FinishEditor({ draft, setDraft }: FinishEditorProps) {
   const uploadFinishSwatch = useLayoutStore((s) => s.uploadFinishSwatch);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -277,13 +264,11 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
     }
   }
 
+  // Title, Save and Cancel come from the EditPanel around it (§76).
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-input bg-secondary p-4">
-      <h4 className="text-xs font-semibold text-foreground">
-        {isNew ? 'New finish' : `Editing: ${draft.label || 'Untitled'}`}
-      </h4>
+    <div className="flex flex-col gap-4">
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className={labelClass}>
           Name
           <input
@@ -410,7 +395,7 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
           albedo it was authored against, so they're only offered once
           there's an image. */}
       {draft.albedoUrl && (
-        <div className="grid grid-cols-2 gap-2 border-t border-border pt-3">
+        <div className="grid grid-cols-1 gap-3 border-t border-border pt-4 sm:grid-cols-2">
           <label className={labelClass}>
             Normal map URL
             <input
@@ -442,7 +427,7 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
 
       {/* Physical scale + tiling — only meaningful for an image */}
       {draft.albedoUrl && (
-        <div className="grid grid-cols-3 gap-2 border-t border-border pt-3">
+        <div className="grid grid-cols-1 gap-3 border-t border-border pt-4 sm:grid-cols-2">
           <label className={labelClass}>
             Swatch width (mm)
             <input
@@ -487,7 +472,7 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
       )}
 
       {/* Relief + optical response */}
-      <div className="grid grid-cols-2 gap-3 border-t border-border pt-3">
+      <div className="grid grid-cols-1 gap-3 border-t border-border pt-4 sm:grid-cols-2">
         <label className={labelClass}>
           Relief depth ({draft.reliefStrength.toFixed(2)})
           <input
@@ -545,14 +530,6 @@ function FinishEditor({ draft, setDraft, onSave, onCancel, isNew }: FinishEditor
         </label>
       </div>
 
-      <div className="flex gap-2 border-t border-border pt-3">
-        <Button size="sm" onClick={onSave}>
-          Save finish
-        </Button>
-        <Button variant="outline" size="sm" onClick={onCancel}>
-          Cancel
-        </Button>
-      </div>
     </div>
   );
 }

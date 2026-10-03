@@ -13,15 +13,14 @@
 // twelve-unit kitchen is a five-figure hole in the quote. So the mode
 // is a visible, required choice, and the price label changes with it.
 
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { confirmDialog } from '../../store/confirmDialogStore';
 import { useLayoutStore } from '../../store/layoutStore';
 import { DEFAULT_HANDLE_ID } from '../../types/front';
 import type { HandleKind, HandleSpec } from '../../types/front';
 import { HandleImportExport } from './HandleImportExport';
+import { EditPanel, Field, NumberField, TextField } from '../common/EditPanel';
+import { Empty, ListRow, NewButton } from './CatalogueKit';
+import { useItemEditor } from './useItemEditor';
 
 const HANDLE_KINDS: HandleKind[] = ['bar', 'knob', 'edge-profile', 'gola', 'handleless'];
 
@@ -44,116 +43,13 @@ const INR = new Intl.NumberFormat('en-IN', {
   maximumFractionDigits: 0,
 });
 
-const inputClass = 'rounded border border-input px-2 py-1 text-xs';
-
-export function HandleManager() {
-  const handles = useLayoutStore((s) => s.handles);
-  const upsertHandle = useLayoutStore((s) => s.upsertHandle);
-  const removeHandle = useLayoutStore((s) => s.removeHandle);
-
-  return (
-    <div className="flex flex-col gap-2">
-      {/* Title and description: the Catalogue page's section frame (§71). */}
-
-      <HandleImportExport />
-
-      <div className="overflow-x-auto rounded-xl border border-border bg-card">
-        <table className="w-full border-collapse text-left text-sm">
-          <thead>
-            <tr className="border-b border-border bg-secondary text-[13px] text-muted-foreground">
-              <th className="px-3 py-2.5 font-semibold">Name</th>
-              <th className="px-3 py-2.5 font-semibold">Kind</th>
-              <th className="px-3 py-2.5 font-semibold">Length (mm)</th>
-              <th className="px-3 py-2.5 font-semibold">Colour</th>
-              <th className="px-3 py-2.5 font-semibold">Priced by</th>
-              <th className="px-3 py-2.5 font-semibold">Price</th>
-              <th className="px-3 py-2.5 font-semibold" />
-            </tr>
-          </thead>
-          <tbody>
-            {handles.map((handle) => (
-              <HandleRow
-                key={handle.id}
-                handle={handle}
-                onSave={upsertHandle}
-                onDelete={removeHandle}
-              />
-            ))}
-            <NewHandleRow onAdd={upsertHandle} />
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function HandleRow({
-  handle,
-  onSave,
-  onDelete,
-}: {
-  handle: HandleSpec;
-  onSave: (handle: HandleSpec) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
-}) {
-  const [draft, setDraft] = useState<HandleSpec>(handle);
-  const [isSaving, setIsSaving] = useState(false);
-  const isDirty = JSON.stringify(draft) !== JSON.stringify(handle);
-  // The seeded default is what resolveHandle falls back to when a
-  // cabinet's own handle is missing, so deleting it would leave those
-  // cabinets on whatever row happens to be first. Blocked rather than
-  // warned about, because the failure is silent.
-  const isDefault = handle.id === DEFAULT_HANDLE_ID;
-
-  async function handleSave() {
-    setIsSaving(true);
-    try {
-      await onSave(draft);
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function handleDelete() {
-    if (
-      !(await confirmDialog({ title: `Delete "${handle.label}"?`, description: "This can't be undone." }))
-    )
-      return;
-    try {
-      await onDelete(handle.id);
-      toast.success(`Deleted "${handle.label}"`);
-    } catch (err) {
-      toast.error('Failed to delete', {
-        description: err instanceof Error ? err.message : 'Failed to delete.',
-      });
-    }
-  }
-
-  return (
-    <tr className="border-b border-border/70">
-      <Fields draft={draft} setDraft={setDraft} />
-      <td className="px-3 py-2">
-        <div className="flex flex-col gap-1">
-          <Button size="xs" onClick={handleSave} disabled={isSaving || !isDirty}>
-            {isSaving ? '...' : 'Save'}
-          </Button>
-          <Button
-            size="xs"
-            variant="destructive"
-            onClick={handleDelete}
-            disabled={isDefault}
-            title={isDefault ? 'The default handle cannot be deleted' : undefined}
-          >
-            Delete
-          </Button>
-        </div>
-      </td>
-    </tr>
-  );
+// What "length" means depends on the kind, and a profile's length comes
+// from the panel it's cut to, not from this field.
+function lengthMeaning(kind: HandleKind): string {
+  return kind === 'knob' ? 'Diameter' : PER_METRE_KINDS.includes(kind) ? 'Profile height' : 'Hole centres';
 }
 
 function blankHandle(): HandleSpec {
-  const now = new Date().toISOString();
   return {
     id: crypto.randomUUID(),
     label: '',
@@ -164,152 +60,129 @@ function blankHandle(): HandleSpec {
     roughness: 0.35,
     pricingMode: 'per-unit',
     price: 0,
-    createdAt: now,
-    updatedAt: now,
+    createdAt: '',
+    updatedAt: '',
   };
 }
 
-function NewHandleRow({ onAdd }: { onAdd: (handle: HandleSpec) => Promise<void> }) {
-  const [draft, setDraft] = useState<HandleSpec>(blankHandle);
-  const [isSaving, setIsSaving] = useState(false);
-
-  async function handleAdd() {
-    // A nameless handle is indistinguishable from every other nameless
-    // handle in the dropdown, so the label is the one required field.
-    if (!draft.label.trim()) return;
-    setIsSaving(true);
-    try {
-      await onAdd(draft);
-      setDraft(blankHandle());
-    } finally {
-      setIsSaving(false);
-    }
-  }
+// Handles as a list; tap one to edit it in a side panel (§76).
+export function HandleManager() {
+  const handles = useLayoutStore((s) => s.handles);
+  const upsertHandle = useLayoutStore((s) => s.upsertHandle);
+  const removeHandle = useLayoutStore((s) => s.removeHandle);
+  const ed = useItemEditor<HandleSpec>(upsertHandle, removeHandle);
+  const d = ed.editing?.draft;
+  // The seeded default is what resolveHandle falls back to when a
+  // cabinet's own handle is missing, so deleting it would leave those
+  // cabinets on whatever row happens to be first. Blocked rather than
+  // warned about, because the failure is silent.
+  const isDefault = d?.id === DEFAULT_HANDLE_ID;
+  const trigger = 'h-11! w-full rounded-[10px] bg-card text-[15px] font-normal';
 
   return (
-    <tr className="bg-secondary/50">
-      <Fields draft={draft} setDraft={setDraft} />
-      <td className="px-3 py-2">
-        <Button size="xs" onClick={handleAdd} disabled={isSaving || !draft.label.trim()}>
-          {isSaving ? '...' : 'Add'}
-        </Button>
-      </td>
-    </tr>
-  );
-}
+    <div className="flex flex-col gap-4">
+      {/* Title and description: the Catalogue page's section frame (§71). */}
+      <div className="flex justify-end">
+        <NewButton label="New handle" onClick={() => ed.open(blankHandle(), true)} />
+      </div>
+      <div className="flex flex-col">
+        {handles.map((h) => (
+          <ListRow
+            key={h.id}
+            onClick={() => ed.open(h, false)}
+            media={
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-secondary">
+                <span className="size-6 rounded-full ring-1 ring-black/10" style={{ backgroundColor: h.colorHex }} />
+              </div>
+            }
+            title={h.label}
+            sub={`${KIND_LABELS[h.kind]}${(h.kind === 'bar' || h.kind === 'knob') && h.lengthMm > 0 ? ` · ${h.lengthMm} mm` : ''}${h.id === DEFAULT_HANDLE_ID ? ' · default' : ''}`}
+            end={
+              <span className="w-28 shrink-0 text-right text-[15px] font-bold">
+                {INR.format(h.price)}
+                <span className="text-[13px] font-normal text-muted-foreground"> {h.pricingMode === 'per-metre' ? '/ m' : '/ pc'}</span>
+              </span>
+            }
+          />
+        ))}
+        {handles.length === 0 && <Empty>No handles yet.</Empty>}
+      </div>
+      <HandleImportExport />
 
-// Shared between the edit and add rows so the two can't drift — the
-// same reasoning behind putting rotation maths in lib/footprint.ts.
-function Fields({
-  draft,
-  setDraft,
-}: {
-  draft: HandleSpec;
-  setDraft: (next: HandleSpec) => void;
-}) {
-  const isLengthMeaningful = draft.kind !== 'handleless';
-
-  return (
-    <>
-      <td className="px-3 py-2">
-        <input
-          value={draft.label}
-          onChange={(e) => setDraft({ ...draft, label: e.target.value })}
-          placeholder="Bar handle 128mm — steel"
-          className={inputClass + ' w-44'}
-        />
-      </td>
-
-      <td className="px-3 py-2">
-        <Select
-          value={draft.kind}
-          onValueChange={(value) => {
-            const kind = value as HandleKind;
-            setDraft({
-              ...draft,
-              kind,
-              // Preselect the mode the kind is actually sold in. Still
-              // editable — a supplier who sells gola in fixed lengths
-              // does exist — but the default is the common case rather
-              // than whatever was there before.
-              pricingMode: PER_METRE_KINDS.includes(kind) ? 'per-metre' : 'per-unit',
-            });
-          }}
-        >
-          <SelectTrigger size="sm" className="w-36">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {HANDLE_KINDS.map((k) => (
-              <SelectItem key={k} value={k}>
-                {KIND_LABELS[k]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </td>
-
-      <td className="px-3 py-2">
-        <input
-          type="number"
-          min={0}
-          value={draft.lengthMm}
-          disabled={!isLengthMeaningful}
-          onChange={(e) => setDraft({ ...draft, lengthMm: Number(e.target.value) })}
-          className={inputClass + ' w-16 disabled:bg-secondary'}
-        />
-        <div className="text-xs text-muted-foreground">
-          {/* Length means different things per kind, and a profile's
-              length comes from the panel it's cut to rather than from
-              this field. */}
-          {draft.kind === 'knob'
-            ? 'diameter'
-            : PER_METRE_KINDS.includes(draft.kind)
-              ? 'cut to panel'
-              : draft.kind === 'handleless'
-                ? 'n/a'
-                : 'centres'}
-        </div>
-      </td>
-
-      <td className="px-3 py-2">
-        <input
-          type="color"
-          value={draft.colorHex}
-          onChange={(e) => setDraft({ ...draft, colorHex: e.target.value })}
-          className="h-7 w-10 rounded border border-input"
-        />
-      </td>
-
-      <td className="px-3 py-2">
-        <Select
-          value={draft.pricingMode}
-          onValueChange={(value) =>
-            setDraft({ ...draft, pricingMode: value as HandleSpec['pricingMode'] })
-          }
-        >
-          <SelectTrigger size="sm" className="w-24">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="per-unit">Per piece</SelectItem>
-            <SelectItem value="per-metre">Per metre</SelectItem>
-          </SelectContent>
-        </Select>
-      </td>
-
-      <td className="px-3 py-2">
-        <input
-          type="number"
-          min={0}
-          value={draft.price}
-          onChange={(e) => setDraft({ ...draft, price: Number(e.target.value) })}
-          className={inputClass + ' w-20'}
-        />
-        <div className="mt-0.5 text-xs text-muted-foreground">
-          {INR.format(draft.price)} {draft.pricingMode === 'per-metre' ? '/ m' : '/ pc'}
-        </div>
-      </td>
-    </>
+      <EditPanel
+        open={!!d}
+        onOpenChange={(o) => !o && ed.close()}
+        title={ed.editing?.isNew ? 'New handle' : (d?.label ?? '')}
+        subtitle={isDefault ? 'The default handle: cabinets without one use it, so it can\'t be deleted.' : undefined}
+        onSave={ed.commit}
+        saveLabel={ed.editing?.isNew ? 'Add handle' : 'Save'}
+        saving={ed.saving}
+        error={ed.error}
+        onDelete={ed.editing?.isNew || isDefault ? undefined : ed.destroy}
+      >
+        {d && (
+          <>
+            <TextField label="Name" value={d.label} onChange={(label) => ed.setDraft({ ...d, label })} placeholder="e.g. Bar handle 128mm, steel" />
+            <Field label="Kind">
+              <Select
+                value={d.kind}
+                onValueChange={(v) => {
+                  const kind = v as HandleKind;
+                  // Preselect how the kind is actually sold; still editable.
+                  ed.setDraft({ ...d, kind, pricingMode: PER_METRE_KINDS.includes(kind) ? 'per-metre' : 'per-unit' });
+                }}
+              >
+                <SelectTrigger className={trigger}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {HANDLE_KINDS.map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {KIND_LABELS[k]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            {d.kind !== 'handleless' && (
+              <NumberField
+                label={lengthMeaning(d.kind)}
+                unit="mm"
+                min={0}
+                value={d.lengthMm}
+                onChange={(lengthMm) => ed.setDraft({ ...d, lengthMm })}
+                hint={PER_METRE_KINDS.includes(d.kind) ? 'Its running length comes from each panel it is cut to.' : undefined}
+              />
+            )}
+            <Field label="Colour (for the 3D view)">
+              <span className="flex h-11 items-center gap-3 rounded-[10px] border border-input bg-card px-3">
+                <input
+                  type="color"
+                  value={d.colorHex}
+                  onChange={(e) => ed.setDraft({ ...d, colorHex: e.target.value })}
+                  className="h-7 w-10 cursor-pointer rounded border-0 bg-transparent"
+                  aria-label="Colour"
+                />
+                <span className="font-mono text-sm font-normal text-muted-foreground">{d.colorHex}</span>
+              </span>
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Priced by">
+                <Select value={d.pricingMode} onValueChange={(v) => ed.setDraft({ ...d, pricingMode: v as HandleSpec['pricingMode'] })}>
+                  <SelectTrigger className={trigger}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="per-unit">Per piece</SelectItem>
+                    <SelectItem value="per-metre">Per running metre</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <NumberField label="Price" prefix="₹" min={0} value={d.price} onChange={(price) => ed.setDraft({ ...d, price })} />
+            </div>
+          </>
+        )}
+      </EditPanel>
+    </div>
   );
 }

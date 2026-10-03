@@ -11,16 +11,15 @@
 // products at separate rates. The swatch next to it shows the actual
 // rendered colour, so the number doesn't have to be imagined.
 
-import { useState } from 'react';
-import { toast } from 'sonner';
-import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { confirmDialog } from '../../store/confirmDialogStore';
 import { useLayoutStore } from '../../store/layoutStore';
 import { FIXTURE_KIND_LABELS, isLinear } from '../../types/fixture';
 import type { FixtureCatalogItem, FixtureKind } from '../../types/fixture';
 import { kelvinToColor } from '../../lib/lighting3d';
 import { FixtureCatalogImportExport } from './FixtureCatalogImportExport';
+import { EditPanel, Field, NumberField, TextField } from '../common/EditPanel';
+import { Empty, ListRow, NewButton } from './CatalogueKit';
+import { useItemEditor } from './useItemEditor';
 
 const KINDS: FixtureKind[] = ['strip', 'spot', 'cove', 'pendant', 'plinth', 'drawer'];
 
@@ -30,107 +29,7 @@ const INR = new Intl.NumberFormat('en-IN', {
   maximumFractionDigits: 0,
 });
 
-const inputClass = 'rounded border border-input px-2 py-1 text-xs';
-
-export function FixtureManager() {
-  const fixtureCatalog = useLayoutStore((s) => s.fixtureCatalog);
-  const upsert = useLayoutStore((s) => s.upsertFixtureCatalogItem);
-  const remove = useLayoutStore((s) => s.removeFixtureCatalogItem);
-
-  return (
-    <div className="flex flex-col gap-2">
-      {/* Title and description: the Catalogue page's section frame (§71). */}
-
-      <FixtureCatalogImportExport />
-
-      <div className="overflow-x-auto rounded-xl border border-border bg-card">
-        <table className="w-full border-collapse text-left text-sm">
-          <thead>
-            <tr className="border-b border-border bg-secondary text-[13px] text-muted-foreground">
-              <th className="px-3 py-2.5 font-semibold">Name</th>
-              <th className="px-3 py-2.5 font-semibold">Kind</th>
-              <th className="px-3 py-2.5 font-semibold">Colour temp</th>
-              <th className="px-3 py-2.5 font-semibold">Lumens</th>
-              <th className="px-3 py-2.5 font-semibold">Priced by</th>
-              <th className="px-3 py-2.5 font-semibold">Price</th>
-              <th className="px-3 py-2.5 font-semibold">3D model</th>
-              <th className="px-3 py-2.5 font-semibold">Model rotation</th>
-              <th className="px-3 py-2.5 font-semibold" />
-            </tr>
-          </thead>
-          <tbody>
-            {fixtureCatalog.map((item) => (
-              <Row key={item.id} item={item} onSave={upsert} onDelete={remove} />
-            ))}
-            <NewRow onAdd={upsert} />
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function Row({
-  item,
-  onSave,
-  onDelete,
-}: {
-  item: FixtureCatalogItem;
-  onSave: (item: FixtureCatalogItem) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
-}) {
-  const [draft, setDraft] = useState<FixtureCatalogItem>(item);
-  const [isSaving, setIsSaving] = useState(false);
-  const isDirty = JSON.stringify(draft) !== JSON.stringify(item);
-
-  async function handleDelete() {
-    if (!(await confirmDialog({ title: `Delete "${item.label}"?`, description: "This can't be undone." })))
-      return;
-    try {
-      await onDelete(item.id);
-      toast.success(`Deleted "${item.label}"`);
-    } catch (err) {
-      toast.error('Failed to delete', {
-        description: err instanceof Error ? err.message : 'Failed to delete.',
-      });
-    }
-  }
-
-  return (
-    <tr className="border-b border-border/70">
-      <Fields draft={draft} setDraft={setDraft} />
-      <td className="px-3 py-2">
-        <div className="flex flex-col gap-1">
-          <Button
-            size="xs"
-            onClick={async () => {
-              setIsSaving(true);
-              try {
-                await onSave(draft);
-              } finally {
-                setIsSaving(false);
-              }
-            }}
-            disabled={isSaving || !isDirty}
-          >
-            {isSaving ? '...' : 'Save'}
-          </Button>
-          <Button
-            size="xs"
-            variant="destructive"
-            onClick={handleDelete}
-            title="Fixtures already placed from this row stop rendering and stop being priced"
-          >
-            Delete
-          </Button>
-        </div>
-      </td>
-    </tr>
-  );
-}
-
 function blank(): FixtureCatalogItem {
-  const now = new Date().toISOString();
   return {
     id: crypto.randomUUID(),
     label: '',
@@ -139,191 +38,138 @@ function blank(): FixtureCatalogItem {
     lumens: 900,
     pricingMode: 'per-metre',
     price: 0,
-    createdAt: now,
-    updatedAt: now,
+    createdAt: '',
+    updatedAt: '',
   };
 }
 
-function NewRow({ onAdd }: { onAdd: (item: FixtureCatalogItem) => Promise<void> }) {
-  const [draft, setDraft] = useState<FixtureCatalogItem>(blank);
-  const [isSaving, setIsSaving] = useState(false);
+// Light fixtures as a list; tap one to edit it in a side panel (§76).
+export function FixtureManager() {
+  const fixtureCatalog = useLayoutStore((s) => s.fixtureCatalog);
+  const upsert = useLayoutStore((s) => s.upsertFixtureCatalogItem);
+  const remove = useLayoutStore((s) => s.removeFixtureCatalogItem);
+  const ed = useItemEditor<FixtureCatalogItem>(upsert, remove);
+  const d = ed.editing?.draft;
+  const trigger = 'h-11! w-full rounded-[10px] bg-card text-[15px] font-normal';
 
   return (
-    <tr className="bg-secondary/50">
-      <Fields draft={draft} setDraft={setDraft} />
-      <td className="px-3 py-2">
-        <Button
-          size="xs"
-          onClick={async () => {
-            if (!draft.label.trim()) return;
-            setIsSaving(true);
-            try {
-              await onAdd(draft);
-              setDraft(blank());
-            } finally {
-              setIsSaving(false);
+    <div className="flex flex-col gap-4">
+      {/* Title and description: the Catalogue page's section frame (§71). */}
+      <div className="flex justify-end">
+        <NewButton label="New fixture" onClick={() => ed.open(blank(), true)} />
+      </div>
+      <div className="flex flex-col">
+        {fixtureCatalog.map((f) => (
+          <ListRow
+            key={f.id}
+            onClick={() => ed.open(f, false)}
+            media={
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-sidebar">
+                {/* The light's own colour, glowing on dark. */}
+                <span className="size-5 rounded-full" style={{ backgroundColor: kelvinToColor(f.colorTempK), boxShadow: `0 0 14px ${kelvinToColor(f.colorTempK)}` }} />
+              </div>
             }
-          }}
-          disabled={isSaving || !draft.label.trim()}
-        >
-          {isSaving ? '...' : 'Add'}
-        </Button>
-      </td>
-    </tr>
-  );
-}
-
-// Shared by both rows so the edit and add forms can't drift apart.
-function Fields({
-  draft,
-  setDraft,
-}: {
-  draft: FixtureCatalogItem;
-  setDraft: (next: FixtureCatalogItem) => void;
-}) {
-  return (
-    <>
-      <td className="px-3 py-2">
-        <input
-          value={draft.label}
-          onChange={(e) => setDraft({ ...draft, label: e.target.value })}
-          placeholder="LED strip 3000K warm white"
-          className={inputClass + ' w-48'}
-        />
-      </td>
-
-      <td className="px-3 py-2">
-        <Select
-          value={draft.kind}
-          onValueChange={(value) => {
-            const kind = value as FixtureKind;
-            // Preselect the mode the kind is actually sold in, so the
-            // common case is right without anyone knowing the rule.
-            setDraft({
-              ...draft,
-              kind,
-              pricingMode: isLinear(kind) ? 'per-metre' : 'per-unit',
-            });
-          }}
-        >
-          <SelectTrigger size="sm" className="w-36">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {KINDS.map((k) => (
-              <SelectItem key={k} value={k}>
-                {FIXTURE_KIND_LABELS[k]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </td>
-
-      <td className="px-3 py-2">
-        <div className="flex items-center gap-1.5">
-          <span
-            className="inline-block h-4 w-4 shrink-0 rounded-full border border-input"
-            style={{ backgroundColor: kelvinToColor(draft.colorTempK) }}
+            title={f.label}
+            sub={`${FIXTURE_KIND_LABELS[f.kind]} · ${f.colorTempK} K · ${f.lumens} lm`}
+            end={
+              <span className="w-28 shrink-0 text-right text-[15px] font-bold">
+                {INR.format(f.price)}
+                <span className="text-[13px] font-normal text-muted-foreground"> {f.pricingMode === 'per-metre' ? '/ m' : '/ pc'}</span>
+              </span>
+            }
           />
-          <input
-            type="number"
-            min={2000}
-            max={7000}
-            step={100}
-            value={draft.colorTempK}
-            onChange={(e) => setDraft({ ...draft, colorTempK: Number(e.target.value) })}
-            className={inputClass + ' w-16'}
-          />
-        </div>
-      </td>
+        ))}
+        {fixtureCatalog.length === 0 && <Empty>No fixtures yet.</Empty>}
+      </div>
+      <FixtureCatalogImportExport />
 
-      <td className="px-3 py-2">
-        <input
-          type="number"
-          min={0}
-          step={50}
-          value={draft.lumens}
-          onChange={(e) => setDraft({ ...draft, lumens: Number(e.target.value) })}
-          className={inputClass + ' w-16'}
-        />
-      </td>
-
-      <td className="px-3 py-2">
-        <Select
-          value={draft.pricingMode}
-          onValueChange={(value) =>
-            setDraft({
-              ...draft,
-              pricingMode: value as FixtureCatalogItem['pricingMode'],
-            })
-          }
-        >
-          <SelectTrigger size="sm" className="w-24">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="per-metre">Per metre</SelectItem>
-            <SelectItem value="per-unit">Per piece</SelectItem>
-          </SelectContent>
-        </Select>
-      </td>
-
-      <td className="px-3 py-2">
-        <input
-          type="number"
-          min={0}
-          value={draft.price}
-          onChange={(e) => setDraft({ ...draft, price: Number(e.target.value) })}
-          className={inputClass + ' w-20'}
-        />
-        <div className="mt-0.5 text-xs text-muted-foreground">
-          {INR.format(draft.price)} {draft.pricingMode === 'per-metre' ? '/ m' : '/ pc'}
-        </div>
-      </td>
-
-      <td className="px-3 py-2">
-        {/* A path under public/, e.g. /models/lighting/pendant.glb. Left
-            empty the fixture keeps rendering as a primitive bar/disc —
-            see components/canvas3d/Room3DCanvas.tsx (FixtureInScene). */}
-        <input
-          value={draft.modelUrl ?? ''}
-          onChange={(e) => setDraft({ ...draft, modelUrl: e.target.value || undefined })}
-          placeholder="/models/....glb"
-          className={inputClass + ' w-36'}
-        />
-      </td>
-
-      <td className="px-3 py-2">
-        {/* Fixed correction for how the file was exported — applied
-            before fitting/measurement. Only ever multiples of 90°, same
-            convention as the appliance catalogue's model rotation. */}
-        <div className="flex gap-1">
-          <input
-            type="number"
-            step={90}
-            value={draft.modelRotationXDeg ?? 0}
-            onChange={(e) => setDraft({ ...draft, modelRotationXDeg: Number(e.target.value) })}
-            className={inputClass + ' w-14'}
-            title="X rotation (deg)"
-          />
-          <input
-            type="number"
-            step={90}
-            value={draft.modelRotationYDeg ?? 0}
-            onChange={(e) => setDraft({ ...draft, modelRotationYDeg: Number(e.target.value) })}
-            className={inputClass + ' w-14'}
-            title="Y rotation (deg)"
-          />
-          <input
-            type="number"
-            step={90}
-            value={draft.modelRotationZDeg ?? 0}
-            onChange={(e) => setDraft({ ...draft, modelRotationZDeg: Number(e.target.value) })}
-            className={inputClass + ' w-14'}
-            title="Z rotation (deg)"
-          />
-        </div>
-      </td>
-    </>
+      <EditPanel
+        open={!!d}
+        onOpenChange={(o) => !o && ed.close()}
+        title={ed.editing?.isNew ? 'New fixture' : (d?.label ?? '')}
+        onSave={ed.commit}
+        saveLabel={ed.editing?.isNew ? 'Add fixture' : 'Save'}
+        saving={ed.saving}
+        error={ed.error}
+        onDelete={ed.editing?.isNew ? undefined : ed.destroy}
+      >
+        {d && (
+          <>
+            <TextField label="Name" value={d.label} onChange={(label) => ed.setDraft({ ...d, label })} placeholder="e.g. LED strip 3000K warm white" />
+            <Field label="Kind">
+              <Select
+                value={d.kind}
+                onValueChange={(v) => {
+                  const kind = v as FixtureKind;
+                  // Preselect how the kind is sold, so the common case is right.
+                  ed.setDraft({ ...d, kind, pricingMode: isLinear(kind) ? 'per-metre' : 'per-unit' });
+                }}
+              >
+                <SelectTrigger className={trigger}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {KINDS.map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {FIXTURE_KIND_LABELS[k]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <NumberField
+                label="Colour temperature"
+                unit="K"
+                min={2000}
+                max={7000}
+                value={d.colorTempK}
+                onChange={(colorTempK) => ed.setDraft({ ...d, colorTempK })}
+                hint={<span className="inline-flex items-center gap-1.5"><span className="inline-block size-3 rounded-full" style={{ backgroundColor: kelvinToColor(d.colorTempK) }} />3000 warm · 4000 neutral · 6000 cool</span>}
+              />
+              <NumberField
+                label="Brightness"
+                unit="lm"
+                min={0}
+                value={d.lumens}
+                onChange={(lumens) => ed.setDraft({ ...d, lumens })}
+                hint="Also decides which lights get a real light in 3D."
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Priced by">
+                <Select value={d.pricingMode} onValueChange={(v) => ed.setDraft({ ...d, pricingMode: v as FixtureCatalogItem['pricingMode'] })}>
+                  <SelectTrigger className={trigger}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="per-metre">Per running metre</SelectItem>
+                    <SelectItem value="per-unit">Per piece</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <NumberField label="Price" prefix="₹" min={0} value={d.price} onChange={(price) => ed.setDraft({ ...d, price })} />
+            </div>
+            <div className="flex flex-col gap-4 rounded-2xl bg-secondary/60 p-4">
+              <span className="text-[13px] font-bold uppercase tracking-[0.08em] text-muted-foreground">3D model</span>
+              <TextField
+                label="Model file"
+                value={d.modelUrl ?? ''}
+                onChange={(v) => ed.setDraft({ ...d, modelUrl: v || undefined })}
+                placeholder="/models/lighting/pendant.glb"
+                hint="Leave empty to show a simple bar or disc in 3D."
+              />
+              {/* A fixed correction for how the file was exported, applied
+                  before fitting; multiples of 90°, as for appliances. */}
+              <div className="grid grid-cols-3 gap-3">
+                <NumberField label="Turn X" unit="°" value={d.modelRotationXDeg ?? 0} onChange={(n) => ed.setDraft({ ...d, modelRotationXDeg: n })} />
+                <NumberField label="Turn Y" unit="°" value={d.modelRotationYDeg ?? 0} onChange={(n) => ed.setDraft({ ...d, modelRotationYDeg: n })} />
+                <NumberField label="Turn Z" unit="°" value={d.modelRotationZDeg ?? 0} onChange={(n) => ed.setDraft({ ...d, modelRotationZDeg: n })} />
+              </div>
+            </div>
+          </>
+        )}
+      </EditPanel>
+    </div>
   );
 }

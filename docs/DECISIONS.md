@@ -5409,3 +5409,52 @@ sent 44 days ago".
 - **Rate card:** still the old dense layout with long paragraphs.
 - **Business name:** shows the seed "My Business". There's no screen
   to set it yet.
+
+## 76. Catalogue: read-only lists, one edit panel
+
+The screenshots showed what still wasn't premium: about 90 cabinets, 44
+appliances and 36 handles, each a permanently open form row of tiny
+inputs. Names were clipped and the tables scrolled sideways inside their
+boxes. Now every section is a **read-only list, and tapping a row (or
+"+ New") opens one `EditPanel`**. The panel slides in from the right on
+laptop and tablet and is full screen on a phone. It has large labelled
+fields, and a fixed footer with Delete on the left and Cancel and Save
+on the right. (UI principle 4: one way to edit a list.)
+- **Cabinets**: search, category chips, and rows showing the finish
+  swatch, name, type · category · size, board, finish and price. The
+  panel has every field plus "Panels & boards…" into the Designer.
+  - Rule kept: a save takes `panels` from the CURRENT stored row, never
+    the copy taken when the panel opened (§45), so it can't undo a
+    Designer change made meanwhile.
+- **Appliances**: search, type chips, a type icon, and the 3D-model
+  settings grouped in their own box. Orientation is named by what you
+  see ("Lying on its side"), as before.
+- **Handles**: a colour dot and price per piece or per metre. Rules
+  kept: the kind preselects how it's priced, and the default handle
+  can't be deleted (the panel says why). A length shows only for bars
+  and knobs; it used to read "0 mm" on profiles.
+- **Light fixtures**: the light's own colour glowing on a dark tile,
+  plus K and lm.
+- **Finishes**: picture cards. A generated finish now shows its
+  texture's real colour map, not a yellow "wood" placeholder. The full
+  finish editor (photo upload, relief, gloss sliders) moved into the
+  panel.
+- **Pillars & shafts**: the same list and panel.
+
+Shared pieces: `EditPanel`, `Field`, `NumberField` and `TextField` in
+`common/EditPanel.tsx`; `CatalogueKit.tsx` (search, chips, row, tiles);
+`useItemEditor.ts` (copy, save, delete with confirm). `InventoryManager`
+went from 1,422 lines to 192.
+
+Dropdowns need `h-11!`: the trigger's own `data-size` height outranks a
+plain `h-11`. The screenshot showed them shorter than the text boxes.
+
+**Seen in the data, not fixed:** most handles appear 3 or 4 times, often
+differing only in capitals ("Bar handle 128mm — brushed steel" vs "Bar
+Handle 128mm — Brushed Steel"), and some cabinets and fixtures repeat
+too. It looks like seed rows plus repeated Excel imports. Deleting is
+the user's call, because cabinets reference handle ids. A duplicates
+tool has been offered.
+
+The screenshot run now also opens and cancels a cabinet's panel, and
+photographs each Catalogue section.

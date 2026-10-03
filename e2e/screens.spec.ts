@@ -75,6 +75,24 @@ test('main screens', async ({ page }) => {
     await go(page, label);
     await expect(page.getByRole('heading', { level: 1, name: label })).toBeVisible({ timeout: 20_000 });
     await shot(page, file);
+    if (label === 'Catalogue') {
+      // The first screenful, and a cabinet's edit panel opened and then
+      // closed with Cancel: still read-only.
+      await page.screenshot({ path: `e2e/screens/${test.info().project.name}/04a-catalogue-top.png` });
+      await page.getByRole('region', { name: 'Cabinets' }).getByRole('button').filter({ hasText: '×' }).first().click();
+      await expect(page.getByRole('dialog')).toBeVisible();
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `e2e/screens/${test.info().project.name}/04b-catalogue-edit.png` });
+      await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
+      await expect(page.getByRole('dialog')).toBeHidden();
+      // Each section on its own, for review (laptop only — the long list
+      // makes the full-page shot hard to read).
+      if (test.info().project.name === 'laptop') {
+        for (const id of ['appliances', 'finishes', 'handles', 'fixtures', 'obstacles']) {
+          await page.locator(`#catalogue-${id}`).screenshot({ path: `e2e/screens/laptop/04-section-${id}.png` });
+        }
+      }
+    }
   }
   expect(overflows, 'Pages wider than the screen').toEqual([]);
 });

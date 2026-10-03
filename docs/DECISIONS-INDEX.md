@@ -314,3 +314,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§74** `npm run screens` = Playwright photos of every shell page at 3 sizes, using a separate read-only test login (`.env.e2e.local`). Sign-in screen redone in Premium A, checked by screenshot.
 
 **§75** First screenshot pass. Phone overflow had 4 causes (unsized grid, fieldset min-width, fixed grid columns, non-wrapping buttons); overflow is now asserted on every screenshot. Customers board columns are fixed 280px and scroll.
+
+**§76** Catalogue = read-only lists + one `EditPanel` (slide-over / full-screen on phone) for every section; shared `CatalogueKit` + `useItemEditor`. Dropdowns need `h-11!`. Duplicate handles/cabinets found in data (not deleted).
