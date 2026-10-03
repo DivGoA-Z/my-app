@@ -125,7 +125,14 @@ export function parseObstaclePresetsRows(
 
     const markedForDeletion = isMarkedForDeletion(row[DELETE_MARKER_HEADER] ?? '');
 
+    // Starts from the STORED row on an update, with the sheet's values
+    // laid over it (§54). Today this sheet carries every field, so the
+    // spread changes nothing — it's here so that a field added to
+    // ObstaclePreset later, and not added to the sheet, survives a re-import
+    // instead of being silently blanked by the whole-row upsert. That
+    // exact failure wiped cabinet fronts, handles and panels.
     const data: ObstaclePreset = {
+      ...(isNew ? {} : existingById.get(id)),
       id,
       label: label.value,
       type: type.value ?? OBSTACLE_TYPES[0],

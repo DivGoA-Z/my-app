@@ -8,7 +8,9 @@
 // real design work for a feature nobody asked for; this sheet covers
 // what a business actually bulk-edits — label, category, module type,
 // dimensions, material, finish, price. Both stay in-app-only edits via
-// the existing Front Picker.
+// the existing Front Picker — as do panels, carcass board and extra
+// parts (Cabinet Designer). All of them are carried over untouched on an
+// update; see the comment where each row is built.
 //
 // MATCH KEY: the row's own `id`, not a separate business-assigned
 // code — none of the catalogues has one today (see DECISIONS.md), and
@@ -195,6 +197,18 @@ export function parseCabinetCatalogRows(
 
     const markedForDeletion = isMarkedForDeletion(row[DELETE_MARKER_HEADER] ?? '');
 
+    // Fields the sheet deliberately doesn't carry (see the header) are
+    // KEPT from the stored row on an update. FIXED BUG (§54): this used
+    // to build the row from the sheet's columns alone, and the save is
+    // a whole-row upsert — so re-importing a catalogue silently wiped
+    // every updated row's front layout and handle (true since the
+    // import was built) and, once they existed, its panels, carcass
+    // board and extra parts. A routine "export, fix prices, re-import"
+    // reset every product. If the sheet CHANGES a row's material, its
+    // chosen board line is dropped (it was for the old material) and the
+    // row falls back to the new material's default board.
+    const prior = isNew ? undefined : existingById.get(id);
+    const newMaterial = material.value ?? MATERIALS[0];
     const data: CatalogItem = {
       id,
       label: label.value,
@@ -203,9 +217,14 @@ export function parseCabinetCatalogRows(
       widthMm: widthMm.value,
       depthMm: depthMm.value,
       heightMm: heightMm.value,
-      material: material.value ?? MATERIALS[0],
+      material: newMaterial,
       finishId: resolvedFinishId ?? fallbackFinishId,
       unitPrice: unitPrice.value,
+      frontLayout: prior?.frontLayout,
+      handleId: prior?.handleId,
+      panels: prior?.panels,
+      extraParts: prior?.extraParts,
+      carcassBoardId: prior && prior.material === newMaterial ? prior.carcassBoardId : undefined,
       createdAt,
       updatedAt: now,
     };

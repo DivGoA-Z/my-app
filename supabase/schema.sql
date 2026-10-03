@@ -1214,6 +1214,11 @@ alter table public.rate_cards add column if not exists sheet_waste_factor numeri
 -- cabinet says otherwise. Both nullable: NULL = "saved before §42",
 -- which is exactly what the migration keys off.
 alter table public.rate_cards add column if not exists board_rates jsonb;
+-- Which sheet waste the quote uses (§53): 'approx' (one experience-based
+-- factor — sheet_waste_factor above, or a project's override) or
+-- 'calculated' (per board line, measured live from each project's sheet
+-- layout). NULL = 'approx', so adding the column changes no quote.
+alter table public.rate_cards add column if not exists waste_mode text;
 alter table public.rate_cards add column if not exists default_back_board_id text;
 -- CORRECTED: this block briefly also added a `margin_percent` column
 -- here — a business-wide margin. Moved to `layouts.margin_percent`

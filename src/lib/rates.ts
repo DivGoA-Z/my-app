@@ -74,6 +74,8 @@ interface RateCardRow {
   others_rates: RateCard['othersRates'] | TwoListOthersRates | null;
   // Plain numeric — one scalar, no per-key growth to plan for.
   sheet_waste_factor: number | null;
+  // 'approx' | 'calculated' (§53). NULL on an older row → 'approx'.
+  waste_mode: string | null;
   business_id: string;
   created_at: string;
   updated_at: string;
@@ -95,6 +97,7 @@ function rowToRateCard(row: RateCardRow): RateCard {
     // Null on an older row → 1 (no waste), via the same function
     // sanitizeRateCard uses, so there is still one fallback path.
     sheetWasteFactor: sanitizeWasteFactor(row.sheet_waste_factor ?? undefined),
+    wasteMode: row.waste_mode === 'calculated' ? 'calculated' : 'approx',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -113,6 +116,7 @@ function rateCardToRow(card: RateCard, businessId: string): RateCardRow {
     fabrication_rate_per_unit: 0,
     others_rates: card.othersRates,
     sheet_waste_factor: card.sheetWasteFactor,
+    waste_mode: card.wasteMode,
     business_id: businessId,
     created_at: card.createdAt,
     updated_at: new Date().toISOString(), // bumped on every save

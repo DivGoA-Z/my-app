@@ -154,12 +154,23 @@ cabinet in the Designer. **Fixed a shelf double charge** from §42: the
 ₹350 "shelf" hardware line now means supports & fitting only, ₹80
 placeholder.
 
-**Next — cutting list phase 2, nesting** (was "item 4, the standalone
-waste calculator"): real panels derived from an *assumed*, labelled
-construction convention, nested onto real sheet sizes with a known
-heuristic, to *measure* the waste factor item 3 only lets you type.
-Not blocked on the carpenter. Its own tool and saved data, never
-gating the quote flow.
+**New (§49), not seen in a browser — sheet nesting:** Cutting List →
+**Sheets & waste** lays every board's parts on 8×4 sheets (guillotine
+cuts a panel saw can follow), draws each sheet, and measures ONE waste
+factor — total sheets bought ÷ parts area, every sheet counted (a
+typical kitchen: ×1.45; §51). One click puts it on this project's
+quote. Excel export gains a Sheet layout tab. **Sheet waste on quotes**
+is now a switch on the rate card (§53): **Approx** (default) — one
+experience-based factor everywhere; **Calculated** — each board line's
+waste measured from that project's sheet layout, used automatically
+(on the test kitchen it priced board exactly at what the sheets cost).
+**Sheet sizes are set
+per board on the rate card** (any number per board, default 8×4; the
+nesting picks among them — §52); saw cut and edge trim are Workshop
+settings with defaults. Each sheet drawing has
+dimension lines with arrows — the sheet's size outside, every piece's
+length and width inside (§50). **The real test: compare its sheet count
+with your carpenter's on a real job.**
 
 **Checkpoint, later the same day**: you went through last session's
 unverified items live in the browser. Present mode, glass fronts,

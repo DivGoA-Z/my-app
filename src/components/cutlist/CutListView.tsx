@@ -26,6 +26,9 @@ import {
 import { buildWorkbookBlob } from '../../lib/importExport/xlsxHelpers';
 import { downloadBlob } from '../../lib/downloadBlob';
 import { ExtraPartsEditor } from '../common/ExtraPartsEditor';
+import { SheetLayoutView } from './SheetLayoutView';
+import { nestParts } from '../../lib/nesting';
+import { boardSheetSizes, type BoardRate } from '../../types/rates';
 import {
   BACK_FIT_LABELS,
   BOTTOM_FIT_LABELS,
@@ -34,7 +37,8 @@ import {
   type ConstructionSettings,
 } from '../../types/construction';
 
-type Mode = 'cutting' | 'cabinet';
+// 'sheets': the parts laid out on whole sheets, with measured waste (§49).
+type Mode = 'cutting' | 'cabinet' | 'sheets';
 
 function settingsRows(s: ConstructionSettings): Record<string, string | number>[] {
   return [
@@ -49,7 +53,12 @@ function settingsRows(s: ConstructionSettings): Record<string, string | number>[
   ];
 }
 
-function exportWorkbook(cutList: CutList, settings: ConstructionSettings, projectName: string) {
+function exportWorkbook(
+  cutList: CutList,
+  settings: ConstructionSettings,
+  boards: BoardRate[],
+  projectName: string
+) {
   // Same key computeCutList grouped by, so a part's "Board" cell always
   // names the group it's listed under on screen.
   const byBoard = new Map(cutList.groups.map((g) => [g.key, g.label]));
@@ -97,10 +106,33 @@ function exportWorkbook(cutList: CutList, settings: ConstructionSettings, projec
     ...cutList.warnings,
   ].map((Note) => ({ Note }));
 
+  // Where every piece goes on which sheet (§49), so the saw operator can
+  // follow the same layout the Sheets view draws. x/y measured from the
+  // sheet's corner, x along its length (the grain).
+  const cut = { kerfMm: settings.kerfMm, trimMm: settings.sheetTrimMm };
+  const layoutHeaders = ['Board', 'Sheet', 'Sheet size (mm)', 'Part', 'Cabinet', 'Length (mm)', 'Width (mm)', 'Turned', 'X from corner (mm)', 'Y from corner (mm)'];
+  const layoutRows = cutList.groups.flatMap((g) =>
+    nestParts(g.parts, boardSheetSizes(boards.find((b) => b.id === g.parts[0]?.boardId)), cut).sheets.flatMap((sh, i) =>
+      sh.pieces.map((pc) => ({
+        Board: g.label,
+        Sheet: i + 1,
+        'Sheet size (mm)': `${sh.lengthMm} × ${sh.widthMm}`,
+        Part: pc.part.name,
+        Cabinet: pc.part.cabinetRef,
+        'Length (mm)': pc.part.lengthMm,
+        'Width (mm)': pc.part.widthMm,
+        Turned: pc.rotated ? 'Yes' : '',
+        'X from corner (mm)': Math.round(pc.x),
+        'Y from corner (mm)': Math.round(pc.y),
+      }))
+    )
+  );
+
   const blob = buildWorkbookBlob([
     { name: 'Cutting list', headers: cuttingHeaders, rows: cuttingRows },
     { name: 'By cabinet', headers: cabinetHeaders, rows: cabinetRows },
     { name: 'Summary', headers: summaryHeaders, rows: summaryRows },
+    { name: 'Sheet layout', headers: layoutHeaders, rows: layoutRows },
     { name: 'Construction', headers: ['Setting', 'Value'], rows: settingsRows(settings) },
     { name: 'Notes', headers: ['Note'], rows: notes },
   ]);
@@ -184,8 +216,16 @@ export function CutListView({
           <Button
             type="button"
             size="sm"
+            variant={mode === 'sheets' ? 'secondary' : 'ghost'}
+            onClick={() => setMode('sheets')}
+          >
+            Sheets & waste
+          </Button>
+          <Button
+            type="button"
+            size="sm"
             disabled={cutList.parts.length === 0}
-            onClick={() => exportWorkbook(cutList, settings, currentProject?.clientName ?? '')}
+            onClick={() => exportWorkbook(cutList, settings, rateCard.boards, currentProject?.clientName ?? '')}
           >
             Export to Excel
           </Button>
@@ -212,7 +252,9 @@ export function CutListView({
         </Alert>
       )}
 
-      {cutList.parts.length === 0 ? (
+      {mode === 'sheets' ? (
+        <SheetLayoutView cutList={cutList} />
+      ) : cutList.parts.length === 0 ? (
         <p className="text-xs text-gray-500">No cabinets placed yet.</p>
       ) : (
         <>

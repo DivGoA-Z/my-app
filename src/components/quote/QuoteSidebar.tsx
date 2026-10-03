@@ -30,6 +30,7 @@ import { APPLIANCE_TYPE_LABELS } from '../../types/appliance';
 import type { ApplianceType } from '../../types/appliance';
 import { QuoteFreezePanel } from './QuoteFreezePanel';
 import { ChargeRatesList } from '../common/ChargeRatesList';
+import { boardLabel } from '../../types/rates';
 
 const INR_FORMATTER = new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -59,6 +60,7 @@ export function QuoteSidebar() {
   const setMarginPercent = useLayoutStore((s) => s.setMarginPercent);
   const setSheetWasteFactor = useLayoutStore((s) => s.setSheetWasteFactor);
   const businessWasteFactor = useLayoutStore((s) => s.rateCard.sheetWasteFactor);
+  const rateBoards = useLayoutStore((s) => s.rateCard.boards);
   const businessChargeRates = useLayoutStore((s) => s.rateCard.othersRates);
   const customiseChargeRates = useLayoutStore((s) => s.customiseChargeRates);
   const setChargeRates = useLayoutStore((s) => s.setChargeRates);
@@ -138,6 +140,24 @@ export function QuoteSidebar() {
           default", shown as the placeholder — deliberately NOT
           pre-filled with it, or every project would silently pin
           today's default and stop following the rate card. */}
+      {/* Calculated waste (§53): no single number to override — each
+          board's factor comes from this project's own sheet layout, so
+          it's shown read-only. Approx: the one-factor override as before. */}
+      {bom.wasteMode === 'calculated' ? (
+        <div className="-mt-2 flex flex-col gap-0.5 text-[11px] text-gray-500">
+          <span>Sheet waste — calculated from this project's sheet layout:</span>
+          <span className="text-gray-700">
+            {bom.boardWasteFactors.length === 0
+              ? 'no board parts yet'
+              : bom.boardWasteFactors
+                  .map((w) => {
+                    const board = rateBoards.find((b) => b.id === w.boardId);
+                    return `${board ? boardLabel(board) : 'Board'} ×${w.factor.toFixed(2)}`;
+                  })
+                  .join(' · ')}
+          </span>
+        </div>
+      ) : (
       <Label className="-mt-2 flex items-center justify-between gap-2">
         <span className="text-[11px] font-normal text-gray-500">
           Sheet waste for this project (×)
@@ -165,6 +185,7 @@ export function QuoteSidebar() {
           className="h-6 w-16 text-right"
         />
       </Label>
+      )}
 
       {/* This project's labour and other charges (RoomLayout.
           chargeRates). Follows the business rate card until

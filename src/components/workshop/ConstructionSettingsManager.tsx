@@ -272,6 +272,29 @@ export function ConstructionSettingsManager() {
         />
       </fieldset>
 
+      {/* Sheet layout (§49) — only used to lay parts out on sheets and
+          measure waste on the Cutting List page. Doesn't change any
+          price unless you choose to use the measured waste. */}
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-xs font-medium text-gray-600">Cutting sheets (mm) — for laying parts out and measuring waste</legend>
+        <span className="text-[11px] text-gray-500">
+          Sheet sizes are set per board on the rate card (Manage Inventory → Boards), since
+          different boards come in different sizes.
+        </span>
+        <NumberField
+          label="Saw cut width (kerf)"
+          value={draft.kerfMm}
+          onChange={(v) => set('kerfMm', v)}
+          disabled={locked}
+        />
+        <NumberField
+          label="Edge trimmed off each side of a sheet"
+          value={draft.sheetTrimMm}
+          onChange={(v) => set('sheetTrimMm', v)}
+          disabled={locked}
+        />
+      </fieldset>
+
       <Label className="flex items-center gap-2 text-xs font-normal text-gray-700">
         <Checkbox
           checked={draft.confirmed}

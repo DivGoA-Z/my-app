@@ -726,7 +726,9 @@ Each of these gets more expensive with everything built on top.
 ### Phase 4 — Production
 
 15. **Board nesting** — fitting panels onto 8×4 sheets. Genuinely hard
-    (2D bin packing); use a known heuristic, don't invent one.
+    (2D bin packing); use a known heuristic, don't invent one. **Done,
+    2 Oct 2026** (`docs/DECISIONS.md` §49) — Jylänki's guillotine
+    packing, all rule combinations, measured waste two ways.
 16. **Cutting list output** for the workshop. **Phase 1 done, 29 Sep
     2026** (`docs/DECISIONS.md` §41) — carcass, back and front parts
     per cabinet from configurable construction settings, on-screen and

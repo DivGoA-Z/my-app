@@ -25,6 +25,7 @@ import {
   type BoardRate,
 } from '../../types/rates';
 import type { MaterialType } from '../../types/cabinet';
+import { DEFAULT_SHEET_SIZE, type SheetSize } from '../../types/rates';
 import { defaultCarcassBoard } from '../../lib/panels';
 
 export function BoardRatesEditor({
@@ -91,51 +92,54 @@ export function BoardRatesEditor({
         <span />
       </div>
       {boards.map((b) => (
-        <div key={b.id} className="grid grid-cols-[1fr_6rem_7rem_2rem] items-center gap-2">
-          <Select value={b.material} onValueChange={(v) => update(b.id, { material: v as MaterialType })}>
-            <SelectTrigger size="sm" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {MATERIAL_RATE_KEYS.map((m) => (
-                <SelectItem key={m} value={m}>
-                  {MATERIAL_RATE_LABELS[m]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input
-            aria-label="Thickness in mm"
-            type="number"
-            min={1}
-            step={1}
-            value={b.thicknessMm}
-            onChange={(e) => update(b.id, { thicknessMm: Number(e.target.value) })}
-            className="text-right"
-          />
-          <Input
-            aria-label="Rate per square metre"
-            type="number"
-            min={0}
-            step={1}
-            value={b.ratePerSqM}
-            onChange={(e) => update(b.id, { ratePerSqM: Number(e.target.value) })}
-            className="text-right"
-          />
-          {/* The default back board can't be removed from here — pick a
-              different default first. Otherwise every back would
-              silently lose its board. */}
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            aria-label={`Remove ${boardLabel(b)}`}
-            disabled={b.id === defaultBackBoardId || checkingId !== null}
-            title={b.id === defaultBackBoardId ? 'This is the default back board — choose another default first' : undefined}
-            onClick={() => tryRemove(b)}
-          >
-            {checkingId === b.id ? '…' : '✕'}
-          </Button>
+        <div key={b.id} className="flex flex-col gap-1 border-b border-gray-100 pb-2">
+          <div className="grid grid-cols-[1fr_6rem_7rem_2rem] items-center gap-2">
+            <Select value={b.material} onValueChange={(v) => update(b.id, { material: v as MaterialType })}>
+              <SelectTrigger size="sm" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MATERIAL_RATE_KEYS.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {MATERIAL_RATE_LABELS[m]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              aria-label="Thickness in mm"
+              type="number"
+              min={1}
+              step={1}
+              value={b.thicknessMm}
+              onChange={(e) => update(b.id, { thicknessMm: Number(e.target.value) })}
+              className="text-right"
+            />
+            <Input
+              aria-label="Rate per square metre"
+              type="number"
+              min={0}
+              step={1}
+              value={b.ratePerSqM}
+              onChange={(e) => update(b.id, { ratePerSqM: Number(e.target.value) })}
+              className="text-right"
+            />
+            {/* The default back board can't be removed from here — pick a
+                different default first. Otherwise every back would
+                silently lose its board. */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              aria-label={`Remove ${boardLabel(b)}`}
+              disabled={b.id === defaultBackBoardId || checkingId !== null}
+              title={b.id === defaultBackBoardId ? 'This is the default back board — choose another default first' : undefined}
+              onClick={() => tryRemove(b)}
+            >
+              {checkingId === b.id ? '…' : '✕'}
+            </Button>
+          </div>
+          <SheetSizesEditor sizes={b.sheetSizes ?? []} onChange={(sheetSizes) => update(b.id, { sheetSizes })} />
         </div>
       ))}
       {blocked && (
@@ -205,6 +209,64 @@ export function BoardRatesEditor({
           </SelectContent>
         </Select>
       </div>
+    </div>
+  );
+}
+
+// The sizes one board line is bought in (BoardRate.sheetSizes, §52) —
+// any number, so one board can come in several. Shown as removable chips
+// plus a small add box; empty means the 8×4 default, said so in grey.
+function SheetSizesEditor({ sizes, onChange }: { sizes: SheetSize[]; onChange: (sizes: SheetSize[]) => void }) {
+  const [length, setLength] = useState(DEFAULT_SHEET_SIZE.lengthMm);
+  const [width, setWidth] = useState(DEFAULT_SHEET_SIZE.widthMm);
+  const exists = sizes.some((z) => z.lengthMm === length && z.widthMm === width);
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 pl-1 text-[11px] text-gray-600">
+      <span className="text-gray-500">Sheet sizes:</span>
+      {sizes.length === 0 && (
+        <span className="text-gray-400">
+          {DEFAULT_SHEET_SIZE.lengthMm} × {DEFAULT_SHEET_SIZE.widthMm} (default)
+        </span>
+      )}
+      {sizes.map((z, i) => (
+        <span key={`${z.lengthMm}x${z.widthMm}`} className="flex items-center gap-1 rounded border border-gray-300 bg-gray-50 px-1.5 py-0.5">
+          {z.lengthMm} × {z.widthMm}
+          <button
+            type="button"
+            aria-label={`Remove ${z.lengthMm} by ${z.widthMm}`}
+            className="text-gray-400 hover:text-gray-700"
+            onClick={() => onChange(sizes.filter((_, k) => k !== i))}
+          >
+            ✕
+          </button>
+        </span>
+      ))}
+      <input
+        type="number"
+        min={1}
+        aria-label="New sheet length in mm"
+        value={length}
+        onChange={(e) => setLength(Number(e.target.value))}
+        className="w-16 rounded border border-gray-300 px-1 py-0.5 text-right"
+      />
+      ×
+      <input
+        type="number"
+        min={1}
+        aria-label="New sheet width in mm"
+        value={width}
+        onChange={(e) => setWidth(Number(e.target.value))}
+        className="w-16 rounded border border-gray-300 px-1 py-0.5 text-right"
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="xs"
+        disabled={!(length > 0) || !(width > 0) || exists}
+        onClick={() => onChange([...sizes, { lengthMm: length, widthMm: width }])}
+      >
+        + Add size
+      </Button>
     </div>
   );
 }

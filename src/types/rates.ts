@@ -54,11 +54,33 @@ export type HardwareRates = Record<CardPricedHardware, number>;
 // `id` is FIXED for seeded and migrated lines (never randomUUID on
 // load) — the rate card is hashed into every frozen quote's
 // fingerprint (§35).
+// One size a board is bought in. `lengthMm` is the sheet's length, which
+// is also its grain direction; `widthMm` the other side.
+export interface SheetSize {
+  lengthMm: number;
+  widthMm: number;
+}
+
+// 8×4 ft — the local standard, used for any board that lists no size.
+export const DEFAULT_SHEET_SIZE: SheetSize = { lengthMm: 2440, widthMm: 1220 };
+
 export interface BoardRate {
   id: string;
   material: MaterialType;
   thicknessMm: number;
   ratePerSqM: number;
+  // The sizes this board can be BOUGHT in (§52) — different boards in
+  // different sizes, and one board in several (HDMR 18mm in 8×4 and 7×4,
+  // say). Sheet nesting (lib/nesting.ts) chooses among them. Optional
+  // and empty-allowed: no sizes → DEFAULT_SHEET_SIZE. Not a price input
+  // — the board is still priced per m²; the size only decides how many
+  // sheets the nesting lays out and so the MEASURED waste.
+  sheetSizes?: SheetSize[];
+}
+
+// The sizes nesting should consider for a board line.
+export function boardSheetSizes(board: BoardRate | undefined): SheetSize[] {
+  return board?.sheetSizes && board.sheetSizes.length > 0 ? board.sheetSizes : [DEFAULT_SHEET_SIZE];
 }
 
 // Seeded board lines: the five old material rates carried over verbatim
@@ -160,6 +182,8 @@ export const DEFAULT_LABOUR_RATES: OtherRate[] = [
   },
 ];
 
+export type WasteMode = 'approx' | 'calculated';
+
 export interface RateCard {
   // One row per business now (business_id + RLS — see
   // supabase/schema.sql and defaultRateCard's own comment below for
@@ -244,6 +268,21 @@ export interface RateCard {
   // Never below 1 — a factor under 1 would claim the cabinets use less
   // board than their own area. Clamped in sanitizeRateCard.
   sheetWasteFactor: number;
+  // Which waste the QUOTE uses (§53, your rule):
+  //   'approx'     → ONE experience-based factor everywhere —
+  //                  sheetWasteFactor above, or a project's own override.
+  //                  The default; needs nothing on the production side
+  //                  (Principle 12).
+  //   'calculated' → each BOARD LINE gets its own factor, measured from
+  //                  that project's sheet layout (lib/nesting.ts) and
+  //                  applied automatically. More accurate when boards
+  //                  differ in price: on the test kitchen one blended ×1.45
+  //                  over-priced board by ~3.6% against per-board ×1.37
+  //                  (18mm) / ×1.80 (6mm backs).
+  // Business-wide, switched on the rate card. The calculated factors are
+  // never stored here — they depend on each kitchen's actual parts, so
+  // they're worked out per project, live.
+  wasteMode: WasteMode;
 
   // Cost-plus margin used to live here as `marginPercent` — a single
   // business-wide number. Moved to `RoomLayout.marginPercent`
@@ -328,6 +367,7 @@ export const PLACEHOLDER_RATES: Omit<RateCard, 'createdAt' | 'updatedAt'> = {
   // (see its header comment). A business turns it up once it knows its
   // own offcut rate; the placeholder banner stays up until it does.
   sheetWasteFactor: 1,
+  wasteMode: 'approx',
   // Genuine placeholders, same footing as fabrication labour
   // (DEFAULT_LABOUR_RATES)
   // — no business has given a real number for glass yet. Ordered
@@ -470,6 +510,7 @@ export function sanitizeRateCard(card: RateCard): RateCard {
     },
     othersRates: sanitizeOtherRates(card.othersRates),
     sheetWasteFactor: sanitizeWasteFactor(card.sheetWasteFactor),
+    wasteMode: card.wasteMode === 'calculated' ? 'calculated' : 'approx',
   };
 }
 
@@ -505,6 +546,11 @@ function sanitizeBoards(boards: BoardRate[] | undefined): BoardRate[] {
     material: MATERIAL_RATE_KEYS.includes(b.material) ? b.material : 'HDMR',
     thicknessMm: Number.isFinite(b.thicknessMm) && b.thicknessMm > 0 ? b.thicknessMm : LEGACY_BOARD_THICKNESS_MM,
     ratePerSqM: nonNegative(b.ratePerSqM),
+    // Positive sizes only; a half-typed or zero size is dropped rather
+    // than nesting onto a 0mm sheet. Duplicates collapse.
+    sheetSizes: (b.sheetSizes ?? [])
+      .filter((z) => Number.isFinite(z.lengthMm) && z.lengthMm > 0 && Number.isFinite(z.widthMm) && z.widthMm > 0)
+      .filter((z, k, all) => all.findIndex((o) => o.lengthMm === z.lengthMm && o.widthMm === z.widthMm) === k),
   }));
 }
 
@@ -516,6 +562,12 @@ function resolveDefaultBackBoardId(card: RateCard): string {
   return thinnest?.id ?? '';
 }
 
+function sameSheetSizes(a: SheetSize[] | undefined, b: SheetSize[] | undefined): boolean {
+  const x = a ?? [];
+  const y = b ?? [];
+  return x.length === y.length && x.every((z, i) => z.lengthMm === y[i].lengthMm && z.widthMm === y[i].widthMm);
+}
+
 export function sameBoards(a: BoardRate[], b: BoardRate[]): boolean {
   return (
     a.length === b.length &&
@@ -524,7 +576,8 @@ export function sameBoards(a: BoardRate[], b: BoardRate[]): boolean {
         x.id === b[i].id &&
         x.material === b[i].material &&
         x.thicknessMm === b[i].thicknessMm &&
-        x.ratePerSqM === b[i].ratePerSqM
+        x.ratePerSqM === b[i].ratePerSqM &&
+        sameSheetSizes(x.sheetSizes, b[i].sheetSizes)
     )
   );
 }

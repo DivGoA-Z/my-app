@@ -34,9 +34,10 @@ import { resolveAllFixtures, fixtureQuantity } from './fixtures';
 import { CABINET_FACE_LABELS } from '../types/fixture';
 import type { FixtureCatalogItem, LightFixture } from '../types/fixture';
 import type { SurfaceAreaBreakdown } from './surfaceAreas';
-import type { OtherRate, OtherRateBasis, RateCard } from '../types/rates';
+import type { OtherRate, OtherRateBasis, RateCard, WasteMode } from '../types/rates';
+import { measuredBoardWaste, type BoardWaste } from './nesting';
 import type { ConstructionSettings } from '../types/construction';
-import { cabinetCutParts, loosePartsCut, partAreaSqM } from './cutList';
+import { cabinetCutParts, loosePartsCut, partAreaSqM, type CutPart } from './cutList';
 
 export interface BOMLineItem {
   cabinetId: string;
@@ -286,6 +287,11 @@ export interface BOMSummary {
   // a summary frozen before it existed, so a reader of a FROZEN
   // summary must treat it as possibly undefined.
   sheetWasteFactor: number;
+  // Which waste the board was priced with (§53), and — in calculated
+  // mode — each board line's measured factor, for the sidebar to show.
+  // Absent on summaries frozen before §53 (treat as 'approx').
+  wasteMode: WasteMode;
+  boardWasteFactors: BoardWaste[];
   // (costGrandTotal − projectChargesTotal) × marginPercent / 100 — the
   // business's own cost-plus markup on everything it PRICED, as a real
   // number rather than implicit in a guessed catalogue price. Excludes
@@ -392,7 +398,35 @@ export function calculateBOM(
   const { finishes, handles, fixtureCatalog, rates, construction, layout } = ctx;
   // Resolved once for the whole layout, not per cabinet — it's a
   // property of how this job's sheets are bought, not of any one unit.
+  // The APPROX factor: one number, the project's override or the rate
+  // card's default. Used for every board unless the business switched to
+  // calculated waste (RateCard.wasteMode, §53).
   const sheetWasteFactor = layout?.sheetWasteFactor ?? rates.sheetWasteFactor;
+
+  // Every cabinet's cut parts, worked out up front: calculated waste
+  // needs ALL of them (nested together per board) before any one cabinet
+  // can be priced.
+  const partsByCabinet = items.map((item, index) =>
+    cabinetCutParts(item, `C${index + 1}`, construction, finishes, rates, [])
+  );
+  const looseParts = loosePartsCut(layout?.looseParts ?? [], rates, []);
+  // Calculated mode (§53): each board line's own factor, measured from
+  // THIS project's sheet layout — the same nesting the Cutting List's
+  // Sheets view draws. Only for a real project (a bare cabinet-list price
+  // check has no kitchen to lay out). A board with nothing nested — or a
+  // part with no board — falls back to 1, but then it's priced at ₹0
+  // anyway and flagged.
+  const boardWaste =
+    rates.wasteMode === 'calculated' && layout
+      ? measuredBoardWaste(
+          [...partsByCabinet.flat(), ...looseParts],
+          rates.boards,
+          { kerfMm: construction.kerfMm, trimMm: construction.sheetTrimMm }
+        )
+      : null;
+  const wasteFor = (p: CutPart) =>
+    boardWaste ? (p.boardId ? (boardWaste.get(p.boardId)?.factor ?? 1) : 1) : sheetWasteFactor;
+  const boardCost = (parts: CutPart[]) => sum(parts, (p) => partAreaSqM(p) * p.ratePerSqM * wasteFor(p));
   // The project's own list if it has customised one, the business's
   // otherwise (RoomLayout.chargeRates) — plus any §36 legacy project
   // charges, which are empty once a project has been customised.
@@ -439,12 +473,14 @@ export function calculateBOM(
     // REAL board, priced part by part (§42): exactly the parts the
     // cutting list shows for this cabinet — only the panels it actually
     // has (PanelSpec.included), each at its own board line's rate and
-    // real area — times the sheet waste factor for whole-sheet buying.
-    // Glass panels aren't parts (bought as glass, RateCard.glassRates);
-    // excluded panels aren't either. Quantity is already in each part.
-    const parts = cabinetCutParts(item, `C${index + 1}`, construction, finishes, rates, []);
+    // real area — times sheet waste for whole-sheet buying: the one
+    // approx factor, or that part's OWN board's measured factor in
+    // calculated mode (§53). Glass panels aren't parts (bought as glass,
+    // RateCard.glassRates); excluded panels aren't either. Quantity is
+    // already in each part.
+    const parts = partsByCabinet[index];
     const materialArea = sum(parts, partAreaSqM);
-    const materialCost = sheetWasteFactor * sum(parts, (p) => partAreaSqM(p) * p.ratePerSqM);
+    const materialCost = boardCost(parts);
     // A part with no board line is priced at ₹0 — flagged so the quote
     // sidebar can say so instead of quietly under-quoting (Principle 1).
     const missingBoard = parts.some((p) => !p.boardId);
@@ -562,8 +598,7 @@ export function calculateBOM(
   // board rate × sheet waste, from the same loosePartsCut the cutting
   // list prints. A cost like any other, so it's marked up, and it's
   // shown inside the Material subtotal (it IS board).
-  const looseParts = loosePartsCut(layout?.looseParts ?? [], rates, []);
-  const loosePartsCost = sheetWasteFactor * sum(looseParts, (p) => partAreaSqM(p) * p.ratePerSqM);
+  const loosePartsCost = boardCost(looseParts);
   const allCost =
     sum(lineItems, (l) => l.lineTotal) +
     loosePartsCost +
@@ -641,6 +676,8 @@ export function calculateBOM(
     costGrandTotal,
     marginPercent,
     sheetWasteFactor,
+    wasteMode: boardWaste ? 'calculated' : 'approx',
+    boardWasteFactors: boardWaste ? [...boardWaste.values()] : [],
     marginAmount,
     grandTotal: costGrandTotal + marginAmount,
   };

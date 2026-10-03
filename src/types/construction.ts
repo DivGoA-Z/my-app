@@ -102,6 +102,13 @@ export interface ConstructionSettings {
   // the finished cabinet, so with `false` they draw it a shutter's
   // thickness shallower than it really is.
   depthIncludesFront: boolean;
+  // Sheet nesting (lib/nesting.ts, §49): the saw blade's cut width
+  // (kerf) and how much of each factory edge is trimmed off before
+  // cutting — how THIS workshop cuts. (The sheet SIZE lived here too
+  // until §52; it moved onto each board line, BoardRate.sheetSizes,
+  // because different boards — and one board — come in different sizes.)
+  kerfMm: number;
+  sheetTrimMm: number;
   // False until the business says its carpenter has checked these.
   // While false, the cutting list shows an amber "assumed construction"
   // banner — same reasoning as the placeholder-rates banner: a workshop
@@ -124,6 +131,8 @@ export const DEFAULT_CONSTRUCTION: Omit<ConstructionSettings, 'id' | 'createdAt'
   shelfSetbackMm: 20,
   drawerBox: 'tandem',
   depthIncludesFront: true,
+  kerfMm: 4,
+  sheetTrimMm: 10,
   confirmed: false,
 };
 
@@ -196,6 +205,8 @@ export function sanitizeConstruction(s: Partial<ConstructionSettings> & { id: st
     drawerBox: pick(s.drawerBox, DRAWER_BOXES, d.drawerBox),
     // Missing (a row saved before §47) → the original convention.
     depthIncludesFront: s.depthIncludesFront !== false,
+    kerfMm: nonNegative(s.kerfMm, d.kerfMm),
+    sheetTrimMm: nonNegative(s.sheetTrimMm, d.sheetTrimMm),
     confirmed: s.confirmed === true,
     createdAt: s.createdAt ?? now,
     updatedAt: s.updatedAt ?? now,

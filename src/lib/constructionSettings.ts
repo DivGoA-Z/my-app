@@ -59,6 +59,8 @@ export async function saveConstructionSettings(
       shelfSetbackMm: c.shelfSetbackMm,
       drawerBox: c.drawerBox,
       depthIncludesFront: c.depthIncludesFront,
+      kerfMm: c.kerfMm,
+      sheetTrimMm: c.sheetTrimMm,
       confirmed: c.confirmed,
     },
     business_id: businessId,

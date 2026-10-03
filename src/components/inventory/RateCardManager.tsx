@@ -48,6 +48,7 @@ import { BoardRatesEditor } from './BoardRatesEditor';
 function cardsDiffer(a: RateCard, b: RateCard): boolean {
   return (
     a.sheetWasteFactor !== b.sheetWasteFactor ||
+    a.wasteMode !== b.wasteMode ||
     // Field-by-field, not JSON.stringify — see sameOtherRates.
     !sameOtherRates(a.othersRates, b.othersRates) ||
     HARDWARE_KEYS.some((k) => a.hardware[k] !== b.hardware[k]) ||
@@ -221,8 +222,42 @@ export function RateCardManager() {
           defaultBackBoardId={draft.defaultBackBoardId}
           onChange={(boards, defaultBackBoardId) => setDraft({ ...draft, boards, defaultBackBoardId })}
         />
+        {/* Approx vs calculated sheet waste (§53, your rule): ONE
+            experience-based factor everywhere, or each board line's own
+            factor measured from each project's sheet layout. */}
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs text-gray-600">Sheet waste on quotes</span>
+          <div className="flex gap-1" role="radiogroup" aria-label="Sheet waste on quotes">
+            {(
+              [
+                ['approx', 'Approx — one factor'],
+                ['calculated', 'Calculated — per board, from the sheet layout'],
+              ] as const
+            ).map(([mode, label]) => (
+              <Button
+                key={mode}
+                type="button"
+                size="xs"
+                role="radio"
+                aria-checked={draft.wasteMode === mode}
+                variant={draft.wasteMode === mode ? 'secondary' : 'ghost'}
+                onClick={() => setDraft({ ...draft, wasteMode: mode })}
+              >
+                {draft.wasteMode === mode ? '✓ ' : ''}
+                {label}
+              </Button>
+            ))}
+          </div>
+          <p className="text-[11px] text-gray-500">
+            {draft.wasteMode === 'approx'
+              ? 'Every quote uses the one factor below (a project can override it from its quote).'
+              : "Every quote lays its own parts out on each board's sheet sizes and uses each board's measured waste — automatically, nothing to fill in. More accurate when boards differ in price. The factor below is kept for when you switch back."}
+          </p>
+        </div>
         <Label className="flex items-center justify-between gap-3 font-normal">
-          <span className="text-xs text-gray-600">Sheet waste factor (×)</span>
+          <span className={`text-xs ${draft.wasteMode === 'approx' ? 'text-gray-600' : 'text-gray-400'}`}>
+            Approx sheet waste factor (×)
+          </span>
           <Input
             type="number"
             min={1}
@@ -233,9 +268,8 @@ export function RateCardManager() {
           />
         </Label>
         <p className="text-[11px] text-gray-500">
-          Board is bought as whole 8×4 sheets, and the offcuts are paid for too. 1.10 means
-          "buy 10% more than the cabinets use." Multiplies the board rates above only.
-          This is your default — a project can override it from its quote.
+          From experience: board is bought as whole sheets and the offcuts are paid for too. 1.10
+          means "buy 10% more than the cabinets use." Multiplies the board rates above only.
         </p>
       </fieldset>
 

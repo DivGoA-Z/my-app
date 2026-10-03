@@ -4466,3 +4466,225 @@ band) — sizes match, all inside, no overlaps.
 Verified: `tsc -p tsconfig.app.json`, lint, build clean. **Not seen in a
 browser.** Needs `schema.sql` re-run (`cabinet_catalog_items.
 extra_parts`, `layouts.loose_parts`, the shelf-rate update).
+
+## 49. Cutting list phase 2 — sheet nesting and measured waste
+
+`lib/nesting.ts` lays each board's parts out on whole sheets; the
+Cutting List page's new **"Sheets & waste"** view shows a summary per
+board, the two measured waste factors with a button to use either on
+this project's quote, and a drawing of every sheet. The Excel export
+gains a **Sheet layout** tab (board, sheet number, part, cabinet, size,
+turned or not, x/y from the sheet corner).
+
+**Method — a known heuristic, per PRINCIPLES ("don't invent one"):**
+Jylänki's guillotine bin packing ("A Thousand Ways to Pack the Bin",
+2010). Guillotine specifically, because every implied cut runs edge to
+edge across a piece — what a small workshop's panel saw can follow;
+MaxRects packs tighter on paper but can produce layouts a panel saw
+can't cut. All combinations of its placement rules (best area / short
+side / long side fit), split rules (shorter / longer leftover axis,
+min / max area) and four standard part orderings are run — 48 passes,
+~milliseconds — with free-rectangle merging; the best wins (fewest
+sheets, then the emptiest last sheet). Kerf is reserved on every piece;
+factory edges are trimmed first; grain-fixed parts (fronts) never turn.
+Nested per cutting-list group (board, and finish for fronts), since
+each is physically its own stack of sheets.
+
+**Workshop settings** gained sheet length/width (default 2440 × 1220,
+8×4 ft), kerf (4mm) and edge trim (10mm per side) — defaults, so nobody
+has to open the page (Principle 12). One size for all boards for now; a
+board sold in another size would need a per-board override. These live
+in ConstructionSettings, which is fingerprinted, so editing them marks
+frozen quotes "changed" though no price moves — the safe direction.
+
+**Two waste figures, not one.** On a typical 11-cabinet L-shaped kitchen
+(83 pieces): 13 sheets, 26.8 m² of parts on 38.7 m² bought → **×1.45**
+counting every sheet; but 8.2 m² of that is each board's LAST-sheet
+leftover — usually a big clean rectangle a workshop keeps for the next
+job — and excluding it gives **×1.14**, in line with the 10–15% waste
+workshops usually quote. Which is right depends on whether the business
+really reuses offcuts, so it chooses; the button only sets THIS
+project's override, never the rate card default.
+
+**Measured, not assumed, that the packing is reasonable.** The single-
+rule first version and the 48-pass version produced the same sheet
+counts here; the gap to the naive area bound (7 vs 6 carcass, 3 vs 2
+backs, 3 vs 2 fronts) is geometry, not packing — e.g. a 2080×580 tall
+back plus two 700×880 backs don't tessellate onto two sheets with
+guillotine cuts, and fronts can't rotate at all. Validity checked on
+every piece: placed exactly once, inside the trimmed area, kerf-
+separated from every neighbour, never a grain-fixed part turned, sizes
+unchanged; a part too big for any sheet is listed as unplaced (shown in
+red), never dropped.
+
+Verified: `tsc -p tsconfig.app.json`, lint, build clean; the Node run
+above. **Not seen in a browser** (the SVG drawings in particular), and
+not yet compared with a carpenter's real sheet count — that comparison
+is the real test.
+
+## 50. Dimension lines on the sheet drawings; plainer waste wording
+
+**Dimensions with arrows**, your request: each sheet drawing now shows
+the sheet's overall length and width as dimension lines outside its
+edges, and every piece's length and width inside it — lines with an
+arrowhead at each end, the value centred (vertical values turned to read
+bottom-to-top, the drafting convention), with a white halo so text stays
+legible over lines and edges. A strip too thin for arrow lines (a rail,
+a filler) gets one compact "564×100" label along its long side; a turned
+piece is marked ⟲. The drawing moved into its own store-free component,
+`components/cutlist/SheetDrawing.tsx`.
+
+**Checked by looking at it, for once.** The drawing was rendered outside
+the app — the real component, fed a real nested layout, rendered to SVG
+with react-dom/server and turned into an image — and viewed before
+shipping. That first look caught a real gap: the 564×100 rail on the
+first sheet showed no size at all (too thin for arrows), which is what
+the compact label fixes; the second render confirmed every piece on a
+nine-piece sheet carries its size.
+
+**Plainer wording** after you asked what "measured sheet waste" and
+"last-sheet offcut" meant: the column is now "Leftover on last sheet
+(m²)" with a tooltip, the section "Waste factor measured from these
+layouts" with a one-line explanation (how much board the job buys per
+1 m² that ends up in cabinets), and the buttons say what they assume —
+"leftovers are waste" vs "leftovers kept for the next job".
+
+Verified: `tsc -p tsconfig.app.json`, lint, build clean; the rendered
+images. Still not seen inside the running app.
+
+## 51. One measured waste factor, every sheet counted
+
+§49 offered two figures — every sheet bought (×1.45 on the test
+kitchen) and one excluding each board's last-sheet leftover as a
+reusable offcut (×1.14). You asked for one: combine the earlier and the
+last sheets, and give a single factor. Now: total sheet area bought ÷
+total area of parts, every sheet counted in full — one number, one
+"Use ×… on this project's quote" button (disabled when the project
+already uses it). The table shows parts m², sheets m² and waste % per
+board and in total; the "Leftover on last sheet" column and
+`NestResult.lastSheetOffcutSqM` are gone. The reasoning for the
+two-figure version — that a workshop may reuse last-sheet offcuts —
+isn't wrong, but it's the business's call how to price that, and the
+rate card's typed waste factor remains the place to express it.
+
+## 52. Sheet sizes per board — any number, per board line
+
+You asked where the purchased board's size is decided (it was one
+2440 × 1220 size in Workshop settings, for every board) and ruled:
+different boards can have different sizes, and the same board can come
+in several. So `BoardRate.sheetSizes?: SheetSize[]` — on the rate card,
+each board line lists the sizes it's bought in, edited as removable
+chips plus an add box ("Sheet sizes: 2440 × 1220 ✕  2135 × 1220 ✕").
+None listed → 8×4 (`DEFAULT_SHEET_SIZE`). `lengthMm` is the sheet's
+grain direction. Stored inside the existing `board_rates` jsonb — no
+schema change. Saw cut (kerf) and edge trim stay on Workshop settings:
+they describe how the workshop cuts, not what it buys. The global sheet
+length/width settings are gone (a stored row with them is ignored).
+
+Sheet size isn't a price input — board is still priced per m² — it only
+decides how the nesting lays parts out, hence the MEASURED waste. Like
+anything on the rate card it's fingerprinted, so editing a size marks
+frozen quotes "changed" though no price moves (the safe direction).
+
+**Choosing among sizes** is a simple, explainable rule on top of the
+same guillotine packer (§49), not a new algorithm:
+1. for each size, fill with sheets of that size; pieces too big for it
+   go on the smallest other size they fit;
+2. then try to finish smaller — re-pack the last sheet's pieces onto
+   each smaller size, smallest first, taking the first that holds them
+   all on one sheet;
+3. keep the plan with the fewest unplaced pieces, then the least sheet
+   area bought, then the fewest sheets.
+Each `NestedSheet` now carries its own size; drawings and the Excel
+"Sheet layout" tab (new "Sheet size" column) read it per sheet.
+
+Measured on the test kitchen's 18mm carcass (57 pieces): 8×4 only → 7
+sheets, 21.1% waste; 8×4 or 7×4 → 6 + one 7×4, 19.7%; 6×4 or 8×4 → 6 +
+one 6×4, 18.2%; 6×4 only → the two 2100mm tall-unit sides reported
+unplaced (shown in red: "won't fit on any size its board is bought in"),
+never dropped; 8×4 or 8×6 → 4 × 8×6 + 1 × 8×4. Every sheet checked to be
+an offered size, every piece inside its own sheet's trimmed area and
+kerf-separated.
+
+Verified: `tsc -p tsconfig.app.json`, lint, build clean; the runs above.
+Not seen in the running app.
+
+## 53. Approx vs calculated sheet waste — one factor, or per board from the layout
+
+You agreed waste should be per BOARD LINE (HDMR 18mm and HDMR 6mm waste
+very differently — ×1.37 vs ×1.80 on the test kitchen) and set the rule:
+- **Approx** — the experience-based factor stays ONE factor, used
+  everywhere on the quote (the rate card default, or a project's own
+  override in the sidebar). The default; needs nothing on the
+  production side (Principle 12).
+- **Calculated** — each board line's own factor, measured from THAT
+  project's sheet layout, used on the quote automatically.
+- A business-wide switch on the catalogue page's rate card ("Sheet waste
+  on quotes": Approx — one factor / Calculated — per board) "upgrades"
+  every quote from the one factor to its measured per-board factors.
+
+`RateCard.wasteMode` (`rate_cards.waste_mode`, NULL = approx, so the
+column changes no quote). The calculated factors are NEVER stored: they
+depend on each kitchen's actual parts, so `calculateBOM` works them out
+live — all cabinets' and loose parts' cut parts are computed up front,
+nested per cutting-list group on each board's own sheet sizes
+(`measuredBoardWaste` in lib/nesting.ts, groups of one board line
+combined: sheets bought ÷ part area), and each part's board cost is its
+area × its board's rate × ITS board's factor. `BOMSummary` gains
+`wasteMode` and `boardWasteFactors`. The quote sidebar shows the
+per-board factors read-only in calculated mode (no single number to
+override); the Sheets view lists each board's measured factor and says
+plainly which waste the quote is using — its old "Use ×… on this
+project's quote" button is gone, since that mixed the two modes.
+
+**Why per board line is more than detail — it fixes a mispricing.** On
+the test kitchen: one blended ×1.45 priced board at ₹47,484; calculated
+mode priced it at **₹45,694 — exactly** what the sheets actually cost
+(each board's sheets bought × its rate, computed independently). The
+blend over-charged because it applied the backs' heavy waste to
+expensive 18mm board.
+
+**Speed.** Calculated mode re-prices — and so would re-nest — on every
+design edit, including every frame of dragging a cabinet. `nestParts`
+now keeps a small bounded cache keyed on every piece's size and grain,
+the sheet sizes and the cut; a drag moves a cabinet without changing
+any part's size, so it's a hit. Measured: 11ms the first time, 0.6ms
+after a drag, on the 83-piece kitchen. Results are deterministic, so a
+hit is always correct; a hit whose part labels differ (same sizes,
+different cabinets) recomputes, so the Sheets view never shows stale
+labels.
+
+Verified: `tsc -p tsconfig.app.json`, lint, build clean; the Node run
+above. Not seen in the running app. Needs `schema.sql` re-run
+(`rate_cards.waste_mode`).
+
+## 54. Catalogue Excel re-import silently wiped fronts, handles, panels, boards and extra parts — fixed
+
+Found while reviewing what's left in the panel/cutting-list work. The
+cabinet catalogue's Excel import (`lib/importExport/cabinetImportExport.
+ts`) built each row from the sheet's columns alone, and the save is a
+whole-row upsert. Its header said `frontLayout` and `handleId` were
+"deferred from the sheet … in-app-only edits" — but nothing carried
+them over, so every UPDATED row was saved with them blank. That bug is
+older than this session; §42-§48 widened it to `panels`,
+`carcassBoardId` and `extraParts`. A routine "export the catalogue, fix
+prices in Excel, re-import" reset every product's doors/drawers, handle,
+panel choices, board and extra parts.
+
+Fix: an updated row keeps every field the sheet doesn't carry from the
+stored row. One exception: if the sheet CHANGES the row's material, its
+chosen board line is dropped (it belonged to the old material) and the
+row falls back to the new material's default board. Verified by calling
+`parseCabinetCatalogRows` on a stored sink unit (double door, a handle,
+no back, HDMR 18mm board, one extra part): a price-only re-import kept
+all of them; a re-import changing HDMR → BWP kept all but the board.
+New rows are unaffected (nothing to carry over).
+
+Lesson worth keeping: **any whole-row upsert from a partial source (a
+spreadsheet, a form showing some fields) must merge onto the stored row,
+or it silently deletes what it doesn't show.** The obstacle, appliance,
+handle and fixture importers were then checked against their types AND
+their database rows: each sheet carries every field today, so none was
+losing data. They were made robust anyway — each updated row now starts
+from the stored row with the sheet's values laid over it — so a field
+added later without a sheet column can't recreate the bug.
