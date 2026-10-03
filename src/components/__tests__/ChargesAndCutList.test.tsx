@@ -11,6 +11,8 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QuoteSidebar } from '../quote/QuoteSidebar';
 import { CutListView } from '../cutlist/CutListView';
+import { QuoteFreezePanel } from '../quote/QuoteFreezePanel';
+import { generateQuotePdfBlob } from '../../lib/quotePdf';
 import { resetStore } from '../../test/store';
 import { useLayoutStore } from '../../store/layoutStore';
 import { baseUnit, layout } from '../../test/fixtures';
@@ -101,3 +103,30 @@ describe('Cutting List version dropdown', () => {
 });
 
 vi.mock('../../lib/downloadBlob', () => ({ downloadBlob: vi.fn() }));
+
+vi.mock('../../lib/quotePdf', () => ({ generateQuotePdfBlob: vi.fn(() => new Blob()) }));
+
+describe('All frozen versions on the quote (§67)', () => {
+  it('lists every version; picking one offers its PDF and its cutting list, or says why there is none', async () => {
+    const user = userEvent.setup();
+    resetStore({ currentProject: project, currentLayout: layout(), cabinets: [baseUnit()], quotes: [quote(2, true), quote(1, false)] });
+    const onOpenCutList = vi.fn();
+    render(<QuoteFreezePanel onOpenCutList={onOpenCutList} />);
+
+    const select = screen.getByRole('combobox', { name: 'All frozen versions' });
+    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'Choose a version…',
+      expect.stringMatching(/^v2 — /),
+      expect.stringMatching(/^v1 — /),
+    ]);
+
+    await user.selectOptions(select, 'q1');
+    expect(screen.getByText(/No cutting list — frozen before/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Download PDF (v1)' }));
+    expect(vi.mocked(generateQuotePdfBlob).mock.calls.at(-1)?.[0].version).toBe(1);
+
+    await user.selectOptions(select, 'q2');
+    await user.click(screen.getAllByRole('button', { name: 'Cutting list for v2 →' }).at(-1)!);
+    expect(onOpenCutList).toHaveBeenCalledWith('q2');
+  });
+});

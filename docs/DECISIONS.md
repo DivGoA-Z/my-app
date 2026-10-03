@@ -5092,3 +5092,23 @@ loading quotes, a board in use being removable, and Discard doing
 nothing. A test failed every time, and the code was restored after each.
 The 3D preview is mocked (no WebGL in jsdom), so drawing is still
 checked by eye. 110 tests in total.
+
+## 67. Every frozen version on the quote
+
+You asked to see every quote frozen to date at the bottom of the quote,
+with a cutting list for each version, like the Cutting List page has.
+The quote panel showed only the latest version, though the database
+keeps them all. Now an **"All frozen versions (n)"** dropdown sits at the
+bottom of the quote panel. Picking a version shows its total, freeze
+date, sent status and note. It offers **Download PDF (vN)**, rebuilt
+from that version's own frozen figures, so it prints exactly as quoted.
+It also offers **Cutting list for vN →**, or says the version predates
+saved cutting lists.
+
+Deliberately not offered for older versions: **Share on WhatsApp**. It
+stays on the latest version only, because sending a customer an
+outdated quote should take a deliberate re-freeze, not a misclick in a
+history list (and `sent_at` records the first share of the version
+that was sent). One screen test covers it. It was checked by making the
+PDF button download the latest version instead of the one picked, and
+the test failed as it should. 111 tests.

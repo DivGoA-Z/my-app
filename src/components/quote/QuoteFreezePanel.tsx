@@ -57,6 +57,9 @@ export function QuoteFreezePanel({ onOpenCutList }: { onOpenCutList?: (quoteId: 
   const markCurrentQuoteSent = useLayoutStore((s) => s.markCurrentQuoteSent);
   const isFreezing = useLayoutStore((s) => s.isFreezingQuote);
   const quoteError = useLayoutStore((s) => s.quoteError);
+  // Every version frozen for this project, newest first (§67).
+  const quotes = useLayoutStore((s) => s.quotes);
+  const [historyId, setHistoryId] = useState('');
 
   const { status, latest } = useQuoteStatus();
   const [note, setNote] = useState('');
@@ -99,13 +102,16 @@ export function QuoteFreezePanel({ onOpenCutList }: { onOpenCutList?: (quoteId: 
     }
   }
 
-  async function downloadPdf() {
-    if (!latest || !currentProject) return;
+  // Any version, not only the latest — the history dropdown (§67) uses
+  // it too. A frozen quote's PDF is rebuilt from its own frozen figures,
+  // so an old version prints exactly as it was quoted.
+  async function downloadPdf(quote: FrozenQuote | null = latest) {
+    if (!quote || !currentProject) return;
     setExportError(null);
     setExporting('pdf');
     try {
-      const blob = generateQuotePdfBlob(latest, currentProject);
-      downloadBlob(blob, `${currentProject.clientName} — kitchen quote v${latest.version}.pdf`);
+      const blob = generateQuotePdfBlob(quote, currentProject);
+      downloadBlob(blob, `${currentProject.clientName} — kitchen quote v${quote.version}.pdf`);
       toast.success('PDF downloaded');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to generate PDF.';
@@ -246,7 +252,7 @@ export function QuoteFreezePanel({ onOpenCutList }: { onOpenCutList?: (quoteId: 
               variant="outline"
               size="xs"
               className="h-auto min-h-7 flex-1 py-1 whitespace-normal border-current"
-              onClick={downloadPdf}
+              onClick={() => downloadPdf()}
               disabled={exporting !== null}
             >
               {exporting === 'pdf' ? 'Generating…' : 'Download PDF'}
@@ -308,6 +314,81 @@ export function QuoteFreezePanel({ onOpenCutList }: { onOpenCutList?: (quoteId: 
         A frozen quote is never edited. Revising creates the next version, so what you
         sent stays on record.
       </p>
+
+      {/* Every version frozen till date (§67), so an earlier quote — and
+          the cutting list frozen with it — can be looked at and printed
+          again. Read-only, like the versions themselves; sharing on
+          WhatsApp stays on the latest version above, since sending a
+          customer an outdated quote should take a deliberate re-freeze. */}
+      {quotes.length > 0 && (
+        <div className="flex flex-col gap-1.5 border-t border-gray-200 pt-2">
+          <label className="flex flex-col gap-1 text-[11px] text-gray-600">
+            All frozen versions ({quotes.length})
+            <select
+              aria-label="All frozen versions"
+              value={historyId}
+              onChange={(e) => setHistoryId(e.target.value)}
+              className="rounded border border-gray-300 px-2 py-1 text-[11px]"
+            >
+              <option value="">Choose a version…</option>
+              {quotes.map((q) => (
+                <option key={q.id} value={q.id}>
+                  v{q.version} — {INR.format(q.grandTotal)} — {formatDate(q.frozenAt)}
+                  {q.sentAt ? ' — sent' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          {(() => {
+            const picked = quotes.find((q) => q.id === historyId);
+            if (!picked) return null;
+            return (
+              <div className="rounded-md border border-gray-200 bg-gray-50 p-2 text-[11px] text-gray-700">
+                <div className="flex justify-between font-medium">
+                  <span>
+                    Quote v{picked.version}
+                    {picked.id === latest?.id ? ' (latest)' : ''}
+                  </span>
+                  <span>{INR.format(picked.grandTotal)}</span>
+                </div>
+                <div className="mt-0.5">Frozen {formatDate(picked.frozenAt)}</div>
+                <div className="mt-0.5">
+                  {picked.sentAt ? <>Sent on WhatsApp {formatDate(picked.sentAt)}</> : 'Never sent'}
+                </div>
+                {picked.note && <div className="mt-0.5 italic">{picked.note}</div>}
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    onClick={() => downloadPdf(picked)}
+                    disabled={exporting !== null}
+                  >
+                    Download PDF (v{picked.version})
+                  </Button>
+                  {picked.cutList && onOpenCutList ? (
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 text-[11px]"
+                      onClick={() => onOpenCutList(picked.id)}
+                    >
+                      Cutting list for v{picked.version} →
+                    </Button>
+                  ) : (
+                    !picked.cutList && (
+                      <span className="text-gray-500">
+                        No cutting list — frozen before they were saved with quotes.
+                      </span>
+                    )
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
     </div>
   );
 }
