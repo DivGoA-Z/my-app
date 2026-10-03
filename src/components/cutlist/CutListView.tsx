@@ -12,7 +12,7 @@
 //     how an assembler checks a box is complete.
 // The export carries both, so choosing one on screen loses nothing.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../ui/button';
 import { Alert, AlertDescription } from '../ui/alert';
 import { useLayoutStore } from '../../store/layoutStore';
@@ -187,7 +187,14 @@ export function CutListView({
   const currentProject = useLayoutStore((s) => s.currentProject);
   const [mode, setMode] = useState<Mode>('cutting');
   const quotes = useLayoutStore((s) => s.quotes);
+  const loadQuotes = useLayoutStore((s) => s.loadQuotes);
   const quoteStatus = useQuoteStatus();
+  // Load this project's quotes here too — they used to arrive only when
+  // the quote sidebar had been opened, so opening the Cutting List first
+  // showed no frozen versions at all.
+  useEffect(() => {
+    void loadQuotes();
+  }, [loadQuotes, currentProject?.id]);
   // Which cutting list: the live design, or one frozen with a quote (§60).
   const frozenQuotes = quotes.filter((q) => q.cutList);
   const [version, setVersion] = useState<string>(
@@ -249,23 +256,24 @@ export function CutListView({
         <h2 className="text-sm font-semibold text-gray-800">
           Cutting list{currentProject ? ` — ${currentProject.clientName}` : ''}
         </h2>
-        {/* Live design or a frozen quote's list (§60). Only quotes frozen
-            since §60 carry one. */}
-        {frozenQuotes.length > 0 && (
-          <select
-            aria-label="Which cutting list"
-            value={version}
-            onChange={(e) => setVersion(e.target.value)}
-            className="rounded border border-gray-300 px-2 py-1 text-xs"
-          >
-            <option value="current">Current design</option>
-            {frozenQuotes.map((q) => (
-              <option key={q.id} value={q.id}>
-                Quote v{q.version} ({q.sentAt ? 'sent' : 'frozen'} {new Date(q.sentAt ?? q.frozenAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})
-              </option>
-            ))}
-          </select>
-        )}
+        {/* Live design or a frozen quote's list (§60). Always shown, so it
+            can be found: quotes frozen before §60 carry no list and are
+            listed greyed out with the reason (§66). */}
+        <select
+          aria-label="Which cutting list"
+          value={version}
+          onChange={(e) => setVersion(e.target.value)}
+          className="rounded border border-gray-300 px-2 py-1 text-xs"
+        >
+          <option value="current">Current design</option>
+          {quotes.map((q) => (
+            <option key={q.id} value={q.id} disabled={!q.cutList}>
+              Quote v{q.version} ({q.sentAt ? 'sent' : 'frozen'} {new Date(q.sentAt ?? q.frozenAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })})
+              {q.cutList ? '' : ' — frozen before cutting lists were saved'}
+            </option>
+          ))}
+          {quotes.length === 0 && <option disabled>No frozen quotes yet</option>}
+        </select>
         <div className="ml-auto flex items-center gap-1">
           <Button
             type="button"

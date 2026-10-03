@@ -204,7 +204,7 @@ export function QuoteSidebar({ onOpenCutList }: { onOpenCutList?: (quoteId: stri
               className="h-auto p-0 text-[11px]"
               onClick={resetChargeRates}
             >
-              Reset to business rates
+              Use business-level rate-card charges again
             </Button>
           ) : (
             <Button type="button" variant="outline" size="xs" onClick={customiseChargeRates}>

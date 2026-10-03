@@ -376,7 +376,7 @@ board that was previously never charged.
 
 ## Tests
 
-**`npm test`** (Vitest) — 94 tests on pricing, the cutting list, nesting,
+**`npm test`** (Vitest) — 110 tests (94 maths + 16 screen tests, §66) on pricing, the cutting list, nesting,
 panels and the catalogue importer, ~0.3s (§55). Run before trusting a
 change to any of those. UI still has no automated tests.
 
@@ -454,8 +454,8 @@ tests, drawer boxes, fronts on the carcass board, edge banding per metre,
 total-area labour, frozen cutting lists, depth convention everywhere,
 corner carousel, glass order, printable sheets.
 
-**Still open in this area**: UI has no automated tests (discussion
-pending). Closed by your decision: edge-banding tape thickness (one ₹/m
+**Still open in this area**: browser (Playwright) tests, once a test
+login exists; 16 component tests cover the forms (§66). Closed by your decision: edge-banding tape thickness (one ₹/m
 rate is enough); the carousel's back-fit/rails simplifications (kept).
 Fixed: front thickness now follows the fronts board everywhere (§65).
 Earlier backlog (fridge work-triangle check, appliance-driven cutouts,

@@ -78,9 +78,18 @@ import that wiped data) slipped through. Tests sit beside the code they
 check (`src/lib/*.test.ts`), with shared builders in `src/test/
 fixtures.ts`. **Run `npm test` before trusting a change to pricing, the
 cutting list, nesting, panels or the importers, and add a test for any
-money or size rule you add or fix.** UI is still checked by `tsc`,
-`eslint` and looking at the render — there are no component or browser
-tests.
+money or size rule you add or fix.**
+
+**Screen (component) tests** — added 3 Oct 2026 (§66; this paragraph
+used to say there were none). React Testing Library in jsdom, in
+`src/components/__tests__/`. Each file opts in with a first line
+`// @vitest-environment jsdom`; the maths tests stay in plain Node.
+`src/test/store.ts` (`resetStore`) puts the real Zustand store in a known
+state and replaces network-reaching actions with spies — never let a
+screen test reach Supabase (the env values in `vite.config.ts` are
+dummies). The 3D preview needs WebGL, so it's mocked out; anything drawn
+(2D plan, 3D) is still checked by eye. There are no browser (Playwright)
+tests yet.
 
 **React 19's compiler is active.** It rejects mutating anything
 returned from a hook. This has caused two real errors: writing

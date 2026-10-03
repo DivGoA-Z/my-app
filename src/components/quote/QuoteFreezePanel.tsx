@@ -198,6 +198,12 @@ export function QuoteFreezePanel({ onOpenCutList }: { onOpenCutList?: (quoteId: 
               Cutting list for v{latest.version} →
             </Button>
           )}
+          {!latest.cutList && (
+            <p className="mt-1 text-[11px] text-gray-500">
+              v{latest.version} was frozen before cutting lists were saved with quotes — freeze a new
+              version to keep its cutting list.
+            </p>
+          )}
 
           <div className="mt-2 flex flex-col gap-1 text-[11px] text-gray-600">
             <span>Send WhatsApp to:</span>

@@ -5048,3 +5048,47 @@ thickness** isn't needed — one ₹/m rate for whatever tape the business
 uses; the **corner carousel's simplifications** (backs/returns butt; full
 pentagon top) stay, since they move a few mm on two panels of one rare
 cabinet type.
+
+## 66. Screen tests, and three things that couldn't be found
+
+**Found in use (3 Oct):**
+- **"Reset to business rates"** in the quote sidebar's charges box was
+  unclear. Renamed, in your words, to **"Use business-level rate-card
+  charges again"**.
+- **The frozen cutting-list dropdown didn't appear**, even after you
+  re-ran `schema.sql`. Two causes. (1) It was hidden completely unless
+  some quote carried a frozen list, and only quotes frozen AFTER §60 do.
+  Hiding a control when it has nothing to offer made it impossible to
+  discover. (2) The Cutting List page never loaded the project's quotes
+  itself; only the quote sidebar did, so opening the Cutting List first
+  showed nothing. Now the dropdown is always shown. Older quotes are
+  listed greyed out as "frozen before cutting lists were saved", and the
+  page loads quotes itself. The quote card says "freeze a new version to
+  keep its cutting list" when the latest quote has none. Lesson, the same
+  as the Save button: a control that only appears in the right state is
+  a control nobody finds.
+
+**Screen tests (your choice: components first, browser later).** React
+Testing Library + jsdom under Vitest. 16 tests in
+`src/components/__tests__/`, aimed where screen bugs have actually been:
+- Rate card: the placeholder banner; an edit shows the unsaved bar and
+  Save saves; unsaved edits survive a board added from another screen;
+  the waste switch.
+- Boards: the dropdown offers only priced boards; "+ Add a new board…"
+  needs a rate, saves to the rate card and is picked; a board in use
+  can't be removed (and the project is named); an unused one can; the
+  default back board can't.
+- Cabinet Designer: unticking a panel removes its part and enables Save,
+  and Discard restores it; Save writes the catalogue row; Back leaves.
+- Quote sidebar: Customise and "Use business-level…" switch the
+  project's charges.
+- Cutting List: the dropdown is always present, loads quotes itself,
+  greys out old quotes, says "No frozen quotes yet", and shows a frozen
+  quote's parts.
+
+**Proof the tests bite.** Five real fixes were undone one at a time:
+Save ignoring an edit, unpriced boards offered, the Cutting List not
+loading quotes, a board in use being removable, and Discard doing
+nothing. A test failed every time, and the code was restored after each.
+The 3D preview is mocked (no WebGL in jsdom), so drawing is still
+checked by eye. 110 tests in total.
