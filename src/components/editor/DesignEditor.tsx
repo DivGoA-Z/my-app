@@ -28,6 +28,7 @@ import {
   Lamp,
   Paintbrush,
   Presentation,
+  ReceiptText,
   Redo2,
   Refrigerator,
   Scissors,
@@ -129,9 +130,11 @@ export function DesignEditor({
   const [tool, setTool] = useState<Tool | null>(() =>
     typeof window !== 'undefined' && window.innerWidth >= 1024 ? 'cabinets' : null
   );
-  // Below xl the quote/inspector panel is a slide-over, opened by the
-  // total in the bottom bar or by selecting something.
-  const [quoteOpen, setQuoteOpen] = useState(false);
+  // The quote panel opens and closes on every screen size (your request,
+  // §84): open by default on a wide laptop, where there's room beside the
+  // plan; a slide-over below that. Selecting an item always shows its
+  // inspector, whatever this says.
+  const [quoteOpen, setQuoteOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1280);
   const [checksOpen, setChecksOpen] = useState(false);
   // The four display switches (moved here from App.tsx in §81):
   // Purely a display preference for the 2D plan — cabinet width×depth×
@@ -264,6 +267,19 @@ export function DesignEditor({
             always one tap from the design. */}
         <Button variant="outline" size="icon-touch" className="lg:hidden" aria-label="Cutting list" onClick={() => onOpenCutList()}>
           <Scissors />
+        </Button>
+        {/* Open or close the quote panel (your request, §84). */}
+        <Button
+          variant={rightOpen && !inspector ? 'secondary' : 'outline'}
+          size="touch"
+          aria-pressed={quoteOpen}
+          aria-label="Quote panel"
+          onClick={() => {
+            select(null);
+            setQuoteOpen((o) => !o);
+          }}
+        >
+          <ReceiptText /> <span className="hidden md:inline">Quote</span>
         </Button>
         <Button variant="outline" size="touch" onClick={onPresent}>
           <Presentation /> <span className="hidden sm:inline">Present</span>
@@ -399,11 +415,11 @@ export function DesignEditor({
         <aside
           aria-label={inspector ? 'Selected item' : 'Quote'}
           className={cn(
-            'absolute inset-y-0 right-0 z-20 w-[400px] max-w-full flex-col overflow-y-auto border-l border-border bg-card shadow-float xl:static xl:flex xl:shadow-none',
+            'absolute inset-y-0 right-0 z-20 w-[400px] max-w-full flex-col overflow-y-auto border-l border-border bg-card shadow-float xl:static xl:shadow-none',
             rightOpen ? 'flex' : 'hidden'
           )}
         >
-          <div className="flex items-center justify-between border-b border-border px-4 py-3 xl:hidden">
+          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-4 py-2">
             <span className="text-[17px] font-semibold">{inspector ? 'Selected' : 'Quote'}</span>
             <Button
               variant="ghost"

@@ -111,6 +111,7 @@ import { DEFAULT_CAMERA_HEIGHT_MM } from '../../types/Camera';
 import type { CameraNode } from '../../types/Camera';
 import type { PlacedCabinetItem } from '../../types/cabinet';
 import type { Obstacle, WallOrientation } from '../../types/layout';
+import { wallViewRoles } from '../../lib/wallView';
 import type { PlacedApplianceItem, ApplianceType } from '../../types/appliance';
 
 export interface Room3DCanvasProps {
@@ -172,6 +173,15 @@ export function Room3DCanvas({ widthMm, depthMm, wallView }: Room3DCanvasProps) 
   // necessary instead of an on/off toggle).
   const appliances = useLayoutStore((state) => state.appliances);
   const cameras = useLayoutStore((state) => state.cameras);
+  // Wall view (§84): which items stand against the chosen wall ("full"),
+  // which are corner pieces of the neighbouring wall ("ghost"); the rest
+  // aren't drawn. Same "against a wall" test as the 2D elevation.
+  const wallRoles = wallView
+    ? wallViewRoles(wallView, [...cabinets, ...appliances, ...obstacles.map((o) => ({ ...o, rotationDeg: 0 as const }))], widthMm, depthMm)
+    : null;
+  const shownCabinets = wallRoles ? cabinets.filter((c) => wallRoles.get(c.id) === 'full') : cabinets;
+  const shownAppliances = wallRoles ? appliances.filter((a) => wallRoles.get(a.id) === 'full') : appliances;
+  const shownObstacles = wallRoles ? obstacles.filter((o) => wallRoles.has(o.id)) : obstacles;
   const capturePanoramaForCamera = useLayoutStore((state) => state.capturePanoramaForCamera);
   const fixtureCatalogForEnv = useLayoutStore((state) => state.fixtureCatalog);
 
@@ -624,16 +634,20 @@ export function Room3DCanvas({ widthMm, depthMm, wallView }: Room3DCanvasProps) 
 
           <RoomFloor widthM={roomWidthM} depthM={roomDepthM} />
 
-          <RoomWalls
-            widthM={roomWidthM}
-            depthM={roomDepthM}
-            heightM={ceilingHeightM}
-            hide={wallView ? OPPOSITE_WALL[wallView] : undefined}
-          />
+          {/* Wall view (§84): the room taken apart — only the chosen wall,
+              no ceiling — like an elevation, not a camera across the room. */}
+          <RoomWalls widthM={roomWidthM} depthM={roomDepthM} heightM={ceilingHeightM} only={wallView} />
 
-          <RoomCeiling widthM={roomWidthM} depthM={roomDepthM} heightM={ceilingHeightM} />
+          {!wallView && <RoomCeiling widthM={roomWidthM} depthM={roomDepthM} heightM={ceilingHeightM} />}
 
-          {cabinets.map((item) => (
+          {/* Corner pieces that belong to the neighbouring wall: a
+              translucent grey block, so you see something turns the corner. */}
+          {wallView &&
+            [...cabinets, ...appliances]
+              .filter((item) => wallRoles?.get(item.id) === 'ghost')
+              .map((item) => <GhostBlock key={`ghost-${item.id}`} item={item} />)}
+
+          {shownCabinets.map((item) => (
             <CabinetMesh
               key={item.id}
               item={item}
@@ -647,19 +661,19 @@ export function Room3DCanvas({ widthMm, depthMm, wallView }: Room3DCanvasProps) 
           {/* Worktops over every base-height module — priced and
               finish-selectable now, see hasCountertop in
               lib/cabinetGeometry.ts. */}
-          {cabinets
+          {shownCabinets
             .filter((item) => hasCountertop(item.moduleType) && item.elevationMm === 0)
             .map((item) => (
               <CountertopMesh
                 key={`counter-${item.id}`}
                 item={item}
-                cabinets={cabinets}
+                cabinets={shownCabinets}
                 obstacles={obstacles}
                 appliances={appliances}
               />
             ))}
 
-          {obstacles.map((obstacle) => (
+          {shownObstacles.map((obstacle) => (
             <ObstacleMesh key={obstacle.id} obstacle={obstacle} ceilingHeightMm={ceilingHeightMm} />
           ))}
 
@@ -678,7 +692,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView }: Room3DCanvasProps) 
               what people expect while building a catalogue out; the
               item's own modelUrl still wins if set, leaving room for a
               per-placement override later. */}
-          {appliances.map((item) => {
+          {shownAppliances.map((item) => {
             // Resolution moved into lib/applianceGeometry because it
             // now yields TWO things that must come from the SAME
             // catalogue row — the model file and that file's
@@ -707,7 +721,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView }: Room3DCanvasProps) 
             );
           })}
 
-          {cameras.map((camera) => (
+          {!wallView && cameras.map((camera) => (
             <CameraMarker key={camera.id} camera={camera} />
           ))}
 
@@ -1060,8 +1074,8 @@ interface RoomWallsProps {
   widthM: number;
   depthM: number;
   heightM: number;
-  // The wall behind a wall-view camera, left out so it doesn't block it.
-  hide?: WallOrientation;
+  // Wall view: draw only this wall (§84).
+  only?: WallOrientation;
 }
 
 // Geometry still comes from the room's dimensions (which are always
@@ -1069,7 +1083,7 @@ interface RoomWallsProps {
 // orientation. Keeping those separate means a layout whose walls array
 // is missing or stale still renders a correct room — it just renders it
 // in plaster.
-function RoomWalls({ widthM, depthM, heightM, hide }: RoomWallsProps) {
+function RoomWalls({ widthM, depthM, heightM, only }: RoomWallsProps) {
   const currentLayout = useLayoutStore((state) => state.currentLayout);
 
   // Walls are no longer one plane each. A single plane cannot have a
@@ -1094,7 +1108,7 @@ function RoomWalls({ widthM, depthM, heightM, hide }: RoomWallsProps) {
 
   return (
     <>
-      {(['north', 'south', 'west', 'east'] as WallOrientation[]).filter((o) => o !== hide).map((orientation) => {
+      {(['north', 'south', 'west', 'east'] as WallOrientation[]).filter((o) => !only || o === only).map((orientation) => {
         const wall = walls.find((w) => w.orientation === orientation);
         const horizontal = orientation === 'north' || orientation === 'south';
         const wallLengthMm = (horizontal ? widthM : depthM) / MM_TO_M;
@@ -3212,19 +3226,13 @@ function CameraMarker({ camera }: { camera: CameraNode }) {
   );
 }
 
-// ---- 3D wall view (§82) ----
+// ---- 3D wall view (§82, §84) ----
 
-const OPPOSITE_WALL: Record<WallOrientation, WallOrientation> = {
-  north: 'south',
-  south: 'north',
-  west: 'east',
-  east: 'west',
-};
 
-// A camera standing across the room from `wall`, facing it, pulled back
-// just far enough that the whole wall fits the 16:9 frame (with a small
-// margin) — so cabinets, appliances, finishes and lighting on that wall
-// read front-on, with a little of the side walls for depth. Orbit and
+// Faces `wall` square-on from in front of it, pulled back so the whole
+// wall fits the 16:9 frame with a small margin. A narrow 28° lens keeps
+// it close to a flat elevation while the shading still reads as 3D. The
+// other walls aren't drawn (§84), so nothing stands in the way. Orbit and
 // zoom still work, around the wall's centre. Room x/y → world x/z:
 // north is the z = 0 wall, south z = depth, west x = 0, east x = width.
 function WallViewCamera({
@@ -3238,7 +3246,7 @@ function WallViewCamera({
   depthM: number;
   heightM: number;
 }) {
-  const fovDeg = 40;
+  const fovDeg = 28;
   const aspect = 16 / 9;
   const halfV = Math.tan(((fovDeg * Math.PI) / 180) / 2);
   const along = wall === 'north' || wall === 'south' ? widthM : depthM;
@@ -3259,5 +3267,20 @@ function WallViewCamera({
       <PerspectiveCamera makeDefault fov={fovDeg} position={position} />
       <OrbitControls target={target} maxPolarAngle={Math.PI * 0.62} minDistance={0.5} maxDistance={dist * 2.5} />
     </>
+  );
+}
+
+// A corner piece that belongs to the neighbouring wall, in the wall view
+// (§84): its footprint and height as one translucent grey block.
+function GhostBlock({ item }: { item: { x: number; y: number; widthMm: number; depthMm: number; heightMm: number; elevationMm: number; rotationDeg: 0 | 90 | 180 | 270 } }) {
+  const r = currentFootprintRect(item);
+  return (
+    <mesh
+      position={[mmToWorld(r.x + r.widthMm / 2), mmToWorld(item.elevationMm + item.heightMm / 2), mmToWorld(r.y + r.depthMm / 2)]}
+      raycast={() => null}
+    >
+      <boxGeometry args={[mmToWorld(r.widthMm), mmToWorld(item.heightMm), mmToWorld(r.depthMm)]} />
+      <meshStandardMaterial color="#b9b5ad" transparent opacity={0.35} depthWrite={false} />
+    </mesh>
   );
 }

@@ -330,3 +330,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§82** Editor top bar z-40 (Room pop-up was under the quote). Elevation embedded and sized. 3D wall view = `Room3DCanvas wallView` (camera across the room, wall behind hidden).
 
 **§83** Cutting list page redesigned (sticky header with Excel/Labels/Print, view switch, stats strip, board SectionCards, chip cabinet refs). Editor shows a Cutting list icon below lg.
+
+**§84** 3D wall view = only that wall + items against it; neighbour-wall corner pieces as grey ghost blocks (`lib/wallView.ts`). Quote panel toggle in the editor. Cutting-list buttons labelled as downloads.

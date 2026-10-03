@@ -5721,3 +5721,33 @@ The editor now shows a Cutting list icon on tablet and phone; before,
 there was no way to reach it from a design on those screens (found by
 the screenshot run). The screenshot run photographs all three cutting
 list views.
+
+## 84. The 3D wall view becomes a real elevation; quote panel toggle; download labels
+
+**3D wall view (your correction): not a camera across the room, but
+the room taken apart.** It now draws **only the chosen wall** (no side
+walls, far wall or ceiling) and **only the items standing against it**,
+in full 3D with real finishes. **Corner pieces that belong to the
+neighbouring wall** (they touch this wall, but their back is against the
+other one) are drawn as **translucent grey blocks at the edges**, so you
+see something turns the corner there.
+- The rule lives in `lib/wallView.ts`, tested. "Against a wall" is the
+  same 60mm test the 2D elevation uses (`isAgainstWall`), so the drawing
+  and the 3D view agree. An item's back wall comes from its rotation.
+- A test fixture got the rotated-corner trap wrong first: x/y are the
+  UNROTATED corner, so a turned unit's stored position isn't where its
+  footprint lands. The fixture is fixed and commented.
+- The camera uses a narrow 28° lens, square to the wall, so it reads
+  close to a flat elevation while keeping 3D shading. Camera markers and
+  walkthrough targets are hidden.
+
+**Quote panel open/close** on every screen size: a **Quote** button in
+the editor's top bar and a close × on the panel. It's open by default
+on a wide laptop (1280px and up), otherwise closed. Selecting an item
+still shows its inspector.
+
+**Cutting list downloads labelled**: a "Download" caption and clearer
+names: Excel sheet, Part labels PDF, Cutting list PDF, each with a
+tooltip saying what it downloads.
+
+2 tests (134).
