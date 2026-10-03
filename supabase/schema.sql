@@ -1219,6 +1219,11 @@ alter table public.rate_cards add column if not exists board_rates jsonb;
 -- 'calculated' (per board line, measured live from each project's sheet
 -- layout). NULL = 'approx', so adding the column changes no quote.
 alter table public.rate_cards add column if not exists waste_mode text;
+-- ₹ per running metre of edge banding, charged on the cutting list's exact
+-- metres (§58). NULL/0 = not charged — so adding the column moves no
+-- quote, and a business already charging edge banding per sq ft in its
+-- "others" list isn't charged twice until it switches.
+alter table public.rate_cards add column if not exists edge_banding_rate_per_m numeric;
 alter table public.rate_cards add column if not exists default_back_board_id text;
 -- CORRECTED: this block briefly also added a `margin_percent` column
 -- here — a business-wide margin. Moved to `layouts.margin_percent`

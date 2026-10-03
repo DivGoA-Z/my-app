@@ -330,6 +330,11 @@ and a second real-shade pendant catalogue option.
 - Board nesting, cutting list, hardware boring (Phase 4) — see
   Blocked, below.
 
+**New (§58): edge banding by the metre** — rate card "Edge banding (₹ per
+running metre)", charged on the cutting list's exact metres. ₹0 by
+default so nothing double-charges; when you set it, remove the per-sq-ft
+edge-banding row from Labour & other charges (the rate card warns).
+
 **New (§57): fronts are cut from the carcass board** by default (Workshop
 setting; alternative: pre-laminated sheets). They share its sheets and
 can turn, saving a sheet on the test kitchen (12 vs 13).
@@ -342,7 +347,7 @@ board that was previously never charged.
 
 ## Tests
 
-**`npm test`** (Vitest) — 68 tests on pricing, the cutting list, nesting,
+**`npm test`** (Vitest) — 70 tests on pricing, the cutting list, nesting,
 panels and the catalogue importer, ~0.3s (§55). Run before trusting a
 change to any of those. UI still has no automated tests.
 

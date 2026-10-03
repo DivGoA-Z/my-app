@@ -4811,3 +4811,27 @@ agree. (Pinned by a test: a drawer unit has three fronts and no shutter.)
 Four tests failed when this landed, correctly — they had pinned the old
 grain-always and fronts-on-own-sheets behaviour. They now pin both
 settings: 68 tests.
+
+## 58. Edge banding priced by the metre, from the cutting list
+
+The cutting list already knew each part's banded edges (customer-facing
+only, §47) and so the exact running metres. Edge banding had only ever
+been priced as a guess — a per-sq-ft "others" row. Now the rate card has
+**"Edge banding (₹ per running metre)"**, and every cabinet is charged
+its exact metres × that rate (loose parts too), shown as an "Edge
+banding" line in the sidebar, Present mode and PDF (marked up like any
+cost; hidden at ₹0).
+
+**Default ₹0, on purpose.** The business already has an "edge banding"
+row in Labour & other charges, priced per sq ft; a non-zero default
+would have charged edge banding twice on every open quote. Setting the
+rate is the switch, and the rate card warns in amber when both a rate
+and an edge-banding "others" row are set. Rate per metre is single for
+now — one tape for all boards; 0.8mm vs 2mm tape would need per-board or
+per-edge rates.
+
+Measured: the 600×600×720 base unit has 5.184 m of banded edge (sides
+1.44, front rail 0.564, bottom 0.564, shutter 2.616) → ₹51.84 at ₹10/m.
+(The test first expected 4.188 m — my own mis-addition; the code was
+right.) No allowance yet for the few centimetres trimmed off each edge.
+70 tests.

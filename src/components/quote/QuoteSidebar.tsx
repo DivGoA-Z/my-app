@@ -486,6 +486,13 @@ export function QuoteSidebar() {
             <span>{formatINR(markup(bom.othersSubtotal) + bom.othersUnmarkedSubtotal)}</span>
           </div>
         )}
+        {/* Exact metres from the cutting list × ₹/m (§58); hidden at ₹0. */}
+        {bom.edgeBandingSubtotal > 0 && (
+          <div className="flex justify-between">
+            <span>Edge banding</span>
+            <span>{formatINR(markup(bom.edgeBandingSubtotal))}</span>
+          </div>
+        )}
         {bom.glassSubtotal > 0 && (
           <div className="flex justify-between">
             <span>Glass doors</span>

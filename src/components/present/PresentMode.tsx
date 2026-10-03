@@ -165,6 +165,12 @@ export function PresentMode({ widthMm, depthMm, onExit }: PresentModeProps) {
                   </span>
                 </div>
               )}
+              {bom.edgeBandingSubtotal > 0 && (
+                <div className="flex justify-between">
+                  <span>Edge banding</span>
+                  <span>{INR_FORMATTER.format(sell(bom.edgeBandingSubtotal))}</span>
+                </div>
+              )}
               {bom.glassSubtotal > 0 && (
                 <div className="flex justify-between">
                   <span>Glass doors</span>

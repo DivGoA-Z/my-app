@@ -82,6 +82,18 @@ describe('drawer boxes are priced (§56)', () => {
   });
 });
 
+describe('edge banding by the metre (§58)', () => {
+  it('₹0 by default — nothing charged until a rate is set', () => {
+    expect(calculateBOM([baseUnit()], [], pricing()).edgeBandingSubtotal).toBe(0);
+  });
+  it('charges the cutting list\'s exact metres × the rate', () => {
+    // base unit: sides 2×0.72 = 1.44, front rail 0.564 (back rail none),
+    // bottom 0.564, shutter 2×0.714 + 2×0.594 = 2.616 → 5.184 m of edge
+    const line = calculateBOM([baseUnit()], [], pricing({ rates: { edgeBandingRatePerM: 10 } })).lineItems[0];
+    expect(line.edgeBandingCost).toBeCloseTo(51.84, 2);
+  });
+});
+
 describe('sheet waste (§53)', () => {
   const kitchen = lShapedKitchen();
   const l = layout({ sheetWasteFactor: 1.45 });

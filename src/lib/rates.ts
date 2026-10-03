@@ -76,6 +76,8 @@ interface RateCardRow {
   sheet_waste_factor: number | null;
   // 'approx' | 'calculated' (§53). NULL on an older row → 'approx'.
   waste_mode: string | null;
+  // ₹ per running metre (§58). NULL on an older row → 0, not charged.
+  edge_banding_rate_per_m: number | null;
   business_id: string;
   created_at: string;
   updated_at: string;
@@ -98,6 +100,7 @@ function rowToRateCard(row: RateCardRow): RateCard {
     // sanitizeRateCard uses, so there is still one fallback path.
     sheetWasteFactor: sanitizeWasteFactor(row.sheet_waste_factor ?? undefined),
     wasteMode: row.waste_mode === 'calculated' ? 'calculated' : 'approx',
+    edgeBandingRatePerM: row.edge_banding_rate_per_m ?? 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -117,6 +120,7 @@ function rateCardToRow(card: RateCard, businessId: string): RateCardRow {
     others_rates: card.othersRates,
     sheet_waste_factor: card.sheetWasteFactor,
     waste_mode: card.wasteMode,
+    edge_banding_rate_per_m: card.edgeBandingRatePerM,
     business_id: businessId,
     created_at: card.createdAt,
     updated_at: new Date().toISOString(), // bumped on every save

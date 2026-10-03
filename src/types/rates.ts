@@ -283,6 +283,13 @@ export interface RateCard {
   // never stored here — they depend on each kitchen's actual parts, so
   // they're worked out per project, live.
   wasteMode: WasteMode;
+  // ₹ per running METRE of edge banding (§58), charged on the exact
+  // metres the cutting list works out for every part (which edges face
+  // the customer — §47). Defaults to 0, deliberately: businesses already
+  // pricing edge banding as a per-sq-ft "others" row would otherwise be
+  // charged twice the moment this landed. Setting it is the switch —
+  // and the rate card says to remove the per-sq-ft row when you do.
+  edgeBandingRatePerM: number;
 
   // Cost-plus margin used to live here as `marginPercent` — a single
   // business-wide number. Moved to `RoomLayout.marginPercent`
@@ -368,6 +375,7 @@ export const PLACEHOLDER_RATES: Omit<RateCard, 'createdAt' | 'updatedAt'> = {
   // own offcut rate; the placeholder banner stays up until it does.
   sheetWasteFactor: 1,
   wasteMode: 'approx',
+  edgeBandingRatePerM: 0,
   // Genuine placeholders, same footing as fabrication labour
   // (DEFAULT_LABOUR_RATES)
   // — no business has given a real number for glass yet. Ordered
@@ -511,6 +519,7 @@ export function sanitizeRateCard(card: RateCard): RateCard {
     othersRates: sanitizeOtherRates(card.othersRates),
     sheetWasteFactor: sanitizeWasteFactor(card.sheetWasteFactor),
     wasteMode: card.wasteMode === 'calculated' ? 'calculated' : 'approx',
+    edgeBandingRatePerM: nonNegative(card.edgeBandingRatePerM),
   };
 }
 

@@ -49,6 +49,7 @@ function cardsDiffer(a: RateCard, b: RateCard): boolean {
   return (
     a.sheetWasteFactor !== b.sheetWasteFactor ||
     a.wasteMode !== b.wasteMode ||
+    a.edgeBandingRatePerM !== b.edgeBandingRatePerM ||
     // Field-by-field, not JSON.stringify — see sameOtherRates.
     !sameOtherRates(a.othersRates, b.othersRates) ||
     HARDWARE_KEYS.some((k) => a.hardware[k] !== b.hardware[k]) ||
@@ -254,6 +255,28 @@ export function RateCardManager() {
               : "Every quote lays its own parts out on each board's sheet sizes and uses each board's measured waste — automatically, nothing to fill in. More accurate when boards differ in price. The factor below is kept for when you switch back."}
           </p>
         </div>
+        <Label className="flex items-center justify-between gap-3 font-normal">
+          <span className="text-xs text-gray-600">Edge banding (₹ per running metre)</span>
+          <Input
+            type="number"
+            min={0}
+            step={0.5}
+            value={draft.edgeBandingRatePerM}
+            onChange={(e) => setDraft({ ...draft, edgeBandingRatePerM: Number(e.target.value) })}
+            className="w-28 text-right"
+          />
+        </Label>
+        <p className="text-[11px] text-gray-500">
+          Charged on the exact metres the cutting list works out — only the edges that face the
+          customer. ₹0 means not charged here.{' '}
+          {draft.edgeBandingRatePerM > 0 &&
+            draft.othersRates.some((r) => /edge/i.test(r.label) && r.rate > 0) && (
+              <strong className="text-amber-700">
+                You also have an edge-banding row in "Labour and other charges" — remove it, or edge
+                banding is charged twice.
+              </strong>
+            )}
+        </p>
         <Label className="flex items-center justify-between gap-3 font-normal">
           <span className={`text-xs ${draft.wasteMode === 'approx' ? 'text-gray-600' : 'text-gray-400'}`}>
             Approx sheet waste factor (×)

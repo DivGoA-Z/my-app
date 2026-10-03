@@ -290,6 +290,8 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
       ? ([['Other', marked(s.othersSubtotal) + (s.othersUnmarkedSubtotal ?? 0)]] as [string, number][])
       : []),
     ...(s.projectOtherCharges ?? []).map((c) => [`Other — ${c.label}`, c.amount] as [string, number]),
+    // `?? 0`-safe: absent on a quote frozen before §58.
+    ...(s.edgeBandingSubtotal ? ([['Edge banding', marked(s.edgeBandingSubtotal)]] as [string, number][]) : []),
     ...(s.glassSubtotal ? ([['Glass doors', marked(s.glassSubtotal)]] as [string, number][]) : []),
     ['Appliances', marked(s.applianceSubtotal)],
     ...(s.openingSubtotal > 0 ? ([['Doors & windows', marked(s.openingSubtotal)]] as [string, number][]) : []),

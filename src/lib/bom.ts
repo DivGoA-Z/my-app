@@ -37,7 +37,7 @@ import type { SurfaceAreaBreakdown } from './surfaceAreas';
 import type { OtherRate, OtherRateBasis, RateCard, WasteMode } from '../types/rates';
 import { measuredBoardWaste, type BoardWaste } from './nesting';
 import type { ConstructionSettings } from '../types/construction';
-import { cabinetCutParts, loosePartsCut, partAreaSqM, type CutPart } from './cutList';
+import { cabinetCutParts, edgeBandMm, loosePartsCut, partAreaSqM, type CutPart } from './cutList';
 
 export interface BOMLineItem {
   cabinetId: string;
@@ -100,6 +100,10 @@ export interface BOMLineItem {
   // TINT via RateCard.glassRates. Separate from materialCost: glass is
   // bought and cut as glass, not the cabinet's own board substrate.
   glassCost: number;
+  // Exact metres of edge banding on this cabinet's parts × ₹/m (§58).
+  // 0 while the rate card's edge banding rate is 0. Absent on a frozen
+  // line item from before §58.
+  edgeBandingCost: number;
   lineTotal: number;
 }
 
@@ -217,6 +221,9 @@ export interface BOMSummary {
   // materialSubtotal; carried separately so the sidebar can say how much
   // of Material it is. Absent on a summary frozen before §48.
   loosePartsCost: number;
+  // All edge banding — every cabinet's plus the loose parts' (§58).
+  // Absent on a summary frozen before §58 — read with `?? 0`.
+  edgeBandingSubtotal: number;
   // RateCard.othersRates rows, split by the row's own showOnQuote:
   // ticked rows each become a named line here (amount summed across
   // every cabinet, or once for a lump sum); every unticked row is
@@ -427,6 +434,9 @@ export function calculateBOM(
   const wasteFor = (p: CutPart) =>
     boardWaste ? (p.boardId ? (boardWaste.get(p.boardId)?.factor ?? 1) : 1) : sheetWasteFactor;
   const boardCost = (parts: CutPart[]) => sum(parts, (p) => partAreaSqM(p) * p.ratePerSqM * wasteFor(p));
+  // Edge banding on the cutting list's exact metres × the rate card's ₹/m
+  // (§58) — 0 until the business sets a rate.
+  const edgeBandingCost = (parts: CutPart[]) => (sum(parts, edgeBandMm) / 1000) * rates.edgeBandingRatePerM;
   // The project's own list if it has customised one, the business's
   // otherwise (RoomLayout.chargeRates) — plus any §36 legacy project
   // charges, which are empty once a project has been customised.
@@ -481,6 +491,7 @@ export function calculateBOM(
     const parts = partsByCabinet[index];
     const materialArea = sum(parts, partAreaSqM);
     const materialCost = boardCost(parts);
+    const edgeBanding = edgeBandingCost(parts);
     // A part with no board line is priced at ₹0 — flagged so the quote
     // sidebar can say so instead of quietly under-quoting (Principle 1).
     const missingBoard = parts.some((p) => !p.boardId);
@@ -544,7 +555,8 @@ export function calculateBOM(
       othersCost,
       unmarkedCost,
       glassCost,
-      lineTotal: materialCost + finishCost + hardwareCost + othersCost + glassCost,
+      edgeBandingCost: edgeBanding,
+      lineTotal: materialCost + finishCost + hardwareCost + othersCost + glassCost + edgeBanding,
     };
   });
 
@@ -599,9 +611,11 @@ export function calculateBOM(
   // list prints. A cost like any other, so it's marked up, and it's
   // shown inside the Material subtotal (it IS board).
   const loosePartsCost = boardCost(looseParts);
+  const looseEdgeBanding = edgeBandingCost(looseParts);
   const allCost =
     sum(lineItems, (l) => l.lineTotal) +
     loosePartsCost +
+    looseEdgeBanding +
     othersLumpSum +
     applianceSubtotal +
     surfaceSubtotal +
@@ -659,6 +673,7 @@ export function calculateBOM(
     countertopLineItem,
     materialSubtotal: sum(lineItems, (l) => l.materialCost) + loosePartsCost,
     loosePartsCost,
+    edgeBandingSubtotal: sum(lineItems, (l) => l.edgeBandingCost) + looseEdgeBanding,
     shownOtherLines,
     othersSubtotal,
     othersUnmarkedSubtotal,
