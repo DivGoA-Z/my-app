@@ -46,7 +46,7 @@ function activity(c: CustomerProject, history: QuoteHistoryEntry[] | undefined, 
   switch (c.status) {
     case 'Quote Sent': {
       const v = history?.[0]?.version;
-      return { text: `${v ? `v${v} · ` : ''}sent ${ago}`, late: days >= 3 };
+      return { text: `${v ? `Quote v${v}` : 'Quote'} sent ${ago}`, late: days >= 3 };
     }
     case 'In Production':
       return c.installDate
@@ -258,7 +258,7 @@ export function CustomersPage({
       )}
 
       {isLoading ? (
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-28 rounded-xl" />
           ))}
@@ -276,7 +276,10 @@ export function CustomersPage({
       ) : (
         <>
           {view === 'board' && (
-            <div className="hidden gap-3 md:grid md:grid-cols-3 xl:grid-cols-6">
+            // Fixed-width columns that scroll sideways when they don't all fit
+            // (like Trello), instead of six squeezed columns that cut names
+            // off — found by screenshot, §75.
+            <div className="-mx-4 hidden gap-3 overflow-x-auto px-4 pb-3 md:-mx-8 md:flex md:px-8 lg:-mx-10 lg:px-10">
               {BOARD_STAGES.map((stage) => {
                 const cards = matching.filter((c) => c.status === stage && onBoard(c, now));
                 return (
@@ -290,7 +293,7 @@ export function CustomersPage({
                       setDragId(null);
                     }}
                     className={cn(
-                      'flex min-h-40 flex-col gap-2.5 rounded-2xl bg-secondary p-3 transition-colors',
+                      'flex min-h-40 w-[280px] shrink-0 flex-col gap-2.5 rounded-2xl bg-secondary p-3 transition-colors',
                       dragId && 'outline-2 outline-dashed outline-input'
                     )}
                   >
@@ -336,7 +339,7 @@ export function CustomersPage({
                                 {a.text}
                               </span>
                             )}
-                            <span className="text-sm font-bold">{c.quoteTotal != null ? INR.format(c.quoteTotal) : '—'}</span>
+                            {c.quoteTotal != null && <span className="shrink-0 text-sm font-bold">{INR.format(c.quoteTotal)}</span>}
                           </div>
                         </article>
                       );
@@ -367,7 +370,7 @@ export function CustomersPage({
                   <span className="hidden text-sm text-muted-foreground md:block">{c.phone}</span>
                   <div className="flex flex-col items-end gap-1.5">
                     <StagePill status={c.status} />
-                    <span className="text-sm font-bold">{c.quoteTotal != null ? INR.format(c.quoteTotal) : '—'}</span>
+                    {c.quoteTotal != null && <span className="shrink-0 text-sm font-bold">{INR.format(c.quoteTotal)}</span>}
                   </div>
                   <CardMenu c={c} history={quoteHistories[c.id] ?? []} views={panoramas[c.id] ?? []} onOpenDesign={onOpenDesign} onOpenCutList={onOpenCutList} moveTo={moveTo} onSetDate={setDating} onPanorama={setPanorama} />
                 </article>

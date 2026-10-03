@@ -85,7 +85,7 @@ export function BoardRatesEditor({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="grid grid-cols-[1fr_6rem_7rem_2rem] gap-2 text-[13px] font-medium text-muted-foreground">
+      <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_5.5rem_2.75rem] sm:grid-cols-[minmax(0,1fr)_6rem_7rem_2.75rem] gap-2 text-[13px] font-medium text-muted-foreground">
         <span>Board</span>
         <span className="text-right">Thickness (mm)</span>
         <span className="text-right">₹ per sq m</span>
@@ -93,9 +93,9 @@ export function BoardRatesEditor({
       </div>
       {boards.map((b) => (
         <div key={b.id} className="flex flex-col gap-1 border-b border-border/70 pb-2">
-          <div className="grid grid-cols-[1fr_6rem_7rem_2rem] items-center gap-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_5.5rem_2.75rem] sm:grid-cols-[minmax(0,1fr)_6rem_7rem_2.75rem] items-center gap-2">
             <Select value={b.material} onValueChange={(v) => update(b.id, { material: v as MaterialType })}>
-              <SelectTrigger size="sm" className="w-full">
+              <SelectTrigger size="sm" className="w-full min-w-0 [&>span]:truncate">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

@@ -164,7 +164,7 @@ export function SheetLayoutView({
               bought in {sizes.map((z) => `${z.lengthMm}×${z.widthMm}`).join(' or ')}
             </span>
           </h3>
-          <div className="grid gap-3 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {result.sheets.map((_, i) => (
               <SheetDrawing key={i} result={result} index={i} trimMm={cut.trimMm} />
             ))}

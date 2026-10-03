@@ -5367,3 +5367,45 @@ tablet and laptop, and a large brand mark, "Welcome back" and 48px
 fields and button. It was checked by screenshot at all three sizes
 before committing; this is the first screen in the overhaul that
 genuinely was.
+
+## 75. First screenshot pass: phone overflow (four causes) and the Customers board
+
+The first full `npm run screens` with the test login looked at every
+page at three sizes. **Every page on a phone was checked; five pages
+were wider than the screen**, so the page scrolled sideways and the
+bottom tab bar couldn't be tapped. There were four different causes,
+all now fixed:
+1. **A CSS grid with no base column count** (`grid lg:grid-cols-…`)
+   sizes its one phone column to its widest content, so long follow-up
+   lines widened Home. The fix is `grid-cols-1` (`minmax(0,1fr)`),
+   applied to every such grid in `src/components`, including three
+   (cutting-list sheets, Cabinet Designer, the Customers skeleton) that
+   hadn't bitten yet.
+2. **`<fieldset>` defaults to `min-width: min-content`.** The rate
+   card's Boards fieldset couldn't shrink. Fixed once, globally, in
+   `index.css`.
+3. **Fixed-width grid columns** in the board rows (`1fr_6rem_7rem…`),
+   with a dropdown that wouldn't shrink. The first column is now
+   `minmax(0,1fr)` with narrower number columns on phones.
+4. **Non-wrapping buttons with long labels** (the waste switch). They
+   now wrap.
+
+**Overflow is now a permanent browser check.** Every screenshot asserts
+the page is no wider than the screen, and on failure it names the
+widest element and its ancestors. That's how causes 2 to 4 were found
+in minutes instead of by guessing.
+
+**Customers board:** six columns squeezed into the width cut names off
+("Rohan M…") and wrapped status lines badly. The columns are now a
+fixed 280px and scroll sideways when they don't all fit. A card with no
+total shows nothing (it used to show "—"), and the status reads "Quote
+sent 44 days ago".
+
+**Seen and still not premium (next):**
+- **Catalogue:** about 70 cabinet rows (plus 44 appliances), each a
+  permanently open edit form. Names are clipped in tiny inputs and the
+  tables scroll sideways inside their boxes. It needs read-only rows or
+  tiles with editing in a side panel.
+- **Rate card:** still the old dense layout with long paragraphs.
+- **Business name:** shows the seed "My Business". There's no screen
+  to set it yet.

@@ -67,7 +67,7 @@ export function NewCustomerDialog({
           <DialogTitle>New customer</DialogTitle>
           <DialogDescription>They start as a Lead. You can add the design straight after.</DialogDescription>
         </DialogHeader>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Label className="flex flex-col items-stretch gap-1.5 text-[13px]">
             Name
             <Input value={form.clientName} onChange={set('clientName')} className="h-11 text-[15px]" autoFocus />

@@ -189,8 +189,8 @@ export function HomePage({
         </div>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
-        <section className="flex flex-col rounded-2xl bg-card shadow-card p-4 lg:p-5">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+        <section className="flex min-w-0 flex-col rounded-2xl bg-card p-4 shadow-card lg:p-5">
           <div className="flex items-center justify-between pb-2">
             <h2 className="text-[17px] font-semibold">Follow up</h2>
             <Button variant="link" className="h-auto p-0 font-semibold" onClick={() => onNavigate('customers')}>
@@ -222,7 +222,7 @@ export function HomePage({
           ))}
         </section>
 
-        <section className="flex flex-col gap-3 rounded-2xl bg-card shadow-card p-4 lg:p-5">
+        <section className="flex min-w-0 flex-col gap-3 rounded-2xl bg-card p-4 shadow-card lg:p-5">
           <div className="flex flex-col gap-0.5">
             <h2 className="text-[17px] font-semibold">Continue designing</h2>
             <span className="text-[13px] text-muted-foreground">Designs not yet approved, edited in the last 7 days</span>

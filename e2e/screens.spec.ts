@@ -11,10 +11,30 @@ import { test, expect, type Page } from '@playwright/test';
 const email = process.env.E2E_EMAIL;
 const password = process.env.E2E_PASSWORD;
 
+// Every page must fit the screen it's on: no sideways scrolling (§75).
+// Phone overflow was the first real bug these screenshots found, so it's
+// checked on every shot, and the culprit's ancestor chain is reported.
+const overflows: string[] = [];
+
 async function shot(page: Page, name: string) {
   // Let fonts, images and the first data load settle.
   await page.waitForLoadState('networkidle').catch(() => {});
   await page.waitForTimeout(600);
+  const report = await page.evaluate(() => {
+    const vw = document.documentElement.clientWidth;
+    if (document.documentElement.scrollWidth <= vw + 1) return null;
+    let worst: Element | null = null;
+    let max = 0;
+    document.querySelectorAll('body *').forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.right > max) [max, worst] = [r.right, el];
+    });
+    const chain: string[] = [];
+    for (let el = worst as Element | null; el && chain.length < 6; el = el.parentElement)
+      chain.push(`${el.tagName.toLowerCase()}.${(el.className || '').toString().split(' ').slice(0, 4).join('.')}`);
+    return `${Math.round(max)}px on a ${vw}px screen: ${chain.join(' < ')}`;
+  });
+  if (report) overflows.push(`${test.info().project.name}/${name}: ${report}`);
   await page.screenshot({ path: `e2e/screens/${test.info().project.name}/${name}.png`, fullPage: true });
 }
 
@@ -56,4 +76,5 @@ test('main screens', async ({ page }) => {
     await expect(page.getByRole('heading', { level: 1, name: label })).toBeVisible({ timeout: 20_000 });
     await shot(page, file);
   }
+  expect(overflows, 'Pages wider than the screen').toEqual([]);
 });

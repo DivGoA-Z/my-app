@@ -229,7 +229,7 @@ export function RateCardManager() {
             factor measured from each project's sheet layout. */}
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-muted-foreground">Sheet waste on quotes</span>
-          <div className="flex gap-1" role="radiogroup" aria-label="Sheet waste on quotes">
+          <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Sheet waste on quotes">
             {(
               [
                 ['approx', 'Approx — one factor'],
@@ -240,6 +240,8 @@ export function RateCardManager() {
                 key={mode}
                 type="button"
                 size="xs"
+                // Long labels wrap on a phone instead of widening the page (§75).
+                className="h-auto min-h-7 py-1 text-left whitespace-normal"
                 role="radio"
                 aria-checked={draft.wasteMode === mode}
                 variant={draft.wasteMode === mode ? 'secondary' : 'ghost'}

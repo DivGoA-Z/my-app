@@ -155,4 +155,10 @@
   html {
     @apply font-sans;
     }
+  /* Browsers give <fieldset> min-width: min-content, so a fieldset can't
+     be narrower than its widest line — the rate card's Boards fieldset
+     pushed the whole phone page sideways (found by screenshot, §75). */
+  fieldset {
+    min-width: 0;
+    }
 }

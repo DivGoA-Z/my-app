@@ -307,7 +307,7 @@ export function CabinetDesignerPage({ target, onBack }: { target: DesignerTarget
         </Alert>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         {/* ---- Left: carcass board + panels ---- */}
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1 text-xs text-gray-600">
