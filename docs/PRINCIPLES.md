@@ -262,6 +262,30 @@ test on real customers, not as established facts.
 
 ---
 
+## UI principles
+
+Agreed 3 Oct 2026, with the "Calm workshop" design system and the editor
+layout (`docs/UX_PLAN.md`). They govern every screen of the overhaul.
+The users and devices behind them: designer and customer together on a
+laptop or tablet, the owner on a phone.
+
+1. **One primary action per screen**, and it's obvious: "+ New
+   customer", "Finalise quote", "Save".
+2. **The customer is watching.** Anything on the design page may be
+   seen by the customer, so the machinery (cost basis, margin, waste,
+   board rates) stays behind a "Details" toggle. The customer sees
+   finishes, sizes and the price.
+3. **Progressive disclosure.** Show the 20% used 80% of the time. The
+   rest is one click deeper, never removed.
+4. **Same thing, same place, same look.** One shell, one back
+   behaviour, one way to edit a list, one way to confirm a delete.
+5. **Touch is first-class.** Every action works by tap. Hover and
+   double-click are shortcuts, never the only way.
+6. **Pictures over words** for products and finishes. Numbers are typed
+   wherever precision matters.
+7. **Never a dead end.** Every empty screen says what to do next; every
+   error says how to fix it.
+
 # Part 2 — What we learned, and what to do next
 
 Added 21 Sep 2026, after working through "how do we make this

@@ -139,7 +139,7 @@ panels from the right, and the canvas keeps the full width.
 opens a **bottom sheet** with its options (finish, size, front). No
 free drawing.
 
-## 7. UI principles (proposed — needs your yes before it goes into PRINCIPLES.md)
+## 7. UI principles (agreed 3 Oct 2026 — now in PRINCIPLES.md Part 1)
 
 1. **One primary action per screen**, and it's obvious: "+ New
    customer", "Finalise quote", "Save".
@@ -170,6 +170,11 @@ free drawing.
 
 Each page is mockup → your OK → build → screen tests updated → you
 check it on laptop, tablet and phone.
+
+## Progress
+
+- 3 Oct: look and editor layout approved; UI principles agreed; theme
+  tokens and fonts in `src/index.css` (every screen picks them up).
 
 ## Review links
 

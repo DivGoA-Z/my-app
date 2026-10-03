@@ -5112,3 +5112,33 @@ history list (and `sent_at` records the first share of the version
 that was sent). One screen test covers it. It was checked by making the
 PDF button download the latest version instead of the one picked, and
 the test failed as it should. 111 tests.
+
+## 68. The UI overhaul's design system ("Calm workshop") goes in as theme tokens first
+
+You said the app is unusable as it is and asked for a professional
+redesign of every screen. The plan is in `docs/UX_PLAN.md`, with mockups
+linked there. You approved the look and the editor layout on 3 Oct, and
+the UI principles are now in `PRINCIPLES.md` Part 1.
+
+**First build step: the theme only.** The shadcn CSS variables in
+`src/index.css` now hold the "Calm workshop" values:
+- Paper #F6F5F2 background, Ink #1D1C1A text
+- Forest #1F5C4A primary, with a Forest tint as accent
+- Brick #B42318 for destructive
+- New `warning` / `warning-soft` / `warning-foreground` (Brass), `info`
+  and `success` tokens, because shadcn has no slot for "attention"
+
+Fonts: Plus Jakarta Sans for text, JetBrains Mono for measurements (via
+`@fontsource-variable`, bundled rather than loaded from Google, so the
+app works offline). Geist was removed.
+
+Why theme first: every screen picks it up with no layout change, so the
+risky part (restructuring the editor) starts on the final colours and
+type. What it does NOT fix yet:
+- hard-coded `text-[11px]` sizes and raw Tailwind greys such as
+  `text-gray-500`, which ignore the tokens
+- 32px button heights
+
+Those go screen by screen as each one is rebuilt. Rule for that work:
+use the tokens (`text-muted-foreground`, `bg-warning-soft`), never raw
+greys or hex values, so a later palette change stays one file.
