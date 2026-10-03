@@ -36,7 +36,7 @@ import type { FixtureCatalogItem, LightFixture } from '../types/fixture';
 import type { SurfaceAreaBreakdown } from './surfaceAreas';
 import type { OtherRate, OtherRateBasis, RateCard, WasteMode } from '../types/rates';
 import { measuredBoardWaste, type BoardWaste } from './nesting';
-import { effectiveConstruction, frontExtraMm, physicalCabinets } from './physicalDepth';
+import { effectiveConstruction, physicalCabinets } from './physicalDepth';
 import type { ConstructionSettings } from '../types/construction';
 import { cabinetCutParts, edgeBandMm, loosePartsCut, partAreaSqM, type CutPart } from './cutList';
 
@@ -411,7 +411,7 @@ export function calculateBOM(
   // floor area cabinets occupy are physical, so a carcass-only cabinet's
   // extra shutter depth counts there. Everything else here prices from
   // the stored cabinets (the cutting list applies the convention itself).
-  const physicalItems = physicalCabinets(items, frontExtraMm(construction.depthIncludesFront));
+  const physicalItems = physicalCabinets(items, construction.depthIncludesFront, rates);
   // Resolved once for the whole layout, not per cabinet — it's a
   // property of how this job's sheets are bought, not of any one unit.
   // The APPROX factor: one number, the project's override or the rate

@@ -12,6 +12,7 @@ import {
 } from './physicalDepth';
 import { getFootprint } from './footprint';
 import { baseUnit, construction } from '../test/fixtures';
+import { defaultRateCard } from '../types/rates';
 
 // The on-floor rectangle of an item, from lib/footprint.ts's own rules.
 function rect(c: { x: number; y: number; widthMm: number; depthMm: number; rotationDeg: number }) {
@@ -57,7 +58,15 @@ describe('physical footprint under "carcass only" depth', () => {
 
   it('changes nothing — same array — when depth includes the shutter', () => {
     const items = [baseUnit()];
-    expect(physicalCabinets(items, 0)).toBe(items);
+    expect(physicalCabinets(items, true, defaultRateCard())).toBe(items);
+  });
+
+  it("grows by the cabinet's OWN shutter board thickness — 25mm, not 18 (§65)", () => {
+    const rates = defaultRateCard();
+    const withThick = { ...rates, boards: [...rates.boards, { id: 'hdmr-25', material: 'HDMR' as const, thicknessMm: 25, ratePerSqM: 1900 }] };
+    const thick = baseUnit({ panels: { fronts: { boardId: 'hdmr-25' } } });
+    expect(physicalCabinets([thick], false, withThick)[0].depthMm).toBe(625);
+    expect(physicalCabinets([baseUnit()], false, withThick)[0].depthMm).toBe(618);
   });
 
   it('a project override wins over the business setting', () => {

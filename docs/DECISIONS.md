@@ -4939,7 +4939,7 @@ uses physical edges, so carcass-only fronts line up flush.
 
 Geometry uses `FRONT_THICKNESS_MM` (18) for the extra, as the 3D shutter
 already does; the cutting list uses the fronts board's real thickness. A
-25mm shutter would make the picture 7mm short — noted, not fixed.
+25mm shutter would make the picture 7mm short — noted, not fixed. **Fixed in §65.**
 
 Tests (86): at every rotation the extra is on the front and the back
 stays put; drag write-back round-trips; the default returns the same
@@ -5023,3 +5023,28 @@ glass door) and their pages rendered to images — page 1 of each via
 macOS `sips`, a sheet page via a small PDFKit script (poppler isn't
 installed). Tables, the assumed-settings warning, the glass order, the
 labels and a sheet layout all read correctly.
+
+## 65. Shutter thickness follows the fronts board everywhere
+
+Your rule: front thickness should be as per the board used, with overlap
+and the rest following. The cutting list and price already used the
+fronts board's real thickness; the 3D view, the plan's physical
+footprint (under "carcass only"), collision/overlap checks and the drag
+write-back still assumed a fixed 18mm (`FRONT_THICKNESS_MM`), so a 25mm
+shutter board drew — and was collision-checked — 7mm short.
+
+Now `frontThicknessMm(item, rates)` (lib/physicalDepth.ts) resolves each
+cabinet's shutter thickness from its FRONTS board (lib/panels.ts —
+per-cabinet override, else the carcass board), falling back to 18mm only
+when there's no board at all. It drives: the 3D renderer's shutter and
+the carcass inset behind it (one constant in `CabinetMesh` controlled
+every front, so one line), the physical footprint (`physicalCabinets`
+now grows each cabinet by its own shutter, not a uniform 18), and the
+2D drag write-back (`useFrontExtraFor`, per cabinet). Test: a 25mm-front
+cabinet reaches 625 under "carcass only", an 18mm one 618 (94 tests).
+
+Also closed by your decisions in the same message: **edge-banding tape
+thickness** isn't needed — one ₹/m rate for whatever tape the business
+uses; the **corner carousel's simplifications** (backs/returns butt; full
+pentagon top) stay, since they move a few mm on two panels of one rare
+cabinet type.

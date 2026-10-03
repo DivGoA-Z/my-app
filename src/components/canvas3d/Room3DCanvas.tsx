@@ -102,7 +102,8 @@ import { useLightQuality } from '../../hooks/useLightQuality';
 import type { FixturePlacement } from '../../lib/fixtures';
 import { isLinear, isVisibleWhenClosed, isDirectional, defaultThrowFor } from '../../types/fixture';
 import type { WallOpening } from '../../types/opening';
-import { cabinetFrontBreakdown, FRONT_THICKNESS_MM, carcassBands } from '../../lib/fronts';
+import { cabinetFrontBreakdown, carcassBands } from '../../lib/fronts';
+import { frontThicknessMm } from '../../lib/physicalDepth';
 import type { HandlePlacement } from '../../lib/fronts';
 import { defaultFrontLayout, resolveHandle } from '../../types/front';
 import type { GlassTint } from '../../types/front';
@@ -2167,7 +2168,10 @@ function CabinetMesh({ item, isSelected, onSelect }: CabinetMeshProps) {
   // and a panel sitting exactly on the carcass's own front face would
   // z-fight with it. An open band skips this — there's no panel to
   // clear, and the carcass there is thin walls, not a sealed slab.
-  const frontThicknessM = mmToWorld(FRONT_THICKNESS_MM);
+  // The shutter's real thickness — this cabinet's fronts board (§65), so
+  // a 25mm shutter draws as 25mm and the carcass behind it shortens to
+  // match. 18mm only when no fronts board is set.
+  const frontThicknessM = mmToWorld(frontThicknessMm(item, rateCard));
   // Front face of the finished cabinet, in the group's local frame.
   const faceZ = depthM / 2;
 

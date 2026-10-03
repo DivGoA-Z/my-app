@@ -8,8 +8,9 @@
 //   - includes the shutter (default) → stored depth IS the physical
 //     depth; nothing changes anywhere.
 //   - carcass only → the shutter sits IN FRONT of the stored depth, so
-//     the cabinet physically reaches FRONT_THICKNESS_MM further into the
-//     room. The plan, the 3D view, collision, door-swing clearance,
+//     the cabinet physically reaches its shutter's thickness further into
+//     the room — its own fronts board's thickness since §65 (18mm only
+//     when it has none). The plan, the 3D view, collision, door-swing clearance,
 //     kitchen checks, surface areas and the countertop must all see that
 //     extra depth, or they'd draw — and check — a cabinet 18mm shallower
 //     than the one built (the §47 known gap this closes).
@@ -31,6 +32,8 @@ import type { PlacedCabinetItem } from '../types/cabinet';
 import type { ConstructionSettings } from '../types/construction';
 import type { RoomLayout } from '../types/layout';
 import { FRONT_THICKNESS_MM } from './fronts';
+import { resolvePanels } from './panels';
+import type { RateCard } from '../types/rates';
 
 // The cabinet's front direction for each quarter turn — the same rule
 // lib/cabinetClearance.ts already uses and verified (rotating the local
@@ -55,9 +58,25 @@ export function effectiveConstruction(
     : { ...settings, depthIncludesFront: projectChoice };
 }
 
-// How much further than its stored depth a cabinet physically reaches.
-export function frontExtraMm(depthIncludesFront: boolean): number {
-  return depthIncludesFront ? 0 : FRONT_THICKNESS_MM;
+// A cabinet's shutter thickness: its FRONTS board (lib/panels.ts), so a
+// 25mm shutter board draws, collides and inset-fits as 25mm (§65). Only
+// a cabinet with no fronts board at all falls back to the standard 18.
+export function frontThicknessMm(
+  item: PlacedCabinetItem,
+  rates: Pick<RateCard, 'boards' | 'defaultBackBoardId'>
+): number {
+  return resolvePanels(item, rates).fronts.board?.thicknessMm ?? FRONT_THICKNESS_MM;
+}
+
+// How much further than its stored depth a cabinet physically reaches:
+// nothing when the stated depth includes the shutter, its own shutter's
+// thickness when it's the carcass only.
+export function frontExtraMm(
+  depthIncludesFront: boolean,
+  item: PlacedCabinetItem,
+  rates: Pick<RateCard, 'boards' | 'defaultBackBoardId'>
+): number {
+  return depthIncludesFront ? 0 : frontThicknessMm(item, rates);
 }
 
 export function physicalCabinet(item: PlacedCabinetItem, extraMm: number): PlacedCabinetItem {
@@ -69,10 +88,15 @@ export function physicalCabinet(item: PlacedCabinetItem, extraMm: number): Place
   return { ...item, depthMm, x: centerX - item.widthMm / 2, y: centerY - depthMm / 2 };
 }
 
-// Same array back (same identity) when there's nothing to add, so
+// Same array back (same identity) when depth includes the shutter, so
 // anything memoised on it doesn't recompute for the default convention.
-export function physicalCabinets(items: PlacedCabinetItem[], extraMm: number): PlacedCabinetItem[] {
-  return extraMm ? items.map((c) => physicalCabinet(c, extraMm)) : items;
+// Otherwise each cabinet grows by its OWN shutter's thickness (§65).
+export function physicalCabinets(
+  items: PlacedCabinetItem[],
+  depthIncludesFront: boolean,
+  rates: Pick<RateCard, 'boards' | 'defaultBackBoardId'>
+): PlacedCabinetItem[] {
+  return depthIncludesFront ? items : items.map((c) => physicalCabinet(c, frontThicknessMm(c, rates)));
 }
 
 // The inverse, for write-back: where a dragged PHYSICAL cabinet's centre

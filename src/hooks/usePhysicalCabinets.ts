@@ -17,6 +17,7 @@ import { useMemo } from 'react';
 import { useLayoutStore } from '../store/layoutStore';
 import { effectiveConstruction, frontExtraMm, physicalCabinets } from '../lib/physicalDepth';
 import type { ConstructionSettings } from '../types/construction';
+import type { PlacedCabinetItem } from '../types/cabinet';
 
 export function useEffectiveConstruction(): ConstructionSettings {
   const settings = useLayoutStore((s) => s.constructionSettings);
@@ -24,14 +25,17 @@ export function useEffectiveConstruction(): ConstructionSettings {
   return useMemo(() => effectiveConstruction(settings, { depthIncludesFront: projectChoice }), [settings, projectChoice]);
 }
 
-// Extra mm a cabinet physically reaches beyond its stored depth (0 or
-// the shutter thickness) — for the drag write-back.
-export function useFrontExtraMm(): number {
-  return frontExtraMm(useEffectiveConstruction().depthIncludesFront);
+// How far a given cabinet physically reaches beyond its stored depth (0,
+// or its own shutter board's thickness) — for the 2D drag write-back.
+export function useFrontExtraFor(): (item: PlacedCabinetItem) => number {
+  const includes = useEffectiveConstruction().depthIncludesFront;
+  const rateCard = useLayoutStore((s) => s.rateCard);
+  return (item) => frontExtraMm(includes, item, rateCard);
 }
 
 export function usePhysicalCabinets() {
   const cabinets = useLayoutStore((s) => s.cabinets);
-  const extra = useFrontExtraMm();
-  return useMemo(() => physicalCabinets(cabinets, extra), [cabinets, extra]);
+  const includes = useEffectiveConstruction().depthIncludesFront;
+  const rateCard = useLayoutStore((s) => s.rateCard);
+  return useMemo(() => physicalCabinets(cabinets, includes, rateCard), [cabinets, includes, rateCard]);
 }

@@ -36,7 +36,7 @@
 // resize, duplicate, and delete from CabinetInspector immediately —
 // there's no separate "recheck" step to wire up.
 
-import { useFrontExtraMm, usePhysicalCabinets } from '../../hooks/usePhysicalCabinets';
+import { useFrontExtraFor, usePhysicalCabinets } from '../../hooks/usePhysicalCabinets';
 import { storedPositionFromPhysicalCenter } from '../../lib/physicalDepth';
 import { Fragment, useState } from 'react';
 import type Konva from 'konva';
@@ -225,7 +225,7 @@ export function CabinetLayer({
   const cabinets = usePhysicalCabinets();
   const storedCabinets = useLayoutStore((state) => state.cabinets);
   const storedById = new Map(storedCabinets.map((c) => [c.id, c]));
-  const frontExtra = useFrontExtraMm();
+  const frontExtraFor = useFrontExtraFor();
   const pickAt = usePickAt();
   const obstacles = useLayoutStore((state) => state.obstacles);
   const appliances = useLayoutStore((state) => state.appliances);
@@ -422,7 +422,7 @@ export function CabinetLayer({
                   stored,
                   (node.x() - originX) / scale,
                   (node.y() - originY) / scale,
-                  frontExtra
+                  frontExtraFor(stored)
                 )
               );
               setDragState(null);
