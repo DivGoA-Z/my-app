@@ -5806,3 +5806,24 @@ door) and the rest of the front picker get the token restyle.
 - Cabinet lines are stacked rows (name and price, then size, front and
   handle, finish, hardware) instead of a five-column table squeezed
   into 400px.
+
+## 87. Design editor, stage 4: phone layout
+
+Tablet already worked (rail, slide-over panels, 44px targets). The
+phone didn't: the top bar ran off the right edge, and the tool rail ate
+a fifth of the plan's width.
+
+- **Top bar**: back, view tabs, a Room icon (`RoomSettingsPanel
+  compact`), and a **More** menu holding Cutting list, Quote and
+  Present. Before this, the Room button was simply hidden on phone,
+  so room size couldn't be changed there at all.
+- **Tools**: a strip of tabs along the bottom, above the total.
+- **Tool panels**: a **sheet rising from the bottom** (rounded, up to
+  62% of the height), leaving the top of the plan visible.
+- The quote and inspector panel was already full width on phone.
+
+Small item: "+ Add part" (Loose parts / Cabinet Designer) is now a
+normal-size button with an icon.
+
+The screenshot run photographs the phone tool sheet and More menu, and
+opens the cutting list through the menu.

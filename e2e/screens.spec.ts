@@ -155,7 +155,18 @@ test('design editor', async ({ page }) => {
   await page.screenshot({ path: `${dir}/08c-editor-checks.png` });
   await page.getByRole('button', { name: 'Close checks' }).click();
   // The job's cutting list, its three views (read-only).
-  await page.getByRole('button', { name: /Cutting list/ }).first().click();
+  // Phone: the tool sheet, then the cutting list from the More menu (§87).
+  if (test.info().project.name === 'phone') {
+    await page.getByRole('navigation', { name: 'Tools' }).getByRole('button', { name: 'Cabinets' }).click();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${dir}/08e-editor-tool-sheet.png` });
+    await page.getByRole('button', { name: 'Close panel' }).click();
+    await page.getByRole('button', { name: 'More' }).click();
+    await page.screenshot({ path: `${dir}/08f-editor-more.png` });
+    await page.getByRole('menuitem', { name: /Cutting list/ }).click();
+  } else {
+    await page.getByRole('button', { name: /Cutting list/ }).locator('visible=true').first().click();
+  }
   await expect(page.getByText(/Cutting list/).first()).toBeVisible();
   await page.waitForTimeout(1200);
   await page.screenshot({ path: `${dir}/09-cutlist.png`, fullPage: true });

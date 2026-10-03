@@ -27,6 +27,7 @@ import {
   DoorOpen,
   Lamp,
   Paintbrush,
+  MoreHorizontal,
   Presentation,
   ReceiptText,
   Redo2,
@@ -37,6 +38,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { Checkbox } from '../ui/checkbox';
 import { useLayoutStore } from '../../store/layoutStore';
 import { useBOM } from '../../hooks/useBOM';
@@ -223,7 +225,7 @@ export function DesignEditor({
         <Button variant="outline" size="icon-touch" onClick={onBack} aria-label="Back to customers">
           <ArrowLeft />
         </Button>
-        <div className="flex min-w-0 flex-col">
+        <div className="hidden min-w-0 flex-col sm:flex">
           <span className="truncate text-base font-bold">{currentProject?.clientName ?? 'Design'}</span>
           <span className="hidden truncate text-[13px] text-muted-foreground sm:block">
             {[currentProject?.locality, 'Kitchen'].filter(Boolean).join(' · ')}
@@ -239,7 +241,7 @@ export function DesignEditor({
                 aria-selected={view === v}
                 onClick={() => setView(v)}
                 className={cn(
-                  'h-9 rounded-[9px] px-3 text-sm font-semibold md:px-4',
+                  'h-9 rounded-[9px] px-2.5 text-sm font-semibold md:px-4',
                   view === v ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
                 )}
               >
@@ -260,18 +262,22 @@ export function DesignEditor({
         <div className="hidden md:block">
           <RoomSettingsPanel />
         </div>
+        <div className="md:hidden">
+          <RoomSettingsPanel compact />
+        </div>
         <Button variant="outline" size="touch" className="hidden lg:inline-flex" onClick={() => onOpenCutList()}>
           <Scissors /> Cutting list
         </Button>
         {/* Smaller screens: the same, as an icon, so the cutting list is
             always one tap from the design. */}
-        <Button variant="outline" size="icon-touch" className="lg:hidden" aria-label="Cutting list" onClick={() => onOpenCutList()}>
+        <Button variant="outline" size="icon-touch" className="hidden md:inline-flex lg:hidden" aria-label="Cutting list" onClick={() => onOpenCutList()}>
           <Scissors />
         </Button>
         {/* Open or close the quote panel (your request, §84). */}
         <Button
           variant={rightOpen && !inspector ? 'secondary' : 'outline'}
           size="touch"
+          className="hidden md:inline-flex"
           aria-pressed={quoteOpen}
           aria-label="Quote panel"
           onClick={() => {
@@ -281,9 +287,34 @@ export function DesignEditor({
         >
           <ReceiptText /> <span className="hidden md:inline">Quote</span>
         </Button>
-        <Button variant="outline" size="touch" onClick={onPresent}>
-          <Presentation /> <span className="hidden sm:inline">Present</span>
+        <Button variant="outline" size="touch" className="hidden md:inline-flex" onClick={onPresent}>
+          <Presentation /> Present
         </Button>
+        {/* Phone (§87): the three that don't fit go in one menu. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="icon-touch" className="md:hidden" aria-label="More">
+              <MoreHorizontal />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem className="min-h-11 text-[15px]" onSelect={() => onOpenCutList()}>
+              <Scissors /> Cutting list
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="min-h-11 text-[15px]"
+              onSelect={() => {
+                select(null);
+                setQuoteOpen(true);
+              }}
+            >
+              <ReceiptText /> Quote
+            </DropdownMenuItem>
+            <DropdownMenuItem className="min-h-11 text-[15px]" onSelect={onPresent}>
+              <Presentation /> Present to customer
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </header>
 
       {(loadError || saveError) && (
@@ -292,9 +323,15 @@ export function DesignEditor({
         </div>
       )}
 
-      <div className="relative flex min-h-0 flex-1">
-        {/* ---- Left rail + one tool panel ---- */}
-        <nav aria-label="Tools" className="flex w-[76px] shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-border bg-card py-3">
+      {/* Phone (§87): a column, with the tools as a strip of tabs along
+          the bottom and their panels rising as a sheet over the plan.
+          Tablet and up: a left rail with the panel beside it. */}
+      <div className="relative flex min-h-0 flex-1 flex-col md:flex-row">
+        {/* ---- Left rail (bottom strip on phone) + one tool panel ---- */}
+        <nav
+          aria-label="Tools"
+          className="order-last flex h-[72px] w-full shrink-0 flex-row items-center gap-1 overflow-x-auto border-t border-border bg-card px-2 md:order-none md:h-auto md:w-[76px] md:flex-col md:overflow-x-visible md:overflow-y-auto md:border-t-0 md:border-r md:px-0 md:py-3"
+        >
           {TOOLS.map(({ id, label, Icon }) => (
             <button
               key={id}
@@ -314,7 +351,7 @@ export function DesignEditor({
         {tool && (
           <aside
             aria-label={TOOLS.find((t) => t.id === tool)?.label}
-            className="absolute inset-y-0 left-[76px] z-20 flex w-[320px] max-w-[calc(100vw-76px)] flex-col border-r border-border bg-card shadow-float lg:static lg:shadow-none"
+            className="absolute inset-x-0 bottom-[72px] z-20 flex max-h-[62%] flex-col rounded-t-2xl border-t border-border bg-card shadow-float md:inset-x-auto md:inset-y-0 md:bottom-auto md:left-[76px] md:max-h-none md:w-[320px] md:max-w-[calc(100vw-76px)] md:rounded-none md:border-t-0 md:border-r lg:static lg:shadow-none"
           >
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <span className="text-[17px] font-semibold">{TOOLS.find((t) => t.id === tool)?.label}</span>

@@ -23,6 +23,7 @@
 // canvas and can drag it back in.
 
 import { useState } from 'react';
+import { Ruler } from 'lucide-react';
 import { useLayoutStore } from '../../store/layoutStore';
 import { Button } from '../ui/button';
 
@@ -32,7 +33,8 @@ import { Button } from '../ui/button';
 // worth a shared-constants module for one number).
 const DEFAULT_CEILING_HEIGHT_MM = 2700;
 
-export function RoomSettingsPanel() {
+// compact: an icon-only trigger, for the phone's top bar (§87).
+export function RoomSettingsPanel({ compact = false }: { compact?: boolean } = {}) {
   const currentLayout = useLayoutStore((state) => state.currentLayout);
   const updateRoomDimensions = useLayoutStore((state) => state.updateRoomDimensions);
   const setDepthIncludesFront = useLayoutStore((state) => state.setDepthIncludesFront);
@@ -69,9 +71,15 @@ export function RoomSettingsPanel() {
 
   return (
     <div className="relative">
-      <Button variant="outline" size="touch" onClick={handleOpen}>
-        Room
-      </Button>
+      {compact ? (
+        <Button variant="outline" size="icon-touch" aria-label="Room size" onClick={handleOpen}>
+          <Ruler />
+        </Button>
+      ) : (
+        <Button variant="outline" size="touch" onClick={handleOpen}>
+          Room
+        </Button>
+      )}
 
       {isOpen && (
         <div className="absolute right-0 top-full z-10 mt-2 flex w-56 flex-col gap-3 rounded-lg border border-gray-200 bg-white p-4 shadow-lg">

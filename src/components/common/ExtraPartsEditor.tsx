@@ -12,6 +12,7 @@
 // follow, so `requireBoard` hides that option and a new row starts on a
 // real board.
 
+import { Plus } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -178,8 +179,8 @@ export function ExtraPartsEditor({
           </table>
         </div>
       )}
-      <Button type="button" variant="outline" size="xs" className="self-start" onClick={addRow}>
-        + Add part
+      <Button type="button" variant="outline" size="touch" className="self-start" onClick={addRow}>
+        <Plus /> Add part
       </Button>
     </div>
   );

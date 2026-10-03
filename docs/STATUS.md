@@ -133,10 +133,12 @@ assumed settings, which is a check, not a blocker.
 
 0. **UI/UX overhaul in progress** (`docs/UX_PLAN.md`). Built: theme (Premium A),
    app shell, Home, Customers, Production, Catalogue, Rate card, Workshop,
-   Settings, sign-in; screenshot checks at 3 sizes (§68–§78). Editor stage 1 + 3D wall view + cutting list done (§81-83). Next:
-   editor stage 2 (tool panels as picture tiles), 3 (inspectors, quote),
-   4 (tablet/phone touch). The walkthrough
-   follows, on the new UI.
+   Settings, sign-in; screenshot checks at 3 sizes (§68–§78). Design editor
+   all four stages done (§81–§87): new frame, 3D wall elevation, cutting
+   list, tool panels as picture tiles, inspectors with big swatches and
+   front pictures, quote panel with pricing folded away, phone layout
+   (bottom tool strip, sheet panels, More menu). The overhaul is
+   functionally complete; the walkthrough follows, on the new UI.
 
 1. **Your end-to-end walkthrough** (`docs/WALKTHROUGH.md`): a new kitchen from scratch, checking
    functionality and basic calculations (not rates). Anything found goes
