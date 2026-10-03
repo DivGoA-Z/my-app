@@ -308,3 +308,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§71** Catalogue = `CatalogueSection` frames, most-used-first order, help behind "How this works"; sidebar sub-list with scroll-spy; cutting list reachable from a customer card.
 
 **§72** Production page (approved + in-production jobs; cutting list, install date, move along). Named Production to avoid clashing with Settings → Workshop. Cabinet Designer needs a scope banner when rebuilt.
+
+**§73** Premium A applied (dark forest sidebar + brass, shadow-card, eyebrow headers, material photos on design cards). Sidebar: Home · Customers · Production · Catalogue · Rate card · Workshop · Settings; phone uses More.

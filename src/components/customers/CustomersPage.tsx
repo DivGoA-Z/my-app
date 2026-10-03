@@ -264,7 +264,7 @@ export function CustomersPage({
           ))}
         </div>
       ) : customers.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-input bg-card px-6 py-14 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-input bg-card/60 px-6 py-14 text-center">
           <p className="text-[17px] font-semibold">No customers yet</p>
           <p className="max-w-md text-[15px] text-muted-foreground">
             Add your first customer, then start their kitchen design from the card.
@@ -309,7 +309,7 @@ export function CustomersPage({
                           draggable
                           onDragStart={() => setDragId(c.id)}
                           onDragEnd={() => setDragId(null)}
-                          className="flex cursor-grab flex-col gap-1 rounded-xl border border-border bg-card p-3 active:cursor-grabbing"
+                          className="flex cursor-grab flex-col gap-1 rounded-xl bg-card shadow-card p-3 active:cursor-grabbing"
                         >
                           <div className="flex items-start gap-1">
                             <button
@@ -357,7 +357,7 @@ export function CustomersPage({
             {listRows.map((c) => {
               const a = activity(c, quoteHistories[c.id], now);
               return (
-                <article key={c.id} className="flex items-center gap-3 rounded-xl border border-border bg-card p-3.5">
+                <article key={c.id} className="flex items-center gap-3 rounded-xl bg-card shadow-card p-3.5">
                   <button type="button" onClick={() => onOpenDesign(c.id)} className="min-w-0 flex-1 text-left">
                     <span className="block truncate text-base font-semibold">{c.clientName}</span>
                     <span className={cn('block truncate text-[13px]', a.late ? 'font-semibold text-warning-foreground' : 'text-muted-foreground')}>

@@ -24,6 +24,10 @@ vi.mock('../../lib/customers', () => ({
 }));
 vi.mock('../../lib/quotes', () => ({ fetchAllQuoteHistoriesByProject: vi.fn(async () => ({})) }));
 vi.mock('../../lib/Persistence', () => ({ fetchCapturedPanoramasByProject: vi.fn(async () => ({})) }));
+vi.mock('../../lib/designFinishes', async (orig) => ({
+  ...(await orig<typeof import('../../lib/designFinishes')>()),
+  fetchMainFinishIds: vi.fn(async () => ({})),
+}));
 
 function customer(id: string, status: CustomerProject['status'], extra: Partial<CustomerProject> = {}): CustomerProject {
   return { id, clientName: `Customer ${id}`, phone: '9999', address: '', locality: 'Rohini', status, createdAt: daysAgo(20), updatedAt: daysAgo(1), statusChangedAt: daysAgo(1), ...extra };

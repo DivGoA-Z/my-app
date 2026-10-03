@@ -77,7 +77,7 @@ export function FirstRunChecklist({
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 lg:p-5">
+    <section className="flex flex-col gap-3 rounded-2xl bg-card shadow-card p-4 lg:p-5">
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-0.5">
           <h2 className="text-[17px] font-semibold">Getting started</h2>

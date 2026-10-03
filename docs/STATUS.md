@@ -65,7 +65,7 @@ merged to `main`.
 
 ## Tests
 
-`npm test` (Vitest): **122 tests**. 102 cover pricing, the cutting list,
+`npm test` (Vitest): **125 tests**. 102 cover pricing, the cutting list,
 nesting, panels, the importer, physical depth and the pipeline rules. 20
 screen tests (React Testing Library) cover the rate card, boards, Cabinet
 Designer, charges, the Cutting List, the quote's version list, Home and
@@ -131,8 +131,9 @@ assumed settings, which is a check, not a blocker.
 
 ## Next
 
-0. **UI/UX overhaul in progress** (`docs/UX_PLAN.md`). Built: theme, app
-   shell, Home, Customers, Settings (§68–§70). Next: the design editor,
+0. **UI/UX overhaul in progress** (`docs/UX_PLAN.md`). Built: theme (Premium A),
+   app shell, Home, Customers, Production, Catalogue, Rate card, Workshop,
+   Settings (§68–§73). Next: the design editor,
    then inspectors and quote, cutting list, catalogue. The walkthrough
    follows, on the new UI.
 

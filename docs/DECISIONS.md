@@ -5305,3 +5305,41 @@ under the title. When the Designer is rebuilt it gets a coloured banner
 naming the scope.
 
 1 test (123).
+
+## 73. Premium A ("Atelier") applied; Rate card and Workshop on the sidebar
+
+You chose **Premium A** over B (Editorial, serif), after saying the
+first screens weren't "premium enough to show" a customer. Applied to
+everything built so far:
+- **Theme tokens (`src/index.css`).**
+  - The sidebar tokens are now dark forest #10261F with brass #C8A24A
+    (mark, current-page dot, phone active tab).
+  - New tokens: `brass`, `shadow-card` (soft two-layer), `shadow-float`
+    and `shadow-cta`.
+  - Paper is #F7F6F3.
+- **Cards float on `shadow-card` instead of a grey outline**, across
+  Home, Customers, Production, Catalogue sections and the checklist.
+- **Page headers**: an uppercase letter-spaced eyebrow over an
+  extra-bold, tightly tracked title.
+- **Home**:
+  - The four numbers are one hairline-divided white strip, not four
+    equal boxes.
+  - "Continue designing" cards are topped with the **design's main
+    material**: the finish most of its cabinets use, as its photo, its
+    generated texture, or its colour (`lib/designFinishes.ts`; one small
+    `layouts` query for up to 6 projects, best-effort).
+  - Follow-up avatars are tinted.
+
+**Navigation (your order):** Home · Customers · Production · Catalogue
+· **Rate card** · **Workshop** · Settings.
+- Rate card and Workshop moved out of Settings onto the sidebar, and
+  Settings now holds only the account.
+- The standalone `workshop` view and `WorkshopSettingsPage` are gone.
+  The Workshop sidebar page replaces both, and opening it from a cutting
+  list shows "← Back to cutting list".
+- **Phone**: seven tabs don't fit, so it shows Home, Customers,
+  Production and Catalogue, plus **More**, a bottom sheet with Rate
+  card, Workshop, Settings and Sign out.
+
+Tests: 2 for the material picker (125 in total). **Still not seen in a
+browser**: no screenshot tooling exists yet (see STATUS).

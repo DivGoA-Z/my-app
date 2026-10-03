@@ -66,7 +66,7 @@ export function ProductionPage({
           ))}
         </div>
       ) : jobs.length === 0 ? (
-        <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-input bg-card px-6 py-14 text-center">
+        <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-input bg-card/60 px-6 py-14 text-center">
           <p className="text-[17px] font-semibold">No approved jobs yet</p>
           <p className="max-w-md text-[15px] text-muted-foreground">
             When a customer approves, move them to Approved on the Customers page and the job appears here.
@@ -88,7 +88,7 @@ export function ProductionPage({
                   return (
                     <article
                       key={c.id}
-                      className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-2xl border border-border bg-card px-4 py-4 md:px-5"
+                      className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-2xl bg-card shadow-card px-4 py-4 md:px-5"
                     >
                       <button type="button" onClick={() => onOpenDesign(c.id)} className="min-w-[180px] flex-1 text-left">
                         <span className="block text-base font-semibold">{c.clientName}</span>

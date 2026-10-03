@@ -37,7 +37,7 @@ export function CatalogueSection({
     <section
       id={catalogueSectionElementId(id)}
       aria-labelledby={`${catalogueSectionElementId(id)}-title`}
-      className="scroll-mt-20 rounded-2xl border border-border bg-card lg:scroll-mt-6"
+      className="scroll-mt-20 rounded-2xl bg-card shadow-card lg:scroll-mt-6"
     >
       <header className="flex flex-wrap items-start gap-4 border-b border-border px-4 py-4 md:px-6 md:py-5">
         <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground">

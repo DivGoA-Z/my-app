@@ -31,13 +31,14 @@ import { WallElevationView } from './components/elevation/WallElevationView';
 import { QuoteSidebar } from './components/quote/QuoteSidebar';
 import { PresentMode } from './components/present/PresentMode';
 import { CutListView } from './components/cutlist/CutListView';
-import { WorkshopSettingsPage } from './components/workshop/WorkshopSettingsPage';
+import { ConstructionSettingsManager } from './components/workshop/ConstructionSettingsManager';
+import { RateCardManager } from './components/inventory/RateCardManager';
 import { CabinetDesignerPage, type DesignerTarget } from './components/designer/CabinetDesignerPage';
 import { AppShell, PageHeader, type ShellPage } from './components/shell/AppShell';
 import { HomePage } from './components/home/HomePage';
 import { CustomersPage } from './components/customers/CustomersPage';
 import { ProductionPage } from './components/production/ProductionPage';
-import { SettingsPage, type SettingsTab } from './components/settings/SettingsPage';
+import { SettingsPage } from './components/settings/SettingsPage';
 import { useLayoutStore } from './store/layoutStore';
 import { useAuthStore } from './store/authStore';
 import { LoginScreen } from './components/auth/LoginScreen';
@@ -64,9 +65,10 @@ type View =
   | 'customers'
   | 'production'
   | 'catalogue'
+  | 'rates'
+  | 'workshop'
   | 'settings'
   | 'canvas'
-  | 'workshop'
   | 'designer'
   | 'preview3d'
   | 'elevation'
@@ -78,7 +80,6 @@ function App() {
   // Where the catalogue's "Back to design" and the Workshop page's Back
   // return to — set when they're opened from inside a design.
   const [previousView, setPreviousView] = useState<View>('home');
-  const [settingsTab, setSettingsTab] = useState<SettingsTab>('rates');
   const [designerTarget, setDesignerTarget] = useState<DesignerTarget | null>(null);
   // Where the Designer's Back goes. Its OWN slot, not previousView:
   // Manage Inventory's Back reads previousView, so reusing it would make
@@ -214,7 +215,6 @@ function App() {
 
   function navigate(page: ShellPage) {
     setPreviousView(page);
-    if (page === 'settings') setSettingsTab('rates');
     setView(page);
   }
 
@@ -271,8 +271,6 @@ function App() {
         }}
       />
     );
-  } else if (view === 'workshop') {
-    content = <WorkshopSettingsPage onBack={() => setView(previousView)} />;
   } else if (view === 'elevation') {
     content = <WallElevationView onClose={() => setView('canvas')} />;
   } else if (view === 'present') {
@@ -298,6 +296,8 @@ function App() {
     view === 'home' ||
     view === 'customers' ||
     view === 'production' ||
+    view === 'rates' ||
+    view === 'workshop' ||
     view === 'settings'
   ) {
     content = (
@@ -307,7 +307,30 @@ function App() {
         )}
         {view === 'customers' && <CustomersPage onOpenDesign={handleOpenCanvas} onOpenCutList={openJobCutList} />}
         {view === 'production' && <ProductionPage onOpenDesign={handleOpenCanvas} onOpenCutList={openJobCutList} />}
-        {view === 'settings' && <SettingsPage key={settingsTab} initialTab={settingsTab} />}
+        {view === 'rates' && (
+          <div className="flex flex-col gap-5 px-4 py-6 md:px-8 lg:px-10 lg:py-8">
+            <PageHeader title="Rate card" subtitle="What things cost you" />
+            <div className="max-w-5xl">
+              <RateCardManager />
+            </div>
+          </div>
+        )}
+        {view === 'workshop' && (
+          <div className="flex flex-col gap-5 px-4 py-6 md:px-8 lg:px-10 lg:py-8">
+            {/* Opened from a cutting list's "Workshop settings" link: one
+                tap back to it. */}
+            {previousView === 'cutlist' && (
+              <Button variant="outline" size="touch" className="self-start" onClick={() => setView('cutlist')}>
+                ← Back to cutting list
+              </Button>
+            )}
+            <PageHeader title="Workshop" subtitle="How your workshop builds" />
+            <div className="max-w-3xl">
+              <ConstructionSettingsManager />
+            </div>
+          </div>
+        )}
+        {view === 'settings' && <SettingsPage />}
         {view === 'catalogue' && (
           <div className="flex flex-col gap-5 px-4 py-6 md:px-8 lg:px-10 lg:py-8">
             {/* Opened from a toolbar's "Manage" inside a design: one tap back. */}

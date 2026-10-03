@@ -211,6 +211,9 @@ check it on laptop, tablet and phone.
   strip, material-photo design cards) and **B Editorial** (serif display
   type, a material hero band, magazine-style spacing).
 
+- 3 Oct: **Premium A chosen** and applied to all built screens; Rate card
+  and Workshop moved onto the sidebar after Catalogue (§73).
+
 ## Review links
 
 - **3 Oct 2026 — design system v0.1 + design editor (laptop, tablet,
