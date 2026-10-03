@@ -205,6 +205,8 @@ Obligations, not suggestions:
   roadmap.
 - `docs/AFTER_FIRST_CUSTOMERS.md` — work parked until a few customers
   are onboarded, its principles, and the before-customer-#1 list.
+- `docs/WALKTHROUGH.md` — the end-to-end manual test script with expected
+  numbers; the basis for the browser tests.
 - `docs/STATUS.md`: snapshot for planning conversations outside the repo.
 - `docs/ISSUES.md` (open) / `docs/ISSUES-FIXED.md` (resolved, dated).
 - `docs/SUPABASE_SETUP.md`, `docs/SETUP_NEW_MACHINE.md`: environment.
