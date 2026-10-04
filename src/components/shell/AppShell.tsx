@@ -54,7 +54,18 @@ const PHONE_TABS: ShellPage[] = ['home', 'customers', 'production', 'catalogue']
 
 // The business's initial on a brass tile — a stand-in until a business
 // can upload its logo (Settings → Business, not built yet).
-function BusinessMark({ name }: { name: string }) {
+// The business's logo when it has one (§95), on a white tile so a dark
+// or transparent logo still reads on the dark sidebar; otherwise, or if
+// the image fails to load, the first letter of the name.
+function BusinessMark({ name, logoUrl }: { name: string; logoUrl: string | null }) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  if (logoUrl && failedUrl !== logoUrl) {
+    return (
+      <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1">
+        <img src={logoUrl} alt={`${name} logo`} className="max-h-full max-w-full object-contain" onError={() => setFailedUrl(logoUrl)} />
+      </div>
+    );
+  }
   return (
     <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-sidebar-primary text-[17px] font-extrabold text-sidebar-primary-foreground">
       {name.trim().charAt(0).toUpperCase() || 'K'}
@@ -72,6 +83,7 @@ export function AppShell({
   children: ReactNode;
 }) {
   const businessName = useAuthStore((s) => s.businessName) ?? 'Your business';
+  const logoUrl = useAuthStore((s) => s.businessProfile?.logoUrl ?? null);
   const email = useAuthStore((s) => s.session?.user.email) ?? '';
   const signOut = useAuthStore((s) => s.signOut);
   const activeSection = useActiveCatalogueSection(page === 'catalogue');
@@ -84,7 +96,7 @@ export function AppShell({
         className="sticky top-0 hidden h-dvh w-[80px] shrink-0 flex-col items-center gap-1 overflow-y-auto bg-sidebar py-5 text-sidebar-foreground md:flex lg:w-[256px] lg:items-stretch lg:px-4"
       >
         <div className="mb-5 flex items-center gap-3 lg:px-2">
-          <BusinessMark name={businessName} />
+          <BusinessMark name={businessName} logoUrl={logoUrl} />
           <span className="hidden truncate text-[15px] font-bold text-white lg:block">{businessName}</span>
         </div>
         {NAV.map(({ page: p, label, Icon }) => (

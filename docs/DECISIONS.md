@@ -6065,3 +6065,14 @@ Jakarta Sans and the name from the business record. The header with
 logo and GSTIN is tested by reading the generated PDF back
 (`quotePdf.test.ts`). It isn't seen with a real logo, because uploads
 need the schema re-run first.
+
+## 95. The logo in the sidebar too
+
+The uploaded logo (§94) replaces the letter badge at the top of the
+sidebar, beside the business name. It sits on a small white tile,
+because most logos are dark or transparent and the sidebar is dark
+green. Without a logo, or if the image fails to load, the badge shows
+the first letter as before. Screen-tested (`AppShell.test.tsx`). The
+phone has no sidebar header, only bottom tabs, so nothing changes
+there. Not yet seen with a real logo: uploads need `schema.sql`
+re-run first.
