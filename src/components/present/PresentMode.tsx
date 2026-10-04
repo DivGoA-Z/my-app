@@ -121,7 +121,7 @@ export function PresentMode({ widthMm, depthMm, onExit }: PresentModeProps) {
         <main className="relative flex min-w-0 flex-1 flex-col">
           {subView === '3d' ? (
             <div className="flex-1 overflow-y-auto p-4 md:p-6">
-              <Room3DCanvas widthMm={widthMm} depthMm={depthMm} />
+              <Room3DCanvas widthMm={widthMm} depthMm={depthMm} inspectorOverlay />
             </div>
           ) : (
             <div ref={measure} className="pointer-events-none relative flex min-h-0 flex-1 items-center justify-center overflow-hidden">

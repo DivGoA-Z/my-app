@@ -28,17 +28,28 @@
 // cabinet dimension labels and remaining-space gaps already on
 // screen, so it lives only here now.
 //
+// §92 revisited both choices above after real use: a wall of identical
+// outlines with every number behind a click did not work for its one
+// job, checking sizes and the space between items. Now the numbers sit
+// OUTSIDE the drawing as running dimension chains (lib/elevationDims.ts),
+// which is how architectural elevations avoid the clutter argued above:
+// base run along the bottom, wall-unit run along the top, key heights on
+// the left, overall length, gaps in amber; a size too wide for its span
+// steps out to a second row. Items get a light fill by kind and their
+// name and width inside when they fit. Click-to-measure stays, for the
+// pockets the chains don't cover.
+//
 // Read-only otherwise, deliberately: this is a reference drawing, not
 // a second place to edit a layout from. Click-to-SELECT-and-edit can
 // come later if it turns out to be wanted.
 
 import { usePhysicalCabinets } from '../../hooks/usePhysicalCabinets';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import type Konva from 'konva';
 import { Stage, Layer, Rect, Text, Line, Arrow } from 'react-konva';
 import { Button } from '../ui/button';
 import { useLayoutStore } from '../../store/layoutStore';
-import { computeRoomScale } from '../../lib/canvasScale';
+import { BASE_BAND, WALL_BAND, bandChain, heightLevels, type ChainSegment } from '../../lib/elevationDims';
 import { computeWallElevationItems } from '../../lib/surfaceAreas';
 import type { WallElevationItem, WallElevationItemKind } from '../../lib/surfaceAreas';
 import { OBSTACLE_TYPE_LABELS } from '../../types/layout';
@@ -101,6 +112,23 @@ function itemLabel(item: WallElevationItem): string {
 
 const MAX_WIDTH_PX = 900;
 const MAX_HEIGHT_PX = 500;
+
+// Space around the wall for the dimension chains (§92).
+const MARGIN = { left: 92, right: 28, top: 70, bottom: 104 };
+
+// Light fills by kind (§92). The drawing began outline-only on the
+// argument that colour isn't needed to read structure; in use, a dense
+// wall of identical outlines didn't read at all. Cabinets warm, appliances
+// cool, pillars hatched grey, openings left white.
+const ITEM_FILL: Record<WallElevationItemKind, string> = {
+  cabinet: '#f1ebe1',
+  appliance: '#e2e8ee',
+  obstacle: '#dcd8d0',
+  opening: '#ffffff',
+};
+const INK = '#2f2d29';
+const GAP_INK = '#b45309';
+const DIM_INK = '#57534b';
 
 const DEFAULT_CEILING_HEIGHT_MM = 2700;
 
@@ -198,12 +226,14 @@ export function WallElevationView({
   orientation: controlledOrientation,
   onOrientationChange,
   maxWidthPx,
+  maxHeightPx,
 }: {
   onClose?: () => void;
   embedded?: boolean;
   orientation?: WallOrientation;
   onOrientationChange?: (o: WallOrientation) => void;
   maxWidthPx?: number;
+  maxHeightPx?: number;
 }) {
   const [ownOrientation, setOwnOrientation] = useState<WallOrientation>('north');
   const orientation = controlledOrientation ?? ownOrientation;
@@ -218,9 +248,11 @@ export function WallElevationView({
   const obstacles = useLayoutStore((state) => state.obstacles);
 
   if (!currentLayout) return null;
-  // Embedded: as wide as the editor allows, minus the 224px info panel
-  // and its gap beside the drawing.
-  const drawingWidthPx = maxWidthPx ? Math.max(360, Math.min(1400, maxWidthPx - 240)) : MAX_WIDTH_PX;
+  // Embedded: the whole width the editor gives (the click panel sits
+  // under the drawing since §92), and the height left after the legend
+  // and that panel.
+  const drawingWidthPx = maxWidthPx ? Math.max(360, Math.min(1600, maxWidthPx)) : MAX_WIDTH_PX;
+  const drawingHeightPx = maxHeightPx ? Math.max(340, maxHeightPx - 100) : MAX_HEIGHT_PX;
 
   const { widthMm: roomWidthMm, depthMm: roomDepthMm } = currentLayout.dimensions;
   const wallHeightMm = currentLayout.dimensions.ceilingHeightMm ?? DEFAULT_CEILING_HEIGHT_MM;
@@ -237,12 +269,18 @@ export function WallElevationView({
     appliances
   );
 
-  const { scale, originX, originY } = computeRoomScale(
-    wallLengthMm,
-    wallHeightMm,
-    drawingWidthPx,
-    MAX_HEIGHT_PX
+  // Own margins rather than computeRoomScale's even padding: the
+  // dimension chains (§92) need room below (base run + overall length),
+  // above (wall-unit run) and left (heights).
+  const scale = Math.min(
+    (drawingWidthPx - MARGIN.left - MARGIN.right) / wallLengthMm,
+    (drawingHeightPx - MARGIN.top - MARGIN.bottom) / wallHeightMm
   );
+  const originX = MARGIN.left + Math.max(0, (drawingWidthPx - MARGIN.left - MARGIN.right - wallLengthMm * scale) / 2);
+  const originY = MARGIN.top;
+  const baseChain = bandChain(items, wallLengthMm, BASE_BAND);
+  const wallChain = bandChain(items, wallLengthMm, WALL_BAND);
+  const levels = heightLevels(items, wallHeightMm);
   const wallWidthPx = wallLengthMm * scale;
   const wallHeightPx = wallHeightMm * scale;
 
@@ -315,16 +353,15 @@ export function WallElevationView({
       </div>
       )}
 
-      <p className="text-xs text-gray-500">
-        Outline reference only — read-only, no material or colour. Cabinets solid, appliances
-        short-dashed, obstacles long-dashed, openings dotted. Click anything — an item or empty
-        space — for its exact dimensions.
+      <p className="text-[13px] text-muted-foreground">
+        Running sizes: base level along the bottom, wall units along the top, heights on the left,{' '}
+        <span className="font-semibold text-[#b45309]">gaps in amber</span>. Tap anything, an item or empty space, for its exact size.
       </p>
 
-      <div className="flex flex-wrap gap-4">
+      <div className="flex flex-col gap-3">
         <Stage
-          width={wallWidthPx + originX * 2}
-          height={wallHeightPx + originY * 2}
+          width={drawingWidthPx}
+          height={wallHeightPx + MARGIN.top + MARGIN.bottom}
           onClick={handleStageClick}
           onTap={handleStageClick}
         >
@@ -353,26 +390,63 @@ export function WallElevationView({
               listening={false}
             />
 
-            {items.map((item) => {
+            {/* Openings first so units drawn over a window still read. */}
+            {[...items].sort((a, b) => (a.kind === 'opening' ? -1 : 0) - (b.kind === 'opening' ? -1 : 0)).map((item) => {
               // Mirrored walls flip which edge is the screen-left one,
               // so the smaller screen-x has to be picked explicitly
               // rather than assumed to be alongMmToX(item.alongMm).
               const xNear = alongMmToX(item.alongMm);
               const xFar = alongMmToX(item.alongMm + item.extentMm);
+              const x = Math.min(xNear, xFar);
+              const w = Math.abs(xFar - xNear);
+              const y = heightMmToY(item.topMm);
+              const h = (item.topMm - item.bottomMm) * scale;
+              // Name and width inside the box when they fit; the chains
+              // carry the numbers either way.
+              const fits = w >= 44 && h >= 30;
               return (
-                <Rect
-                  key={`${item.kind}-${item.id}`}
-                  x={Math.min(xNear, xFar)}
-                  y={heightMmToY(item.topMm)}
-                  width={Math.abs(xFar - xNear)}
-                  height={(item.topMm - item.bottomMm) * scale}
-                  stroke="#1f2937"
-                  strokeWidth={1.25}
-                  dash={ITEM_DASH[item.kind]}
-                  listening={false}
-                />
+                <Fragment key={`${item.kind}-${item.id}`}>
+                  <Rect
+                    x={x}
+                    y={y}
+                    width={w}
+                    height={h}
+                    fill={ITEM_FILL[item.kind]}
+                    stroke={INK}
+                    strokeWidth={1.1}
+                    dash={ITEM_DASH[item.kind]}
+                    listening={false}
+                  />
+                  {fits && (
+                    <Text
+                      x={x + 3}
+                      y={y + 3}
+                      width={w - 6}
+                      height={h - 6}
+                      align="center"
+                      verticalAlign="middle"
+                      text={`${itemLabel(item)}\n${Math.round(item.extentMm)}`}
+                      fontSize={11}
+                      lineHeight={1.25}
+                      fill={DIM_INK}
+                      ellipsis
+                      listening={false}
+                    />
+                  )}
+                </Fragment>
               );
             })}
+
+            {/* ---- Running dimensions (§92) ---- */}
+            <DimChain segments={wallChain} y={originY - 26} toX={alongMmToX} outward={-1} />
+            <DimChain segments={baseChain} y={originY + wallHeightPx + 24} toX={alongMmToX} />
+            <DimChain
+              segments={[{ startMm: 0, endMm: wallLengthMm, kind: 'item' }]}
+              y={originY + wallHeightPx + 74}
+              toX={alongMmToX}
+              bold
+            />
+            <HeightChain levels={levels} x={originX - 26} toY={heightMmToY} />
 
             {clickInfo && (
               <>
@@ -449,23 +523,128 @@ export function WallElevationView({
           </Layer>
         </Stage>
 
-        <div className="w-56 shrink-0 rounded-lg border border-gray-200 bg-white p-3 text-xs">
+        <div className="flex min-h-12 flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-border bg-card px-4 py-2.5 text-sm">
           {clickInfo ? (
             <>
-              <h4 className="mb-1 font-semibold text-gray-700">{clickInfo.title}</h4>
-              <div className="flex flex-col gap-0.5 text-gray-600">
-                {clickInfo.lines.map((line) => (
-                  <span key={line}>{line}</span>
-                ))}
-              </div>
+              <span className="font-semibold">{clickInfo.title}</span>
+              {clickInfo.lines.map((line) => (
+                <span key={line} className="text-muted-foreground">
+                  {line}
+                </span>
+              ))}
             </>
           ) : (
-            <span className="text-gray-400">
-              Click anything on the drawing — an item or empty space — to see its dimensions.
-            </span>
+            <span className="text-muted-foreground">Tap an item or an empty space on the drawing to see its exact size.</span>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+// A run of dimensions along the wall at one height: tick at every
+// boundary, the size centred over each span, gaps in amber (§92). A size
+// too wide for its span (a 150mm filler) moves out to a second row with
+// a short leader, rather than disappearing — that filler is exactly the
+// number someone checking the wall needs.
+function DimChain({
+  segments,
+  y,
+  toX,
+  bold,
+  outward = 1,
+}: {
+  segments: ChainSegment[];
+  y: number;
+  toX: (alongMm: number) => number;
+  bold?: boolean;
+  // Which side a squeezed label moves to: 1 below the line, -1 above.
+  outward?: 1 | -1;
+}) {
+  if (segments.length === 0) return null;
+  return (
+    <>
+      {segments.map((seg, i) => {
+        const a = toX(seg.startMm);
+        const b = toX(seg.endMm);
+        const x0 = Math.min(a, b);
+        const x1 = Math.max(a, b);
+        const color = seg.kind === 'gap' ? GAP_INK : DIM_INK;
+        const text = `${Math.round(seg.endMm - seg.startMm)}`;
+        const fits = x1 - x0 >= text.length * 6.5 + 6;
+        return (
+          <Fragment key={i}>
+            <Line points={[x0, y, x1, y]} stroke={color} strokeWidth={bold ? 1.4 : 1} listening={false} />
+            <Line points={[x0, y - 5, x0, y + 5]} stroke={DIM_INK} strokeWidth={1} listening={false} />
+            <Line points={[x1, y - 5, x1, y + 5]} stroke={DIM_INK} strokeWidth={1} listening={false} />
+            {fits ? (
+              <Text
+                x={x0}
+                y={y - 15}
+                width={x1 - x0}
+                align="center"
+                text={text}
+                fontSize={11}
+                fontStyle={bold || seg.kind === 'gap' ? 'bold' : 'normal'}
+                fill={color}
+                listening={false}
+              />
+            ) : (
+              <>
+                <Line points={[(x0 + x1) / 2, y, (x0 + x1) / 2, y + outward * 14]} stroke={color} strokeWidth={0.8} listening={false} />
+                <Text
+                  x={(x0 + x1) / 2 - 24}
+                  y={outward > 0 ? y + 15 : y - 30}
+                  width={48}
+                  align="center"
+                  text={text}
+                  fontSize={11}
+                  fontStyle={seg.kind === 'gap' ? 'bold' : 'normal'}
+                  fill={color}
+                  listening={false}
+                />
+              </>
+            )}
+          </Fragment>
+        );
+      })}
+    </>
+  );
+}
+
+// Key heights up the left side: each step's size, plus the level
+// itself at each tick (floor 0, worktop 850, …).
+function HeightChain({ levels, x, toY }: { levels: number[]; x: number; toY: (heightMm: number) => number }) {
+  return (
+    <>
+      {levels.slice(1).map((top, i) => {
+        const bottom = levels[i];
+        const yTop = toY(top);
+        const yBottom = toY(bottom);
+        const fits = yBottom - yTop >= 16;
+        return (
+          <Fragment key={top}>
+            <Line points={[x, yTop, x, yBottom]} stroke={DIM_INK} strokeWidth={1} listening={false} />
+            {fits && (
+              <Text
+                x={x - 46}
+                y={yTop}
+                width={40}
+                height={yBottom - yTop}
+                align="right"
+                verticalAlign="middle"
+                text={`${top - bottom}`}
+                fontSize={11}
+                fill={DIM_INK}
+                listening={false}
+              />
+            )}
+          </Fragment>
+        );
+      })}
+      {levels.map((level) => (
+        <Line key={`t${level}`} points={[x - 5, toY(level), x + 5, toY(level)]} stroke={DIM_INK} strokeWidth={1} listening={false} />
+      ))}
+    </>
   );
 }

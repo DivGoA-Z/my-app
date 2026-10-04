@@ -129,7 +129,7 @@ export function DesignEditor({
   // Elevation: the measured drawing or the 3D wall view, for one wall.
   const [elevMode, setElevMode] = useState<'drawing' | '3d'>('3d');
   const [elevWall, setElevWall] = useState<WallOrientation>('north');
-  const { measure: measureElev, width: elevWidth } = useElementSize<HTMLDivElement>();
+  const { measure: measureElev, width: elevWidth, height: elevHeight } = useElementSize<HTMLDivElement>();
   // Open the cabinets panel on a laptop; on a tablet or phone the plan
   // starts uncovered (the panel would sit over it).
   const [tool, setTool] = useState<Tool | null>(() =>
@@ -467,20 +467,22 @@ export function DesignEditor({
                       type="button"
                       role="radio"
                       aria-checked={elevWall === w}
+                      aria-label={`${w} wall`}
                       onClick={() => setElevWall(w)}
                       className={cn(
                         'h-9 rounded-full px-3.5 text-sm font-semibold capitalize',
                         elevWall === w ? 'bg-foreground text-background' : 'bg-secondary text-muted-foreground hover:text-foreground'
                       )}
                     >
-                      {w} wall
+                      {w}
+                      <span className="hidden sm:inline"> wall</span>
                     </button>
                   ))}
                 </div>
               </div>
               <div ref={measureElev} className="min-h-0 flex-1 overflow-auto p-4 md:p-6">
                 {elevMode === 'drawing' ? (
-                  <WallElevationView embedded orientation={elevWall} onOrientationChange={setElevWall} maxWidthPx={elevWidth} />
+                  <WallElevationView embedded orientation={elevWall} onOrientationChange={setElevWall} maxWidthPx={elevWidth - 48} maxHeightPx={elevHeight - 48} />
                 ) : (
                   <Room3DCanvas widthMm={roomWidthMm} depthMm={roomDepthMm} wallView={elevWall} />
                 )}

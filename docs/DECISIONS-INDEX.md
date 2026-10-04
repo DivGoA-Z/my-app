@@ -346,3 +346,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§90** 3D controls restyled ("Look from"; 360° tools + calibration in one fold); 3D overlay and 360° viewer restyled; fix: editor main lacked min-h-0, squashing the phone tool strip in 3D.
 
 **§91** Drag to place from Cabinets/Appliances/Pillars tiles: preview outline with front edge; auto-turn to face the room within depth (≥600mm) of a wall; cabinets snap in physical size then convert to stored (§61); touch = hold or sideways move. lib/placement.ts tested.
+
+**§92** Elevation drawing: running dimension chains outside the drawing (base/wall runs, heights, overall, gaps amber; lib/elevationDims.ts, tested; cabinets keep widths under a straddling hob). 3D wall view: neutral backdrop, 20° lens, corner ghosts clipped to the corner, no ceiling pendants, shadow key light, phone fills height. 3D floating inspector only in Present mode.

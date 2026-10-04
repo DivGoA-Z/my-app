@@ -5935,3 +5935,57 @@ screenshot run cancels with Escape, so nothing is saved.
 **Not verified**: touch on a real tablet or phone (hold timing versus
 scrolling), and appliance facing in 3D after a turned drop (the models
 are meant to face +y at 0° like cabinets; not checked by eye).
+
+## 92. Elevation views rethought; 3D pop-up only in Present mode
+
+Your review: the drawing was meant for checking each item's size and
+the space between items, and the 3D view for a better look. Both were
+failing.
+
+**Drawing: running dimensions** (`lib/elevationDims.ts`, 11 tests).
+The old drawing was bare outlines in less than half the width, with
+every number behind a click (chosen originally because labels on small
+items cluttered). It now follows architectural elevations, with the
+numbers OUTSIDE the drawing:
+- the base run along the bottom (each item's width, gaps in amber);
+- the wall-unit run along the top;
+- key heights up the left (floor → counter → underside of wall
+  units → their top → ceiling);
+- the overall wall length.
+
+A size too wide for its span (a 150mm filler) steps out to a second
+row with a leader rather than vanishing. Items get light fills by kind
+and their name and width inside when they fit. It fills the editor's
+width, and the click-to-measure panel moved under the drawing.
+- **A merge rule that broke on a real kitchen**: merging every
+  overlapping span turned two 600 cabinets under a straddling hob into
+  one "1200". Now each cabinet keeps its width, an appliance within
+  the cabinet run is left out, and a free-standing one (a fridge) is
+  its own span. Both cases are tests.
+- On Neha Verma's west wall the chain shows what clicking never
+  surfaced: an 18mm gap at the start, 15mm between two base units, and
+  a 150mm filler (18+588+650+15+600+600+150+750 = 3371).
+
+**3D wall view.** The wall *was* drawn; the problems were framing and
+readability:
+- **Sky-blue backdrop** around a narrow wall read as open air. It's
+  now a neutral sheet, darker than the wall so the wall's edge shows.
+- **Top cut off**: units stand 600mm proud of the wall, nearer the
+  camera than the plane the fit was measured on. The lens is now 20°
+  (was 28°), with a larger margin.
+- **Corner pieces from the next wall** were whole translucent volumes
+  that spilled over this wall's units in perspective. Now only the
+  corner they occupy (650mm off this wall) is drawn, in opaque matte
+  grey.
+- **Ceiling pendants hung in front of the units.** The wall view now
+  shows only lights on the units shown or on this wall.
+- **Flat, washed-out fronts.** A light from the camera was tried first
+  and made it worse. Now there's a key light from high on the left
+  casting the units' shadows onto the wall, which is what gives depth.
+- **Phone**: the frame fills the height that's left, and the camera
+  fits the frame's real shape. A fixed 4:5 ran under the tool strip.
+  The wall buttons read North/East/South/West on a phone.
+
+**The floating cabinet panel over 3D appears only in Present mode**
+(`inspectorOverlay`). The editor already shows the selection in its
+right-hand inspector.

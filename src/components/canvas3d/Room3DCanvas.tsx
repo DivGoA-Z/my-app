@@ -56,6 +56,7 @@
 //
 // Install: npm install three @react-three/fiber @react-three/drei
 
+import { cn } from '@/lib/utils';
 import { Camera as CameraIcon, ChevronDown, Eye, Trash2 } from 'lucide-react';
 import { usePhysicalCabinets } from '../../hooks/usePhysicalCabinets';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -102,6 +103,7 @@ import { resolveAllFixtures, selectRealLights, maxLightsFor } from '../../lib/fi
 import { useLightQuality } from '../../hooks/useLightQuality';
 import type { FixturePlacement } from '../../lib/fixtures';
 import { isLinear, isVisibleWhenClosed, isDirectional, defaultThrowFor } from '../../types/fixture';
+import type { FixtureMount } from '../../types/fixture';
 import type { WallOpening } from '../../types/opening';
 import { cabinetFrontBreakdown, carcassBands } from '../../lib/fronts';
 import { frontThicknessMm } from '../../lib/physicalDepth';
@@ -118,10 +120,16 @@ import type { PlacedApplianceItem, ApplianceType } from '../../types/appliance';
 export interface Room3DCanvasProps {
   widthMm: number;
   depthMm: number;
-  // The 3D wall view (§82): look straight at one wall from across the
-  // room, the wall behind the camera removed, like the wall views in
-  // SketchUp / Planner 5D. Hides the walkthrough and capture controls.
+  // The 3D wall view: one wall and the units against it, seen straight
+  // on (§84, §92). Hides the walkthrough and capture controls. (This
+  // comment described §82's camera across the room with the near wall
+  // removed; §84 replaced that with the wall taken apart.)
   wallView?: WallOrientation;
+  // The floating cabinet panel over the 3D view when a cabinet is
+  // clicked (§92). Only Present mode wants it; the editor shows the
+  // same selection in its right-hand inspector, and the two at once
+  // were one too many.
+  inspectorOverlay?: boolean;
 }
 
 const DEFAULT_CEILING_HEIGHT_MM = 2700;
@@ -164,7 +172,7 @@ const SELECTION_OUTLINE_SCALE = 1.012;
 const HOTSPOT_COLOR = '#2dd4bf'; // teal-400 — matches CameraMarker's teal family
 const HOTSPOT_ACTIVE_COLOR = '#facc15'; // amber-400 — deliberately distinct so "you are here" stands out
 
-export function Room3DCanvas({ widthMm, depthMm, wallView }: Room3DCanvasProps) {
+export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = false }: Room3DCanvasProps) {
   const currentLayout = useLayoutStore((state) => state.currentLayout);
   const cabinets = usePhysicalCabinets();
   const obstacles = useLayoutStore((state) => state.obstacles);
@@ -337,7 +345,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView }: Room3DCanvasProps) 
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className={cn('flex flex-col gap-3', wallView && 'h-full')}>
       {!wallView && (
         <>
       {/* §90: restyled to the app's tokens and touch sizes. Where you're
@@ -463,7 +471,15 @@ export function Room3DCanvas({ widthMm, depthMm, wallView }: Room3DCanvasProps) 
           keeps the effective FOV consistent regardless of window
           width. */}
       <div
-        className="relative aspect-video w-full max-w-5xl overflow-hidden rounded-2xl border border-border bg-secondary shadow-card"
+        className={cn(
+          'relative w-full max-w-5xl overflow-hidden rounded-2xl border border-border bg-secondary shadow-card',
+          // A wall is nearer square than 16:9, so on a phone the wall
+          // view fills the height that's left instead (§92), and
+          // WallViewCamera fits to the frame's real shape. (A fixed 4:5
+          // was tried first and ran under the phone's tool strip.) The
+          // room view keeps 16:9 for the FOV reason above.
+          wallView ? 'min-h-[240px] flex-1 sm:flex-none sm:aspect-video' : 'aspect-video'
+        )}
         onPointerDown={(e) => {
           pointerDownAtRef.current = { x: e.clientX, y: e.clientY };
         }}
@@ -485,7 +501,9 @@ export function Room3DCanvas({ widthMm, depthMm, wallView }: Room3DCanvasProps) 
             toneMappingExposure: DEFAULT_EXPOSURE,
           }}
         >
-          <color attach="background" args={['#dbeafe']} />
+          {/* Wall view (§92): a neutral sheet behind the wall, like a
+              drawing board. Sky blue read as open air around a narrow wall. */}
+          <color attach="background" args={[wallView ? '#dcd8d0' : '#dbeafe']} />
 
           {/* Lighting environment: a self-hosted HDRI PLUS the emissive
               Lightformer panels, composited together, not one instead
@@ -609,7 +627,16 @@ export function Room3DCanvas({ widthMm, depthMm, wallView }: Room3DCanvasProps) 
               lights. This replaced an automatic warm light under every
               elevated cabinet, which nobody had asked for and nobody
               could switch off; see the note in lib/lighting3d.ts. */}
-          <PlacedFixtures />
+          <PlacedFixtures
+            keep={
+              wallView
+                ? // Wall view (§92): only lights on the units shown or on
+                  // this wall. Ceiling pendants hung in front of the
+                  // units and hid them.
+                  (m) => (m.kind === 'cabinet' ? wallRoles?.get(m.cabinetId) === 'full' : m.kind === 'wall' && m.wallId === wallView)
+                : undefined
+            }
+          />
 
           <RoomFloor widthM={roomWidthM} depthM={roomDepthM} />
 
@@ -619,12 +646,14 @@ export function Room3DCanvas({ widthMm, depthMm, wallView }: Room3DCanvasProps) 
 
           {!wallView && <RoomCeiling widthM={roomWidthM} depthM={roomDepthM} heightM={ceilingHeightM} />}
 
-          {/* Corner pieces that belong to the neighbouring wall: a
-              translucent grey block, so you see something turns the corner. */}
+          {/* Corner pieces that belong to the neighbouring wall: the
+              corner they occupy, in plain grey (§92). */}
           {wallView &&
             [...cabinets, ...appliances]
               .filter((item) => wallRoles?.get(item.id) === 'ghost')
-              .map((item) => <GhostBlock key={`ghost-${item.id}`} item={item} />)}
+              .map((item) => (
+                <GhostBlock key={`ghost-${item.id}`} item={item} wall={wallView} roomWidthMm={widthMm} roomDepthMm={depthMm} />
+              ))}
 
           {shownCabinets.map((item) => (
             <CabinetMesh
@@ -734,7 +763,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView }: Room3DCanvasProps) 
         {/* Overlays the canvas (the wrapper is position:relative) rather
             than sitting beside it — a side panel would squeeze the 3D
             view, which is the thing you're trying to look at. */}
-        {selectedCabinet && <Cabinet3DInspector cabinet={selectedCabinet} />}
+        {inspectorOverlay && selectedCabinet && <Cabinet3DInspector cabinet={selectedCabinet} />}
       </div>
 
       <PanoramaViewerModal
@@ -1480,7 +1509,7 @@ function SceneExposure({ exposure }: { exposure: number }) {
 // no lighting calculation — is what guarantees you always SEE every
 // fixture you placed and paid for, while the room is actually lit by
 // the ones that contribute most (see selectRealLights).
-function PlacedFixtures() {
+function PlacedFixtures({ keep }: { keep?: (mount: FixtureMount) => boolean } = {}) {
   const currentLayout = useLayoutStore((state) => state.currentLayout);
   const cabinets = usePhysicalCabinets();
   const fixtureCatalog = useLayoutStore((state) => state.fixtureCatalog);
@@ -1504,7 +1533,7 @@ function PlacedFixtures() {
 
   if (!currentLayout) return null;
 
-  const placements = resolveAllFixtures(currentLayout, cabinets, fixtureCatalog);
+  const placements = resolveAllFixtures(currentLayout, cabinets, fixtureCatalog).filter((p) => !keep || keep(p.fixture.mount));
   // Same device preference the toolbar sets, so what the panel says is
   // lit and what actually lights the room can't disagree.
   const { lit } = selectRealLights(placements, maxLightsFor(quality));
@@ -3225,11 +3254,16 @@ function WallViewCamera({
   depthM: number;
   heightM: number;
 }) {
-  const fovDeg = 28;
-  const aspect = 16 / 9;
+  // §92: 20° (was 28°) — closer to a true elevation, so units standing
+  // 600mm proud of the wall don't loom over the frame edges — and a
+  // wider margin, since those units sit nearer the camera than the wall
+  // the fit is measured on (the top was being cut off).
+  const fovDeg = 20;
+  const { width: frameW, height: frameH } = useThree((state) => state.size);
+  const aspect = frameH > 0 ? frameW / frameH : 16 / 9;
   const halfV = Math.tan(((fovDeg * Math.PI) / 180) / 2);
   const along = wall === 'north' || wall === 'south' ? widthM : depthM;
-  const dist = Math.max(heightM / (2 * halfV), along / (2 * halfV * aspect)) * 1.12;
+  const dist = Math.max(heightM / (2 * halfV), along / (2 * halfV * aspect)) * 1.22 + 0.6;
   const y = heightM / 2;
   const target: [number, number, number] =
     wall === 'north' ? [widthM / 2, y, 0] : wall === 'south' ? [widthM / 2, y, depthM] : wall === 'west' ? [0, y, depthM / 2] : [widthM, y, depthM / 2];
@@ -3241,25 +3275,82 @@ function WallViewCamera({
         : wall === 'west'
           ? [dist, y, depthM / 2]
           : [widthM - dist, y, depthM / 2];
+  const [keyTarget] = useState(() => new THREE.Object3D());
+  // Up and to the viewer's left of the wall's centre, 2.5m out from it.
+  const left = along * 0.35 + 0.8;
+  const keyPosition: [number, number, number] =
+    wall === 'north'
+      ? [widthM / 2 - left, heightM * 1.5, 2.5]
+      : wall === 'south'
+        ? [widthM / 2 + left, heightM * 1.5, depthM - 2.5]
+        : wall === 'west'
+          ? [2.5, heightM * 1.5, depthM / 2 + left]
+          : [widthM - 2.5, heightM * 1.5, depthM / 2 - left];
   return (
     <>
       <PerspectiveCamera makeDefault fov={fovDeg} position={position} />
+      {/* A key light from high on the viewer's left, casting the units'
+          shadows onto the wall (§92). A flat light from the camera was
+          tried first and washed white fronts out against a pale wall;
+          the shadow is what gives the view depth. Aimed at the wall's
+          centre through its own target object (a light's target only
+          moves if it's in the scene). */}
+      <primitive object={keyTarget} position={target} />
+      <directionalLight
+        target={keyTarget}
+        position={keyPosition}
+        intensity={0.9}
+        castShadow
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
+        shadow-camera-left={-4}
+        shadow-camera-right={4}
+        shadow-camera-top={4}
+        shadow-camera-bottom={-4}
+        shadow-camera-far={20}
+        shadow-bias={-0.0004}
+      />
       <OrbitControls target={target} maxPolarAngle={Math.PI * 0.62} minDistance={0.5} maxDistance={dist * 2.5} />
     </>
   );
 }
 
 // A corner piece that belongs to the neighbouring wall, in the wall view
-// (§84): its footprint and height as one translucent grey block.
-function GhostBlock({ item }: { item: { x: number; y: number; widthMm: number; depthMm: number; heightMm: number; elevationMm: number; rotationDeg: 0 | 90 | 180 | 270 } }) {
+// (§84, §92). Only the part within GHOST_BAND_MM of the chosen wall is
+// drawn: that's the corner it actually occupies as seen from in front.
+// §84 drew the whole piece as a translucent volume; running along the
+// other wall towards the camera, it spilled over this wall's own units
+// in perspective. Opaque matte grey now, so it reads as "something is
+// here" without competing with the real finishes.
+const GHOST_BAND_MM = 650;
+function GhostBlock({
+  item,
+  wall,
+  roomWidthMm,
+  roomDepthMm,
+}: {
+  item: { x: number; y: number; widthMm: number; depthMm: number; heightMm: number; elevationMm: number; rotationDeg: 0 | 90 | 180 | 270 };
+  wall: WallOrientation;
+  roomWidthMm: number;
+  roomDepthMm: number;
+}) {
   const r = currentFootprintRect(item);
+  let x0 = r.x;
+  let x1 = r.x + r.widthMm;
+  let y0 = r.y;
+  let y1 = r.y + r.depthMm;
+  if (wall === 'north') y1 = Math.min(y1, GHOST_BAND_MM);
+  if (wall === 'south') y0 = Math.max(y0, roomDepthMm - GHOST_BAND_MM);
+  if (wall === 'west') x1 = Math.min(x1, GHOST_BAND_MM);
+  if (wall === 'east') x0 = Math.max(x0, roomWidthMm - GHOST_BAND_MM);
+  if (x1 <= x0 || y1 <= y0) return null;
   return (
     <mesh
-      position={[mmToWorld(r.x + r.widthMm / 2), mmToWorld(item.elevationMm + item.heightMm / 2), mmToWorld(r.y + r.depthMm / 2)]}
+      position={[mmToWorld((x0 + x1) / 2), mmToWorld(item.elevationMm + item.heightMm / 2), mmToWorld((y0 + y1) / 2)]}
       raycast={() => null}
     >
-      <boxGeometry args={[mmToWorld(r.widthMm), mmToWorld(item.heightMm), mmToWorld(r.depthMm)]} />
-      <meshStandardMaterial color="#b9b5ad" transparent opacity={0.35} depthWrite={false} />
+      <boxGeometry args={[mmToWorld(x1 - x0), mmToWorld(item.heightMm), mmToWorld(y1 - y0)]} />
+      <meshStandardMaterial color="#d3cfc7" roughness={1} />
     </mesh>
   );
 }
