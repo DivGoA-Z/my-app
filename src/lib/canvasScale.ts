@@ -29,7 +29,11 @@ export function computeRoomScale(
     scale,
     roomWidthPx: widthMm * scale,
     roomHeightPx: depthMm * scale,
-    originX: CANVAS_PADDING_PX,
-    originY: CANVAS_PADDING_PX,
+    // Centred in the space (§89). Was always the top-left padding,
+    // which left a wide plan hugging the left edge with empty space to
+    // its right (seen in Present mode). Every layer reads these two, so
+    // they all move together.
+    originX: Math.max(CANVAS_PADDING_PX, (maxWidthPx - widthMm * scale) / 2),
+    originY: Math.max(CANVAS_PADDING_PX, (maxHeightPx - depthMm * scale) / 2),
   };
 }

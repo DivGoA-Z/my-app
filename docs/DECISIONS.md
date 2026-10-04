@@ -5847,3 +5847,25 @@ opens the cutting list through the menu.
 front from the catalogue row's type, size, front layout and finish, so
 a new catalogue cabinet appears with its picture straight away, and
 editing those fields changes it.
+
+## 89. Present mode in the editor's frame; plan centred; "Guides"
+
+- **Present mode rebuilt** (it had never been restyled). Top bar: Back
+  to design, a 3D walkthrough / Floor plan switch, and Reveal price.
+  The view fills the screen. **The price opens as a panel on the
+  right**, like the editor's quote panel (a slide-over below 1280px),
+  with the total large and a "Price breakdown" fold. It used to appear
+  as a card at the top centre and push the whole view down when
+  revealed. Still selling figures only, never cost or margin.
+- **The plan is centred in its space.** `computeRoomScale` always put
+  the room at the top-left padding, so a wide space left the plan
+  hugging the left edge (obvious in Present mode, hidden in the
+  narrower editor). The origin is now centred on both axes, never
+  closer than the padding. Every layer reads `originX`/`originY` from
+  there (checked: all 9 users), so they move together. Tested
+  (`canvasScale.test.ts`).
+- **"Show" renamed "Guides".** Dimensions, overlaps, clearances and
+  ergonomics are drawing aids over the plan, not part of the design;
+  "Guides" is the usual word for those in design tools. Alternatives
+  considered: Layers (suggests the items themselves), View (clashes
+  with the Plan/3D/Elevation tabs), Overlays (jargon).

@@ -381,15 +381,16 @@ export function DesignEditor({
                 <Button
                   variant="outline"
                   size="touch"
+                  aria-label="Guides"
                   aria-expanded={showOpen}
                   onClick={() => setShowOpen((o) => !o)}
                   className="bg-card shadow-card"
                 >
-                  <Layers /> <span className="hidden sm:inline">Show</span>
+                  <Layers /> <span className="hidden sm:inline">Guides</span>
                 </Button>
                 {showOpen && (
                   <div className="absolute top-full right-0 mt-2 flex w-64 flex-col gap-2.5 rounded-2xl bg-card p-4 text-sm shadow-float">
-                    <span className="text-[13px] font-semibold text-muted-foreground">Show on the plan</span>
+                    <span className="text-[13px] font-semibold text-muted-foreground">Guides drawn on the plan</span>
                     {(
                       [
                         ['Dimensions', showDimensions, setShowDimensions],

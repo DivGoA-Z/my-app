@@ -29,6 +29,9 @@
 // charged, never a margin or a cost figure.
 
 import { useState } from 'react';
+import { ArrowLeft, ChevronDown, IndianRupee, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useElementSize } from '../editor/useElementSize';
 import { RoomCanvas } from '../canvas/RoomCanvas';
 import { CabinetLayer } from '../canvas/CabinetLayer';
 import { ObstacleLayer } from '../canvas/ObstacleLayer';
@@ -59,6 +62,8 @@ export function PresentMode({ widthMm, depthMm, onExit }: PresentModeProps) {
   const [showPrice, setShowPrice] = useState(false);
   const [showBreakdown, setShowBreakdown] = useState(false);
   const bom = useBOM();
+  const { measure, width, height } = useElementSize<HTMLDivElement>();
+  const size = { maxWidthPx: Math.max(320, width), maxHeightPx: Math.max(280, height) };
 
   // Cost -> selling, same formula and same rows QuoteSidebar's own
   // Selling view uses (docs/DECISIONS.md §15) — so this breakdown sums
@@ -68,59 +73,105 @@ export function PresentMode({ widthMm, depthMm, onExit }: PresentModeProps) {
   // actually charged (Principle 1).
   const sell = (value: number) => value * (1 + bom.marginPercent / 100);
 
+  // §89: the editor's frame. The view fills the screen and the price
+  // opens as a panel on the right, like the editor's quote panel. It
+  // used to appear as a card above the view and push the whole layout
+  // down when revealed.
   return (
-    <div className="flex flex-col gap-4 p-8">
-      <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={onExit}>
-          ← Exit Present Mode
+    <div className="flex h-dvh flex-col bg-background text-foreground">
+      <header className="relative z-30 flex h-16 shrink-0 items-center gap-2 border-b border-border bg-card px-3 md:gap-3 md:px-4">
+        <Button variant="outline" size="touch" onClick={onExit}>
+          <ArrowLeft /> <span className="hidden sm:inline">Back to design</span>
         </Button>
-
-        <div className="ml-4 flex items-center gap-1">
-          <Button
-            variant={subView === '3d' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setSubView('3d')}
-          >
-            3D Walkthrough
-          </Button>
-          <Button
-            variant={subView === 'plan' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setSubView('plan')}
-          >
-            Floor Plan
-          </Button>
+        <div className="flex flex-1 justify-center">
+          <div role="tablist" aria-label="View" className="flex rounded-xl bg-secondary p-1">
+            {(
+              [
+                ['3d', '3D walkthrough'],
+                ['plan', 'Floor plan'],
+              ] as const
+            ).map(([v, label]) => (
+              <button
+                key={v}
+                type="button"
+                role="tab"
+                aria-selected={subView === v}
+                onClick={() => setSubView(v)}
+                className={cn(
+                  'h-9 rounded-[9px] px-3 text-sm font-semibold md:px-4',
+                  subView === v ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
-
         <Button
-          variant={showPrice ? 'default' : 'outline'}
-          size="sm"
-          className="ml-auto"
+          variant={showPrice ? 'secondary' : 'outline'}
+          size="touch"
+          aria-pressed={showPrice}
           onClick={() => setShowPrice((v) => !v)}
         >
-          {showPrice ? 'Hide Price' : 'Reveal Price'}
+          <IndianRupee /> <span className="hidden sm:inline">{showPrice ? 'Hide price' : 'Reveal price'}</span>
         </Button>
-      </div>
+      </header>
 
-      {showPrice && (
-        <div className="flex w-fit flex-col items-center gap-3 self-center rounded-lg border border-gray-200 bg-white px-8 py-5 shadow-sm">
-          <div className="flex flex-col items-center gap-1">
-            <span className="text-xs font-medium text-gray-500">Total</span>
-            <span className="text-3xl font-semibold text-gray-800">
-              {INR_FORMATTER.format(bom.grandTotal)}
-            </span>
-          </div>
+      <div className="relative flex min-h-0 flex-1">
+        <main className="relative flex min-w-0 flex-1 flex-col">
+          {subView === '3d' ? (
+            <div className="flex-1 overflow-y-auto p-4 md:p-6">
+              <Room3DCanvas widthMm={widthMm} depthMm={depthMm} />
+            </div>
+          ) : (
+            <div ref={measure} className="pointer-events-none relative flex min-h-0 flex-1 items-center justify-center overflow-hidden">
+              {width > 0 && (
+                <RoomCanvas widthMm={widthMm} depthMm={depthMm} {...size}>
+                  <CabinetLayer
+                    widthMm={widthMm}
+                    depthMm={depthMm}
+                    {...size}
+                    showDimensions={false}
+                    showOverlapWarnings={false}
+                    showClearanceWarnings={false}
+                  />
+                  <ObstacleLayer widthMm={widthMm} depthMm={depthMm} {...size} />
+                  <ApplianceLayer widthMm={widthMm} depthMm={depthMm} {...size} showOverlapWarnings={false} />
+                  <OpeningLayer widthMm={widthMm} depthMm={depthMm} {...size} />
+                  <FixtureLayer widthMm={widthMm} depthMm={depthMm} {...size} />
+                </RoomCanvas>
+              )}
+            </div>
+          )}
+        </main>
 
-          <button
-            type="button"
-            onClick={() => setShowBreakdown((v) => !v)}
-            className="text-xs font-medium text-gray-500 underline-offset-2 hover:text-gray-700 hover:underline"
+        {showPrice && (
+          <aside
+            aria-label="Price"
+            className="absolute inset-y-0 right-0 z-20 flex w-[360px] max-w-full flex-col overflow-y-auto border-l border-border bg-card shadow-float xl:static xl:shadow-none"
           >
-            {showBreakdown ? 'Hide price breakdown ▴' : 'View price breakdown ▾'}
-          </button>
-
-          {showBreakdown && (
-            <div className="flex w-56 flex-col gap-1 border-t border-gray-200 pt-3 text-xs text-gray-600">
+            <div className="sticky top-0 flex items-center justify-between border-b border-border bg-card px-4 py-2">
+              <span className="text-[17px] font-semibold">Price</span>
+              <Button variant="ghost" size="icon-touch" aria-label="Hide price" onClick={() => setShowPrice(false)}>
+                <X />
+              </Button>
+            </div>
+            <div className="flex flex-col gap-4 p-5">
+              <div className="flex flex-col gap-1">
+                <span className="text-[13px] font-semibold text-muted-foreground">Total</span>
+                <span className="text-[34px] font-semibold leading-none tabular-nums">{INR_FORMATTER.format(bom.grandTotal)}</span>
+              </div>
+              <button
+                type="button"
+                aria-expanded={showBreakdown}
+                onClick={() => setShowBreakdown((v) => !v)}
+                className="flex min-h-11 items-center justify-between rounded-xl border border-border px-3 text-sm font-semibold hover:bg-secondary"
+              >
+                Price breakdown
+                <ChevronDown className={cn('size-4 transition-transform', showBreakdown && 'rotate-180')} />
+              </button>
+              {showBreakdown && (
+            <div className="flex flex-col gap-1.5 border-t border-border pt-3 text-sm text-muted-foreground">
               <div className="flex justify-between">
                 <span>Material</span>
                 <span>{INR_FORMATTER.format(sell(bom.materialSubtotal))}</span>
@@ -182,34 +233,16 @@ export function PresentMode({ widthMm, depthMm, onExit }: PresentModeProps) {
                 <span>{INR_FORMATTER.format(sell(bom.applianceSubtotal))}</span>
               </div>
 
-              <div className="mt-1 flex justify-between border-t border-gray-200 pt-2 text-sm font-semibold text-gray-800">
+              <div className="mt-1 flex justify-between border-t border-border pt-2 text-[15px] font-semibold text-foreground">
                 <span>Grand Total</span>
                 <span>{INR_FORMATTER.format(bom.grandTotal)}</span>
               </div>
             </div>
-          )}
-        </div>
-      )}
-
-      {subView === '3d' ? (
-        <Room3DCanvas widthMm={widthMm} depthMm={depthMm} />
-      ) : (
-        <div className="pointer-events-none">
-          <RoomCanvas widthMm={widthMm} depthMm={depthMm}>
-            <CabinetLayer
-              widthMm={widthMm}
-              depthMm={depthMm}
-              showDimensions={false}
-              showOverlapWarnings={false}
-              showClearanceWarnings={false}
-            />
-            <ObstacleLayer widthMm={widthMm} depthMm={depthMm} />
-            <ApplianceLayer widthMm={widthMm} depthMm={depthMm} showOverlapWarnings={false} />
-            <OpeningLayer widthMm={widthMm} depthMm={depthMm} />
-            <FixtureLayer widthMm={widthMm} depthMm={depthMm} />
-          </RoomCanvas>
-        </div>
-      )}
+              )}
+            </div>
+          </aside>
+        )}
+      </div>
     </div>
   );
 }

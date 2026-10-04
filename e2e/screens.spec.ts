@@ -150,10 +150,23 @@ test('design editor', async ({ page }) => {
   await page.waitForTimeout(2500);
   await page.screenshot({ path: `${dir}/08d-editor-wall3d.png` });
   await page.getByRole('tab', { name: 'Plan' }).click();
+  // Present mode with the price revealed (§89), laptop and tablet.
+  if (test.info().project.name !== 'phone') {
+    await page.getByRole('button', { name: /Present/ }).locator('visible=true').first().click();
+    await page.getByRole('button', { name: /Reveal price/ }).click();
+    await page.getByRole('button', { name: 'Price breakdown' }).click();
+    await page.waitForTimeout(2500);
+    await page.screenshot({ path: `${dir}/10-present-price.png` });
+    await page.getByRole('tab', { name: 'Floor plan' }).click();
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${dir}/10b-present-plan.png` });
+    await page.getByRole('button', { name: /Back to design/ }).click();
+    await page.getByRole('tab', { name: 'Plan' }).waitFor();
+  }
   // The plan's own Show menu (§88), separate from the checks.
-  await page.getByRole('button', { name: /Show|Layers/ }).first().click();
+  await page.getByRole('button', { name: 'Guides' }).first().click();
   await page.screenshot({ path: `${dir}/08g-editor-show.png` });
-  await page.getByRole('button', { name: /Show|Layers/ }).first().click();
+  await page.getByRole('button', { name: 'Guides' }).first().click();
   await page.getByRole('button', { name: /^\S+ checks?$|No issues/ }).click();
   await page.waitForTimeout(400);
   await page.screenshot({ path: `${dir}/08c-editor-checks.png` });

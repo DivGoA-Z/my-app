@@ -340,3 +340,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§87** Editor stage 4: phone top bar (Room icon + More menu), tools as bottom strip, panels as bottom sheet; Add part button.
 
 **§88** Room button toggles; plan display ticks moved to their own Show button (checks button = problems only); cutting-list download caption replaced by a download arrow on each button.
+
+**§89** Present mode restyled, price as right-hand panel; plan origin centred in computeRoomScale (tested); plan display button renamed "Guides".
