@@ -118,6 +118,15 @@ drop policy if exists "Members rename their own business" on public.businesses;
 create policy "Members rename their own business" on public.businesses
   for update using (id = public.current_business_id()) with check (id = public.current_business_id());
 
+-- Business profile printed on the quote PDF (§94): phone, logo, GSTIN,
+-- and whether to print the GSTIN (not every business is registered, or
+-- wants it on a quote). The "rename" policy above covers updating these
+-- too: it scopes the row, not the columns.
+alter table public.businesses add column if not exists phone text;
+alter table public.businesses add column if not exists logo_url text;
+alter table public.businesses add column if not exists gstin text;
+alter table public.businesses add column if not exists show_gstin boolean not null default false;
+
 create table if not exists public.projects (
   id text primary key,
   client_name text not null,
@@ -855,6 +864,38 @@ drop policy if exists "Authenticated overwrite access to material swatches" on s
 create policy "Authenticated overwrite access to material swatches"
 on storage.objects for update
 using (bucket_id = 'material-swatches' and auth.role() = 'authenticated');
+
+-- ============================================================
+-- Business logos (§94) — drawn in the quote PDF header. Public read, like
+-- the quote PDFs the logo ends up in. Writes are limited to the
+-- business's OWN folder (`<business_id>/...`), so one business can't
+-- replace another's logo. (The material-swatches policies above only
+-- check "signed in"; tightening those is a separate job.)
+-- ============================================================
+
+insert into storage.buckets (id, name, public)
+values ('business-logos', 'business-logos', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Public read access to business logos" on storage.objects;
+create policy "Public read access to business logos"
+on storage.objects for select
+using (bucket_id = 'business-logos');
+
+drop policy if exists "Members upload their own business logo" on storage.objects;
+create policy "Members upload their own business logo"
+on storage.objects for insert
+with check (bucket_id = 'business-logos' and (storage.foldername(name))[1] = public.current_business_id());
+
+drop policy if exists "Members replace their own business logo" on storage.objects;
+create policy "Members replace their own business logo"
+on storage.objects for update
+using (bucket_id = 'business-logos' and (storage.foldername(name))[1] = public.current_business_id());
+
+drop policy if exists "Members delete their own business logo" on storage.objects;
+create policy "Members delete their own business logo"
+on storage.objects for delete
+using (bucket_id = 'business-logos' and (storage.foldername(name))[1] = public.current_business_id());
 
 -- ============================================================
 -- Quote PDF storage — generated client-side (src/lib/quotePdf.ts) from

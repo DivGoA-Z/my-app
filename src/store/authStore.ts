@@ -18,6 +18,15 @@
 import { create } from 'zustand';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/Supabaseclient';
+import {
+  fetchBusinessProfile,
+  gstinProblem,
+  normaliseGstin,
+  removeBusinessLogo,
+  saveBusinessProfile,
+  uploadBusinessLogo,
+  type BusinessProfile,
+} from '../lib/businessProfile';
 
 interface AuthStore {
   session: Session | null;
@@ -25,6 +34,9 @@ interface AuthStore {
   // The business's display name, for the app shell (§70). Best-effort:
   // a failure leaves it null and the shell shows a generic label.
   businessName: string | null;
+  // Name, phone, logo and GSTIN for the quote PDF (§94); businessName
+  // above mirrors its name for the shell.
+  businessProfile: BusinessProfile | null;
   // True until the FIRST resolution (existing session restored, or
   // confirmed there isn't one) completes — this is what lets App.tsx
   // show a brief loading state instead of flashing the login screen
@@ -36,8 +48,11 @@ interface AuthStore {
   init: () => void;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  // Settings → Business (§78). Throws on failure so the form can say so.
-  renameBusiness: (name: string) => Promise<void>;
+  // Settings → Business (§78, §94). Each throws on failure so the form
+  // can say so.
+  saveBusinessDetails: (patch: { name: string; phone: string; gstin: string; showGstin: boolean }) => Promise<void>;
+  setBusinessLogo: (file: File) => Promise<void>;
+  clearBusinessLogo: () => Promise<void>;
 }
 
 async function fetchBusinessId(userId: string): Promise<string | null> {
@@ -51,25 +66,21 @@ async function fetchBusinessId(userId: string): Promise<string | null> {
   return data?.business_id ?? null;
 }
 
-async function fetchBusinessName(businessId: string): Promise<string | null> {
-  const { data } = await supabase.from('businesses').select('name').eq('id', businessId).maybeSingle();
-  return (data as { name?: string } | null)?.name ?? null;
-}
 
 let subscribed = false;
 
 export const useAuthStore = create<AuthStore>((set) => {
   async function resolveSession(session: Session | null) {
     if (!session) {
-      set({ session: null, businessId: null, businessName: null, isLoading: false, error: null });
+      set({ session: null, businessId: null, businessName: null, businessProfile: null, isLoading: false, error: null });
       return;
     }
     try {
       const businessId = await fetchBusinessId(session.user.id);
       set({ session, businessId, isLoading: false, error: null });
       if (businessId) {
-        fetchBusinessName(businessId)
-          .then((businessName) => set({ businessName }))
+        fetchBusinessProfile(businessId)
+          .then((businessProfile) => set({ businessProfile, businessName: businessProfile?.name ?? null }))
           .catch(() => {});
       }
     } catch (err) {
@@ -86,6 +97,7 @@ export const useAuthStore = create<AuthStore>((set) => {
     session: null,
     businessId: null,
     businessName: null,
+    businessProfile: null,
     isLoading: true,
     error: null,
 
@@ -106,17 +118,37 @@ export const useAuthStore = create<AuthStore>((set) => {
       supabase.auth.onAuthStateChange((_event, session) => resolveSession(session));
     },
 
-    renameBusiness: async (name) => {
-      const businessId = useAuthStore.getState().businessId;
-      const trimmed = name.trim();
+    saveBusinessDetails: async (patch) => {
+      const { businessId, businessProfile } = useAuthStore.getState();
       if (!businessId) throw new Error('No business found for this account.');
-      if (!trimmed) throw new Error('The name can’t be empty.');
-      const { data, error } = await supabase.from('businesses').update({ name: trimmed }).eq('id', businessId).select('name');
-      if (error) throw new Error(error.message);
-      // RLS turns a refused update into "0 rows", not an error. Say so,
-      // rather than reporting success for a change that didn't happen.
-      if (!data || data.length === 0) throw new Error('Not saved: re-run supabase/schema.sql to allow renaming.');
-      set({ businessName: trimmed });
+      if (!patch.name.trim()) throw new Error('The name can’t be empty.');
+      const problem = gstinProblem(patch.gstin);
+      if (problem) throw new Error(problem);
+      if (patch.showGstin && !normaliseGstin(patch.gstin)) throw new Error('Enter the GSTIN to print it on quotes.');
+      await saveBusinessProfile(businessId, patch);
+      const next: BusinessProfile = {
+        ...(businessProfile ?? { logoUrl: null }),
+        name: patch.name.trim(),
+        phone: patch.phone.trim(),
+        gstin: normaliseGstin(patch.gstin),
+        showGstin: patch.showGstin,
+        columnsMissing: false,
+      };
+      set({ businessProfile: next, businessName: next.name });
+    },
+
+    setBusinessLogo: async (file) => {
+      const { businessId, businessProfile } = useAuthStore.getState();
+      if (!businessId || !businessProfile) throw new Error('No business found for this account.');
+      const logoUrl = await uploadBusinessLogo(businessId, file, businessProfile.logoUrl);
+      set({ businessProfile: { ...businessProfile, logoUrl } });
+    },
+
+    clearBusinessLogo: async () => {
+      const { businessId, businessProfile } = useAuthStore.getState();
+      if (!businessId || !businessProfile) return;
+      await removeBusinessLogo(businessId, businessProfile.logoUrl);
+      set({ businessProfile: { ...businessProfile, logoUrl: null } });
     },
 
     signIn: async (email, password) => {

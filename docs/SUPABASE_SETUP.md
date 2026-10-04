@@ -90,14 +90,14 @@ In the repo root — the same folder as `package.json`:
 ```
 VITE_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGciOi...
-
-# Optional — put your own business's name/phone on the quote PDF's
-# letterhead (src/lib/quotePdf.ts). There's no `businesses` table yet
-# (that's a multi-tenancy thing, not built), so this is the only way
-# to set it today. Falls back to a generic placeholder if left unset.
-VITE_BUSINESS_NAME=Your Business Name
-VITE_BUSINESS_PHONE=+91-XXXXX-XXXXX
 ```
+
+The business name, phone, logo and GSTIN on the quote PDF are set in
+the app under **Settings → Business**, per business (§94). *(This step
+used to tell you to put `VITE_BUSINESS_NAME` and `VITE_BUSINESS_PHONE`
+in `.env`, saying there was no `businesses` table. That stopped being
+true at §70, and from §94 the PDF ignores those two variables; delete
+them from an existing `.env` if they're there.)*
 
 Four things that catch people:
 

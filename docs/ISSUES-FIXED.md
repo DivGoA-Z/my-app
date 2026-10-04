@@ -4,6 +4,23 @@ Moved here from `docs/ISSUES.md` (named `Issues.md` until 3 Oct 2026) once resol
 below, once investigated and found not to be a code defect). Kept,
 never deleted — see `CLAUDE.md`.
 
+## 2026-10-04
+
+- **Quote PDF prints the business name from `.env`, not from Settings.**
+  Found 4 Oct 2026 by Claude while scoping the PDF logo. `lib/quotePdf.ts`
+  reads `VITE_BUSINESS_NAME` / `VITE_BUSINESS_PHONE`, and its comment
+  says "there is no `businesses` table yet", which stopped being true
+  (§70: the table exists, and Settings → Business renames it). So
+  renaming the business in Settings never reaches the customer's PDF,
+  and with a second business, every business's quotes would carry
+  whatever name the `.env` on that machine has. This blocks
+  hand-onboarding customer #1 (listed in `AFTER_FIRST_CUSTOMERS.md`).
+  The fix comes with the business profile + logo work.
+  **Fixed 4 Oct 2026 (§94):** the PDF now takes name, phone, GSTIN and
+  logo from the business record (Settings → Business); the `.env`
+  variables are ignored. Needs `schema.sql` re-run for phone, logo and
+  GSTIN to save.
+
 ## 2026-09-21
 
 - **"tried to change appliance info - Failed to save appliance catalog

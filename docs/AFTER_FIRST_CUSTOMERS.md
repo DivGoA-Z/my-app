@@ -45,12 +45,10 @@ what has to be true before customer #1 is onboarded by hand.
       kind of gap this check exists to find. Sign in as each
       business and confirm neither sees the other's customers, quotes,
       catalogue, rates or uploaded files.
-- [ ] **Business profile on the quote PDF: name, phone, logo.** The PDF
-      takes its name from `.env`, not from Settings (`docs/ISSUES.md`),
-      so a second business would print the first one's name. Fix that,
-      and add the logo at the same time: a logo upload in Settings →
-      Business, drawn in the PDF header. Plan in the 4 Oct 2026
-      conversation; record it in DECISIONS when built.
+- [x] **Business profile on the quote PDF: name, phone, logo, GSTIN.**
+      Built 4 Oct 2026 (§94). Remaining: re-run `schema.sql`, then fill in
+      Settings → Business. Include it in the two-business isolation check
+      (each sees and prints only its own name and logo).
 - [ ] **Your own super-admin view.** As super admin you bypass RLS and
       would see every business's data mixed together. Decide whether
       that's acceptable or whether you need a "view as business X"

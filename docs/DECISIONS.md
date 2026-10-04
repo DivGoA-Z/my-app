@@ -6012,3 +6012,55 @@ how light the wall view is and picks between two fixed tones
 Seen: Neha Verma's white units on plaster get the dark backdrop on
 both walls. The light-backdrop case (wood fronts, a dark painted wall)
 is covered by tests only; no saved design has one to look at.
+
+## 94. Business profile on the quote PDF: name, phone, logo, GSTIN, ₹
+
+**Found while planning the logo**: the PDF read its name and phone from
+`.env` (`VITE_BUSINESS_NAME`), with a comment that there was no
+`businesses` table. That stopped being true at §70, so a name set in
+Settings never reached a customer, and two businesses would both print
+`.env`'s name. Logged in ISSUES and fixed here.
+
+**What's built:**
+- **`businesses` gains `phone`, `logo_url`, `gstin`, `show_gstin`**
+  (`schema.sql`, idempotent). Re-run it before these can be saved. The
+  app detects the missing columns and says so in Settings instead of
+  failing, and the name still loads and saves.
+- **Settings → Business**: name, phone, GSTIN and "Print the GSTIN on
+  quotes" (off by default: not every business is registered, or wants
+  it on a quote), plus a **Logo** card (upload, replace, remove) and a
+  preview of the quote header.
+- **GSTIN is validated**, including the 15th check character (GSTN's
+  mod-36 scheme), so one mistyped character is caught before it's
+  printed. Tested against a published sample. Empty is allowed; ticking
+  "print" with no GSTIN is refused.
+- **Logo storage**: a new public-read `business-logos` bucket. Writes
+  are limited to the business's **own folder**
+  (`storage.foldername(name)[1] = current_business_id()`), so one
+  business can't replace another's logo. (The older `material-swatches`
+  policies only check "signed in", which allows exactly that; noted as
+  a separate job.) The image is shrunk to at most 600×300 PNG in the
+  browser before upload, with a new file name each time (no stale
+  cache) and the old file removed.
+- **The PDF header**: logo top-left, fitted to 120×48pt without
+  stretching, with name, phone and GSTIN right-aligned beside it.
+  Without a logo, the old arrangement. `generateQuotePdfBlob` now
+  takes a **required** `PdfBranding`, so a call site that forgets it
+  fails to compile (the PricingContext lesson).
+- **₹ instead of "Rs."**: the PDF embeds the app's own font, Plus
+  Jakarta Sans, instanced to static Regular/Bold (jsPDF can't use the
+  variable font) and subset to Latin, punctuation, × and ₹: about 22KB
+  each, in `public/fonts` with its OFL licence. Tables use it too. The
+  embedded font has no italic, so italic lines print Regular. **If the
+  font can't load, the PDF still generates** in Helvetica with "Rs.",
+  because a quote must never fail to go out over a font.
+- **Current, not frozen, branding**: re-downloading an old quote uses
+  today's name and logo. Branding isn't part of a quote's figures; the
+  prices, items and totals stay frozen as ever. (Your call on
+  4 Oct 2026; I recommended current.)
+
+**Verified**: a real quote PDF downloaded from the app prints ₹ in Plus
+Jakarta Sans and the name from the business record. The header with
+logo and GSTIN is tested by reading the generated PDF back
+(`quotePdf.test.ts`). It isn't seen with a real logo, because uploads
+need the schema re-run first.

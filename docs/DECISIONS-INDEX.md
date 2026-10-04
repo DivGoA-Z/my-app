@@ -350,3 +350,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§92** Elevation drawing: running dimension chains outside the drawing (base/wall runs, heights, overall, gaps amber; lib/elevationDims.ts, tested; cabinets keep widths under a straddling hob). 3D wall view: neutral backdrop, 20° lens, corner ghosts clipped to the corner, no ceiling pendants, shadow key light, phone fills height. 3D floating inspector only in Present mode.
 
 **§93** 3D wall view backdrop picked to contrast: area-weighted perceptual lightness of units + uncovered wall (lib/backdrop.ts, tested); ≥0.78 → dark backdrop, else light.
+
+**§94** Quote PDF business profile from the businesses row (was .env): phone/logo/GSTIN+show_gstin columns, Settings → Business with logo upload (own-folder storage policy) and header preview; GSTIN check-char validation; PDF embeds Plus Jakarta Sans subset for ₹ (falls back to Helvetica/Rs.); branding is current, not frozen.

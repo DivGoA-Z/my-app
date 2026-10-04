@@ -14,6 +14,8 @@
 // designer needs to know at a glance which of those two numbers the
 // customer is holding.
 
+import { loadPdfBranding } from '../../lib/pdfAssets';
+import { useAuthStore } from '../../store/authStore';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useLayoutStore } from '../../store/layoutStore';
@@ -110,7 +112,7 @@ export function QuoteFreezePanel({ onOpenCutList }: { onOpenCutList?: (quoteId: 
     setExportError(null);
     setExporting('pdf');
     try {
-      const blob = generateQuotePdfBlob(quote, currentProject);
+      const blob = generateQuotePdfBlob(quote, currentProject, await loadPdfBranding(useAuthStore.getState().businessProfile));
       downloadBlob(blob, `${currentProject.clientName} — kitchen quote v${quote.version}.pdf`);
       toast.success('PDF downloaded');
     } catch (err) {
@@ -130,7 +132,7 @@ export function QuoteFreezePanel({ onOpenCutList }: { onOpenCutList?: (quoteId: 
     setExportError(null);
     setExporting('whatsapp');
     try {
-      const blob = generateQuotePdfBlob(latest, currentProject);
+      const blob = generateQuotePdfBlob(latest, currentProject, await loadPdfBranding(useAuthStore.getState().businessProfile));
       const pdfUrl = await uploadQuotePdf(currentProject.id, latest.version, blob);
       const message = buildWhatsAppMessage(latest, currentProject, pdfUrl);
       // Opens in a new tab rather than navigating away from the

@@ -17,34 +17,36 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { FrozenQuote } from '../types/quote';
+import { fitLogo, type PdfBranding } from './pdfAssets';
 import type { CustomerProject } from '../types/customer';
 import { APPLIANCE_TYPE_LABELS } from '../types/appliance';
 
-// NOT `style: 'currency'` — jsPDF's built-in fonts (Helvetica etc.) are
-// the standard 14 PDF fonts, encoded WinAnsi, which has no ₹ glyph
-// (U+20B9). Asking jsPDF to draw it doesn't error or fall back to
-// nothing; it silently truncates to the low byte of the code point
-// (0xB9), which WinAnsi maps to a completely different, unrelated
-// glyph — the superscript one, "¹". So every amount rendered "¹10,150"
-// instead of "₹10,150". Embedding a Unicode font just for one symbol
-// is a lot of machinery for this; "Rs." is ASCII and unambiguous.
-// QuoteSidebar.tsx and the WhatsApp message text (lib/whatsapp.ts) are
-// real Unicode contexts (DOM, WhatsApp) and keep using the real ₹ via
-// their own `style: 'currency'` formatters — this workaround is scoped
-// to jsPDF's own font limitation, not applied anywhere else.
+// The rupee sign needs a font that has it. jsPDF's built-in fonts
+// (the standard 14, encoded WinAnsi) have no ₹ (U+20B9), and asking for
+// it doesn't error: it silently truncates to the low byte (0xB9), which
+// WinAnsi maps to "¹", so amounts printed "¹10,150". Until §94 this
+// file printed "Rs." instead. Now the PDF embeds the app's own font
+// (lib/pdfAssets.ts), which has ₹; if that font couldn't load, the
+// document falls back to Helvetica and "Rs." rather than fail.
 const AMOUNT_FORMATTER = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
-function formatAmount(value: number): string {
-  return `Rs. ${AMOUNT_FORMATTER.format(value)}`;
+const PDF_FONT = 'PlusJakartaSans';
+function hasEmbeddedFont(doc: jsPDF): boolean {
+  return Boolean(doc.getFontList()[PDF_FONT]);
+}
+function formatAmount(doc: jsPDF, value: number): string {
+  return `${hasEmbeddedFont(doc) ? '₹' : 'Rs. '}${AMOUNT_FORMATTER.format(value)}`;
+}
+// The embedded font has Regular and Bold only; italic prints Regular.
+function pickFont(doc: jsPDF, style: 'normal' | 'bold' | 'italic') {
+  if (hasEmbeddedFont(doc)) doc.setFont(PDF_FONT, style === 'bold' ? 'bold' : 'normal');
+  else doc.setFont('helvetica', style);
 }
 
-// There is no `businesses` table yet (see docs/PRINCIPLES.md, Part 2 —
-// multi-tenancy hasn't landed), so there is nowhere else this could
-// come from today. Optional env vars, same VITE_-prefixed pattern as
-// Supabaseclient.ts, rather than a hardcoded string, so at least a
-// single business can put its own name on its own quotes without a
-// code change. Revisit once a real per-tenant business profile exists.
-const BUSINESS_NAME = import.meta.env.VITE_BUSINESS_NAME || 'Kitchen Studio';
-const BUSINESS_PHONE = import.meta.env.VITE_BUSINESS_PHONE || '';
+// The business name, phone and GSTIN come from the business's own
+// record via PdfBranding (§94). They used to come from VITE_BUSINESS_NAME
+// / VITE_BUSINESS_PHONE in `.env`, with a comment that there was no
+// businesses table yet; that stopped being true at §70, and meant the
+// name set in Settings never reached the PDF.
 
 const MARGIN = 40;
 
@@ -80,15 +82,24 @@ function ensureSpace(doc: jsPDF, y: number, needed: number): number {
 }
 
 function sectionHeading(doc: jsPDF, y: number, text: string): number {
-  doc.setFont('helvetica', 'bold');
+  pickFont(doc, 'bold');
   doc.setFontSize(11);
   doc.setTextColor(0);
   doc.text(text, MARGIN, y);
   return y + 16;
 }
 
-export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProject): Blob {
+// `branding` is required, never defaulted: a call site that forgot it
+// should fail to compile, not print a blank or wrong business name (the
+// same lesson as calculateBOM's PricingContext, CLAUDE.md).
+export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProject, branding: PdfBranding): Blob {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  if (branding.fonts) {
+    doc.addFileToVFS('PJS-Regular.ttf', branding.fonts.regular);
+    doc.addFont('PJS-Regular.ttf', PDF_FONT, 'normal');
+    doc.addFileToVFS('PJS-Bold.ttf', branding.fonts.bold);
+    doc.addFont('PJS-Bold.ttf', PDF_FONT, 'bold');
+  }
   const pageWidth = doc.internal.pageSize.getWidth();
   const s = quote.summary;
   // A PDF is always the SELLING view — there is no toggle here the way
@@ -109,22 +120,14 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
   const marked = (value: number) => value * factor;
   let y = MARGIN;
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.text(BUSINESS_NAME, MARGIN, y);
-  if (BUSINESS_PHONE) {
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.text(BUSINESS_PHONE, pageWidth - MARGIN, y, { align: 'right' });
-  }
-  y += 26;
+  y = drawBusinessHeader(doc, branding, y, pageWidth);
 
-  doc.setFont('helvetica', 'bold');
+  pickFont(doc, 'bold');
   doc.setFontSize(20);
   doc.text(`Kitchen Quote — v${quote.version}`, MARGIN, y);
   y += 22;
 
-  doc.setFont('helvetica', 'normal');
+  pickFont(doc, 'normal');
   doc.setFontSize(10);
   doc.setTextColor(90);
   doc.text(
@@ -145,7 +148,7 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
   y += 10;
 
   y = sectionHeading(doc, y, 'Customer');
-  doc.setFont('helvetica', 'normal');
+  pickFont(doc, 'normal');
   doc.setFontSize(10);
   doc.text(project.clientName, MARGIN, y);
   y += 14;
@@ -166,9 +169,9 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
         `${line.material} / ${line.finish}`,
         // Fixed-price charge rows (§39) inside this line aren't marked
         // up. `?? 0` — absent on a quote frozen before §39.
-        formatAmount(marked(line.lineTotal - (line.unmarkedCost ?? 0)) + (line.unmarkedCost ?? 0)),
+        formatAmount(doc, marked(line.lineTotal - (line.unmarkedCost ?? 0)) + (line.unmarkedCost ?? 0)),
       ]),
-      styles: { fontSize: 8, cellPadding: 4, valign: 'middle' },
+      styles: { font: hasEmbeddedFont(doc) ? PDF_FONT : 'helvetica', fontSize: 8, cellPadding: 4, valign: 'middle' },
       headStyles: { fillColor: [31, 41, 55] },
       columnStyles: { 4: { halign: 'right' } },
     });
@@ -186,9 +189,9 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
         APPLIANCE_TYPE_LABELS[line.applianceType],
         `${line.widthMm} × ${line.depthMm} × ${line.heightMm}`,
         String(line.quantity),
-        formatAmount(marked(line.lineTotal)),
+        formatAmount(doc, marked(line.lineTotal)),
       ]),
-      styles: { fontSize: 8, cellPadding: 4 },
+      styles: { font: hasEmbeddedFont(doc) ? PDF_FONT : 'helvetica', fontSize: 8, cellPadding: 4 },
       headStyles: { fillColor: [31, 41, 55] },
       columnStyles: { 3: { halign: 'right' } },
     });
@@ -204,9 +207,9 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
       head: [['Opening', 'Total']],
       body: s.openingLineItems.map((line) => [
         `${line.description}\n${line.surface} · deducts ${line.deductedSqM.toFixed(2)} m² of tiling`,
-        line.suppliedByUs ? formatAmount(marked(line.cost)) : 'Existing — by others',
+        line.suppliedByUs ? formatAmount(doc, marked(line.cost)) : 'Existing — by others',
       ]),
-      styles: { fontSize: 8, cellPadding: 4 },
+      styles: { font: hasEmbeddedFont(doc) ? PDF_FONT : 'helvetica', fontSize: 8, cellPadding: 4 },
       headStyles: { fillColor: [31, 41, 55] },
       columnStyles: { 1: { halign: 'right' } },
     });
@@ -223,19 +226,19 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
       body: s.fixtureLineItems.map((line) => [
         `${line.description}\n${line.mountDescription} · ${line.colorTempK}K`,
         line.unit === 'm' ? `${line.amount.toFixed(2)} m` : `${line.amount} pcs`,
-        s.fixtureSubtotal > 0 ? formatAmount(marked(line.cost)) : 'by electrician',
+        s.fixtureSubtotal > 0 ? formatAmount(doc, marked(line.cost)) : 'by electrician',
       ]),
-      styles: { fontSize: 8, cellPadding: 4 },
+      styles: { font: hasEmbeddedFont(doc) ? PDF_FONT : 'helvetica', fontSize: 8, cellPadding: 4 },
       headStyles: { fillColor: [31, 41, 55] },
       columnStyles: { 2: { halign: 'right' } },
     });
     y = afterLastTable(doc, y) + 20;
     if (s.fixtureSubtotal === 0 && s.fixtureSpecifiedTotal > 0) {
-      doc.setFont('helvetica', 'italic');
+      pickFont(doc, 'italic');
       doc.setFontSize(8);
       doc.setTextColor(120);
       doc.text(
-        `Specified only — ${formatAmount(s.fixtureSpecifiedTotal)} if the electrical work is billed by us.`,
+        `Specified only — ${formatAmount(doc, s.fixtureSpecifiedTotal)} if the electrical work is billed by us.`,
         MARGIN,
         y
       );
@@ -247,7 +250,7 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
   if (s.countertopLineItem) {
     y = ensureSpace(doc, y, 60);
     y = sectionHeading(doc, y, 'Countertop / Slab');
-    doc.setFont('helvetica', 'normal');
+    pickFont(doc, 'normal');
     doc.setFontSize(9);
     doc.text(
       `${s.countertopLineItem.finish} — ${s.countertopLineItem.areaSqM.toFixed(2)} m²`,
@@ -255,7 +258,7 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
       y
     );
     doc.text(
-      s.countertopSubtotal > 0 ? formatAmount(marked(s.countertopSubtotal)) : 'by homeowner',
+      s.countertopSubtotal > 0 ? formatAmount(doc, marked(s.countertopSubtotal)) : 'by homeowner',
       pageWidth - MARGIN,
       y,
       { align: 'right' }
@@ -298,12 +301,12 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
     ...(s.fixtureSubtotal > 0 ? ([['Lighting', marked(s.fixtureSubtotal)]] as [string, number][]) : []),
   ];
 
-  doc.setFont('helvetica', 'normal');
+  pickFont(doc, 'normal');
   doc.setFontSize(10);
   for (const [label, amount] of totalsRows) {
     y = ensureSpace(doc, y, 40);
     doc.text(label, MARGIN, y);
-    doc.text(formatAmount(amount), pageWidth - MARGIN, y, { align: 'right' });
+    doc.text(formatAmount(doc, amount), pageWidth - MARGIN, y, { align: 'right' });
     y += 16;
   }
 
@@ -311,13 +314,13 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
   doc.setDrawColor(0);
   doc.line(MARGIN, y, pageWidth - MARGIN, y);
   y += 20;
-  doc.setFont('helvetica', 'bold');
+  pickFont(doc, 'bold');
   doc.setFontSize(13);
   doc.text('Grand Total', MARGIN, y);
-  doc.text(formatAmount(s.grandTotal), pageWidth - MARGIN, y, { align: 'right' });
+  doc.text(formatAmount(doc, s.grandTotal), pageWidth - MARGIN, y, { align: 'right' });
   y += 26;
 
-  doc.setFont('helvetica', 'italic');
+  pickFont(doc, 'italic');
   doc.setFontSize(8);
   doc.setTextColor(120);
   doc.text(
@@ -327,4 +330,33 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
   );
 
   return doc.output('blob');
+}
+
+// The header (§94): logo on the left when there is one, with the name,
+// phone and GSTIN right-aligned beside it; without a logo, the name on
+// the left and phone/GSTIN on the right, as before. Returns the y below.
+function drawBusinessHeader(doc: jsPDF, b: PdfBranding, top: number, pageWidth: number): number {
+  const details = [b.phone, b.gstin && `GSTIN ${b.gstin}`].filter(Boolean) as string[];
+  if (b.logo) {
+    const size = fitLogo(b.logo.widthPx, b.logo.heightPx);
+    doc.addImage(b.logo.dataUrl, 'PNG', MARGIN, top - 12, size.width, size.height);
+    let ty = top;
+    pickFont(doc, 'bold');
+    doc.setFontSize(14);
+    doc.text(b.name, pageWidth - MARGIN, ty, { align: 'right' });
+    pickFont(doc, 'normal');
+    doc.setFontSize(10);
+    for (const line of details) {
+      ty += 14;
+      doc.text(line, pageWidth - MARGIN, ty, { align: 'right' });
+    }
+    return Math.max(top - 12 + size.height, ty) + 26;
+  }
+  pickFont(doc, 'bold');
+  doc.setFontSize(16);
+  doc.text(b.name, MARGIN, top);
+  pickFont(doc, 'normal');
+  doc.setFontSize(10);
+  details.forEach((line, i) => doc.text(line, pageWidth - MARGIN, top + i * 14, { align: 'right' }));
+  return top + Math.max(0, details.length - 1) * 14 + 26;
 }
