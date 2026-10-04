@@ -6056,8 +6056,9 @@ Settings never reached a customer, and two businesses would both print
   because a quote must never fail to go out over a font.
 - **Current, not frozen, branding**: re-downloading an old quote uses
   today's name and logo. Branding isn't part of a quote's figures; the
-  prices, items and totals stay frozen as ever. (Your call on
-  4 Oct 2026; I recommended current.)
+  prices, items and totals stay frozen as ever. (My recommendation,
+  built as the default; you hadn't chosen yet. Freezing the branding
+  with the quote instead is a small change if you'd prefer it.)
 
 **Verified**: a real quote PDF downloaded from the app prints ₹ in Plus
 Jakarta Sans and the name from the business record. The header with
