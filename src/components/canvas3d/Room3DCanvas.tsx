@@ -56,6 +56,7 @@
 //
 // Install: npm install three @react-three/fiber @react-three/drei
 
+import { BACKDROP_LIGHT, contrastingBackdrop, surfaceLightness } from '../../lib/backdrop';
 import { cn } from '@/lib/utils';
 import { Camera as CameraIcon, ChevronDown, Eye, Trash2 } from 'lucide-react';
 import { usePhysicalCabinets } from '../../hooks/usePhysicalCabinets';
@@ -191,6 +192,25 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
   const shownCabinets = wallRoles ? cabinets.filter((c) => wallRoles.get(c.id) === 'full') : cabinets;
   const shownAppliances = wallRoles ? appliances.filter((a) => wallRoles.get(a.id) === 'full') : appliances;
   const shownObstacles = wallRoles ? obstacles.filter((o) => wallRoles.has(o.id)) : obstacles;
+  // Wall view backdrop, contrasting with the wall and its units (§93):
+  // each unit weighted by its front area, the wall by what's left
+  // uncovered, so a big plaster wall can't outvote the fronts.
+  const allFinishes = useLayoutStore((state) => state.finishes);
+  let wallViewBackdrop = BACKDROP_LIGHT;
+  if (wallView) {
+    const unitSamples = shownCabinets.map((c) => ({
+      lightness: surfaceLightness(c.finishId ? resolveFinish(allFinishes, c.finishId) : undefined, c.colorOverride),
+      weight: c.widthMm * c.heightMm,
+    }));
+    const wallFinishId = currentLayout?.walls?.find((w) => w.orientation === wallView)?.finishId;
+    const wallLengthMm = wallView === 'north' || wallView === 'south' ? widthMm : depthMm;
+    const wallAreaMm2 = wallLengthMm * (currentLayout?.dimensions.ceilingHeightMm ?? 2700);
+    const covered = unitSamples.reduce((t, u) => t + u.weight, 0);
+    wallViewBackdrop = contrastingBackdrop([
+      ...unitSamples,
+      { lightness: surfaceLightness(wallFinishId ? resolveFinish(allFinishes, wallFinishId) : undefined), weight: Math.max(0, wallAreaMm2 - covered) },
+    ]);
+  }
   const capturePanoramaForCamera = useLayoutStore((state) => state.capturePanoramaForCamera);
   const fixtureCatalogForEnv = useLayoutStore((state) => state.fixtureCatalog);
 
@@ -501,9 +521,10 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
             toneMappingExposure: DEFAULT_EXPOSURE,
           }}
         >
-          {/* Wall view (§92): a neutral sheet behind the wall, like a
-              drawing board. Sky blue read as open air around a narrow wall. */}
-          <color attach="background" args={[wallView ? '#dcd8d0' : '#dbeafe']} />
+          {/* Wall view: a plain sheet behind the wall, not sky blue (§92),
+              dark behind a light wall of units and light behind a dark
+              one (§93), so the outline always reads. */}
+          <color attach="background" args={[wallView ? wallViewBackdrop : '#dbeafe']} />
 
           {/* Lighting environment: a self-hosted HDRI PLUS the emissive
               Lightformer panels, composited together, not one instead

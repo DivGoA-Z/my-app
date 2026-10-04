@@ -5989,3 +5989,26 @@ readability:
 **The floating cabinet panel over 3D appears only in Present mode**
 (`inspectorOverlay`). The editor already shows the selection in its
 right-hand inspector.
+
+## 93. 3D wall view: backdrop chosen to contrast
+
+You asked for a backdrop that contrasts with the wall: dark when it's
+mostly white, light otherwise. `lib/backdrop.ts` (8 tests) works out
+how light the wall view is and picks between two fixed tones
+(`#4f4b45` dark, `#e8e5df` light):
+- **Lightness** is perceptual (CIE L*), so a bright yellow and a pale
+  grey of similar brightness count alike.
+- **Each unit is weighted by its front area**, and the wall by what's
+  left **uncovered**. Counting the whole wall let a large plaster wall
+  outvote wood fronts in front of it.
+- **Per surface**: the colour override, else the solid colour, else the
+  texture kind (wood 0.45, quartz 0.82, tile 0.80, an uploaded photo
+  0.55). No finish means bare plaster. The texture values are
+  estimates, but the choice is only light-or-dark, so they just need
+  to land on the right side.
+- **Threshold**: an average lightness of 0.78 or more counts as a light
+  scene and gets the dark backdrop.
+
+Seen: Neha Verma's white units on plaster get the dark backdrop on
+both walls. The light-backdrop case (wood fronts, a dark painted wall)
+is covered by tests only; no saved design has one to look at.

@@ -348,3 +348,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§91** Drag to place from Cabinets/Appliances/Pillars tiles: preview outline with front edge; auto-turn to face the room within depth (≥600mm) of a wall; cabinets snap in physical size then convert to stored (§61); touch = hold or sideways move. lib/placement.ts tested.
 
 **§92** Elevation drawing: running dimension chains outside the drawing (base/wall runs, heights, overall, gaps amber; lib/elevationDims.ts, tested; cabinets keep widths under a straddling hob). 3D wall view: neutral backdrop, 20° lens, corner ghosts clipped to the corner, no ceiling pendants, shadow key light, phone fills height. 3D floating inspector only in Present mode.
+
+**§93** 3D wall view backdrop picked to contrast: area-weighted perceptual lightness of units + uncovered wall (lib/backdrop.ts, tested); ≥0.78 → dark backdrop, else light.
