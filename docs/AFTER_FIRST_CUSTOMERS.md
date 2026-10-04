@@ -45,6 +45,12 @@ what has to be true before customer #1 is onboarded by hand.
       kind of gap this check exists to find. Sign in as each
       business and confirm neither sees the other's customers, quotes,
       catalogue, rates or uploaded files.
+- [ ] **Business profile on the quote PDF: name, phone, logo.** The PDF
+      takes its name from `.env`, not from Settings (`docs/ISSUES.md`),
+      so a second business would print the first one's name. Fix that,
+      and add the logo at the same time: a logo upload in Settings →
+      Business, drawn in the PDF header. Plan in the 4 Oct 2026
+      conversation; record it in DECISIONS when built.
 - [ ] **Your own super-admin view.** As super admin you bypass RLS and
       would see every business's data mixed together. Decide whether
       that's acceptable or whether you need a "view as business X"
@@ -64,6 +70,29 @@ what has to be true before customer #1 is onboarded by hand.
   parts and sheet count against what was actually cut, then confirm
   Workshop settings. It can come from the first customer who has a
   workshop.
+
+- **Opening cabinets in 3D** (doors, drawers, tambour, corner units).
+  Parked 4 Oct 2026, to decide later which option, once customers have
+  seen the 3D and said whether they'd use it. Both need **inside parts
+  first**: carcasses are closed boxes today, so opening a door shows an
+  empty shell. Those inside parts (shelves, drawer boxes) must agree
+  with the cutting list: if the 3D shows two shelves, the cutting list
+  and price count two.
+  - *Cheaper:* a **"Show open"** switch in Present mode. Every cabinet
+    is drawn standing open in one fixed position (doors at 90° on their
+    hinge side, drawers and trolleys two-thirds out, tambour rolled up),
+    with basic inside parts from the cutting list's counts. No
+    animation and no per-cabinet interaction. Roughly a third of the
+    work, most of the customer reaction, and it builds the inside parts
+    the full version needs anyway.
+  - *More interesting:* **tap a cabinet to open it, animated.** Doors
+    swing on their hinge, drawers slide, tambour rolls, and corner
+    carousel or magic-corner trays turn or pull out. Default closed.
+    Needs the inside parts above, movement for six front kinds plus the
+    corner mechanisms, and a tap that opens without fighting
+    tap-to-select. The module-type split in DECISIONS §3 was made to
+    give this a clean seam. Several sessions; the cutting-list link is
+    the risky part.
 
 ## Deliberately deferred
 
