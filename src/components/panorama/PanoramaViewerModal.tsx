@@ -75,8 +75,8 @@ export function PanoramaViewerModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6">
       <div className="flex h-full w-full max-w-4xl flex-col gap-3 rounded-lg bg-white p-4 shadow-xl">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-700">360° Street View — {cameraLabel}</h3>
-          <Button variant="ghost" size="icon-xs" onClick={onClose} aria-label="Close">
+          <h3 className="text-sm font-semibold text-foreground">360° Street View — {cameraLabel}</h3>
+          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close">
             ×
           </Button>
         </div>
@@ -84,9 +84,9 @@ export function PanoramaViewerModal({
         {panoramaUrl ? (
           <div ref={containerRef} className="min-h-0 flex-1 overflow-hidden rounded" />
         ) : (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded border border-dashed border-gray-300 text-sm text-gray-500">
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded border border-dashed border-input text-sm text-muted-foreground">
             <p>This camera hasn't been captured yet.</p>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-muted-foreground">
               Open 3D Preview, lock onto "{cameraLabel}", and click "Capture 360°" first.
             </p>
           </div>

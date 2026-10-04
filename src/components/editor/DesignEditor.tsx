@@ -366,7 +366,7 @@ export function DesignEditor({
         )}
 
         {/* ---- Centre: plan, 3D or elevation ---- */}
-        <main className="relative flex min-w-0 flex-1 flex-col">
+        <main className="relative flex min-h-0 min-w-0 flex-1 flex-col">
           {isLoading ? (
             <p className="m-auto text-sm text-muted-foreground">Loading the design…</p>
           ) : view === 'plan' ? (

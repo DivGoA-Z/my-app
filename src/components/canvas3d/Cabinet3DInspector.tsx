@@ -66,20 +66,20 @@ export function Cabinet3DInspector({ cabinet }: Cabinet3DInspectorProps) {
     // background click and deselect the very cabinet being edited.
     <div
       onPointerDown={(e) => e.stopPropagation()}
-      className="absolute right-3 top-3 z-10 flex max-h-[calc(100%-1.5rem)] w-64 flex-col gap-3 overflow-y-auto rounded-lg border border-gray-200 bg-white/95 p-3 shadow-lg backdrop-blur"
+      className="absolute right-3 top-3 z-10 flex max-h-[calc(100%-1.5rem)] w-64 flex-col gap-3 overflow-y-auto rounded-2xl border border-border bg-white/95 p-3 shadow-float backdrop-blur"
     >
       <div className="flex items-center justify-between">
         <div className="flex flex-col">
-          <h4 className="text-xs font-semibold text-gray-700">
+          <h4 className="text-xs font-semibold text-foreground">
             {MODULE_TYPE_LABELS[cabinet.moduleType] ?? cabinet.moduleType}
           </h4>
-          <span className="text-[10px] text-gray-400">
+          <span className="text-xs text-muted-foreground">
             {cabinet.widthMm}×{cabinet.depthMm}×{cabinet.heightMm}mm
           </span>
         </div>
         <Button
           variant="ghost"
-          size="icon-xs"
+          size="icon-sm"
           onClick={() => selectCabinet(null)}
           aria-label="Deselect"
         >
@@ -98,7 +98,7 @@ export function Cabinet3DInspector({ cabinet }: Cabinet3DInspectorProps) {
           costing rather than looks — kept because switching it while
           reviewing a design is a pricing decision you often make at the
           same moment. */}
-      <label className="flex flex-col gap-1 text-xs text-gray-600">
+      <label className="flex flex-col gap-1 text-xs text-muted-foreground">
         Board
         <select
           value={currentBoard?.id ?? ''}
@@ -106,7 +106,7 @@ export function Cabinet3DInspector({ cabinet }: Cabinet3DInspectorProps) {
             const board = rateBoards.find((b) => b.id === e.target.value);
             if (board) updateCabinet(cabinet.id, { material: board.material, carcassBoardId: board.id });
           }}
-          className="rounded border border-gray-300 px-2 py-1.5 text-sm"
+          className="rounded border border-input px-2 py-1.5 text-sm"
         >
           {/* Same rule as BoardSelect (components/common): only priced
               board lines, plus the current one if it isn't, so the
@@ -121,12 +121,12 @@ export function Cabinet3DInspector({ cabinet }: Cabinet3DInspectorProps) {
           ))}
           {!currentBoard && <option value="">{cabinet.material} (no board line)</option>}
         </select>
-        <span className="text-[10px] text-gray-400">
+        <span className="text-xs text-muted-foreground">
           Affects price and durability, not appearance.
         </span>
       </label>
 
-      <p className="border-t border-gray-200 pt-2 text-[10px] text-gray-400">
+      <p className="border-t border-border pt-2 text-xs text-muted-foreground">
         Size, position and rotation are edited on the 2D floor plan, where clearances are visible.
       </p>
     </div>

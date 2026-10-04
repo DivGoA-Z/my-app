@@ -342,3 +342,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§88** Room button toggles; plan display ticks moved to their own Show button (checks button = problems only); cutting-list download caption replaced by a download arrow on each button.
 
 **§89** Present mode restyled, price as right-hand panel; plan origin centred in computeRoomScale (tested); plan display button renamed "Guides".
+
+**§90** 3D controls restyled ("Look from"; 360° tools + calibration in one fold); 3D overlay and 360° viewer restyled; fix: editor main lacked min-h-0, squashing the phone tool strip in 3D.

@@ -5869,3 +5869,21 @@ editing those fields changes it.
   "Guides" is the usual word for those in design tools. Alternatives
   considered: Layers (suggests the items themselves), View (clashes
   with the Plan/3D/Elevation tabs), Overlays (jargon).
+
+## 90. 3D view controls restyled
+
+- **"Look from"** (was "Viewpoint") is a full-size select, with one
+  plain hint line under it. The hint is about floor markers only when
+  the design has cameras; otherwise it explains drag to turn and pinch
+  to zoom.
+- **360° photos** fold: the camera select, Capture / Capture again,
+  View 360° and Delete (an icon), with the calibration settings
+  (mirror, flip, exposure, walkthrough lens) below them. Capturing is
+  occasional, and the controls took half a phone screen. Same
+  component in the editor's 3D tab and Present mode.
+- The 3D frame, the 3D cabinet overlay (`Cabinet3DInspector`) and the
+  360° viewer get the token restyle.
+- **Bug fixed: the phone's tool strip was squashed in 3D view.** The
+  editor's `<main>` lacked `min-h-0`, so in the phone's column layout
+  the 3D content pushed the strip down and cut off its labels. The plan
+  view didn't show it because its container already had `min-h-0`.

@@ -56,6 +56,7 @@
 //
 // Install: npm install three @react-three/fiber @react-three/drei
 
+import { Camera as CameraIcon, ChevronDown, Eye, Trash2 } from 'lucide-react';
 import { usePhysicalCabinets } from '../../hooks/usePhysicalCabinets';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -336,139 +337,117 @@ export function Room3DCanvas({ widthMm, depthMm, wallView }: Room3DCanvasProps) 
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       {!wallView && (
         <>
-      <label className="flex items-center gap-2 self-start text-xs text-gray-600">
-        Viewpoint
-        <select
-          value={lockedCameraId ?? ''}
-          onChange={(e) => setLockedCameraId(e.target.value || null)}
-          className="rounded border border-gray-300 px-2 py-1 text-xs"
-        >
-          <option value="">Free orbit</option>
-          {cameras.map((camera) => (
-            <option key={camera.id} value={camera.id}>
-              {camera.label}
-            </option>
-          ))}
-        </select>
-        {lockedCamera ? (
-          <span className="text-[10px] text-gray-400">
-            Locked to {lockedCamera.label} — drag to look around (position stays put). Click
-            another glowing floor marker to step there instead.
-          </span>
-        ) : (
-          <span className="text-[10px] text-gray-400">
-            Or click a glowing floor marker to step into the room at that camera.
-          </span>
-        )}
-      </label>
-
-      {cameras.length > 0 && (
-        <label className="flex flex-wrap items-center gap-2 self-start text-xs text-gray-600">
-          360° for
+      {/* §90: restyled to the app's tokens and touch sizes. Where you're
+          looking from stays in view; the 360° photo tools and their
+          calibration share one fold, since capturing is occasional and
+          they took half a phone screen. */}
+      <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+        <label className="flex flex-col gap-1.5 text-[13px] font-semibold">
+          Look from
           <select
-            value={selectedCameraId ?? ''}
-            onChange={(e) => setSelectedCameraId(e.target.value || null)}
-            className="rounded border border-gray-300 px-2 py-1 text-xs"
+            value={lockedCameraId ?? ''}
+            onChange={(e) => setLockedCameraId(e.target.value || null)}
+            className="h-11 rounded-[10px] border border-input bg-card px-3 text-[15px] min-w-44"
           >
-            <option value="" disabled>
-              Choose a camera...
-            </option>
+            <option value="">Free orbit (drag to turn)</option>
             {cameras.map((camera) => (
               <option key={camera.id} value={camera.id}>
                 {camera.label}
               </option>
             ))}
           </select>
-          {/* Works whether or not the viewport is locked to this node —
-              capturePanorama only needs a world position, the on-screen
-              camera doesn't need to actually be sitting there. */}
-          <Button variant="outline" size="xs" onClick={handleCapture} disabled={!selectedCamera || isCapturing}>
-            {isCapturing ? 'Capturing...' : 'Capture 360°'}
-          </Button>
-          {selectedCamera?.panoramaUrl && (
-            <>
-              <Button variant="outline" size="xs" onClick={() => setIsViewerOpen(true)}>
-                View 360° Street View
-              </Button>
-              <Button variant="destructive" size="xs" onClick={handleDeletePanorama}>
-                Delete 360°
-              </Button>
-            </>
-          )}
         </label>
-      )}
+      </div>
+      <p className="text-[13px] text-muted-foreground">
+        {lockedCamera
+          ? `Standing at ${lockedCamera.label}: drag to look around. Tap another glowing floor marker to step there.`
+          : cameras.length > 0
+            ? 'Tap a glowing floor marker to step into the room at that camera.'
+            : 'Drag to turn the room; pinch or scroll to zoom.'}
+        {selectedCamera?.panoramaCapturedAt &&
+          !captureError &&
+          ` 360° photo taken ${new Date(selectedCamera.panoramaCapturedAt).toLocaleString()}.`}
+      </p>
+      {captureError && <p className="text-[13px] font-medium text-destructive">Capture failed: {captureError}</p>}
 
       {/* Calibration knobs — see panoramaCapture.ts's header for why
           orientation/exposure can't just be hardcoded correctly up
           front. Capture, look at the result, flip whichever of these is
           wrong, re-capture. Once the right combination is known these
           values can become the defaults and this panel can go away. */}
-      <details className="self-start rounded border border-gray-200 px-3 py-2 text-xs text-gray-600">
-        <summary className="cursor-pointer select-none text-gray-500">Capture settings</summary>
-        <div className="mt-2 flex flex-col gap-2">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={mirrorX}
-              onChange={(e) => setMirrorX(e.target.checked)}
-            />
+      <details className="group self-start rounded-xl border border-border bg-card">
+        <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 px-3 text-[13px] font-semibold text-muted-foreground">
+          360° photos
+          <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="flex flex-col gap-3 border-t border-border p-3 text-sm">
+          {cameras.length > 0 ? (
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="flex flex-col gap-1.5 text-[13px] font-semibold">
+              360° photo for
+              <select
+                value={selectedCameraId ?? ''}
+                onChange={(e) => setSelectedCameraId(e.target.value || null)}
+                className="h-11 rounded-[10px] border border-input bg-card px-3 text-[15px] min-w-40"
+              >
+                <option value="" disabled>
+                  Choose a camera…
+                </option>
+                {cameras.map((camera) => (
+                  <option key={camera.id} value={camera.id}>
+                    {camera.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {/* Works whether or not the viewport is locked to this node —
+                capturePanorama only needs a world position, the on-screen
+                camera doesn't need to actually be sitting there. */}
+            <Button variant="outline" size="touch" onClick={handleCapture} disabled={!selectedCamera || isCapturing}>
+              <CameraIcon /> {isCapturing ? 'Capturing…' : selectedCamera?.panoramaUrl ? 'Capture again' : 'Capture 360°'}
+            </Button>
+            {selectedCamera?.panoramaUrl && (
+              <>
+                <Button variant="outline" size="touch" onClick={() => setIsViewerOpen(true)}>
+                  <Eye /> View 360°
+                </Button>
+                <Button variant="ghost" size="icon-touch" aria-label="Delete 360° photo" className="text-muted-foreground hover:text-destructive" onClick={handleDeletePanorama}>
+                  <Trash2 />
+                </Button>
+              </>
+            )}
+          </div>
+                  ) : (
+            <p className="text-[13px] text-muted-foreground">Add a camera (Cameras panel) to take a 360° photo from it.</p>
+          )}
+          <span className="pt-1 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Capture settings</span>
+          <label className="flex items-center gap-2.5">
+            <input type="checkbox" className="size-4 accent-primary" checked={mirrorX} onChange={(e) => setMirrorX(e.target.checked)} />
             Mirror horizontally
-            <span className="text-[10px] text-gray-400">
-              (turn off if the capture is left-right flipped)
-            </span>
+            <span className="text-xs text-muted-foreground">turn off if the photo is left-right flipped</span>
           </label>
-
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={flipY} onChange={(e) => setFlipY(e.target.checked)} />
+          <label className="flex items-center gap-2.5">
+            <input type="checkbox" className="size-4 accent-primary" checked={flipY} onChange={(e) => setFlipY(e.target.checked)} />
             Flip vertically
-            <span className="text-[10px] text-gray-400">(turn on if the capture is upside down)</span>
+            <span className="text-xs text-muted-foreground">turn on if the photo is upside down</span>
           </label>
-
-          <label className="flex items-center gap-2">
+          <label className="flex flex-wrap items-center gap-2.5">
             Exposure
-            <input
-              type="range"
-              min={0.5}
-              max={2}
-              step={0.05}
-              value={exposure}
-              onChange={(e) => setExposure(Number(e.target.value))}
-            />
-            <span className="w-8 tabular-nums text-[10px] text-gray-400">
-              {exposure.toFixed(2)}
-            </span>
-            <span className="text-[10px] text-gray-400">(raise if captures look too dark)</span>
+            <input type="range" className="accent-primary" min={0.5} max={2} step={0.05} value={exposure} onChange={(e) => setExposure(Number(e.target.value))} />
+            <span className="w-10 font-mono text-xs tabular-nums">{exposure.toFixed(2)}</span>
+            <span className="text-xs text-muted-foreground">raise if photos look too dark</span>
           </label>
-
-          <label className="flex items-center gap-2">
-            Walkthrough FOV
-            <input
-              type="range"
-              min={40}
-              max={90}
-              step={1}
-              value={firstPersonFovDeg}
-              onChange={(e) => setFirstPersonFovDeg(Number(e.target.value))}
-            />
-            <span className="w-8 tabular-nums text-[10px] text-gray-400">{firstPersonFovDeg}°</span>
-            <span className="text-[10px] text-gray-400">
-              (lower = less edge stretching when panning)
-            </span>
+          <label className="flex flex-wrap items-center gap-2.5">
+            Walkthrough lens
+            <input type="range" className="accent-primary" min={40} max={90} step={1} value={firstPersonFovDeg} onChange={(e) => setFirstPersonFovDeg(Number(e.target.value))} />
+            <span className="w-10 font-mono text-xs tabular-nums">{firstPersonFovDeg}°</span>
+            <span className="text-xs text-muted-foreground">lower = less stretching at the edges</span>
           </label>
         </div>
       </details>
-
-      {captureError && (
-        <p className="text-xs text-red-600">Capture failed: {captureError}</p>
-      )}
-      {selectedCamera?.panoramaCapturedAt && !captureError && (
-        <p className="text-[10px] text-gray-400">
-          Last captured {new Date(selectedCamera.panoramaCapturedAt).toLocaleString()}.
-        </p>
-      )}
 
         </>
       )}
@@ -484,7 +463,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView }: Room3DCanvasProps) 
           keeps the effective FOV consistent regardless of window
           width. */}
       <div
-        className="relative aspect-video w-full max-w-5xl overflow-hidden rounded-lg border border-gray-200 bg-gray-100"
+        className="relative aspect-video w-full max-w-5xl overflow-hidden rounded-2xl border border-border bg-secondary shadow-card"
         onPointerDown={(e) => {
           pointerDownAtRef.current = { x: e.clientX, y: e.clientY };
         }}
