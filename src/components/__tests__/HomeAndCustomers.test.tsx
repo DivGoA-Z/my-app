@@ -10,17 +10,23 @@ import userEvent from '@testing-library/user-event';
 import { HomePage } from '../home/HomePage';
 import { CustomersPage } from '../customers/CustomersPage';
 import { resetStore } from '../../test/store';
+import { useAuthStore } from '../../store/authStore';
 import type { CustomerProject } from '../../types/customer';
 
 const daysAgo = (d: number) => new Date(Date.now() - d * 86400000).toISOString();
 let rows: CustomerProject[] = [];
 const updateCustomerStatus = vi.fn(async () => new Date().toISOString());
+const updateCustomerNotes = vi.fn(async () => {});
+const createCustomer = vi.fn(async (input: { clientName: string; phone: string; notes?: string }) => ({
+  id: 'new', address: '', locality: '', status: 'Lead' as const, createdAt: '', updatedAt: '', ...input,
+}));
 
 vi.mock('../../lib/customers', () => ({
   fetchCustomers: vi.fn(async () => rows),
   updateCustomerStatus: (...a: unknown[]) => updateCustomerStatus(...(a as [])),
   setInstallDate: vi.fn(async () => {}),
-  createCustomer: vi.fn(),
+  createCustomer: (...a: unknown[]) => createCustomer(...(a as [never])),
+  updateCustomerNotes: (...a: unknown[]) => updateCustomerNotes(...(a as [])),
 }));
 vi.mock('../../lib/quotes', () => ({ fetchAllQuoteHistoriesByProject: vi.fn(async () => ({})) }));
 vi.mock('../../lib/Persistence', () => ({ fetchCapturedPanoramasByProject: vi.fn(async () => ({})) }));
@@ -82,6 +88,38 @@ describe('Customers', () => {
     await user.click(await screen.findByRole('menuitem', { name: 'In production' }));
     expect(updateCustomerStatus).toHaveBeenCalledWith('b', { status: 'In Production' });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+});
+
+describe('Customer notes (§96)', () => {
+  it('a new customer can be added with notes', async () => {
+    const user = userEvent.setup();
+    resetStore();
+    useAuthStore.setState({ businessId: 'biz' });
+    render(<CustomersPage onOpenDesign={() => {}} />);
+    await user.click(await screen.findByRole('button', { name: /New customer/ }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText('Name'), 'Asha Rao');
+    await user.type(within(dialog).getByLabelText('Phone'), '9811111111');
+    await user.type(within(dialog).getByLabelText(/Notes/), '  Budget 4L, husband decides  ');
+    await user.click(within(dialog).getByRole('button', { name: 'Add customer' }));
+    expect(createCustomer).toHaveBeenCalledWith(expect.objectContaining({ clientName: 'Asha Rao', notes: 'Budget 4L, husband decides' }), 'biz');
+  });
+
+  it('notes show on the card and are edited from its menu', async () => {
+    const user = userEvent.setup();
+    resetStore();
+    rows = [customer('n', 'Lead', { notes: 'Call after Diwali\nPrefers wood finish' })];
+    render(<CustomersPage onOpenDesign={() => {}} />);
+    expect((await screen.findAllByText('Call after Diwali')).length).toBeGreaterThan(0);
+    await user.click((await screen.findAllByRole('button', { name: 'Actions for Customer n' }))[0]);
+    await user.click(await screen.findByRole('menuitem', { name: 'Notes' }));
+    const box = within(await screen.findByRole('dialog')).getByLabelText('Notes');
+    expect(box).toHaveValue('Call after Diwali\nPrefers wood finish');
+    await user.clear(box);
+    await user.type(box, 'Site visit Saturday');
+    await user.click(screen.getByRole('button', { name: 'Save notes' }));
+    expect(updateCustomerNotes).toHaveBeenCalledWith('n', 'Site visit Saturday');
   });
 });
 

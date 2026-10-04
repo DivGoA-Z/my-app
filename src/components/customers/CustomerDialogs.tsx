@@ -1,9 +1,9 @@
 // src/components/customers/CustomerDialogs.tsx
 //
-// The three small forms the pipeline needs, shared by Home and
-// Customers (§70): a new customer, the reason a customer was lost (§69 —
-// required, so the button stays disabled until one is picked), and a
-// job's install date.
+// The small forms the pipeline needs, shared by Home and Customers
+// (§70): a new customer, the reason a customer was lost (§69 — required,
+// so the button stays disabled until one is picked), a job's install
+// date, and the customer's notes (§96).
 
 import { useState } from 'react';
 import { Button } from '../ui/button';
@@ -47,7 +47,7 @@ export function NewCustomerDialog({
     setError(null);
     try {
       const created = await createCustomer(
-        { ...form, clientName: form.clientName.trim(), phone: form.phone.trim() },
+        { ...form, clientName: form.clientName.trim(), phone: form.phone.trim(), notes: form.notes?.trim() || undefined },
         businessId
       );
       setForm(EMPTY);
@@ -83,6 +83,18 @@ export function NewCustomerDialog({
           <Label className="flex flex-col items-stretch gap-1.5 text-[13px]">
             Locality
             <Input value={form.locality} onChange={set('locality')} placeholder="e.g. Dwarka, Delhi" className="h-11 text-[15px]" />
+          </Label>
+          {/* Anything at all (§96); editable later from the card's menu. */}
+          <Label className="flex flex-col items-stretch gap-1.5 text-[13px] sm:col-span-2">
+            <span>
+              Notes <span className="font-normal text-muted-foreground">(optional)</span>
+            </span>
+            <textarea
+              value={form.notes ?? ''}
+              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              placeholder="Anything worth remembering: budget, timing, who decides, site access…"
+              className="min-h-28 w-full rounded-[10px] border border-input bg-card px-3 py-2.5 text-[15px] leading-relaxed outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            />
           </Label>
         </div>
         {error && (
@@ -221,6 +233,53 @@ function InstallDateForm({
         </Button>
         <Button size="touch" disabled={!date} onClick={() => onSave(date)}>
           Save date
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  );
+}
+
+export function NotesDialog({
+  customer,
+  onCancel,
+  onSave,
+}: {
+  customer: CustomerProject | null;
+  onCancel: () => void;
+  onSave: (notes: string) => void;
+}) {
+  // Keyed by the customer, like the install date, so reopening for
+  // another customer starts from THEIR notes.
+  return (
+    <Dialog open={customer !== null} onOpenChange={(o) => !o && onCancel()}>
+      {customer && <NotesForm key={customer.id} customer={customer} onCancel={onCancel} onSave={onSave} />}
+    </Dialog>
+  );
+}
+
+function NotesForm({ customer, onCancel, onSave }: { customer: CustomerProject; onCancel: () => void; onSave: (notes: string) => void }) {
+  const [notes, setNotes] = useState(customer.notes ?? '');
+  const changed = notes.trim() !== (customer.notes ?? '').trim();
+  return (
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Notes — {customer.clientName}</DialogTitle>
+        <DialogDescription>Anything about this customer. Only your team sees these; they're never on a quote.</DialogDescription>
+      </DialogHeader>
+      <textarea
+        aria-label="Notes"
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        autoFocus
+        placeholder="Budget, timing, who decides, site access…"
+        className="min-h-44 w-full rounded-[10px] border border-input bg-card px-3 py-2.5 text-[15px] leading-relaxed outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      />
+      <DialogFooter>
+        <Button variant="ghost" size="touch" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button size="touch" disabled={!changed} onClick={() => onSave(notes)}>
+          Save notes
         </Button>
       </DialogFooter>
     </DialogContent>

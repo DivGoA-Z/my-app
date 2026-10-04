@@ -6076,3 +6076,22 @@ the first letter as before. Screen-tested (`AppShell.test.tsx`). The
 phone has no sidebar header, only bottom tabs, so nothing changes
 there. Not yet seen with a real logo: uploads need `schema.sql`
 re-run first.
+
+## 96. Customer notes
+
+`projects.notes` existed in the schema and the save path from the
+start, but nothing in the app showed it. You asked for notes when
+adding a customer, and without a way to read them back they'd vanish
+from view, so this does both:
+- **New customer** form: an optional **Notes** box for anything
+  (budget, timing, who decides, site access). It's trimmed on save.
+- **Each card's ⋯ menu**: **Notes** (or **Add notes**) opens a dialog
+  to read and edit. Blank clears them. `updateCustomerNotes` checks for
+  the zero-row result a refused update returns, rather than reporting
+  success.
+- **On the card**: the first line of the notes with a note icon, on
+  the board and in the wide list. Tap it to open the dialog. Notes
+  are team-only and never printed on a quote.
+
+Screen-tested: a new customer saves trimmed notes, and notes show on
+the card and save from the menu.

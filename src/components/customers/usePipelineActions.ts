@@ -5,7 +5,7 @@
 // dashboard used, shared by Home and Customers.
 
 import { toast } from 'sonner';
-import { setInstallDate, updateCustomerStatus, type StatusChange } from '../../lib/customers';
+import { setInstallDate, updateCustomerStatus, type StatusChange, updateCustomerNotes } from '../../lib/customers';
 import type { CustomerProject } from '../../types/customer';
 import { STAGE_META } from '../../lib/pipeline';
 
@@ -46,5 +46,17 @@ export function usePipelineActions(customers: CustomerProject[], setCustomers: S
     }
   }
 
-  return { changeStage, saveInstallDate };
+  async function saveNotes(customer: CustomerProject, notes: string) {
+    const previous = customers;
+    patch(customer.id, { notes: notes.trim() || undefined });
+    try {
+      await updateCustomerNotes(customer.id, notes);
+      toast.success('Notes saved');
+    } catch (err) {
+      setCustomers(previous);
+      toast.error("Couldn't save the notes", { description: err instanceof Error ? err.message : undefined });
+    }
+  }
+
+  return { changeStage, saveInstallDate, saveNotes };
 }

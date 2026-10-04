@@ -107,3 +107,16 @@ export async function setInstallDate(id: string, installDate: string | null): Pr
     throw new Error(`Failed to set install date for ${id}: ${error.message}`);
   }
 }
+
+// Free-text notes about a customer (§96): budget, timing, who decides,
+// site access — anything. Blank clears them. A refused update (RLS)
+// comes back as zero rows rather than an error, so that's checked.
+export async function updateCustomerNotes(id: string, notes: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('projects')
+    .update({ notes: notes.trim() || null, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select('id');
+  if (error) throw new Error(`Failed to save notes: ${error.message}`);
+  if (!data || data.length === 0) throw new Error('Notes not saved: this customer may belong to another business.');
+}

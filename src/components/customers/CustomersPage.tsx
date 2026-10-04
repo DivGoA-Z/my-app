@@ -12,7 +12,7 @@
 // or hover (UI principle 5 — touch is first-class).
 
 import { useState } from 'react';
-import { MoreHorizontal, Plus, Search, CalendarDays } from 'lucide-react';
+import { MoreHorizontal, Plus, Search, CalendarDays, StickyNote } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Skeleton } from '../ui/skeleton';
@@ -27,7 +27,7 @@ import {
 } from '../ui/dropdown-menu';
 import { PageHeader } from '../shell/AppShell';
 import { PanoramaViewerModal } from '../panorama/PanoramaViewerModal';
-import { InstallDateDialog, LostReasonDialog, NewCustomerDialog } from './CustomerDialogs';
+import { InstallDateDialog, LostReasonDialog, NewCustomerDialog, NotesDialog } from './CustomerDialogs';
 import { useCustomerList, INR, formatShortDate } from './customerData';
 import { usePipelineActions } from './usePipelineActions';
 import { BOARD_STAGES, STAGE_META, daysSince, onBoard, stageSince } from '../../lib/pipeline';
@@ -61,6 +61,24 @@ function activity(c: CustomerProject, history: QuoteHistoryEntry[] | undefined, 
   }
 }
 
+// The first line of a customer's notes on their card (§96), so the
+// thing worth remembering is visible without opening anything. Tap to
+// read or edit the rest.
+function NotesPreview({ c, onOpen }: { c: CustomerProject; onOpen: () => void }) {
+  if (!c.notes) return null;
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      title={c.notes}
+      className="flex min-w-0 items-center gap-1.5 text-left text-xs text-muted-foreground hover:text-foreground"
+    >
+      <StickyNote className="size-3.5 shrink-0" />
+      <span className="truncate">{c.notes.split('\n')[0]}</span>
+    </button>
+  );
+}
+
 interface CardMenuProps {
   c: CustomerProject;
   history: QuoteHistoryEntry[];
@@ -69,11 +87,12 @@ interface CardMenuProps {
   onOpenCutList?: (id: string) => void;
   moveTo: (c: CustomerProject, s: LeadStatus) => void;
   onSetDate: (c: CustomerProject) => void;
+  onNotes: (c: CustomerProject) => void;
   onPanorama: (cam: CameraNode) => void;
 }
 
 // Every card action in one menu, so nothing needs drag or hover.
-function CardMenu({ c, history, views, onOpenDesign, onOpenCutList, moveTo, onSetDate, onPanorama }: CardMenuProps) {
+function CardMenu({ c, history, views, onOpenDesign, onOpenCutList, moveTo, onSetDate, onNotes, onPanorama }: CardMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -84,6 +103,9 @@ function CardMenu({ c, history, views, onOpenDesign, onOpenCutList, moveTo, onSe
       <DropdownMenuContent align="end" className="w-60" onClick={(e) => e.stopPropagation()}>
         <DropdownMenuItem className="h-10" onSelect={() => onOpenDesign(c.id)}>
           Open design
+        </DropdownMenuItem>
+        <DropdownMenuItem className="h-10" onSelect={() => onNotes(c)}>
+          {c.notes ? 'Notes' : 'Add notes'}
         </DropdownMenuItem>
         {/* The workshop's way in (§71): an approved job's cutting list,
             one tap from the customer, without opening the editor. */}
@@ -157,13 +179,14 @@ export function CustomersPage({
   onOpenCutList?: (projectId: string) => void;
 }) {
   const { customers, setCustomers, isLoading, error, quoteHistories, panoramas } = useCustomerList();
-  const { changeStage, saveInstallDate } = usePipelineActions(customers, setCustomers);
+  const { changeStage, saveInstallDate, saveNotes } = usePipelineActions(customers, setCustomers);
   const [query, setQuery] = useState('');
   const [view, setView] = useState<View>('board');
   const [filter, setFilter] = useState<Filter>('all');
   const [adding, setAdding] = useState(false);
   const [losing, setLosing] = useState<CustomerProject | null>(null);
   const [dating, setDating] = useState<CustomerProject | null>(null);
+  const [noting, setNoting] = useState<CustomerProject | null>(null);
   const [panorama, setPanorama] = useState<CameraNode | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const now = new Date();
@@ -323,8 +346,9 @@ export function CustomersPage({
                               <span className="block truncate text-[15px] font-semibold">{c.clientName}</span>
                               <span className="block truncate text-[13px] text-muted-foreground">{c.locality || '—'}</span>
                             </button>
-                            <CardMenu c={c} history={quoteHistories[c.id] ?? []} views={panoramas[c.id] ?? []} onOpenDesign={onOpenDesign} onOpenCutList={onOpenCutList} moveTo={moveTo} onSetDate={setDating} onPanorama={setPanorama} />
+                            <CardMenu c={c} history={quoteHistories[c.id] ?? []} views={panoramas[c.id] ?? []} onOpenDesign={onOpenDesign} onOpenCutList={onOpenCutList} moveTo={moveTo} onSetDate={setDating} onNotes={setNoting} onPanorama={setPanorama} />
                           </div>
+                          <NotesPreview c={c} onOpen={() => setNoting(c)} />
                           <div className="flex items-center justify-between gap-2 pt-1">
                             {stage === 'In Production' && !c.installDate ? (
                               <button
@@ -367,12 +391,15 @@ export function CustomersPage({
                       {[c.locality, a.text].filter(Boolean).join(' · ')}
                     </span>
                   </button>
+                  <div className="hidden min-w-0 max-w-[30%] lg:block">
+                    <NotesPreview c={c} onOpen={() => setNoting(c)} />
+                  </div>
                   <span className="hidden text-sm text-muted-foreground md:block">{c.phone}</span>
                   <div className="flex flex-col items-end gap-1.5">
                     <StagePill status={c.status} />
                     {c.quoteTotal != null && <span className="shrink-0 text-sm font-bold">{INR.format(c.quoteTotal)}</span>}
                   </div>
-                  <CardMenu c={c} history={quoteHistories[c.id] ?? []} views={panoramas[c.id] ?? []} onOpenDesign={onOpenDesign} onOpenCutList={onOpenCutList} moveTo={moveTo} onSetDate={setDating} onPanorama={setPanorama} />
+                  <CardMenu c={c} history={quoteHistories[c.id] ?? []} views={panoramas[c.id] ?? []} onOpenDesign={onOpenDesign} onOpenCutList={onOpenCutList} moveTo={moveTo} onSetDate={setDating} onNotes={setNoting} onPanorama={setPanorama} />
                 </article>
               );
             })}
@@ -392,6 +419,14 @@ export function CustomersPage({
         onConfirm={(reason, note) => {
           if (losing) void changeStage(losing, { status: 'Lost', reason, note });
           setLosing(null);
+        }}
+      />
+      <NotesDialog
+        customer={noting}
+        onCancel={() => setNoting(null)}
+        onSave={(notes) => {
+          if (noting) void saveNotes(noting, notes);
+          setNoting(null);
         }}
       />
       <InstallDateDialog
