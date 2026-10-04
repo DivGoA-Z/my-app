@@ -52,6 +52,11 @@ export function RoomSettingsPanel({ compact = false }: { compact?: boolean } = {
   }
 
   function handleOpen() {
+    // A second press closes it, same as the Quote button (§88).
+    if (isOpen) {
+      setIsOpen(false);
+      return;
+    }
     // Seed the form from the live layout every time it's opened, so
     // re-opening after an external change (e.g. loading a different
     // project) never shows stale numbers.

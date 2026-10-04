@@ -338,3 +338,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§86** Editor stage 3: cabinet inspector (quick actions, big finish swatches, front picture tiles, alerts folded); quote panel pricing fold (closed = Selling), margin note only in Cost view, stacked cabinet rows.
 
 **§87** Editor stage 4: phone top bar (Room icon + More menu), tools as bottom strip, panels as bottom sheet; Add part button.
+
+**§88** Room button toggles; plan display ticks moved to their own Show button (checks button = problems only); cutting-list download caption replaced by a download arrow on each button.

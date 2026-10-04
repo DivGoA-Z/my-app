@@ -150,6 +150,10 @@ test('design editor', async ({ page }) => {
   await page.waitForTimeout(2500);
   await page.screenshot({ path: `${dir}/08d-editor-wall3d.png` });
   await page.getByRole('tab', { name: 'Plan' }).click();
+  // The plan's own Show menu (§88), separate from the checks.
+  await page.getByRole('button', { name: /Show|Layers/ }).first().click();
+  await page.screenshot({ path: `${dir}/08g-editor-show.png` });
+  await page.getByRole('button', { name: /Show|Layers/ }).first().click();
   await page.getByRole('button', { name: /^\S+ checks?$|No issues/ }).click();
   await page.waitForTimeout(400);
   await page.screenshot({ path: `${dir}/08c-editor-checks.png` });

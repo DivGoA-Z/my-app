@@ -14,7 +14,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../ui/button';
-import { AlertTriangle, ArrowLeft, Download, FileSpreadsheet, GlassWater, Layers, PlusSquare, Printer, Snowflake, Tags } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Download, GlassWater, Layers, PlusSquare, Snowflake } from 'lucide-react';
 import { SectionCard } from '../common/SectionCard';
 import { useLayoutStore } from '../../store/layoutStore';
 import {
@@ -295,11 +295,11 @@ export function CutListView({
           {quotes.length === 0 && <option disabled>No frozen quotes yet</option>}
         </select>
         <div className="flex-1" />
-        {/* All three are downloads (your request, §84): say so. */}
-        <div role="group" aria-label="Download" className="flex flex-wrap items-center gap-2">
-          <span className="flex items-center gap-1.5 text-[13px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
-            <Download className="size-4" /> Download
-          </span>
+        {/* All three are downloads (§84). A separate "Download" caption
+            with an icon was tried and read as a button that did nothing
+            (§88), so each button carries the download arrow and says
+            what file it gives you. */}
+        <div role="group" aria-label="Downloads" className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
             variant="outline"
@@ -310,7 +310,7 @@ export function CutListView({
               exportWorkbook(cutList, viewSettings, viewBoards, `${currentProject?.clientName ?? ''}${frozen ? `-quote-v${frozen.version}` : ''}`)
             }
           >
-            <FileSpreadsheet /> Excel sheet
+            <Download /> Excel sheet
           </Button>
           {/* Printable workshop documents (§64), from the version shown. */}
           <Button
@@ -321,7 +321,7 @@ export function CutListView({
             title="Download stickers for every cut piece (PDF)"
             onClick={() => downloadBlob(generatePartLabelsPdf(cutList, pdfInfo), `${pdfFileBase}-labels.pdf`)}
           >
-            <Tags /> Part labels PDF
+            <Download /> Part labels PDF
           </Button>
           <Button
             type="button"
@@ -330,7 +330,7 @@ export function CutListView({
             title="Download the printable cutting list with sheet layouts (PDF)"
             onClick={() => downloadBlob(generateCutListPdf(cutList, pdfInfo), `${pdfFileBase}.pdf`)}
           >
-            <Printer /> Cutting list PDF
+            <Download /> Cutting list PDF
           </Button>
         </div>
       </header>

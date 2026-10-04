@@ -5827,3 +5827,23 @@ normal-size button with an icon.
 
 The screenshot run photographs the phone tool sheet and More menu, and
 opens the cutting list through the menu.
+
+## 88. Editor and cutting-list fixes from review
+
+- **Room button toggles.** A second press closes the room pop-up, the
+  same as the Quote button.
+- **"Show on the plan" has its own button.** The four display ticks
+  (dimensions, overlaps, clearances, ergonomics) moved from the checks
+  pop-up to a **Show** button (layers icon) at the plan's top-right.
+  They're view settings, not design problems. The bottom-left checks
+  button now opens only the list of problems.
+- **Cutting-list downloads, second try.** §84 added a "⤓ DOWNLOAD"
+  caption beside the buttons, but a caption with a download icon reads
+  as a button that does nothing, so it's gone. Each button now carries
+  the download arrow instead (Excel sheet, Part labels PDF, Cutting
+  list PDF), with a tooltip naming the file.
+
+**Cabinet pictures need no image file**: `CabinetThumb` draws the
+front from the catalogue row's type, size, front layout and finish, so
+a new catalogue cabinet appears with its picture straight away, and
+editing those fields changes it.

@@ -27,6 +27,7 @@ import {
   DoorOpen,
   Lamp,
   Paintbrush,
+  Layers,
   MoreHorizontal,
   Presentation,
   ReceiptText,
@@ -138,6 +139,7 @@ export function DesignEditor({
   // inspector, whatever this says.
   const [quoteOpen, setQuoteOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1280);
   const [checksOpen, setChecksOpen] = useState(false);
+  const [showOpen, setShowOpen] = useState(false);
   // The four display switches (moved here from App.tsx in §81):
   // Purely a display preference for the 2D plan — cabinet width×depth×
   // height labels and the remaining-space gap labels both get dense on
@@ -372,6 +374,38 @@ export function DesignEditor({
               {/* The overlap chooser: fixed-positioned itself, but it
                   lives here so it unmounts with the plan. */}
               <PickChooser />
+              {/* What the plan draws, on its own button (§88): these are
+                  view settings, not design problems, so they don't live
+                  under the checks button any more. */}
+              <div className="absolute top-3 right-3 z-10">
+                <Button
+                  variant="outline"
+                  size="touch"
+                  aria-expanded={showOpen}
+                  onClick={() => setShowOpen((o) => !o)}
+                  className="bg-card shadow-card"
+                >
+                  <Layers /> <span className="hidden sm:inline">Show</span>
+                </Button>
+                {showOpen && (
+                  <div className="absolute top-full right-0 mt-2 flex w-64 flex-col gap-2.5 rounded-2xl bg-card p-4 text-sm shadow-float">
+                    <span className="text-[13px] font-semibold text-muted-foreground">Show on the plan</span>
+                    {(
+                      [
+                        ['Dimensions', showDimensions, setShowDimensions],
+                        ['Overlaps', showOverlapWarnings, setShowOverlapWarnings],
+                        ['Clearances (door swings, gaps)', showClearanceWarnings, setShowClearanceWarnings],
+                        ['Kitchen ergonomics', showKitchenChecks, setShowKitchenChecks],
+                      ] as const
+                    ).map(([label, value, setter]) => (
+                      <label key={label} className="flex min-h-9 items-center gap-2.5">
+                        <Checkbox checked={value} onCheckedChange={(c) => setter(c === true)} />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
               {canvasWidth > 0 && (
                 <RoomCanvas widthMm={roomWidthMm} depthMm={roomDepthMm} {...size}>
                   <CabinetLayer
@@ -511,22 +545,6 @@ export function DesignEditor({
               showKitchenChecks={showKitchenChecks}
             />
             {alerts.length === 0 && <p className="text-sm text-muted-foreground">Nothing to fix right now.</p>}
-            <div className="flex flex-col gap-2 border-t border-border pt-3 text-sm">
-              <span className="text-[13px] font-semibold text-muted-foreground">Show on the plan</span>
-              {(
-                [
-                  ['Dimensions', showDimensions, setShowDimensions],
-                  ['Overlaps', showOverlapWarnings, setShowOverlapWarnings],
-                  ['Clearances (door swings, gaps)', showClearanceWarnings, setShowClearanceWarnings],
-                  ['Kitchen ergonomics', showKitchenChecks, setShowKitchenChecks],
-                ] as const
-              ).map(([label, value, setter]) => (
-                <label key={label} className="flex items-center gap-2.5">
-                  <Checkbox checked={value} onCheckedChange={(c) => setter(c === true)} />
-                  {label}
-                </label>
-              ))}
-            </div>
           </div>
         )}
         <div className="hidden gap-1.5 sm:flex">
