@@ -19,6 +19,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { Box, CookingPot, Droplets, Flame, GlassWater, Microwave, Refrigerator, WashingMachine, Wind, X } from 'lucide-react';
 import { Chips } from '../inventory/CatalogueKit';
+import { startPlaceGesture, type DragPayload } from '../editor/placeDrag';
 import { useLayoutStore } from '../../store/layoutStore';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
@@ -51,8 +52,8 @@ export function ApplianceToolbar({ onManageInventory }: ApplianceToolbarProps) {
 
   const [type, setType] = useState('All');
 
-  function handleAdd(item: ApplianceCatalogItem) {
-    const newAppliance: PlacedApplianceItem = {
+  function buildAppliance(item: ApplianceCatalogItem): PlacedApplianceItem {
+    return {
       id: crypto.randomUUID(),
       layoutId,
       applianceType: item.applianceType,
@@ -80,8 +81,24 @@ export function ApplianceToolbar({ onManageInventory }: ApplianceToolbarProps) {
       // catalogue row at a new .glb updates every placement of it
       // rather than only ones added afterwards.
     };
-    addAppliance(newAppliance);
-    toast.success(`Added ${item.label}`, { description: 'It’s in the middle of the room. Drag it into place.' });
+  }
+
+  function handleAdd(item: ApplianceCatalogItem) {
+    addAppliance(buildAppliance(item));
+    toast.success(`Added ${item.label}`, { description: 'It’s in the middle of the room. Next time, drag the tile straight to where it goes.' });
+  }
+
+  // Drag onto the plan (§91); appliances turn to face the room against
+  // a wall like cabinets, but don't magnet-snap to them.
+  function dragPayload(item: ApplianceCatalogItem): DragPayload {
+    const appliance = buildAppliance(item);
+    return {
+      label: item.label,
+      widthMm: appliance.widthMm,
+      depthMm: appliance.depthMm,
+      autoTurn: true,
+      commit: ({ x, y, rotationDeg }) => addAppliance({ ...appliance, x, y, rotationDeg }),
+    };
   }
 
   // Picture tiles with a type filter (§85), as in the Cabinets panel.
@@ -117,8 +134,9 @@ export function ApplianceToolbar({ onManageInventory }: ApplianceToolbarProps) {
               key={item.id}
               type="button"
               onClick={() => handleAdd(item)}
-              title={`Add ${item.label}`}
-              className="flex flex-col gap-1.5 rounded-xl border border-border bg-card p-2 text-left transition-colors hover:border-primary hover:bg-accent/40"
+              onPointerDown={(e) => startPlaceGesture(e, () => dragPayload(item))}
+              title={`Drag onto the plan, or click to add ${item.label} in the middle`}
+              className="flex touch-pan-y flex-col gap-1.5 rounded-xl select-none border border-border bg-card p-2 text-left transition-colors hover:border-primary hover:bg-accent/40"
             >
               <div className="flex h-16 items-center justify-center rounded-lg bg-secondary text-muted-foreground">
                 <Icon className="size-7" strokeWidth={1.5} />

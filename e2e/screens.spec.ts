@@ -134,6 +134,31 @@ test('design editor', async ({ page }) => {
     await page.screenshot({ path: `${dir}/08-inspector-2.png` });
     await page.keyboard.press('Escape');
   }
+  // Drag-to-place (§91), laptop: carry the first cabinet tile over the
+  // plan and photograph the preview, then Escape. Nothing is dropped, so
+  // the run stays read-only.
+  if (test.info().project.name === 'laptop') {
+    const tools = page.getByRole('navigation', { name: 'Tools' });
+    const cabBtn = tools.getByRole('button', { name: 'Cabinets' });
+    if ((await cabBtn.getAttribute('aria-pressed')) !== 'true') await cabBtn.click();
+    const tile = page.getByRole('complementary', { name: 'Cabinets' }).locator('button[title^="Drag onto the plan"]').first();
+    const t = (await tile.boundingBox())!;
+    const plan = (await page.locator('main canvas').first().boundingBox())!;
+    await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2);
+    await page.mouse.down();
+    const stops: [string, number, number][] = [
+      ['north', plan.x + plan.width / 2, plan.y + 75],
+      ['west', plan.x + plan.width * 0.2, plan.y + plan.height / 2],
+      ['open', plan.x + plan.width / 2, plan.y + plan.height / 2],
+    ];
+    for (const [name, x, y] of stops) {
+      await page.mouse.move(x, y, { steps: 12 });
+      await page.waitForTimeout(150);
+      await page.screenshot({ path: `${dir}/08h-drag-${name}.png` });
+    }
+    await page.keyboard.press('Escape');
+    await page.mouse.up();
+  }
   // Every tool panel (laptop), for review.
   if (test.info().project.name === 'laptop') {
     for (const tool of ['Cabinets', 'Appliances', 'Pillars', 'Doors', 'Lights', 'Cameras', 'Surfaces']) {

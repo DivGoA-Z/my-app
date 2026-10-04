@@ -73,6 +73,8 @@ import { WallElevationView } from '../elevation/WallElevationView';
 import type { InventorySection } from '../inventory/InventoryManager';
 import type { WallOrientation } from '../../types/layout';
 import { useElementSize } from './useElementSize';
+import { usePlaceDrag } from './placeDrag';
+import { PlaceDragLayer } from './PlaceDragLayer';
 import { cn } from '@/lib/utils';
 
 type Tool = 'cabinets' | 'appliances' | 'pillars' | 'doors' | 'lights' | 'cameras' | 'surfaces';
@@ -171,7 +173,10 @@ export function DesignEditor({
         : showClearanceWarnings
   );
 
-  const { measure: measureCanvas, width: canvasWidth, height: canvasHeight } = useElementSize<HTMLDivElement>();
+  const { measure: measureCanvas, element: canvasEl, width: canvasWidth, height: canvasHeight } = useElementSize<HTMLDivElement>();
+  // A unit is being dragged from a panel (§91): on a phone the tool
+  // sheet steps aside so the plan underneath is visible.
+  const isPlacing = usePlaceDrag((s) => s.payload !== null);
   const roomWidthMm = currentLayout?.dimensions.widthMm ?? DEFAULT_ROOM_WIDTH_MM;
   const roomDepthMm = currentLayout?.dimensions.depthMm ?? DEFAULT_ROOM_DEPTH_MM;
   // Every layer gets the SAME size, so they share one scale and line up.
@@ -353,7 +358,7 @@ export function DesignEditor({
         {tool && (
           <aside
             aria-label={TOOLS.find((t) => t.id === tool)?.label}
-            className="absolute inset-x-0 bottom-[72px] z-20 flex max-h-[62%] flex-col rounded-t-2xl border-t border-border bg-card shadow-float md:inset-x-auto md:inset-y-0 md:bottom-auto md:left-[76px] md:max-h-none md:w-[320px] md:max-w-[calc(100vw-76px)] md:rounded-none md:border-t-0 md:border-r lg:static lg:shadow-none"
+            className={cn(isPlacing && 'max-md:pointer-events-none max-md:opacity-0', 'absolute inset-x-0 bottom-[72px] z-20 flex max-h-[62%] flex-col rounded-t-2xl border-t border-border bg-card shadow-float md:inset-x-auto md:inset-y-0 md:bottom-auto md:left-[76px] md:max-h-none md:w-[320px] md:max-w-[calc(100vw-76px)] md:rounded-none md:border-t-0 md:border-r lg:static lg:shadow-none')}
           >
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <span className="text-[17px] font-semibold">{TOOLS.find((t) => t.id === tool)?.label}</span>
@@ -374,6 +379,7 @@ export function DesignEditor({
               {/* The overlap chooser: fixed-positioned itself, but it
                   lives here so it unmounts with the plan. */}
               <PickChooser />
+              <PlaceDragLayer element={canvasEl} roomWidthMm={roomWidthMm} roomDepthMm={roomDepthMm} {...size} />
               {/* What the plan draws, on its own button (§88): these are
                   view settings, not design problems, so they don't live
                   under the checks button any more. */}

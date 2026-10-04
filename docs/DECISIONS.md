@@ -5887,3 +5887,51 @@ editing those fields changes it.
   editor's `<main>` lacked `min-h-0`, so in the phone's column layout
   the 3D content pushed the strip down and cut off its labels. The plan
   view didn't show it because its container already had `min-h-0`.
+
+## 91. Drag to place, with auto-turn against walls
+
+Before this, adding a unit meant clicking its tile, finding it in the
+middle of the room, and dragging it again. Now you **press a tile in
+the Cabinets, Appliances or Pillars panel and drag it onto the plan**.
+A dashed outline shows where it will land, with a solid bar on its
+front edge. A label under the pointer says what you carry and which
+wall it will go against. Letting go adds it there. A plain click still
+adds in the middle, and Escape cancels.
+
+**Where it lands** (`lib/placement.ts`, 11 tests, mutation-checked):
+- Under the pointer, clamped into the room. A drop up to 400mm
+  outside still counts; farther out cancels.
+- **Auto-turn**: within the unit's own depth of a wall (at least
+  600mm), it turns so its back is against the nearest wall and slides
+  flush (north 0°, east 90°, south 180°, west 270°, matching
+  `frontDirection`). In the open it keeps 0°. Pillars and shafts never
+  turn.
+- **Cabinets snap like a plan drag** (`snapCabinetFootprint`), in
+  PHYSICAL size, then convert back to the stored corner (§61). Skipping
+  the conversion would place every drop half a shutter off under
+  carcass-only depth; a test pins this for the north and south walls.
+  The new cabinet is passed to the snapper too, so a wall unit isn't
+  pushed off a base unit below it. Appliances turn but don't snap,
+  same as their plan drag.
+
+**The gesture** (`components/editor/placeDrag.ts`):
+- Mouse: a drag starts after 6px of movement.
+- Touch: a drag starts after a 250ms hold or a clearly sideways move.
+  An early vertical move is a scroll and ends the gesture, so scrolling
+  the tiles never picks one up. Once dragging, the page's own scrolling
+  is cancelled.
+- Window listeners rather than pointer capture: on a phone the tool
+  sheet hides during the drag so you can see the plan, and a hidden
+  element can't be relied on to keep getting events.
+- The click a tile would get after a drop back onto itself is
+  swallowed, so it can't add a second unit.
+- Plan view only: the plan registers a resolver while it's on screen;
+  without one, tiles don't start a drag.
+
+**Verified**: the maths by tests. The mouse drag was seen in a browser:
+the preview pulls flush to the north wall, turns and pulls to the west
+wall, and in the open slides beside the cabinet it was over. The
+screenshot run cancels with Escape, so nothing is saved.
+**Not verified**: touch on a real tablet or phone (hold timing versus
+scrolling), and appliance facing in 3D after a turned drop (the models
+are meant to face +y at 0° like cabinets; not checked by eye).

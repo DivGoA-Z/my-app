@@ -137,8 +137,10 @@ assumed settings, which is a check, not a blocker.
    all four stages done (§81–§87): new frame, 3D wall elevation, cutting
    list, tool panels as picture tiles, inspectors with big swatches and
    front pictures, quote panel with pricing folded away, phone layout
-   (bottom tool strip, sheet panels, More menu). The overhaul is
+   (bottom tool strip, sheet panels, More menu), present mode, 3D
+   controls, and drag-to-place with auto-turn (§88–§91). The overhaul is
    functionally complete; the walkthrough follows, on the new UI.
+   Unverified: drag on a real touch device.
 
 1. **Your end-to-end walkthrough** (`docs/WALKTHROUGH.md`): a new kitchen from scratch, checking
    functionality and basic calculations (not rates). Anything found goes

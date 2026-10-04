@@ -22,6 +22,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { useLayoutStore } from '../../store/layoutStore';
 import { CabinetThumb } from '../editor/CabinetThumb';
+import { startPlaceGesture, type DragPayload } from '../editor/placeDrag';
 import { Chips, SearchBox } from '../inventory/CatalogueKit';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
@@ -53,8 +54,10 @@ export function CabinetToolbar({ onManageInventory }: CabinetToolbarProps) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All');
 
-  function handleAdd(item: CatalogItem) {
-    const newCabinet: PlacedCabinetItem = {
+  // The unit as it will be placed: centred in the room, unless a drag
+  // (§91) puts it somewhere else.
+  function buildCabinet(item: CatalogItem): PlacedCabinetItem {
+    return {
       id: crypto.randomUUID(),
       layoutId,
       moduleType: item.moduleType,
@@ -91,8 +94,23 @@ export function CabinetToolbar({ onManageInventory }: CabinetToolbarProps) {
       unitPrice: item.unitPrice,
       quantity: 1,
     };
-    addCabinet(newCabinet);
-    toast.success(`Added ${item.label}`, { description: 'It’s in the middle of the room. Drag it into place.' });
+  }
+
+  function handleAdd(item: CatalogItem) {
+    addCabinet(buildCabinet(item));
+    toast.success(`Added ${item.label}`, { description: 'It’s in the middle of the room. Next time, drag the tile straight to where it goes.' });
+  }
+
+  function dragPayload(item: CatalogItem): DragPayload {
+    const cabinet = buildCabinet(item);
+    return {
+      label: item.label,
+      widthMm: cabinet.widthMm,
+      depthMm: cabinet.depthMm,
+      autoTurn: true,
+      cabinet,
+      commit: ({ x, y, rotationDeg }) => addCabinet({ ...cabinet, x, y, rotationDeg }),
+    };
   }
 
   // Search and a category filter over picture tiles (§85).
@@ -130,8 +148,9 @@ export function CabinetToolbar({ onManageInventory }: CabinetToolbarProps) {
             key={item.id}
             type="button"
             onClick={() => handleAdd(item)}
-            title={`Add ${item.label}`}
-            className="group flex flex-col gap-1.5 rounded-xl border border-border bg-card p-2 text-left transition-colors hover:border-primary hover:bg-accent/40"
+            onPointerDown={(e) => startPlaceGesture(e, () => dragPayload(item))}
+            title={`Drag onto the plan, or click to add ${item.label} in the middle`}
+            className="group flex touch-pan-y flex-col gap-1.5 rounded-xl border border-border bg-card p-2 text-left transition-colors select-none hover:border-primary hover:bg-accent/40"
           >
             <div className="flex h-20 items-center justify-center rounded-lg bg-secondary">
               <CabinetThumb

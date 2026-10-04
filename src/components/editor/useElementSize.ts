@@ -19,5 +19,5 @@ export function useElementSize<T extends HTMLElement>() {
     ro.observe(el);
     return () => ro.disconnect();
   }, [el]);
-  return { measure: setEl, width: size.width, height: size.height };
+  return { measure: setEl, element: el, width: size.width, height: size.height };
 }

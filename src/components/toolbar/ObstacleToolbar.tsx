@@ -26,6 +26,7 @@
 
 import { toast } from 'sonner';
 import { X } from 'lucide-react';
+import { startPlaceGesture } from '../editor/placeDrag';
 import { useState } from 'react';
 import { useLayoutStore } from '../../store/layoutStore';
 import { Button } from '../ui/button';
@@ -135,8 +136,8 @@ export function ObstacleToolbar({ onManageInventory }: ObstacleToolbarProps) {
   }
 
   // A preset is one tap (§85); "Custom size" is for anything else.
-  function addPreset(preset: (typeof obstaclePresets)[number]) {
-    addObstacle({
+  function presetObstacle(preset: (typeof obstaclePresets)[number]) {
+    return {
       id: crypto.randomUUID(),
       type: preset.type,
       x: 0,
@@ -146,8 +147,12 @@ export function ObstacleToolbar({ onManageInventory }: ObstacleToolbarProps) {
       floorToCeiling: preset.floorToCeiling,
       heightMm: preset.heightMm,
       elevationMm: preset.floorToCeiling ? 0 : preset.elevationMm,
-      rotationDeg: 0,
-    });
+      rotationDeg: 0 as const,
+    };
+  }
+
+  function addPreset(preset: (typeof obstaclePresets)[number]) {
+    addObstacle(presetObstacle(preset));
     toast.success(`Added ${preset.label}`, { description: 'It’s in the corner of the room. Drag it into place.' });
   }
 
@@ -173,8 +178,16 @@ export function ObstacleToolbar({ onManageInventory }: ObstacleToolbarProps) {
                 key={preset.id}
                 type="button"
                 onClick={() => addPreset(preset)}
-                title={`Add ${preset.label}`}
-                className="flex flex-col gap-1 rounded-xl border border-border bg-card p-2.5 text-left transition-colors hover:border-primary hover:bg-accent/40"
+                // Drag onto the plan (§91). A pillar or shaft isn't turned
+                // to face anything: it lands where it's dropped.
+                onPointerDown={(e) =>
+                  startPlaceGesture(e, () => {
+                    const o = presetObstacle(preset);
+                    return { label: preset.label, widthMm: o.widthMm, depthMm: o.depthMm, autoTurn: false, commit: ({ x, y }) => addObstacle({ ...o, x, y }) };
+                  })
+                }
+                title={`Drag onto the plan, or click to add ${preset.label}`}
+                className="flex touch-pan-y flex-col gap-1 rounded-xl select-none border border-border bg-card p-2.5 text-left transition-colors hover:border-primary hover:bg-accent/40"
               >
                 <span className="flex h-12 items-center justify-center rounded-lg bg-[repeating-linear-gradient(45deg,#e2dfd8_0_4px,#efede8_4px_10px)]" />
                 <span className="line-clamp-2 text-[13px] font-semibold leading-tight">{preset.label}</span>

@@ -344,3 +344,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§89** Present mode restyled, price as right-hand panel; plan origin centred in computeRoomScale (tested); plan display button renamed "Guides".
 
 **§90** 3D controls restyled ("Look from"; 360° tools + calibration in one fold); 3D overlay and 360° viewer restyled; fix: editor main lacked min-h-0, squashing the phone tool strip in 3D.
+
+**§91** Drag to place from Cabinets/Appliances/Pillars tiles: preview outline with front edge; auto-turn to face the room within depth (≥600mm) of a wall; cabinets snap in physical size then convert to stored (§61); touch = hold or sideways move. lib/placement.ts tested.
