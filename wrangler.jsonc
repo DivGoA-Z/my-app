@@ -5,6 +5,9 @@
 {
   "name": "my-app",
   "compatibility_date": "2025-09-01",
+  // Serve at <name>.<account>.workers.dev. The first deploy came up with
+  // that address disabled; with this set, every deploy keeps it on.
+  "workers_dev": true,
   "assets": {
     "directory": "./dist",
     // The app has no URL routes today, but if one is ever opened
