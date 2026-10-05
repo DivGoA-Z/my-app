@@ -27,3 +27,4 @@ dist-ssr
 e2e/screens/
 e2e/.results/
 playwright-report/
+.wrangler/

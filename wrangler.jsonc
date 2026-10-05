@@ -1,0 +1,14 @@
+// Cloudflare deployment (docs/DEPLOY.md). The app is static files after
+// `npm run build`; this tells Cloudflare to serve the `dist` folder. No
+// server code. Supabase settings are BUILD variables in the Cloudflare
+// dashboard (VITE_* values are baked in at build time), not set here.
+{
+  "name": "my-app",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./dist",
+    // The app has no URL routes today, but if one is ever opened
+    // directly, serve the app rather than a 404.
+    "not_found_handling": "single-page-application"
+  }
+}
