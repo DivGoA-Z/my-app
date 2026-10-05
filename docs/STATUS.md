@@ -145,7 +145,7 @@ assumed settings, which is a check, not a blocker.
 1. **Your end-to-end walkthrough** (`docs/WALKTHROUGH.md`): a new kitchen from scratch, checking
    functionality and basic calculations (not rates). Anything found goes
    in `docs/ISSUES.md`.
-2. Merge `charges-and-cutting-list` into `main`.
+2. ~~Merge `charges-and-cutting-list` into `main`.~~ Done 5 Oct 2026 (fast-forward, §1–§96 now on `main`). Next: host it (Cloudflare Pages, free `.pages.dev` address) and add the co-founder by hand.
 3. Browser tests that script the walkthrough's flows.
 4. The "before the first customer" list in `docs/AFTER_FIRST_CUSTOMERS.md`.
 
