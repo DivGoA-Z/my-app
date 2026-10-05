@@ -54,6 +54,26 @@ what has to be true before customer #1 is onboarded by hand.
       that's acceptable or whether you need a "view as business X"
       switch.
 
+- [ ] **A proper domain.** The app runs at
+      `my-app.divyanshgoyal240.workers.dev` (Cloudflare, `docs/DEPLOY.md`),
+      which is fine for you and your co-founder but shows the account
+      name. Buy a domain (roughly ₹800–1,500 a year) before businesses
+      that pay you start using it. Moving later costs each business a new
+      bookmark and one sign-in; quote PDFs already sent keep working (they
+      live in Supabase storage). Afterwards: attach it in Cloudflare
+      (Domains), and set Supabase → Authentication → Site URL to it.
+- [ ] **Supabase paid plan (about $25/month), for backups.** The free
+      plan has no daily backups and pauses after a quiet week. Once a
+      business's real customers and quotes are in, losing them would be
+      serious. Also check the free plan's storage and download caps
+      against what 360° photos and quote PDFs use. Decided 5 Oct 2026:
+      both this and the domain before the first few customers; stay on
+      the free plan and `workers.dev` until then.
+- [ ] **A "set a new password" screen.** Supabase's password-recovery
+      email signs a person in but the app has nowhere to choose a new
+      password, so today a forgotten password is reset by hand in SQL
+      (`docs/DEPLOY.md`). Needed before businesses manage their own logins.
+
 ## Parked until a few customers are onboarded
 
 - **Self-serve sign-up** and a first-run walkthrough for a new
