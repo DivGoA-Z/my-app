@@ -1742,8 +1742,11 @@ function RoomCeiling({
   heightM: number;
 }) {
   const currentLayout = useLayoutStore((state) => state.currentLayout);
+  // Drawn even with no finish chosen (plain plaster, like the walls), §109.
+  // It used to be skipped, so looking up in the walkthrough, and the top
+  // half of every 360° photo, showed empty space (black in the photo).
+  // Being single-sided, it still vanishes from the bird's-eye orbit view.
   const ceilingFinishId = currentLayout?.ceilingFinishId;
-  if (!ceilingFinishId) return null;
 
   return (
     <FinishedSurface

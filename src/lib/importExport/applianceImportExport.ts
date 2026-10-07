@@ -10,6 +10,7 @@
 // `frontLayout` was for cabinets; they're just fields that are blank
 // most of the time.
 
+import { modelUrlProblem } from '../modelUrl';
 import type { ApplianceCatalogItem } from '../../types/Catalog';
 import type { ApplianceType } from '../../types/appliance';
 import {
@@ -155,6 +156,9 @@ export function parseApplianceCatalogRows(
     if (defaultElevationMm.error) errors.push(defaultElevationMm.error);
 
     const modelUrl = optionalString(row.model_url ?? '');
+    // Same rule as the edit panel (lib/modelUrl.ts): a stray character after
+    // .glb silently turns the model into a plain box.
+    { const problem = modelUrlProblem(row.model_url ?? ''); if (problem) errors.push(`model_url: ${problem}`); }
 
     const modelRotationXDeg = optionalNumber(row.model_rotation_x_deg ?? '', 'model_rotation_x_deg');
     if (modelRotationXDeg.error) errors.push(modelRotationXDeg.error);

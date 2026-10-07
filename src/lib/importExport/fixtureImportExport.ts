@@ -7,6 +7,7 @@
 // appliance module already has — see applianceImportExport.ts's
 // header comment for why those are on the sheet rather than deferred.
 
+import { modelUrlProblem } from '../modelUrl';
 import type { FixtureCatalogItem, FixtureKind } from '../../types/fixture';
 import {
   buildWorkbookBlob,
@@ -133,6 +134,9 @@ export function parseFixtureCatalogRows(
     if (price.error) errors.push(price.error);
 
     const modelUrl = optionalString(row.model_url ?? '');
+    // Same rule as the edit panel (lib/modelUrl.ts): a stray character after
+    // .glb silently turns the model into a plain box.
+    { const problem = modelUrlProblem(row.model_url ?? ''); if (problem) errors.push(`model_url: ${problem}`); }
 
     const modelRotationXDeg = optionalNumber(row.model_rotation_x_deg ?? '', 'model_rotation_x_deg');
     if (modelRotationXDeg.error) errors.push(modelRotationXDeg.error);

@@ -45,6 +45,7 @@
 // UI reaches it). Uploading the result belongs to lib/panoramaStorage.ts.
 
 import * as THREE from 'three';
+import { HIDE_IN_SNAPSHOT } from './viewSnapshot';
 
 // Bumped up from the initial 1024/2048 defaults — those looked visibly
 // soft next to the live 3D view. Makes sense: the live view only fills
@@ -189,7 +190,40 @@ export async function capturePanorama(
   });
   const cubeCamera = new THREE.CubeCamera(0.05, 1000, cubeRenderTarget);
   cubeCamera.position.copy(worldPosition);
-  cubeCamera.update(renderer, scene);
+  // Editor furniture out of the photo (§109): the glowing floor markers
+  // and camera spheres (tagged HIDE_IN_SNAPSHOT, as for the image brief)
+  // were captured as real objects, one of them right under the viewer's
+  // feet. Hidden for this one render, then put back.
+  const hidden: THREE.Object3D[] = [];
+  scene.traverse((o) => {
+    if (o.userData[HIDE_IN_SNAPSHOT] && o.visible) hidden.push(o);
+  });
+  for (const o of hidden) o.visible = false;
+  // GLASS BLACKED OUT A WHOLE CUBE FACE (§109). A transmissive material
+  // (the pendant model's glass shade) makes three.js render the room into
+  // its own buffer first, and on switching back it restores the render
+  // target but NOT which cube face was being drawn. Every face that could
+  // see the glass came out black: in a real kitchen, the entire upward
+  // view. So for the capture only, transmission is switched off (the
+  // glass renders as plain, slightly see-through material) and put back
+  // afterwards. Found by bisecting a real scene; a bare test room was fine.
+  const glass: { m: THREE.MeshPhysicalMaterial; transmission: number }[] = [];
+  scene.traverse((o) => {
+    const mats = (o as THREE.Mesh).isMesh ? ([] as THREE.Material[]).concat((o as THREE.Mesh).material) : [];
+    for (const m of mats) {
+      const pm = m as THREE.MeshPhysicalMaterial;
+      if (pm.isMeshPhysicalMaterial && pm.transmission > 0 && !glass.some((g) => g.m === pm)) {
+        glass.push({ m: pm, transmission: pm.transmission });
+        pm.transmission = 0;
+      }
+    }
+  });
+  try {
+    cubeCamera.update(renderer, scene);
+  } finally {
+    for (const o of hidden) o.visible = true;
+    for (const g of glass) g.m.transmission = g.transmission;
+  }
 
   // --- Pass 2: cube map -> flat equirectangular render target ---
   const equirectTarget = new THREE.WebGLRenderTarget(equirectWidth, equirectHeight, {

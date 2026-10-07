@@ -13,6 +13,7 @@
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useLayoutStore } from '../../store/layoutStore';
+import { modelUrlProblem } from '../../lib/modelUrl';
 import { FIXTURE_KIND_LABELS, isLinear } from '../../types/fixture';
 import type { FixtureCatalogItem, FixtureKind } from '../../types/fixture';
 import { kelvinToColor } from '../../lib/lighting3d';
@@ -90,6 +91,7 @@ export function FixtureManager() {
         onSave={ed.commit}
         saveLabel={ed.editing?.isNew ? 'Add fixture' : 'Save'}
         saving={ed.saving}
+        canSave={!modelUrlProblem(d?.modelUrl)}
         error={ed.error}
         onDelete={ed.editing?.isNew ? undefined : ed.destroy}
       >
@@ -157,7 +159,7 @@ export function FixtureManager() {
                 value={d.modelUrl ?? ''}
                 onChange={(v) => ed.setDraft({ ...d, modelUrl: v || undefined })}
                 placeholder="/models/lighting/pendant.glb"
-                hint="Leave empty to show a simple bar or disc in 3D."
+                hint={modelUrlProblem(d.modelUrl) ? <span className="text-destructive">{modelUrlProblem(d.modelUrl)}</span> : 'Leave empty to show a simple bar or disc in 3D.'}
               />
               {/* A fixed correction for how the file was exported, applied
                   before fitting; multiples of 90°, as for appliances. */}

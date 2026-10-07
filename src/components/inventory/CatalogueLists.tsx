@@ -19,6 +19,7 @@ import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useLayoutStore } from '../../store/layoutStore';
+import { modelUrlProblem } from '../../lib/modelUrl';
 import { BoardSelect } from '../common/BoardSelect';
 import { EditPanel, Field, NumberField, TextField } from '../common/EditPanel';
 import { describePanels, resolveCarcassBoard } from '../../lib/panels';
@@ -397,6 +398,7 @@ export function ApplianceList() {
         onSave={ed.commit}
         saveLabel={ed.editing?.isNew ? 'Add appliance' : 'Save'}
         saving={ed.saving}
+        canSave={!modelUrlProblem(d?.modelUrl)}
         error={ed.error}
         onDelete={ed.editing?.isNew ? undefined : ed.destroy}
       >
@@ -456,7 +458,7 @@ export function ApplianceList() {
                 value={d.modelUrl ?? ''}
                 onChange={(v) => ed.setDraft({ ...d, modelUrl: v || undefined })}
                 placeholder="/models/hob-600.glb"
-                hint="Leave empty to show a plain box in 3D."
+                hint={modelUrlProblem(d.modelUrl) ? <span className="text-destructive">{modelUrlProblem(d.modelUrl)}</span> : 'Leave empty to show a plain box in 3D.'}
               />
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="Orientation">

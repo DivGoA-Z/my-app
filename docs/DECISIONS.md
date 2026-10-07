@@ -6880,6 +6880,37 @@ Existing panoramas need **no re-capture**. The image is fixed to the
 room, not to the camera, so the camera's current heading is the right
 start even if it was re-aimed after capturing.
 
+**Black above your head in 360° photos (same day).** Found by
+capturing a real 360° on Neha Verma's kitchen, intercepting the upload
+(nothing was stored) and bisecting the scene:
+- **Cause:** the pendant model's glass shade uses a transmissive
+  material. Rendering it makes three.js draw the room into its own
+  buffer, and on switching back it restores the render target but not
+  the cube face being drawn. Every cube face that could see the glass
+  came out black: in that kitchen, the whole upward face, walls'
+  upper edges included. A bare test room was fine, which is what
+  pointed at the scene, not the capture code. It isn't from §108:
+  `main` showed the same.
+- **Fix:** `capturePanorama` sets transmission to 0 on such materials
+  for the capture and restores it afterwards. Re-captured: the wood
+  ceiling, spots and pendant appear.
+- **Also in the capture:** the camera spheres and glowing floor markers
+  were photographed as objects (one right under the viewer). They're now
+  hidden (`HIDE_IN_SNAPSHOT`), as for the image brief.
+- **And:** a layout with no ceiling finish drew no ceiling at all, so
+  looking up showed empty space. The ceiling is now always drawn, plain
+  plaster by default. It's one-sided, so it still vanishes from the
+  bird's-eye orbit view.
+
+**The chimney that rendered as a box:** its catalogue row's model address
+was `/models/range-hood.glb.`, with a stray full stop. The server
+answered with the app's web page, and the loader failed on `<!doctype`.
+The file and folder (`public/models/`) are fine. `lib/modelUrl.ts` now
+refuses an address that doesn't end in `.glb` or `.gltf`, or has spaces
+at either end. The appliance and fixture edit panels show the problem
+and won't save; the two Excel importers report it on the row. The
+existing row still needs correcting by hand.
+
 **Verified:** `panoramaCapture.test.ts` checks, for nine headings with
 and without the mirror, that the start column looks along the camera's
 heading (to 6 decimal places), and that a north camera doesn't open on
