@@ -70,6 +70,7 @@ import { FixtureInspector } from '../inspector/FixtureInspector';
 import { QuoteSidebar } from '../quote/QuoteSidebar';
 import { Room3DCanvas } from '../canvas3d/Room3DCanvas';
 import { WallElevationView } from '../elevation/WallElevationView';
+import { PlanTopView } from '../elevation/PlanTopView';
 import type { InventorySection } from '../inventory/InventoryManager';
 import type { WallOrientation } from '../../types/layout';
 import { useElementSize } from './useElementSize';
@@ -128,7 +129,9 @@ export function DesignEditor({
   const [view, setView] = useState<EditorView>('plan');
   // Elevation: the measured drawing or the 3D wall view, for one wall.
   const [elevMode, setElevMode] = useState<'drawing' | '3d'>('3d');
-  const [elevWall, setElevWall] = useState<WallOrientation>('north');
+  // A wall, or 'top': the room from above, which shows what the four
+  // walls can't (an island, how the runs meet).
+  const [elevWall, setElevWall] = useState<WallOrientation | 'top'>('north');
   const { measure: measureElev, width: elevWidth, height: elevHeight } = useElementSize<HTMLDivElement>();
   // Open the cabinets panel on a laptop; on a tablet or phone the plan
   // starts uncovered (the panel would sit over it).
@@ -461,13 +464,13 @@ export function DesignEditor({
                   ))}
                 </div>
                 <div role="radiogroup" aria-label="Wall" className="flex flex-wrap gap-1.5">
-                  {(['north', 'east', 'south', 'west'] as WallOrientation[]).map((w) => (
+                  {(['north', 'east', 'south', 'west', 'top'] as const).map((w) => (
                     <button
                       key={w}
                       type="button"
                       role="radio"
                       aria-checked={elevWall === w}
-                      aria-label={`${w} wall`}
+                      aria-label={w === 'top' ? 'Top view' : `${w} wall`}
                       onClick={() => setElevWall(w)}
                       className={cn(
                         'h-9 rounded-full px-3.5 text-sm font-semibold capitalize',
@@ -475,14 +478,20 @@ export function DesignEditor({
                       )}
                     >
                       {w}
-                      <span className="hidden sm:inline"> wall</span>
+                      <span className="hidden sm:inline">{w === 'top' ? ' view' : ' wall'}</span>
                     </button>
                   ))}
                 </div>
               </div>
               <div ref={measureElev} className="min-h-0 flex-1 overflow-auto p-4 md:p-6">
                 {elevMode === 'drawing' ? (
-                  <WallElevationView embedded orientation={elevWall} onOrientationChange={setElevWall} maxWidthPx={elevWidth - 48} maxHeightPx={elevHeight - 48} />
+                  elevWall === 'top' ? (
+                    <PlanTopView maxWidthPx={elevWidth - 48} maxHeightPx={elevHeight - 90} />
+                  ) : (
+                    <WallElevationView embedded orientation={elevWall} onOrientationChange={setElevWall} maxWidthPx={elevWidth - 48} maxHeightPx={elevHeight - 48} />
+                  )
+                ) : elevWall === 'top' ? (
+                  <Room3DCanvas widthMm={roomWidthMm} depthMm={roomDepthMm} topView />
                 ) : (
                   <Room3DCanvas widthMm={roomWidthMm} depthMm={roomDepthMm} wallView={elevWall} />
                 )}

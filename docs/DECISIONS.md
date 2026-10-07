@@ -6095,3 +6095,472 @@ from view, so this does both:
 
 Screen-tested: a new customer saves trimmed notes, and notes show on
 the card and save from the menu.
+
+## 97. Image brief: the 3D view, exported for a photo-realistic render
+
+**What.** An **Image brief** button beside "Look from" in the 3D view
+downloads two files:
+- `<design>-render-view.png`: exactly what's on screen. Camera markers,
+  hotspots and the selection outline are hidden for the shot.
+- `<design>-render-brief.json` (`kitchen-render-brief/v1`, built by
+  `lib/renderBrief.ts`), which holds:
+  - the room, with the axes explained in the file itself;
+  - per wall, everything against it left to right;
+  - every cabinet with its box in mm, the wall it's on, which way it
+    faces, its finish (name, type, pattern, sheen, colour as hex and
+    words, the swatch photo's URL), its fronts panel by panel and its
+    handle;
+  - each appliance and how it sits ("on the countertop over C3", "built
+    into C7", "above the hob"), plus the sink cutout;
+  - pillars and shafts, doors and windows (with what's beyond them and
+    the daylight), and the light fixtures;
+  - the camera (position, heading, pitch, field of view), exact counts,
+    and a list of what is **not** in the room;
+  - a generated prompt: instructions for an LLM or multimodal model, a
+    text-to-image prompt and a negative prompt.
+
+**Why two files.** Text can't fix geometry. No image model places a
+600mm drawer unit 900mm from a corner because a sentence says so. The
+PNG carries the geometry (img2img, a depth or edge ControlNet, or "edit
+this image" in a multimodal model). The JSON says what each shape *is*.
+The prompt is generated from the same data, so the three can't
+disagree. Most hallucination comes from what isn't said: an empty
+counter gets a fruit bowl, and a kitchen with no chimney gets a hood.
+So absences are listed explicitly (`notInThisRoom`, also merged into
+the negative prompt), and "not chosen" is spelled out as what the
+preview already shows (plaster, plain tile, plain stone). That way it
+doesn't read as licence to invent a finish.
+
+**Decisions inside it.**
+- Geometry is **physical** cabinets (§61), the same ones the 3D view
+  draws, because the brief describes the picture, not the cutting list.
+- Refs (C1, A1, P1, O1, L1) are numbered by wall (N, E, S, W), then
+  left to right as you face the wall, then bottom to top. That's the
+  order a person describes a kitchen in, and it lets the prompt say
+  "C3" and mean one thing.
+- **No customer data and no prices.** The file exists to be sent to an
+  outside model, and neither helps draw the kitchen.
+- The snapshot renders on demand and reads the canvas in the same call
+  (`lib/viewSnapshot.ts`). Rejected: `preserveDrawingBuffer` on the
+  canvas, which costs every frame on a phone for a button pressed once.
+  The camera is read at click time through `useThree`'s `get()`. A
+  captured camera would go stale when the walkthrough swaps the default
+  camera.
+- Colour words (`colourName`) are coarse and deterministic: "dark
+  brown", "beige", "off-white". Image models follow words better than
+  hex, so both are given. `#f5f3ef` plaster must read as off-white,
+  not white, and a walnut `#5c3a1e` as dark brown, not very dark. Both
+  thresholds were moved once to get there; the tests pin them.
+
+**Not done.** No depth or edge map is exported yet; a ControlNet user
+derives one from the PNG. No model is called from the app; the
+business chooses the image service. Appliance colours aren't stored,
+so they're "as in the reference image". The countertop's per-side
+overhang (`countertopOverhangs` in Room3DCanvas) is reported as the
+nominal 20mm.
+
+**Verified**: `renderBrief.test.ts` covers left-to-right measurement on
+all four walls, facing, colour words, camera conversion, ref order,
+boxes, hob-on-counter, opening offsets, swatch URLs, absences and
+determinism. A sample prompt was printed and read. **Not seen in a
+browser**: the PNG capture (WebGL is mocked in tests) and the
+two-file download. Chrome may ask once to allow multiple downloads.
+
+## 98. Image brief: a four-wall elevation sheet replaces the 3D still
+
+You looked at §97's PNG of the 3D view and found it didn't help. The
+brief's reference image is now **one sheet with all four walls**
+(`<design>-elevations.png`), drawn by `lib/elevationSheet.ts` from the
+brief's own data. The 3D still remains, behind an **"Include this 3D
+view"** tick that is off by default. Its future is still being
+discussed.
+
+**Why elevations.** A perspective view hides half the room and
+foreshortens the rest. An elevation shows everything on a wall at true
+scale. Each wall is seen from inside the room, and all four share one
+scale, so the walls keep their proportions next to each other. The
+sheet's refs (C1, A1, O1, P1) are the brief's, because both come from
+the same pass.
+
+**Why not a screenshot of the elevation screen.** `WallElevationView`
+is a designer's tool, with dimension chains, amber gaps and
+click-to-measure. Image models copy lines and numbers into the "photo".
+It also draws a unit as one box, and the box's contents are exactly
+what image models get wrong. So the sheet draws:
+- each cabinet's real fronts from `computeFrontBreakdown`, as panels
+  with handle marks (bar, knob, gola/profile; nothing for handleless);
+- open shelves, glass, tambour slats, and the carcass interior where
+  there's no front, so a niche reads as a niche;
+- the countertop band; a hob as a dark slab; a chimney as canopy plus
+  duct; a sink as its rim and a tap;
+- windows (frame and mullion), doors (leaf and handle on the swinging
+  edge), and hatched pillars;
+- the sides of the neighbouring wall's corner units as dashed grey
+  blocks, so an L-shaped run doesn't look as if it stops.
+
+Labels sit in strips above and below each wall, never on the units.
+They're stacked into rows so they don't overlap. Colour is left out:
+finishes come from the JSON and swatch photos, and a flat fill here
+would contradict them.
+
+**Things deliberately not drawn, because the data doesn't say them:**
+- a fridge's door or freezer split;
+- a sink bowl's depth (the first draft drew the stored box as a dashed
+  outline, which read as an object on the counter);
+- the countertop's sideways overhang, which ran into a neighbouring
+  tall unit. The front overhang only shows in plan.
+
+**How it's built.** The sheet is an SVG string, a pure function so it
+can be tested. `lib/svgToPng.ts` rasterises it at 2× in the browser,
+so thin lines survive. The brief changed from one `referenceImage` to
+`referenceImages[]`, each with a `kind` (`elevations` / `perspective`)
+and a fixed explanation. Instruction 1 of the prompt is written for
+whichever images are attached. The camera (`view`) is still recorded
+without the still, because it says where the photo should be taken
+from.
+
+**Verified**: `elevationSheet.test.ts` checks four walls on one sheet,
+fronts split into the right panels with a handle each, refs as labels,
+corner sides in brackets, one shared scale and escaping. A sample L-shaped
+kitchen was rendered to PNG and looked at; that's how the sink and
+overhang faults were found. **Not seen in the app**: the in-browser
+SVG→PNG step and the downloads.
+
+## 99. Top view: a plan in the elevation tab (2D and 3D) and on the sheet
+
+You decided the room needs a view from above wherever the elevations
+are, regardless of the image work. The reason: four wall elevations
+can't show how the runs meet, anything standing free of a wall (an
+island), or where a photo is taken from.
+
+- **Editor, Elevation tab:** the wall picker gains **Top view**.
+  - **Drawing:** shows `PlanTopView`, an `<img>` of `lib/planDrawing.ts`'s
+    SVG. It's the exact picture the image brief exports, not a second
+    rendering that could drift from it.
+  - **3D:** shows `Room3DCanvas topView`, an orthographic camera straight
+    down with north at the top like the 2D plan. Pan and zoom work;
+    rotating is off. It has no ceiling, no ceiling fittings and no
+    camera markers. `topView` is a separate prop rather than a fifth
+    `wallView` value, because everything keyed on `wallView` means "one
+    wall and what's against it". `camera.up` is −Z, because looking down
+    the Y axis the default up (+Y) lies along the view and is undefined.
+    Checked: east lands on screen-right, so it isn't mirrored.
+- **The sheet** (§98) is now 3 × 2: the plan with a symbol key, then
+  the four walls. The plan has its own fit-to-panel scale; a deep room
+  wouldn't fit at the walls' shared scale. Walls are drawn 800px long
+  (was 1000), so the 1× sheet stays near the 1,500–2,000px that image
+  models shrink their inputs to. It's rasterised at 2×.
+- **What the plan shows:**
+  - walls as a dark band, cut for openings, with windows in blue;
+  - in-swinging doors as a leaf plus a dashed arc;
+  - base units under the countertop in grey and tall units darker,
+    each with a heavy front edge;
+  - wall-hung units and the chimney dashed (they hang above);
+  - the sink bowl (from the catalogue cutout, if any), the hob dark,
+    and hatched pillars;
+  - the camera as a wedge, only for a real standing position;
+  - wall names with lengths.
+
+  Labels are stacked through a unit's depth (hung unit at the back,
+  appliance in the middle, base unit at the front), so three items
+  sharing one footprint don't collide. The chimney isn't labelled on
+  the plan; the elevation names it.
+- **A hinge-side bug found on the way.** The stored `'in-left'` means
+  the hinge is at the wall's start (`OpeningLayer.tsx`'s
+  `swingGeometry`). That end is your **right** on the south and west
+  walls. §98's elevation read the label as "left as you face it", so it
+  drew the door handle on the wrong side on those two walls. The brief
+  now records `door.hingeSide` (as faced from inside) and `door.opensIn`,
+  via the tested `hingeSideFacingWall`.
+- `useRenderBriefInput` is the one place the brief's store inputs are
+  gathered, for both the download and the Top drawing.
+- The sheet's SVG is checked for duplicate attributes in a test. A
+  browser refuses to load an SVG image that has them, and the first
+  draft of the plan's labels produced them.
+
+**Verified in a browser** (Playwright, the read-only test login, the
+laptop size):
+- Top view opens in Drawing and 3D.
+- **Image brief** downloads the sheet PNG (5640 × 3196) and the JSON.
+
+This also settles §98's "downloads not seen in the app". The test
+account's design is empty, so the 3D top view hasn't been seen with
+units in it. Its orientation rests on the camera maths, which says east
+is on the right.
+
+## 100. The condensed prompt (review of the JSON)
+
+A review of the brief asked for:
+1. a prompt fit for diffusion models;
+2. materials grouped rather than listed per cabinet;
+3. a 150–200 word cap in a fixed order;
+4. the negative prompt built from `notInThisRoom`;
+5. a separate `imagePromptCondensed` key.
+
+All five are done, with these choices:
+
+- **Both prompts are kept.** `imagePrompt` (complete, with refs and
+  sizes) is for a chat-style image model that reads it alongside the
+  JSON and the sheet; that's your first target. `imagePromptCondensed`
+  is for diffusion text encoders, which truncate (CLIP at 77 tokens)
+  and can't use millimetres or refs. The review assumed the JSON also
+  feeds the Three.js view and the price. It doesn't; it's export only.
+  The 3D view and `calculateBOM` read the store, so nothing there
+  changed.
+- **Condensed order is fixed:**
+  1. camera and room, with a shape word (single-wall, L, galley, U,
+     "with an island") from which walls carry a run;
+  2. materials grouped by what you see: base run, upper run, tall
+     units, then the countertop (with "inset sink and tap" if there is
+     one), walls, floor;
+  3. appliances and pillars;
+  4. light (daylight and fixtures with their Kelvin);
+  5. style tags.
+
+  Over the cap (`CONDENSED_MAX_WORDS` = 200), whole optional sentences
+  are dropped in a set order: pillars, then tall units, then walls and
+  floor, then appliances and light. Nothing is cut mid-sentence, and
+  the style tags always stay. Tested with a 40-cabinet kitchen.
+- **Finish words** (`shortFinish`): colour word, then pattern, type and
+  sheen. No brand, code or hex: an encoder can't use them, and they
+  cost tokens. A photographed finish has no stored colour, so its name
+  minus codes ("walnut") stands in. Without that, a walnut laminate came
+  out as just "wood-grain laminate".
+- **Neutral metal handles** read as the trade says them, "brushed steel"
+  or "polished chrome", not "light grey polished metal".
+- **Negative prompt:** it already carried `notInThisRoom`. Two fixes:
+  - The generic list held `'island'`, which would negate an island that
+    *is* designed. It's removed; "kitchen island" comes only from
+    `notInThisRoom`, i.e. only when there's none.
+  - Terms are deduplicated, and absence phrases contain no commas,
+    because the prompt is a comma-separated list and a phrase with
+    commas would split into fragments.
+- **There is no backsplash data.** The review's hierarchy names a
+  backsplash, so the condensed prompt says "no backsplash tiles unless
+  stated" rather than inventing one.
+- **Bug found reading real output:** an empty room said "modular modular
+  kitchen". Fixed and tested.
+
+## 101. Leonardo.ai: structure render + ready requests; what the brief got wrong
+
+You chose Leonardo.ai to start with, and gave a brief for it. Several
+points in it were checked against docs.leonardo.ai (6 Oct 2026) and
+are wrong as written, so the build follows the docs:
+
+| The brief said | The docs say | Built |
+|---|---|---|
+| Phoenix + a depth/edge map | Edge (19) and Depth (20) to Image are **SDXL-only**; Phoenix takes style/content/character/image-to-image references | Structure lock on **Vision XL** (SDXL); Phoenix offered prompt-only |
+| strength 0.7–0.85 | `strengthType` bucket on a 0–2 scale: Low/Mid/High | `High` (0.7–0.85 of 1 ≈ 1.4–1.7 of 2) |
+| `presetStyle` "INTERIOR" | doesn't exist; `CINEMATIC` does (SDXL/PhotoReal); Phoenix uses `style_ids` | `CINEMATIC`; Phoenix "Pro color photography" |
+| alchemy + photoReal on Phoenix | PhotoReal is SDXL-only (v2 needs alchemy + Kino/Vision/Diffusion XL); Phoenix's quality switch is `mode` | Vision XL + `photoRealVersion` v2 + alchemy; Phoenix `mode: QUALITY` |
+| "octane render" in the prefix | (ours) names a CG renderer, pulls towards a CG look; "CGI look" is in our negative prompt | prefix kept without it |
+| (size not stated) | with Alchemy, ≤ 1024 and multiples of 8 | 1024 × 576 |
+
+Agreed and done as asked: one structure image, not the elevation
+sheet. The prefix is prepended to the condensed prompt, staying within
+200 words. The prompt reads as prose ("It has…", "Lit by…" rather than
+"Appliances:"). `negative_prompt` is passed through unchanged.
+
+**The structure render** (`lib/viewSnapshot.ts`, `renderStructure`)
+replaces the textured 3D still from §97/§98, which didn't help. From
+the camera you stand at, it renders:
+- a **line render**: every surface white, every edge black (EdgesGeometry
+  at 25°). Door and drawer seams, handles, the countertop edge, window
+  openings and pillars all survive as lines. That's what stops a model
+  inventing a third drawer.
+- a **depth map**: linear, near = white, far = black, spanning to the
+  farthest room corner. It's for pipelines that take depth directly.
+
+Both are rendered at exactly 1024 × 576. The renderer is resized for
+one frame and restored; materials are swapped per mesh, not via
+`overrideMaterial`, which would also whiten the edge lines. Hidden for
+the shot:
+- editor furniture (camera markers, hotspots, selection outline);
+- the photo behind a window (`HIDE_IN_STRUCTURE`), so the window reads
+  as an opening.
+
+Free orbit is refused, because Leonardo would render the cut-away as a
+dollhouse. You choose a camera first.
+
+**The pack** (`lib/leonardo.ts`, `buildLeonardoPack`): **Image brief
+for → Leonardo** downloads three files: `-leonardo-guide.png`,
+`-depth.png` and `-leonardo.json`. The JSON is the brief plus a
+`leonardo` section containing:
+- the prompt and negative prompt;
+- the upload steps (`/init-image`, a presigned multipart POST within 2
+  minutes, then the id goes into `controlnets`);
+- two complete request bodies: `structureLocked` (Vision XL, Edge to
+  Image) and `phoenix` (v2, prompt-only, `prompt_enhance: OFF` so
+  Leonardo doesn't rewrite the grounded prompt).
+
+"Chat image model" keeps the plan + elevations sheet (§98–§100).
+
+**Nothing calls Leonardo yet.** A Leonardo API key can't live in this
+app: every `VITE_` value ships to the browser. Sending needs a
+server-side proxy (a Supabase Edge Function or a Cloudflare Worker,
+next to the existing deploy) holding the key. It would also spend
+Leonardo credits and send designs to an outside service. That's your
+decision, so it isn't built.
+
+"Disconnect from BOM/pricing": the pack carries no prices or customer
+details (tested). `computeFrontBreakdown` still takes the hardware
+rates to compute where fronts and handles go; only the geometry is
+used.
+
+**Verified.** `leonardo.test.ts` pins every documented value: model,
+preprocessor, strength bucket, size limits, Phoenix `style_ids` with no
+`presetStyle`, no "octane", ≤ 200 words and ≤ 2,000 characters, no
+prices. `renderStructure` was run in a real browser (WebGL) on a test
+room. The line render showed both door pairs with handles, three
+drawers, the counter edge, the window opening and the pillar. The
+renderer's size, camera aspect, background and meshes were all
+restored afterwards. **Not yet seen**: a line render from a real design
+in the app (the test login has no cameras), and any Leonardo output.
+The init-image endpoint path comes from Leonardo's API reference name;
+the upload page doesn't spell it out, so confirm it on the first real
+call.
+
+## 102. A camera is a saved view: height, tilt, lens, and "Save this view"
+
+The first real Leonardo try exposed two things:
+- The pack's **depth map** was uploaded instead of the guide image. The
+  Leonardo pack now downloads only the guide (line render) and the
+  JSON. `renderStructure('depth')` stays in the code for other
+  pipelines; nothing downloads it.
+- **A camera couldn't be framed.** It had a spot, a heading and a height
+  you couldn't edit. Drag-to-look in the walkthrough was a live aid,
+  reset on every teleport and never saved (a deliberate choice back
+  then). The image brief renders exactly what the camera sees, so the
+  view you frame by eye has to persist.
+
+What changed (your decision, 6 Oct 2026):
+- **`CameraNode`** gains optional `pitchDeg` (tilt, + up) and `fovDeg`
+  (lens). They live in the `cameras` JSONB, so there's no schema
+  change. A camera without them is level and uses the session lens, as
+  before.
+- **Cameras panel (2D):** each camera has **Height** (mm, 300 to the
+  ceiling minus 100) and **Tilt** (±60°) boxes, plus a readout of the
+  saved lens. They're typed because a plan can't drag either. They
+  commit on Enter or when you leave the box, clamped. Committing on
+  every keystroke turned the "1" of "1600" into 300. An empty box puts
+  the saved value back.
+- **3D walkthrough:** the camera honours the saved tilt, using the same
+  `'YXZ'` Euler order as drag-look, so a saved drag comes back exactly.
+  Stepping to a camera loads its saved lens into "Walkthrough lens".
+  **Save this view** (shown while standing at a camera) writes the
+  current heading, tilt and lens to it, via `lookAnglesFromDirection`
+  (`lib/scene3d.ts`). `viewFromWorldCamera` now uses the same function,
+  so the brief and the camera can't disagree about angles.
+- The guide image is rendered from the live camera, so it is exactly
+  the view on screen. Saving the view makes that repeatable.
+
+**Verified**:
+- `scene3d.test.ts`: compass directions, and a save → walkthrough →
+  save round trip for four views to 0.1°.
+- `CameraToolbar.test.tsx` (screen test): no save mid-typing, save on
+  Enter, ±60° clamp, an empty box restored.
+
+**Not seen in a browser**: "Save this view" and the tilted walkthrough.
+The test login is read-only, and adding a camera would save to it.
+
+## 103. Hold-to-move pad for cameras
+
+You asked for six hold-to-move buttons to fix a camera's position,
+after the first real Leonardo guide image came out framed too close to
+the left run.
+
+- **Where:** the Cameras panel (left), under the camera list. It has a
+  **Move [camera]** picker, because cameras aren't selectable items,
+  and six buttons: Forward, Back, Left, Right (a cross) and Up, Down
+  (height).
+- **Directions are the camera's, not the room's** (`lib/cameraMove.ts`).
+  Forward is towards what it looks at; left and right are sideways to
+  that. Fixing a framing is "a bit further back", and nobody should have
+  to work out which compass point that is.
+- **Speeds:** slow on purpose, 300 mm/s across and 200 mm/s up and down.
+  These fine-tune; big moves are dragging on the plan. The camera is
+  kept 100 mm off the walls, at least 300 mm high, and 100 mm under the
+  ceiling. Positions are whole millimetres.
+- **How a press works:** a `requestAnimationFrame` loop starts on pointer
+  down and stops on up, cancel or lost capture. Pointer capture means
+  sliding off the button still stops it. Each frame's step is capped at
+  0.1 s, so a stalled tab can't jump the camera. The first frame only
+  sets the clock: reading `performance.now()` in the handler tripped the
+  React compiler's purity rule, and the code was restructured rather
+  than the rule disabled. Keyboard: Enter or Space on a button moves one
+  ~20 mm step per key repeat.
+- **Undo:** each frame is an ordinary `updateCamera` with the signature
+  `updateCamera:<id>`. The store's debounced history groups a press
+  into one undo step. This is from reading `noteDesignEdit`; the screen
+  test stubs the store, so it doesn't prove it.
+- **The 3D walkthrough follows the glide**, and gliding no longer throws
+  away an unsaved look-around. `AnimatedFirstPersonCamera`'s one effect
+  was split: position (x, y, height) only re-targets, while view (node,
+  heading, tilt) re-targets and resets free-look.
+
+**Verified**:
+- `cameraMove.test.ts`: directions for all four headings, height only
+  for up and down, and the clamps.
+- Screen tests: three frames while held move 60 mm and the loop stops
+  on release; Enter moves a ~13 mm height step.
+
+**Not seen in a browser**: the glide, and the 3D view following it.
+
+## 104. First real Leonardo result: edges over-followed; prompt fixes
+
+**The run:** Leonardo Lightning XL (free plan), Edge to Image at High,
+the §101 guide image. The full prompt was too long for the free plan,
+so it was shortened by another model (Gemini) first.
+
+**Result:** the geometry was exact, with every unit, drawer, the
+tambour, the hob, the corner unit and the uppers in place and nothing
+invented. But:
+- every edge was drawn as a stitched seam on grey "cardboard";
+- the off-white gloss was lost.
+
+**Reading:**
+- The edges were followed too literally. Strength is the first lever.
+- Lightning XL is a fast model and follows prompts less closely than
+  Vision XL.
+- Shortening the prompt in another model loses the grounding we built.
+
+**Changes:**
+- The Leonardo request uses `strengthType: "Mid"` (was "High"). Notes
+  say to go Low if lines still show, and High only if units drift.
+- `LINE_ARTEFACT_TERMS` (visible outlines, sketch lines, wireframe,
+  stitched seams, cardboard texture, monochrome) lead every Leonardo
+  negative prompt.
+- `promptShort` (≤ 400 characters, colours and materials first, no
+  counts or sizes) and `negativePromptShort` (≤ 300) are in the pack,
+  ready to paste on a length-limited plan. The free plan's exact limit
+  isn't documented where we could see it; 400 is a guess that fits.
+- **Wording bugs, visible in the real prompt:**
+
+  | Was | Now | How |
+  |---|---|---|
+  | "a under-sink ro purifier", "off-white pu" | "an under-sink RO purifier", "off-white PU" | `withArticle` picks a/an by sound, including acronyms: "an RO"; `proseCase` keeps acronyms |
+  | "(600mm)" leaking from catalogue labels | gone | `withoutSizes` |
+  | "teak veneer wood-grain veneer" | "teak matte wood-grain veneer" | `shortFinish` drops name words the type or pattern repeats |
+  | "off-white acrylic, high gloss and cream acrylic, high gloss" | "off-white high-gloss acrylic and cream high-gloss acrylic" | finishes are "colour sheen pattern type", with no internal comma |
+
+**Length.** Leonardo's prompt box takes 1,500 characters on paid plans
+too, so the pack's full `prompt` is now capped at
+`LEONARDO_MAX_PROMPT_CHARS` (1,500) as well as 200 words. Over the
+limit, the word budget tightens, so whole optional sentences drop
+rather than one being cut mid-way. Image models never read the JSON
+itself; it's the record the prompts are generated from. A chat model
+(ChatGPT, Gemini, Claude) can take the JSON as an upload with the
+sheet, which is the "Chat image model" route. There's no need to have
+another model rewrite a prompt for Leonardo: `prompt` (≤ 1,500) and
+`promptShort` (≤ 400) are both written from the same data.
+
+**Next lever if Mid isn't enough:** a shaded "clay" guide (grey-lit
+faces, faint lines) instead of pure line art. A canny edge detector
+finds both sides of a drawn line, which may be what doubles into the
+"stitched" look. That's untried, so it's not built.
+
+**Verified:** tests for the a/an, acronym, size and repeated-word rules,
+the Mid strength, the artefact terms in the negative, and the short
+prompt's limits and order. A short prompt for a kitchen like the one
+tried was printed and read (350 characters). **Not yet tried on
+Leonardo.**

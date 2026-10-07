@@ -22,6 +22,19 @@ export interface CameraNode {
   y: number;
   viewAngleDeg: number;   // 0-359, clockwise from north/"up" (compass-style) — see CameraLayer.tsx
   heightMm: number;       // eye height off the floor
+  // Up/down tilt of the saved view, degrees: + looks up, − looks down.
+  // Absent = level (every camera saved before 6 Oct 2026).
+  //
+  // Together with fovDeg this makes a camera a complete, repeatable
+  // VIEW, not just a spot and a heading. It was deliberately NOT stored
+  // before (drag-to-look was a live aid, reset on every teleport), but
+  // the image brief (§101–§102) renders exactly what a camera sees, so
+  // the view you framed by eye has to survive a reload. Set from the
+  // Cameras panel, or with "Save this view" in the 3D walkthrough.
+  pitchDeg?: number;
+  // Vertical lens angle of the saved view, degrees. Absent = the 3D
+  // view's current "Walkthrough lens" setting.
+  fovDeg?: number;
   // Step 2 of the walkthrough architecture (lib/panoramaCapture.ts +
   // lib/panoramaStorage.ts): the public URL of this node's captured
   // 360° equirectangular JPEG, once "Capture 360°" has been run for it

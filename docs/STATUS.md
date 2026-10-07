@@ -6,8 +6,9 @@ snapshot, not a history. The reasoning is in `docs/DECISIONS-INDEX.md`
 (one line per decision, with `§` pointers into `docs/DECISIONS.md`), and
 the history is in `git log`.
 
-**Last updated:** 3 Oct 2026. Branch `charges-and-cutting-list`, not yet
-merged to `main`.
+**Last updated:** 6 Oct 2026. Everything is on `main` (the
+`charges-and-cutting-list` branch was merged 5 Oct; this line still said
+"not yet merged" until 6 Oct).
 
 ---
 
@@ -22,6 +23,17 @@ merged to `main`.
 - 3D walkthrough with camera nodes, 360° panoramas, three lighting
   modes, HDRI + Lightformer environment.
 - Wall elevation; present mode (customer view with a price reveal).
+- Image brief (§97–§101), from the 3D view, for:
+  - **Leonardo:** a line render of the camera you stand at, plus a JSON
+    with ready Leonardo request bodies (structure-locked Vision XL;
+    Phoenix prompt-only).
+- Cameras are saved views (§102, §103): height and tilt in the Cameras
+  panel, a hold-to-move pad (forward/back/left/right/up/down), and "Save
+  this view" in the 3D walkthrough for heading, tilt and lens.
+  - **a chat image model:** one sheet (plan + four walls) and a JSON spec
+    with a full and a condensed prompt.
+- Top view (§99) in the Elevation tab: a line plan (Drawing) and a 3D
+  view from straight above.
 - Parametric fronts: mixed rows, tambour, glass in four tints, three
   corner types, pantry; hardware derived from fronts.
 - Depth convention ("includes shutter" or "carcass only"): business
@@ -65,11 +77,12 @@ merged to `main`.
 
 ## Tests
 
-`npm test` (Vitest): **125 tests**. 102 cover pricing, the cutting list,
-nesting, panels, the importer, physical depth and the pipeline rules. 20
-screen tests (React Testing Library) cover the rate card, boards, Cabinet
-Designer, charges, the Cutting List, the quote's version list, Home and
-Customers. 3D and 2D drawing is
+`npm test` (Vitest): **233 tests** in 30 files (this said 125, which
+was stale). Maths tests cover pricing, the cutting list, nesting,
+panels, the importer, physical depth, the pipeline rules, and the image
+brief with its plan and elevation drawings. Screen tests (React Testing Library) cover the rate card, boards,
+Cabinet Designer, charges, the Cutting List, the quote's version list,
+Home, Customers, the app shell and catalogue duplicates. 3D and 2D drawing is
 still checked by eye.
 
 ## Your to-dos before using this branch
@@ -112,6 +125,20 @@ still checked by eye.
   its orientation; the new appliance types' colours.
 - No comparison yet against a carpenter's real cutting list or sheet
   count.
+- Saved camera views and the move pad (§102, §103): "Save this view",
+  the tilted walkthrough and the glide are not yet seen in a browser
+  (maths and the panel are tested).
+- Leonardo (§104): first real run had exact geometry but drawn edges
+  and lost colour; strength lowered to Mid and a short prompt added,
+  not yet re-tried.
+- Leonardo pack (§101): the structure renderer was checked in a browser
+  on a test scene; not yet from a real design in the app, and no
+  Leonardo output yet. Sending to Leonardo isn't built (needs a
+  server-side proxy for the API key; your decision).
+- Image brief and Top view (§97–§100): the downloads and the Top view
+  were checked in a browser, but only on an empty design. Not yet seen:
+  the 3D top view with units in it, the optional 3D still, and any
+  result from an actual image model.
 
 ## Not built
 

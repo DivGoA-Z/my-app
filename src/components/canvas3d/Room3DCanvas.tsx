@@ -58,7 +58,8 @@
 
 import { BACKDROP_LIGHT, contrastingBackdrop, surfaceLightness } from '../../lib/backdrop';
 import { cn } from '@/lib/utils';
-import { Camera as CameraIcon, ChevronDown, Eye, Trash2 } from 'lucide-react';
+import { Camera as CameraIcon, ChevronDown, Download, Eye, Save, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { usePhysicalCabinets } from '../../hooks/usePhysicalCabinets';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -69,6 +70,7 @@ import {
   Environment,
   Lightformer,
   PerspectiveCamera,
+  OrthographicCamera,
   Edges,
 } from '@react-three/drei';
 import { useLayoutStore } from '../../store/layoutStore';
@@ -90,11 +92,20 @@ import {
 import { currentFootprintRect } from '../../lib/footprint';
 import type { FootprintRect } from '../../lib/footprint';
 import type { ApplianceCatalogItem } from '../../types/Catalog';
-import { mmToWorld, groundPosition, clockwiseDegToThreeY, MM_TO_M } from '../../lib/scene3d';
+import { mmToWorld, groundPosition, clockwiseDegToThreeY, lookAnglesFromDirection, MM_TO_M } from '../../lib/scene3d';
 import { lightingEnvironmentFor, clampExposure, DEFAULT_EXPOSURE, FIXTURE_LUMEN_SCALE, FIXTURE_ORIGIN_STANDOFF_M, FIXTURE_LIGHT_DECAY, DAYLIGHT_DECAY, LINEAR_SAMPLES_BY_QUALITY, LINEAR_SAMPLE_MIN_LENGTH_MM, DIFFUSE_ORIGIN_STANDOFF_MM, FIXTURE_LIGHT_DISTANCE_MM, FIXTURE_EMISSIVE_INTENSITY, DAYLIGHT_BASE_INTENSITY, BACKDROP_DISTANCE_M, BACKDROP_OVERSIZE, kelvinToColor, DAYLIGHT_STANDOFF_MM, DAYLIGHT_THROW_MM, DAYLIGHT_CONE_ANGLE_RAD, DOOR_HANDLE_PROJECTION_MM, DOOR_HANDLE_HEIGHT_MM, DOOR_HANDLE_EDGE_INSET_MM } from '../../lib/lighting3d';
 import { capturePanorama, DEFAULT_CAPTURE_ORIENTATION } from '../../lib/panoramaCapture';
 import type { CapturePanoramaOptions } from '../../lib/panoramaCapture';
 import { PanoramaViewerModal } from '../panorama/PanoramaViewerModal';
+import { buildRenderBrief, renderBriefFileStem, viewFromWorldCamera } from '../../lib/renderBrief';
+import type { ReferenceImage } from '../../lib/renderBrief';
+import { elevationSheetSvg } from '../../lib/elevationSheet';
+import { svgToPng } from '../../lib/svgToPng';
+import { HIDE_IN_SNAPSHOT, HIDE_IN_STRUCTURE, cameraPose, renderStructure } from '../../lib/viewSnapshot';
+import type { CameraPose, StructureKind, StructureOptions } from '../../lib/viewSnapshot';
+import { buildLeonardoPack, LEONARDO_SIZE } from '../../lib/leonardo';
+import { downloadBlob } from '../../lib/downloadBlob';
+import { useRenderBriefInput } from '../../hooks/useRenderBriefInput';
 import { Cabinet3DInspector } from './Cabinet3DInspector';
 import { ApplianceModel } from './ApplianceModel';
 import { FixtureModel } from './FixtureModel';
@@ -131,6 +142,11 @@ export interface Room3DCanvasProps {
   // same selection in its right-hand inspector, and the two at once
   // were one too many.
   inspectorOverlay?: boolean;
+  // The room from straight above (the elevation tab's "Top"): every
+  // item, no ceiling, north at the top like the 2D plan. Separate from
+  // wallView rather than a fifth value of it, because everything keyed
+  // on wallView means "one wall and what's against it".
+  topView?: boolean;
 }
 
 const DEFAULT_CEILING_HEIGHT_MM = 2700;
@@ -173,7 +189,10 @@ const SELECTION_OUTLINE_SCALE = 1.012;
 const HOTSPOT_COLOR = '#2dd4bf'; // teal-400 — matches CameraMarker's teal family
 const HOTSPOT_ACTIVE_COLOR = '#facc15'; // amber-400 — deliberately distinct so "you are here" stands out
 
-export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = false }: Room3DCanvasProps) {
+export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = false, topView = false }: Room3DCanvasProps) {
+  // Either fixed-camera drawing view: no walkthrough controls, no
+  // camera markers, fills the editor's height.
+  const drawingView = !!wallView || topView;
   const currentLayout = useLayoutStore((state) => state.currentLayout);
   const cabinets = usePhysicalCabinets();
   const obstacles = useLayoutStore((state) => state.obstacles);
@@ -295,12 +314,19 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
   // renders" React warns against for this case. Comparing against a
   // tracked "previous" value and calling setState mid-render instead
   // lets React fold the update into the SAME render pass.
+  // The walkthrough lens. Declared here, above the lock sync below, which
+  // loads a camera's saved lens into it (§102).
+  const [firstPersonFovDeg, setFirstPersonFovDeg] = useState(DEFAULT_FIRST_PERSON_FOV_DEG);
   const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null);
   const [prevLockedCameraId, setPrevLockedCameraId] = useState(lockedCameraId);
   if (lockedCameraId !== prevLockedCameraId) {
     setPrevLockedCameraId(lockedCameraId);
     if (lockedCameraId) {
       setSelectedCameraId(lockedCameraId);
+      // A camera with a saved lens (§102) brings it with it, so its view
+      // is the one that was framed and saved.
+      const saved = cameras.find((c) => c.id === lockedCameraId)?.fovDeg;
+      if (saved) setFirstPersonFovDeg(saved);
     }
   }
   const selectedCamera = cameras.find((c) => c.id === selectedCameraId) ?? null;
@@ -322,7 +348,6 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
   // because the correct values can only be judged by looking at a real
   // capture (see that file's header for why the conventions involved
   // aren't knowable from the code alone).
-  const [firstPersonFovDeg, setFirstPersonFovDeg] = useState(DEFAULT_FIRST_PERSON_FOV_DEG);
   const [mirrorX, setMirrorX] = useState(DEFAULT_CAPTURE_ORIENTATION.mirrorX);
   const [flipY, setFlipY] = useState(DEFAULT_CAPTURE_ORIENTATION.flipY);
   // Seeded from the SCENE exposure so a captured panorama comes out
@@ -354,6 +379,87 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
     }
   }
 
+  // The image brief (lib/renderBrief.ts), packaged for one of two kinds
+  // of image model (§98–§101):
+  //   leonardo  a line render + depth map of THIS camera (structure, no
+  //             look of its own) and ready Leonardo request bodies
+  //             (lib/leonardo.ts). Needs a standing camera: a cut-away
+  //             orbit view would be rendered as a dollhouse.
+  //   chat      the plan + four-wall sheet (lib/elevationSheet.ts) for a
+  //             chat-style model that reads drawings.
+  const viewFnsRef = useRef<ViewFns | null>(null);
+  const briefInput = useRenderBriefInput();
+  const [briefTarget, setBriefTarget] = useState<'leonardo' | 'chat'>('leonardo');
+
+  async function handleRenderBrief() {
+    const fns = viewFnsRef.current;
+    if (!currentLayout || !briefInput || !fns) return;
+    if (briefTarget === 'leonardo' && !lockedCamera) {
+      toast.error('Choose a camera in "Look from" first: Leonardo is guided by what that camera sees.');
+      return;
+    }
+    try {
+      const pose = fns.pose();
+      const stem = renderBriefFileStem(currentLayout.name);
+      const base = {
+        ...briefInput,
+        view: viewFromWorldCamera({
+          mode: lockedCamera ? 'walkthrough' : 'orbit',
+          cameraLabel: lockedCamera?.label,
+          position: pose.position,
+          direction: pose.direction,
+          verticalFovDeg: pose.verticalFovDeg,
+          imageWidthPx: pose.widthPx,
+          imageHeightPx: pose.heightPx,
+        }),
+        assetOrigin: window.location.origin,
+        generatedAt: new Date().toISOString(),
+      };
+      const json = (data: unknown, file: string) =>
+        downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), file);
+
+      if (briefTarget === 'leonardo') {
+        // Only the line render: it's the one image Leonardo is sent. A
+        // depth map was downloaded too and got uploaded by mistake (§102).
+        const { widthPx, heightPx } = LEONARDO_SIZE;
+        const line = fns.structure('line', { widthPx, heightPx });
+        const images: ReferenceImage[] = [{ kind: 'line-render', file: `${stem}-leonardo-guide.png`, widthPx, heightPx }];
+        const brief = buildRenderBrief({ ...base, referenceImages: images });
+        const leonardo = buildLeonardoPack(brief, { guidance: images[0].file });
+        downloadBlob(await (await fetch(line)).blob(), images[0].file);
+        json({ ...brief, leonardo }, `${stem}-leonardo.json`);
+        toast.success('Leonardo pack downloaded: the guide image and the request (JSON).');
+      } else {
+        // Drawn from a first pass of the brief, so the sheet and the JSON
+        // share refs; the second pass only adds the image list.
+        const sheet = elevationSheetSvg(buildRenderBrief({ ...base, referenceImages: [] }));
+        const sheetScale = 2;
+        const images: ReferenceImage[] = [
+          { kind: 'elevations', file: `${stem}-elevations.png`, widthPx: sheet.widthPx * sheetScale, heightPx: sheet.heightPx * sheetScale },
+        ];
+        const brief = buildRenderBrief({ ...base, referenceImages: images });
+        downloadBlob(await svgToPng(sheet.svg, sheet.widthPx, sheet.heightPx, sheetScale), images[0].file);
+        json(brief, `${stem}-render-brief.json`);
+        toast.success('Image brief downloaded: plan and elevations, and the brief (JSON).');
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? `Image brief failed: ${err.message}` : 'Image brief failed.');
+    }
+  }
+
+  // Saves where you're looking now (after dragging to look around) as
+  // this camera's view: heading, tilt and lens (§102). The image brief
+  // renders exactly that, so framing by eye here is how you set up the
+  // Leonardo shot.
+  const updateCamera = useLayoutStore((state) => state.updateCamera);
+  function handleSaveView() {
+    const fns = viewFnsRef.current;
+    if (!lockedCamera || !fns) return;
+    const { headingDeg, pitchDeg } = lookAnglesFromDirection(fns.pose().direction);
+    updateCamera(lockedCamera.id, { viewAngleDeg: headingDeg, pitchDeg, fovDeg: firstPersonFovDeg });
+    toast.success(`Saved as ${lockedCamera.label}'s view: ${Math.round(headingDeg)}° heading, ${pitchDeg > 0 ? 'up' : pitchDeg < 0 ? 'down' : 'level'}${pitchDeg ? ` ${Math.abs(Math.round(pitchDeg))}°` : ''}, ${firstPersonFovDeg}° lens.`);
+  }
+
   async function handleDeletePanorama() {
     if (!selectedCamera) return;
     setCaptureError(null);
@@ -365,8 +471,8 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
   }
 
   return (
-    <div className={cn('flex flex-col gap-3', wallView && 'h-full')}>
-      {!wallView && (
+    <div className={cn('flex flex-col gap-3', drawingView && 'h-full')}>
+      {!drawingView && (
         <>
       {/* §90: restyled to the app's tokens and touch sizes. Where you're
           looking from stays in view; the 360° photo tools and their
@@ -388,16 +494,36 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
             ))}
           </select>
         </label>
+        <label className="flex flex-col gap-1.5 text-[13px] font-semibold">
+          Image brief for
+          <select
+            value={briefTarget}
+            onChange={(e) => setBriefTarget(e.target.value as 'leonardo' | 'chat')}
+            className="h-11 rounded-[10px] border border-input bg-card px-3 text-[15px]"
+          >
+            <option value="leonardo">Leonardo (guided by this camera)</option>
+            <option value="chat">Chat image model (plan + walls)</option>
+          </select>
+        </label>
+        {lockedCamera && (
+          <Button variant="outline" size="touch" onClick={handleSaveView}>
+            <Save /> Save this view
+          </Button>
+        )}
+        <Button variant="outline" size="touch" onClick={handleRenderBrief} disabled={!currentLayout}>
+          <Download /> Image brief
+        </Button>
       </div>
       <p className="text-[13px] text-muted-foreground">
         {lockedCamera
-          ? `Standing at ${lockedCamera.label}: drag to look around. Tap another glowing floor marker to step there.`
+          ? `Standing at ${lockedCamera.label}: drag to look around, then "Save this view" to keep it as this camera's view. Tap another glowing floor marker to step there.`
           : cameras.length > 0
             ? 'Tap a glowing floor marker to step into the room at that camera.'
             : 'Drag to turn the room; pinch or scroll to zoom.'}
         {selectedCamera?.panoramaCapturedAt &&
           !captureError &&
           ` 360° photo taken ${new Date(selectedCamera.panoramaCapturedAt).toLocaleString()}.`}
+        {' '}Image brief for Leonardo saves a line drawing of what this camera sees, a depth map and the request to send; stand at a camera first. For a chat model it saves the plan and all four walls.
       </p>
       {captureError && <p className="text-[13px] font-medium text-destructive">Capture failed: {captureError}</p>}
 
@@ -498,7 +624,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
           // WallViewCamera fits to the frame's real shape. (A fixed 4:5
           // was tried first and ran under the phone's tool strip.) The
           // room view keeps 16:9 for the FOV reason above.
-          wallView ? 'min-h-[240px] flex-1 sm:flex-none sm:aspect-video' : 'aspect-video'
+          drawingView ? 'min-h-[240px] flex-1 sm:flex-none sm:aspect-video' : 'aspect-video'
         )}
         onPointerDown={(e) => {
           pointerDownAtRef.current = { x: e.clientX, y: e.clientY };
@@ -524,7 +650,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
           {/* Wall view: a plain sheet behind the wall, not sky blue (§92),
               dark behind a light wall of units and light behind a dark
               one (§93), so the outline always reads. */}
-          <color attach="background" args={[wallView ? wallViewBackdrop : '#dbeafe']} />
+          <color attach="background" args={[drawingView ? wallViewBackdrop : '#dbeafe']} />
 
           {/* Lighting environment: a self-hosted HDRI PLUS the emissive
               Lightformer panels, composited together, not one instead
@@ -655,7 +781,10 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
                   // this wall. Ceiling pendants hung in front of the
                   // units and hid them.
                   (m) => (m.kind === 'cabinet' ? wallRoles?.get(m.cabinetId) === 'full' : m.kind === 'wall' && m.wallId === wallView)
-                : undefined
+                : topView
+                  ? // Seen from above, ceiling fittings would hide the room.
+                    (m) => m.kind !== 'ceiling'
+                  : undefined
             }
           />
 
@@ -665,7 +794,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
               no ceiling — like an elevation, not a camera across the room. */}
           <RoomWalls widthM={roomWidthM} depthM={roomDepthM} heightM={ceilingHeightM} only={wallView} />
 
-          {!wallView && <RoomCeiling widthM={roomWidthM} depthM={roomDepthM} heightM={ceilingHeightM} />}
+          {!drawingView && <RoomCeiling widthM={roomWidthM} depthM={roomDepthM} heightM={ceilingHeightM} />}
 
           {/* Corner pieces that belong to the neighbouring wall: the
               corner they occupy, in plain grey (§92). */}
@@ -750,7 +879,11 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
             );
           })}
 
-          {!wallView && cameras.map((camera) => (
+          {/* Tagged so the image brief's snapshot leaves them out
+              (lib/viewSnapshot.ts) — they're editor furniture, not
+              part of the kitchen. */}
+          <group userData={{ [HIDE_IN_SNAPSHOT]: true }}>
+          {!drawingView && cameras.map((camera) => (
             <CameraMarker key={camera.id} camera={camera} />
           ))}
 
@@ -759,7 +892,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
               free orbit is how you first enter walkthrough mode, same
               as picking a node from the Viewpoint dropdown above. */}
           {/* Not in the wall view, where there's no walkthrough to enter. */}
-          {!wallView && cameras.map((camera) => (
+          {!drawingView && cameras.map((camera) => (
             <HotspotMarker
               key={camera.id}
               camera={camera}
@@ -767,9 +900,12 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
               onSelect={() => setLockedCameraId(camera.id)}
             />
           ))}
+          </group>
 
           {wallView ? (
             <WallViewCamera key={wallView} wall={wallView} widthM={roomWidthM} depthM={roomDepthM} heightM={ceilingHeightM} />
+          ) : topView ? (
+            <TopViewCamera widthM={roomWidthM} depthM={roomDepthM} heightM={ceilingHeightM} />
           ) : lockedCamera ? (
             <AnimatedFirstPersonCamera camera={lockedCamera} fovDeg={firstPersonFovDeg} />
           ) : (
@@ -779,6 +915,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
           {/* Invisible — just hands the live renderer+scene up to
               handleCapture above via captureFnRef (see its comment). */}
           <PanoramaCaptureBridge captureFnRef={captureFnRef} />
+          <ViewSnapshotBridge viewFnsRef={viewFnsRef} />
         </Canvas>
 
         {/* Overlays the canvas (the wrapper is position:relative) rather
@@ -820,6 +957,38 @@ function PanoramaCaptureBridge({
       captureFnRef.current = null;
     };
   }, [gl, scene, captureFnRef]);
+
+  return null;
+}
+
+// Same idea as PanoramaCaptureBridge, for the image brief: the camera's
+// pose and structure renders of what it sees (lib/viewSnapshot.ts).
+// Reads the camera at click time through get() rather than closing over
+// it: the walkthrough swaps the default camera, and a stale one would
+// render the wrong view.
+interface ViewFns {
+  pose: () => CameraPose;
+  structure: (kind: StructureKind, opts: StructureOptions) => string;
+}
+
+function ViewSnapshotBridge({ viewFnsRef }: { viewFnsRef: { current: ViewFns | null } }) {
+  const get = useThree((state) => state.get);
+
+  useEffect(() => {
+    viewFnsRef.current = {
+      pose: () => {
+        const { gl, camera } = get();
+        return cameraPose(gl, camera);
+      },
+      structure: (kind, opts) => {
+        const { gl, scene, camera } = get();
+        return renderStructure(gl, scene, camera, kind, opts);
+      },
+    };
+    return () => {
+      viewFnsRef.current = null;
+    };
+  }, [get, viewFnsRef]);
 
   return null;
 }
@@ -869,12 +1038,21 @@ function AnimatedFirstPersonCamera({ camera, fovDeg }: { camera: CameraNode; fov
     null
   );
 
+  // Position and view are two effects (§103): gliding the camera with
+  // the Cameras panel's move pad changes x/y/height many times a second,
+  // and must not throw away a look-around you haven't saved yet. Only a
+  // new VIEW (another node, or a saved heading/tilt) resets free-look.
   useEffect(() => {
     const [worldX, worldZ] = groundPosition(camera.x, camera.y);
     const worldY = mmToWorld(camera.heightMm || DEFAULT_CAMERA_HEIGHT_MM);
     targetPositionRef.current.set(worldX, worldY, worldZ);
+  }, [camera.x, camera.y, camera.heightMm]);
+
+  useEffect(() => {
+    // Heading and the saved tilt (§102), in the same 'YXZ' order the
+    // drag-look uses, so a view saved from a drag comes back exactly.
     targetQuaternionRef.current.setFromEuler(
-      new THREE.Euler(0, clockwiseDegToThreeY(camera.viewAngleDeg), 0)
+      new THREE.Euler(THREE.MathUtils.degToRad(camera.pitchDeg ?? 0), clockwiseDegToThreeY(camera.viewAngleDeg), 0, 'YXZ')
     );
 
     // A (possibly different) node always resets free-look — stepping
@@ -882,12 +1060,15 @@ function AnimatedFirstPersonCamera({ camera, fovDeg }: { camera: CameraNode; fov
     // drag left the previous one.
     freeLookActiveRef.current = false;
 
+    // First activation snaps rather than flying in from the origin. Runs
+    // after the position effect above (declaration order), so the target
+    // position is already set.
     if (cameraRef.current && !hasPositionedRef.current) {
       cameraRef.current.position.copy(targetPositionRef.current);
       cameraRef.current.quaternion.copy(targetQuaternionRef.current);
       hasPositionedRef.current = true;
     }
-  }, [camera.id, camera.x, camera.y, camera.heightMm, camera.viewAngleDeg]);
+  }, [camera.id, camera.viewAngleDeg, camera.pitchDeg]);
 
   // Native pointer listeners on the canvas's own DOM element (not R3F
   // synthetic events) so dragging keeps tracking via setPointerCapture
@@ -1282,7 +1463,10 @@ function OpeningInWall({
           of mistake as the panorama colour-space bug — the image
           arrives correct and gets wrongly re-processed. */}
       {backdrop && (
-        <mesh position={at(BACKDROP_DISTANCE_M)} rotation={faceRotation}>
+        // The photo outside the window: not part of the room, so the
+        // structure render (lib/viewSnapshot.ts) leaves it out and the
+        // window reads as an opening.
+        <mesh position={at(BACKDROP_DISTANCE_M)} rotation={faceRotation} userData={{ [HIDE_IN_STRUCTURE]: true }}>
           <planeGeometry
             args={[openingWidthM * BACKDROP_OVERSIZE, openingHeightM * BACKDROP_OVERSIZE]}
           />
@@ -2643,7 +2827,7 @@ function CabinetMesh({ item, isSelected, onSelect }: CabinetMeshProps) {
           and obscure exactly the finish the selection exists to let you
           judge (the same reason emissive highlighting was rejected). */}
       {isSelected && (
-        <mesh position={[0, 0, 0]}>
+        <mesh position={[0, 0, 0]} userData={{ [HIDE_IN_SNAPSHOT]: true }}>
           <boxGeometry args={[widthM, heightM, depthM]} />
           <meshBasicMaterial visible={false} />
           <Edges
@@ -3332,6 +3516,25 @@ function WallViewCamera({
         shadow-bias={-0.0004}
       />
       <OrbitControls target={target} maxPolarAngle={Math.PI * 0.62} minDistance={0.5} maxDistance={dist * 2.5} />
+    </>
+  );
+}
+
+// Straight down on the room, north at the top (the 2D plan's way up).
+// Orthographic, so it reads as a plan with shading rather than a
+// perspective that shrinks the floor. camera.up is −Z: looking down the
+// Y axis, the default up (+Y) is parallel to the view and undefined.
+// Pan and zoom work; rotating is off so north stays up.
+function TopViewCamera({ widthM, depthM, heightM }: { widthM: number; depthM: number; heightM: number }) {
+  const { width: frameW, height: frameH } = useThree((state) => state.size);
+  const margin = 1.15;
+  const zoom = Math.max(1, Math.min(frameW / ((widthM + 0.2) * margin), frameH / ((depthM + 0.2) * margin)));
+  const center: [number, number, number] = [widthM / 2, 0, depthM / 2];
+  return (
+    <>
+      <OrthographicCamera makeDefault position={[widthM / 2, heightM + 5, depthM / 2]} up={[0, 0, -1]} zoom={zoom} near={0.1} far={heightM + 20} />
+      <directionalLight position={[widthM / 2 - 1.5, heightM * 2, depthM / 2 + 1]} intensity={0.6} castShadow shadow-mapSize-width={2048} shadow-mapSize-height={2048} shadow-camera-left={-4} shadow-camera-right={4} shadow-camera-top={4} shadow-camera-bottom={-4} />
+      <OrbitControls target={center} enableRotate={false} />
     </>
   );
 }

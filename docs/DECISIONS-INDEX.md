@@ -356,3 +356,19 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§95** Sidebar business mark shows the uploaded logo on a white tile; initial as fallback (also on image error).
 
 **§96** Customer notes: optional box on New customer, Notes/Add notes in the card menu (dialog), first line shown on the card; updateCustomerNotes checks zero-row RLS refusals.
+
+**§97** Image brief (3D view button): PNG of the current view + `kitchen-render-brief/v1` JSON (`lib/renderBrief.ts`) with mm boxes, per-wall left-to-right order, finishes, fronts, appliance relations, openings, lights, camera, counts, `notInThisRoom`, and generated instructions/prompt/negative prompt. Physical cabinets; no customer data or prices; snapshot rendered on demand (no preserveDrawingBuffer), editor markers hidden.
+
+**§98** Image brief's reference is now ONE four-wall elevation sheet (`lib/elevationSheet.ts`, SVG→PNG via `lib/svgToPng.ts`) drawn from the brief: real fronts and handles, counter, appliances as shapes, openings, hatched pillars, neighbour corner sides; labels outside, no colour. Never draw what the data doesn't say (fridge split, bowl depth). 3D still is opt-in. `referenceImages[]` replaces `referenceImage`.
+
+**§99** Top view: elevation tab's wall picker gains **Top view** (Drawing = `PlanTopView`, the exported plan SVG; 3D = `Room3DCanvas topView`, orthographic, north up, `up` −Z). Sheet is 3×2 (plan + key, four walls). Stored `'in-left'` = hinge at the wall's START = your RIGHT on south/west: brief records `door.hingeSide` as faced (`hingeSideFacingWall`). No duplicate SVG attributes (browser won't load it).
+
+**§100** Condensed prompt: `imagePromptCondensed` (≤200 words, fixed order, materials grouped by run, no refs/mm/brands; whole optional sentences dropped over the cap) alongside the full `imagePrompt`. Negative prompt = generic terms + `notInThisRoom`, deduped, comma-free phrases, never `'island'` generically. The JSON is export-only; nothing in the app reads it.
+
+**§101** Leonardo: Phoenix has NO edge/depth guidance (SDXL-only, preprocessor 19/20), so structure lock = Vision XL + PhotoReal v2 + Alchemy + Edge to Image `strengthType: High`, 1024×576 (Alchemy ≤1024). No "INTERIOR" preset; no "octane render". Guide image = `renderStructure` line render of a STANDING camera (textured still dropped). `-leonardo.json` has ready bodies; nothing calls the API (key must be server-side).
+
+**§102** A camera is a saved VIEW: optional `pitchDeg` (+ up) and `fovDeg` on `CameraNode` (JSONB, no migration). Height/Tilt typed in the Cameras panel (commit on Enter/blur, clamped — never per keystroke). 3D "Save this view" stores heading/tilt/lens via `lookAnglesFromDirection` (same 'YXZ' order as drag-look; round-trip tested). Leonardo pack = guide + JSON only (depth map was uploaded by mistake).
+
+**§103** Cameras panel move pad: hold Forward/Back/Left/Right/Up/Down to glide the picked camera (camera-relative, 300/200 mm/s, clamped in the room); rAF loop on pointer down/up with capture; one undo step per press via the store's signature debounce. Walkthrough effect split: moving re-targets position without resetting an unsaved look-around.
+
+**§104** First Leonardo run (Lightning XL, Edge High): exact geometry but drawn "stitched" edges and lost colour. Request now Edge `Mid`; `LINE_ARTEFACT_TERMS` lead the negative; `promptShort` (≤400 chars, colours first) + `negativePromptShort` (≤300) for the free plan; full `prompt` capped at 1,500 chars (Leonardo's box limit, paid plans too). Prose fixes: a/an by sound ("an RO"), acronyms kept, sizes stripped from labels, no repeated finish words. Next lever, untried: a shaded clay guide.

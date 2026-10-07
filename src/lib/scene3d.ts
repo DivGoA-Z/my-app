@@ -34,6 +34,16 @@ export function groundPosition(xMm: number, yMm: number): [number, number] {
   return [mmToWorld(xMm), mmToWorld(yMm)];
 }
 
+// A world look direction (unit vector) as the plan's angles: heading
+// clockwise from north (north = world −Z, the same convention as
+// CameraNode.viewAngleDeg) and pitch, + up. Rounded to 0.1°.
+export function lookAnglesFromDirection([dx, dy, dz]: [number, number, number]): { headingDeg: number; pitchDeg: number } {
+  const heading = ((Math.atan2(dx, -dz) * 180) / Math.PI + 360) % 360;
+  const pitch = (Math.asin(Math.max(-1, Math.min(1, dy))) * 180) / Math.PI;
+  const tenth = (v: number) => Math.round(v * 10) / 10;
+  return { headingDeg: tenth(heading) % 360, pitchDeg: tenth(pitch) };
+}
+
 // Converts a clockwise 2D-canvas degrees value into the radians Three.js
 // expects for rotation.y.
 export function clockwiseDegToThreeY(degrees: number): number {
