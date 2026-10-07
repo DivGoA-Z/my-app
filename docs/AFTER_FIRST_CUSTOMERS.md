@@ -37,9 +37,9 @@ what has to be true before customer #1 is onboarded by hand.
       `approve_new_business`, and saved as its default ("Go back to my
       default" on the Catalogue page). The rate card and Workshop settings
       still start on the in-app defaults.
-- [x] **A written onboarding runbook.** `docs/DEPLOY.md`, "Sign-up and
-      approving a new account" (§106–§107): they sign up, you run one
-      `approve_new_business` line, they press Check again.
+- [x] **A written onboarding runbook.** `docs/DEPLOY.md`, "Adding a
+      business or a person (quick guide)" (§106–§107): they sign up, you
+      run one `approve_new_business` line, they press Check again.
 - [ ] **Two-business isolation check** (principle 4). The check is
       written and passes against a local copy of the schema (§107):
       `supabase/isolation_check.sql`. **Still to do: run it in the real

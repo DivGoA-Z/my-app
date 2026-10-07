@@ -21,85 +21,143 @@ backend is Supabase, already hosted. Cloudflare serves `dist/` at a free
 Missing build variables give a site that loads but can't sign in.
 Changing them later needs a **redeploy** (they're read at build time).
 
-## Adding a person to the business
+## Adding a business or a person (quick guide)
 
-`docs/SUPABASE_SETUP.md` Step 5: Supabase → Authentication → Users → Add
-user (auto-confirm), then in the SQL editor:
+Everything you need while adding someone is in this section. The setup
+you do once is in the next section.
 
-```sql
-insert into business_users (business_id, user_id) values ('biz_default', '<their uid>');
-```
+### The three things
 
-## Sign-up and approving a new account (§106)
+| Thing | What it is | Its id looks like |
+|---|---|---|
+| **User** | One login: a person's email and password | `450641c5-2980-4e8d-ac06-8574ef58edab` |
+| **Business** | One firm: its customers, quotes, catalogue, rates | `biz_default` (yours) or `biz_3f9a1c2d7e` (one you approved) |
+| **Link** | Joins a user to a business (`business_users`) | — |
 
-The sign-in screen has **Create an account**. It creates a login and
-nothing else: the person sees "Waiting for access" until you link them
-to a business. Nothing in the browser can create or join a business.
+- A user with **no link** sees "Waiting for access" and nothing else.
+- A user with **a link** sees that business, and only that business.
+- A business's **name** ("FirstSeparateBiz") is only a label. The SQL
+  below always needs the **id**.
 
-**Once, before relying on it (in this order):**
+The flow: a person signs up (that makes a **user**), then you either make
+a **new business** for them, or **link** them to one that exists.
 
-1. **Re-run `supabase/schema.sql`** in the SQL editor. It changes the
-   storage rules so only business members can upload. Until it's re-run,
-   a waiting account could still upload to (and overwrite files in) the
-   panoramas, swatches and quote-PDF buckets.
-2. Supabase → Authentication → Sign In / Providers → Email: turn on
-   **Allow new users to sign up**. While it's off, the form shows
-   Supabase's "Signups not allowed" message, which is harmless.
-3. Same page: **Confirm email** on (recommended) means a new person must
-   click an emailed link before they can sign in. Make sure Site URL
-   (Authentication → URL Configuration) is the live address, or the
-   link points at localhost. Supabase's built-in email sends only a few
-   messages an hour on the free plan; set up your own SMTP (Authentication
-   → Emails) before inviting many people.
+### Where to run these
 
-**Once, before approving anyone as a new business:** fill the master
-starter catalogue from your own catalogue (re-run whenever you want the
-starter to change; businesses already approved keep their own copies):
+Supabase → your project → **SQL Editor**. Run **one statement at a time**:
+clear the box first, or highlight just the line you want. The editor runs
+everything in the box, so an old line left there runs again.
+
+### Step 1: find the person's user id
+
+If they signed up on the site, they're in the "waiting" list:
 
 ```sql
-select public.refresh_starter_catalog('biz_default');
-```
-
-**Approving someone.** Find who's waiting:
-
-```sql
-select u.id, u.email, u.created_at,
+select u.id, u.email,
        u.raw_user_meta_data->>'full_name' as name,
-       u.raw_user_meta_data->>'business_name' as business
+       u.raw_user_meta_data->>'business_name' as business,
+       u.created_at
 from auth.users u
 where not exists (select 1 from business_users b where b.user_id = u.id)
 order by u.created_at desc;
 ```
 
-Then ONE of these, using their `id`:
+To create the user yourself instead: Authentication → Users → **Add
+user** (email, password, tick auto-confirm), then copy their id from that
+list.
 
-- **A new, separate business** (an outside firm). It's named from their
-  sign-up form, gets its own copy of the starter catalogue, and that
-  copy is saved as its default:
+### Step 2: either A or B
 
-  ```sql
-  select public.approve_new_business('<their id>');
-  -- or choose the name yourself:
-  select public.approve_new_business('<their id>', 'Verma Interiors');
-  ```
+**A. A new firm (its own, separate business):**
 
-- **Your own business** (your co-founder or staff; they'll see all of its
-  customers, quotes and rates):
+```sql
+select public.approve_new_business('<user id>');
+```
 
-  ```sql
-  insert into business_users (business_id, user_id) values ('biz_default', '<their id>');
-  ```
+- This one line creates the business, makes the person its owner, and
+  copies in the starter catalogue (saved as their default).
+- **Name:** taken from "Business name" on their sign-up form, or their
+  email if that's empty. To choose it yourself:
+  `select public.approve_new_business('<user id>', 'Verma Interiors');`
+- It returns the new **business id** (`biz_…`). Note it down if more of
+  their people will join.
+- Run it **once per firm**. It's never needed again for that firm.
 
-They press **Check again** (or sign in again) and they're in. To turn
-someone away, leave them unlinked or delete the user in Authentication →
-Users.
+**B. A person joining a business that already exists** (yours, or a firm
+you approved earlier):
 
-**Checking that businesses can't see each other.** Paste
-`supabase/isolation_check.sql` into the SQL editor and run it. It creates
-two test businesses, tries everything a business shouldn't be able to do
-to the other one, and rolls it all back. The result should be one row: "ALL ISOLATION
-CHECKS PASSED". A failure shows a red error naming the check instead. Run it after re-running `schema.sql`, and again after any
-change to who can see or write what.
+```sql
+-- find the business id
+select id, name from businesses order by created_at desc;
+
+-- link them
+insert into business_users (business_id, user_id) values ('<business id>', '<user id>');
+```
+
+- For your own business, the business id is `biz_default`.
+- Everyone in a business sees all of its customers, quotes and rates.
+
+Then the person presses **Check again** (or signs in again) and they're in.
+
+### Check who is where
+
+```sql
+select u.email, b.id as business_id, b.name as business, bu.role
+from business_users bu
+join businesses b on b.id = bu.business_id
+join auth.users u on u.id = bu.user_id
+order by b.name, u.email;
+```
+
+### Removing someone
+
+- **From a business:**
+  `delete from business_users where user_id = '<user id>';`
+  They go back to "Waiting for access".
+- **Altogether:** Authentication → Users → delete the user.
+
+### Errors and what they mean
+
+| Error says | Means | Do |
+|---|---|---|
+| `That user already belongs to a business` | They're already linked, often because the approve line ran a second time | Nothing. Check with "who is where" above |
+| `violates foreign key constraint ... business_id` | The business id is wrong; often the business **name** was used | Look up the id with `select id, name from businesses` |
+| `duplicate key value ... business_users_pkey` | That person is already in that business | Nothing |
+| `No user with id ...` | Mistyped user id | Copy it again from step 1 |
+| `The starter catalogue is empty` | The one-time starter step hasn't been run | Run it (next section), then approve again |
+
+## Sign-up: one-time setup (§106–§107)
+
+The sign-in screen has **Create an account**. It creates a login and
+nothing else; the person waits until you add them (quick guide above).
+Nothing in the browser can create or join a business.
+
+Do these once, in this order:
+
+1. **Re-run `supabase/schema.sql`** in the SQL editor (also after any
+   future change to it).
+2. **Fill the master starter catalogue** from your own catalogue. Re-run
+   it whenever you want the starter to change; firms already approved
+   keep their own copies.
+
+   ```sql
+   select public.refresh_starter_catalog('biz_default');
+   ```
+
+3. **Run the isolation check.** Paste `supabase/isolation_check.sql` and
+   run it. It creates two test businesses, tries everything one shouldn't
+   be able to do to the other, and rolls it all back. The result should
+   be one row: "ALL ISOLATION CHECKS PASSED". A failure shows a red error
+   naming the check. Run it again after any change to who can see or
+   write what.
+4. **Turn sign-ups on.** Authentication → Sign In / Providers: **Allow new
+   users to sign up** on, and under Email, **Confirm email** on
+   (recommended).
+5. **Site URL.** Authentication → URL Configuration → the live address,
+   so the confirmation email's link opens the live site, not localhost.
+
+Supabase's built-in email sends only a few messages an hour on the free
+plan (see `docs/AFTER_FIRST_CUSTOMERS.md` for when to set up your own).
 
 ## A forgotten password
 

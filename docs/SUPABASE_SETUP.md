@@ -115,7 +115,7 @@ Four things that catch people:
 
 *(Since §106 the app has a "Create an account" screen, but an account
 made there waits for approval: it's linked to a business by hand, as in
-step 3 below. See `docs/DEPLOY.md`, "Approving a sign-up".)* Your own
+step 3 below. See `docs/DEPLOY.md`, "Adding a business or a person (quick guide)".)* Your own
 account can be created here by hand, once:
 
 1. **Authentication → Users → Add user** in the dashboard. Set an
