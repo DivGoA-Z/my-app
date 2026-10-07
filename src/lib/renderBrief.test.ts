@@ -287,13 +287,23 @@ describe('short prompt (§105)', () => {
     expect(p.imagePromptShort).not.toMatch(/\bmm\b|\b[CAOPL]\d+\b/);
   });
 
-  it('puts counter clutter first in the short negative (it was the term cut off when a dish rack appeared)', () => {
+  it('leads the short negative with text (§112), then counter clutter (§104), so neither is cut off', () => {
     const neg = buildRenderBrief(input()).prompt.negativePromptShort;
-    expect(neg.startsWith('decor or utensils on the counters')).toBe(true);
+    expect(neg.startsWith('text or labels, decor or utensils on the counters')).toBe(true);
     expect(new Set(neg.split(', ')).size).toBe(neg.split(', ').length);
   });
 
   it('names no image model anywhere in the brief', () => {
     expect(JSON.stringify(buildRenderBrief(input()))).not.toMatch(/leonardo|phoenix|gemini|qwen|flux|sdxl/i);
+  });
+});
+
+describe('no text in the image (§112)', () => {
+  it('says so first in the instructions, in the full prompt, and in both negatives', () => {
+    const p = buildRenderBrief(input()).prompt;
+    expect(p.instructions.split('\n')[1]).toMatch(/^NEVER DRAW ANY TEXT/);
+    expect(p.imagePrompt).toMatch(/No text, letters, numbers, labels or reference codes/);
+    for (const t of ['letters', 'numbers', 'labels', 'reference codes']) expect(p.negativePrompt.split(', ')).toContain(t);
+    expect(p.negativePromptShort).toMatch(/^text or labels/);
   });
 });

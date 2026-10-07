@@ -7016,3 +7016,35 @@ the site).
   skipped it.
 
 The manual recipe is in `public/models/README.md`.
+
+## 112. Never draw the reference codes
+
+A test on Google AI Studio's free tier gave the same JSON and guide
+image to **Gemini 3.1 Flash Lite Image**. The layout was mostly right:
+hob left with drawers, corner unit, sink under the window, door, RO
+purifier, pendant. But it **painted our reference codes onto the
+kitchen** ("C3", "A4", "O1", "O2", "C15"…), several on the wrong
+objects. It also turned the tambour into a double door, made the wood
+ceiling white, and stood the under-sink RO purifier in an open niche.
+The heavier "thinking" model (§105) made none of these mistakes.
+
+Partly ours: the brief told the model the refs "tie the image to the
+data" and never said not to draw them, except for the guide image's
+lines. Now:
+- **Instructions:** the rule sits right after the opening line, in
+  capitals: "NEVER DRAW ANY TEXT. No letters, numbers, labels, reference
+  codes (C1, A2, O1…)… The codes in this file are for your reasoning
+  only." Rule 2 now says refs are never drawn.
+- **Full prompt:** the style line says no text, letters, numbers, labels
+  or codes.
+- **Negative prompt:** adds letters, numbers, labels and reference codes.
+  The short negative leads with "text or labels", then counter clutter
+  (§104), so neither is cut off by the length limit.
+
+The condensed and short prompts contain no codes, so they needed only
+the negative change.
+
+The other misses (tambour, ceiling, RO placement) are the lighter
+model's limits, not missing data: the brief states all three. For images
+a customer sees, prefer the heavier model; Flash Lite may do for quick
+drafts.

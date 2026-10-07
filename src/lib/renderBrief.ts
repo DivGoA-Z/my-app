@@ -1043,12 +1043,16 @@ function buildPrompt(b: Omit<RenderBrief, 'prompt'>): RenderBrief['prompt'] {
     .join('; ');
   lines.push(`Exact counts — ${inv}. Nothing else.`);
   lines.push(`Not in this room: ${b.notInThisRoom.join(', ')}.`);
-  lines.push('Style: natural, true-to-colour architectural interior photography, clean and uncluttered, sharp, realistic materials and soft shadows; no text or watermark.');
+  lines.push('Style: natural, true-to-colour architectural interior photography, clean and uncluttered, sharp, realistic materials and soft shadows. No text, letters, numbers, labels or reference codes anywhere in the image, and no watermark.');
 
   const instructions = [
     'You are producing ONE photorealistic image of a real kitchen that has already been designed and measured. It is a specification, not inspiration: the customer will compare the photo with what gets built.',
+    // §112: a lighter model painted "C3", "A4", "O1"… onto the cabinets.
+    // Said first and in capitals because it is the one mistake that ruins
+    // an image outright.
+    'NEVER DRAW ANY TEXT. No letters, numbers, labels, reference codes (C1, A2, O1…), dimensions or captions anywhere in the image. The codes in this file are for your reasoning only.',
     geometryInstruction(b.referenceImages),
-    '2. USE THE JSON AS THE SOURCE OF TRUTH for what each shape is: cabinet fronts (doors vs drawers, counts, handle positions), finishes, handles, appliances, openings and lights. Refs (C1, A2, O1…) tie the image to the data.',
+    '2. USE THE JSON AS THE SOURCE OF TRUTH for what each shape is: cabinet fronts (doors vs drawers, counts, handle positions), finishes, handles, appliances, openings and lights. Refs (C1, A2, O1…) tie the data to the attached drawings; they are never drawn.',
     '3. ADD NOTHING. No extra cabinets, appliances, windows, shelves, backsplash tiles, lights, decor, people or clutter. Everything in `notInThisRoom` must be absent.',
     `4. "Not specified" is not permission to invent: ${b.room.notSpecifiedMeans}`,
     '5. Finishes: when `swatchImageUrl` is given, match that photo (pattern, colour, scale from `swatchRepeatMm`); otherwise match `colourHex`/`colourName`, `pattern` and `sheen` exactly.',
@@ -1068,6 +1072,10 @@ function buildPrompt(b: Omit<RenderBrief, 'prompt'>): RenderBrief['prompt'] {
     'plants',
     'people',
     'text',
+    'letters',
+    'numbers',
+    'labels',
+    'reference codes',
     'watermark',
     'logo',
     'distorted perspective',
@@ -1365,7 +1373,7 @@ export function shortPrompt(b: Omit<RenderBrief, 'prompt'>, maxChars = SHORT_PRO
 // a dish rack and towel when that term was the one cut off (§104). Then
 // the generic guards, then what's absent.
 export function shortNegative(b: Omit<RenderBrief, 'prompt'>, maxChars = SHORT_NEGATIVE_MAX_CHARS): string {
-  const terms = [...new Set(['decor or utensils on the counters', 'clutter', 'extra cabinets', 'extra appliances', 'people', 'text', 'watermark', 'CGI look', 'distorted perspective', ...b.notInThisRoom])];
+  const terms = [...new Set(['text or labels', 'decor or utensils on the counters', 'clutter', 'extra cabinets', 'extra appliances', 'people', 'watermark', 'CGI look', 'distorted perspective', ...b.notInThisRoom])];
   const out: string[] = [];
   for (const t of terms) {
     if ([...out, t].join(', ').length > maxChars) break;

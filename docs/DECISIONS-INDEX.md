@@ -386,3 +386,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§110** Move pad on the 3D view: at a camera it moves the camera; in free orbit it glides the view (forward level, camera + orbit target together; `orbitMove`/`applyOrbitStep`, OrbitControls `makeDefault`, `invalidate()` per step). Sink countertop cut already exists — needs the sink row's cutout size.
 
 **§111** New appliance models were 15–25 MB (≈290k triangles, 3–4k PNGs); `gltf-transform optimize` (meshopt + WebP 1024 + gentle simplify 0.3/0.0003) → 0.84–0.86 MB (faucet sink 4.2 MB, won't simplify). Harder simplify dented the shading. No Draco (CDN decoder). Recipe in `public/models/README.md`. Three duplicate .glb copies in `supabase/` untracked + ignored.
+
+**§112** Gemini Flash Lite painted the refs (C3, O1…) onto the image. Instructions now open with "NEVER DRAW ANY TEXT… codes are for your reasoning only"; full prompt and negatives forbid letters/numbers/labels/codes; short negative leads with "text or labels". Heavier model for customer images.
