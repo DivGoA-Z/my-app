@@ -71,13 +71,18 @@ the history is in `git log`.
 - Supabase with per-business RLS on every table; real sign-in.
 - Sign-up with approval (§106): new accounts wait until linked to a
   business by hand.
+- Separate businesses (§107): approving a sign-up as a new business
+  copies in the master starter catalogue; each business can save its
+  own default catalogue and go back to it; storage writes are per
+  business folder; no super-admin bypass in the app; a two-business
+  isolation check (`supabase/isolation_check.sql`).
 - Excel import/export for all five catalogues (merges onto stored rows).
 - Inventory managers; customer pipeline dashboard; first-run checklist.
 - shadcn/ui throughout.
 
 ## Tests
 
-`npm test` (Vitest): **230 tests** in 30 files (this said 125, which
+`npm test` (Vitest): **236 tests** in 32 files (this said 125, which
 was stale). Maths tests cover pricing, the cutting list, nesting,
 panels, the importer, physical depth, the pipeline rules, and the image
 brief with its plan and elevation drawings. Screen tests (React Testing Library) cover the rate card, boards,
@@ -129,8 +134,11 @@ still checked by eye.
 - Saved camera views and the move pad (§102, §103): "Save this view",
   the tilted walkthrough and the glide are not yet seen in a browser
   (maths and the panel are tested).
-- Sign-up (§106): not yet tried end to end; needs `schema.sql` re-run,
-  then "Allow new users to sign up" turned on in Supabase.
+- Sign-up and separate businesses (§106–§107): verified against a local
+  Postgres, not yet in the real Supabase. Needs: re-run `schema.sql`,
+  `select public.refresh_starter_catalog('biz_default');`, then run
+  `supabase/isolation_check.sql` (should say ALL ISOLATION CHECKS
+  PASSED), then turn on sign-ups in Supabase.
 - Image generation (§105): models compared by hand on one design;
   nothing is sent to a model from the app (that needs a server-side
   piece holding the API key).

@@ -52,6 +52,14 @@ to a business. Nothing in the browser can create or join a business.
    messages an hour on the free plan; set up your own SMTP (Authentication
    → Emails) before inviting many people.
 
+**Once, before approving anyone as a new business:** fill the master
+starter catalogue from your own catalogue (re-run whenever you want the
+starter to change; businesses already approved keep their own copies):
+
+```sql
+select public.refresh_starter_catalog('biz_default');
+```
+
 **Approving someone.** Find who's waiting:
 
 ```sql
@@ -63,21 +71,35 @@ where not exists (select 1 from business_users b where b.user_id = u.id)
 order by u.created_at desc;
 ```
 
-To add them to **your** business (they'll see all of its customers,
-quotes and rates):
+Then ONE of these, using their `id`:
 
-```sql
-insert into business_users (business_id, user_id) values ('biz_default', '<their id>');
-```
+- **A new, separate business** (an outside firm). It's named from their
+  sign-up form, gets its own copy of the starter catalogue, and that
+  copy is saved as its default:
 
-A **new, separate** business needs the steps in
-`docs/AFTER_FIRST_CUSTOMERS.md` first (starter catalogue copy, the
-two-business isolation check). Don't put an outside firm into
-`biz_default`.
+  ```sql
+  select public.approve_new_business('<their id>');
+  -- or choose the name yourself:
+  select public.approve_new_business('<their id>', 'Verma Interiors');
+  ```
+
+- **Your own business** (your co-founder or staff; they'll see all of its
+  customers, quotes and rates):
+
+  ```sql
+  insert into business_users (business_id, user_id) values ('biz_default', '<their id>');
+  ```
 
 They press **Check again** (or sign in again) and they're in. To turn
 someone away, leave them unlinked or delete the user in Authentication →
 Users.
+
+**Checking that businesses can't see each other.** Paste
+`supabase/isolation_check.sql` into the SQL editor and run it. It creates
+two test businesses, tries everything a business shouldn't be able to do
+to the other one, and rolls it all back. It should end with "ALL ISOLATION
+CHECKS PASSED". Run it after re-running `schema.sql`, and again after any
+change to who can see or write what.
 
 ## A forgotten password
 

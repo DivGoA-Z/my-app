@@ -112,7 +112,7 @@ $$;
 alter table public.businesses enable row level security;
 drop policy if exists "Members read their own business" on public.businesses;
 create policy "Members read their own business" on public.businesses
-  for select using (id = public.current_business_id() or public.is_super_admin());
+  for select using (id = public.current_business_id());
 -- Settings → Business lets a member rename their own business (§78).
 drop policy if exists "Members rename their own business" on public.businesses;
 create policy "Members rename their own business" on public.businesses
@@ -817,14 +817,15 @@ insert into storage.buckets (id, name, public)
 values ('panoramas', 'panoramas', true)
 on conflict (id) do nothing;
 
--- WRITES NEED A BUSINESS (§106), here and for material-swatches and
--- quote-pdfs below. These were "any signed-in account", which was
--- harmless while only the team could sign in. With sign-up open, a
--- stranger's account (no business until approved) could upload, or
--- OVERWRITE a customer's quote PDF at its predictable path. Now only a
--- member of some business can write. Still to do before a second
--- business: scope writes to the business's OWN folder, as business-logos
--- already is (part of the two-business isolation check).
+-- WRITES ONLY INTO YOUR OWN BUSINESS'S FOLDER, here and for
+-- material-swatches and quote-pdfs below. These were "any signed-in
+-- account" until §106 (harmless while only the team could sign in, but
+-- with sign-up open a stranger could have OVERWRITTEN a customer's quote
+-- PDF at its predictable path), then "any member of some business",
+-- then (§107) the business's own folder: `<business_id>/...`, the same
+-- rule business-logos already had. Files saved before §107 sit outside
+-- any business folder: still readable (public read), no longer
+-- writable; the app writes new copies under the business folder.
 drop policy if exists "Public read access to panoramas" on storage.objects;
 create policy "Public read access to panoramas"
 on storage.objects for select
@@ -835,14 +836,19 @@ drop policy if exists "Authenticated upload access to panoramas" on storage.obje
 drop policy if exists "Members upload panoramas" on storage.objects;
 create policy "Members upload panoramas"
 on storage.objects for insert
-with check (bucket_id = 'panoramas' and public.current_business_id() is not null);
+with check (bucket_id = 'panoramas' and (storage.foldername(name))[1] = public.current_business_id());
 
 drop policy if exists "Public overwrite access to panoramas" on storage.objects;
 drop policy if exists "Authenticated overwrite access to panoramas" on storage.objects;
 drop policy if exists "Members overwrite panoramas" on storage.objects;
 create policy "Members overwrite panoramas"
 on storage.objects for update
-using (bucket_id = 'panoramas' and public.current_business_id() is not null);
+using (bucket_id = 'panoramas' and (storage.foldername(name))[1] = public.current_business_id());
+
+drop policy if exists "Members delete panoramas" on storage.objects;
+create policy "Members delete panoramas"
+on storage.objects for delete
+using (bucket_id = 'panoramas' and (storage.foldername(name))[1] = public.current_business_id());
 
 
 -- ============================================================
@@ -868,14 +874,19 @@ drop policy if exists "Authenticated upload access to material swatches" on stor
 drop policy if exists "Members upload material swatches" on storage.objects;
 create policy "Members upload material swatches"
 on storage.objects for insert
-with check (bucket_id = 'material-swatches' and public.current_business_id() is not null);
+with check (bucket_id = 'material-swatches' and (storage.foldername(name))[1] = public.current_business_id());
 
 drop policy if exists "Public overwrite access to material swatches" on storage.objects;
 drop policy if exists "Authenticated overwrite access to material swatches" on storage.objects;
 drop policy if exists "Members overwrite material swatches" on storage.objects;
 create policy "Members overwrite material swatches"
 on storage.objects for update
-using (bucket_id = 'material-swatches' and public.current_business_id() is not null);
+using (bucket_id = 'material-swatches' and (storage.foldername(name))[1] = public.current_business_id());
+
+drop policy if exists "Members delete material swatches" on storage.objects;
+create policy "Members delete material swatches"
+on storage.objects for delete
+using (bucket_id = 'material-swatches' and (storage.foldername(name))[1] = public.current_business_id());
 
 -- ============================================================
 -- Business logos (§94) — drawn in the quote PDF header. Public read, like
@@ -938,14 +949,19 @@ drop policy if exists "Authenticated upload access to quote pdfs" on storage.obj
 drop policy if exists "Members upload quote pdfs" on storage.objects;
 create policy "Members upload quote pdfs"
 on storage.objects for insert
-with check (bucket_id = 'quote-pdfs' and public.current_business_id() is not null);
+with check (bucket_id = 'quote-pdfs' and (storage.foldername(name))[1] = public.current_business_id());
 
 drop policy if exists "Public overwrite access to quote pdfs" on storage.objects;
 drop policy if exists "Authenticated overwrite access to quote pdfs" on storage.objects;
 drop policy if exists "Members overwrite quote pdfs" on storage.objects;
 create policy "Members overwrite quote pdfs"
 on storage.objects for update
-using (bucket_id = 'quote-pdfs' and public.current_business_id() is not null);
+using (bucket_id = 'quote-pdfs' and (storage.foldername(name))[1] = public.current_business_id());
+
+drop policy if exists "Members delete quote pdfs" on storage.objects;
+create policy "Members delete quote pdfs"
+on storage.objects for delete
+using (bucket_id = 'quote-pdfs' and (storage.foldername(name))[1] = public.current_business_id());
 
 -- ============================================================
 -- HANDLES
@@ -1555,10 +1571,18 @@ create table if not exists public.construction_settings (
 --
 -- Same repeated block per table: backfill, then NOT NULL, then RLS
 -- enabled, then four policies (select/insert/update/delete), each
--- allowing a request through when EITHER it's the caller's own
--- business (public.current_business_id()) OR the caller is a super
--- admin (public.is_super_admin() — see BUSINESSES + AUTH at the top of
--- this file). Idempotent throughout: every `drop policy if exists`
+-- allowing a request through only when it's the caller's own business
+-- (public.current_business_id()).
+--
+-- NO SUPER-ADMIN BYPASS (§107, 7 Oct 2026). These policies (and the
+-- businesses read policy) used to also let a super admin through. Nothing
+-- in the app used it, and it was a trap: a super admin's app would load
+-- EVERY business's customers and catalogue mixed together, and the
+-- single-row reads (rate card, Workshop settings) could pick up another
+-- business's row. The software owner reaches all data through Supabase's
+-- SQL editor instead, which these policies don't apply to (it runs as the
+-- tables' owner). super_admins and is_super_admin() are kept for a future
+-- support view. Idempotent throughout: every `drop policy if exists`
 -- before its `create policy` makes re-running this file safe, same
 -- convention as everywhere else in this file.
 do $$
@@ -1581,26 +1605,285 @@ begin
     -- fails on the very first table.
     execute format('drop policy if exists %I on public.%I', 'Business can read own ' || t, t);
     execute format(
-      'create policy %I on public.%I for select using (business_id = public.current_business_id() or public.is_super_admin())',
+      'create policy %I on public.%I for select using (business_id = public.current_business_id())',
       'Business can read own ' || t, t
     );
 
     execute format('drop policy if exists %I on public.%I', 'Business can insert own ' || t, t);
     execute format(
-      'create policy %I on public.%I for insert with check (business_id = public.current_business_id() or public.is_super_admin())',
+      'create policy %I on public.%I for insert with check (business_id = public.current_business_id())',
       'Business can insert own ' || t, t
     );
 
     execute format('drop policy if exists %I on public.%I', 'Business can update own ' || t, t);
     execute format(
-      'create policy %I on public.%I for update using (business_id = public.current_business_id() or public.is_super_admin()) with check (business_id = public.current_business_id() or public.is_super_admin())',
+      'create policy %I on public.%I for update using (business_id = public.current_business_id()) with check (business_id = public.current_business_id())',
       'Business can update own ' || t, t
     );
 
     execute format('drop policy if exists %I on public.%I', 'Business can delete own ' || t, t);
     execute format(
-      'create policy %I on public.%I for delete using (business_id = public.current_business_id() or public.is_super_admin())',
+      'create policy %I on public.%I for delete using (business_id = public.current_business_id())',
       'Business can delete own ' || t, t
     );
   end loop;
 end $$;
+
+-- ============================================================
+-- STARTER CATALOGUE AND EACH BUSINESS'S OWN DEFAULT (§107)
+-- ============================================================
+--
+-- THE MASTER STARTER lives in its own business, 'biz_starter', which has
+-- no members: nobody sees it in the app. The software owner fills it
+-- from a curated business (usually their own) with
+--     select public.refresh_starter_catalog('biz_default');
+-- and re-runs that whenever the starter should change.
+--
+-- A NEW BUSINESS gets a COPY of it when approved (approve_new_business
+-- below), never a live link: per principle 6 ("shared things are a copy
+-- the business chooses"), refreshing the master must not change any
+-- business's prices behind its back. Copied ids are
+-- '<business id>:<original id>' (ids are global primary keys, so a copy
+-- can't reuse the original's), and a cabinet row's finish_id/handle_id
+-- are remapped to the copied finish and handle.
+--
+-- EACH BUSINESS'S DEFAULT is a snapshot of its own catalogue, kept as
+-- JSON rows in catalog_defaults. "Save as my default" replaces it with the
+-- catalogue as it is now; "Go back to my default" upserts it back:
+-- edited items return to the saved values, deleted ones come back, and
+-- items added since are KEPT (deleting them could break designs that use
+-- them). Approval saves the starter copy as the first default, so a new
+-- business can always go back to the starter. A runtime upsert like this
+-- is the user's own action; the "never do update" rule is about THIS
+-- FILE's seed re-runs, which still never overwrite anything.
+--
+-- The rate card and Workshop settings aren't part of the catalogue; a new
+-- business starts on the in-app defaults for both.
+
+insert into public.businesses (id, name) values ('biz_starter', 'Starter catalogue (master, no members)')
+on conflict (id) do nothing;
+
+alter table public.businesses add column if not exists catalog_default_saved_at timestamptz;
+
+-- The catalogue tables, in foreign-key order (finishes before the cabinet
+-- rows that point at them).
+create or replace function public.catalog_tables()
+returns text[]
+language sql
+immutable
+as $$
+  select array['surface_finishes', 'handles', 'obstacle_presets', 'appliance_catalog_items', 'light_fixture_catalog', 'cabinet_catalog_items']
+$$;
+
+create table if not exists public.catalog_defaults (
+  business_id text not null references public.businesses(id),
+  table_name text not null,
+  item_id text not null,
+  row jsonb not null,
+  primary key (business_id, table_name, item_id)
+);
+alter table public.catalog_defaults enable row level security;
+drop policy if exists "Members read their own default" on public.catalog_defaults;
+create policy "Members read their own default" on public.catalog_defaults
+  for select using (business_id = public.current_business_id());
+drop policy if exists "Members save their own default" on public.catalog_defaults;
+create policy "Members save their own default" on public.catalog_defaults
+  for insert with check (business_id = public.current_business_id());
+drop policy if exists "Members replace their own default" on public.catalog_defaults;
+create policy "Members replace their own default" on public.catalog_defaults
+  for delete using (business_id = public.current_business_id());
+
+-- A copied row's id: drop `p_strip` from the front if it's there, then add
+-- `p_prefix`. 'starter:finish_x' → strip 'starter:', prefix 'biz_ab:' →
+-- 'biz_ab:finish_x'.
+create or replace function public.catalog_copy_id(p_id text, p_strip text, p_prefix text)
+returns text
+language sql
+immutable
+as $$
+  select p_prefix || case when p_strip <> '' and left(p_id, length(p_strip)) = p_strip then substr(p_id, length(p_strip) + 1) else p_id end
+$$;
+
+-- Copies one business's whole catalogue into another (rows that already
+-- exist are left alone). Runs as the caller, so RLS still applies; the
+-- owner-only functions below call it from the SQL editor.
+create or replace function public.copy_catalog(p_from text, p_to text, p_strip text, p_prefix text)
+returns integer
+language plpgsql
+as $$
+declare
+  t text;
+  copied integer := 0;
+  n integer;
+  remap text;
+begin
+  foreach t in array public.catalog_tables() loop
+    remap := case when t = 'cabinet_catalog_items' then
+      $r$ || jsonb_build_object(
+        'finish_id', coalesce((select public.catalog_copy_id(f.id, $4, $3) from public.surface_finishes f where f.id = s.finish_id and f.business_id = $1), s.finish_id),
+        'handle_id', coalesce((select public.catalog_copy_id(h.id, $4, $3) from public.handles h where h.id = s.handle_id and h.business_id = $1), s.handle_id)
+      )$r$
+    else '' end;
+    execute format(
+      $q$insert into public.%1$I
+         select (jsonb_populate_record(null::public.%1$I,
+           to_jsonb(s) || jsonb_build_object('id', public.catalog_copy_id(s.id, $4, $3), 'business_id', $2) %2$s)).*
+         from public.%1$I s
+         where s.business_id = $1
+         on conflict (id) do nothing$q$,
+      t, remap)
+    using p_from, p_to, p_prefix, p_strip;
+    get diagnostics n = row_count;
+    copied := copied + n;
+  end loop;
+  return copied;
+end $$;
+
+-- Replaces a business's saved default with its catalogue as it is now.
+-- Runs as the caller. An app login may only name its OWN business: RLS
+-- alone would just make another business's save a silent no-op (its rows
+-- are invisible), so this refuses outright instead. The owner's SQL-editor
+-- session has no app login (auth.uid() is null) and may name any.
+create or replace function public.save_catalog_default(p_business text)
+returns integer
+language plpgsql
+as $$
+declare
+  t text;
+  saved integer := 0;
+  n integer;
+begin
+  if auth.uid() is not null and p_business is distinct from public.current_business_id() then
+    raise exception 'You can only save your own business''s default.' using errcode = 'insufficient_privilege';
+  end if;
+  delete from public.catalog_defaults where business_id = p_business;
+  foreach t in array public.catalog_tables() loop
+    execute format(
+      'insert into public.catalog_defaults (business_id, table_name, item_id, row)
+       select $1, %L, s.id, to_jsonb(s) from public.%I s where s.business_id = $1',
+      t, t)
+    using p_business;
+    get diagnostics n = row_count;
+    saved := saved + n;
+  end loop;
+  update public.businesses set catalog_default_saved_at = now() where id = p_business;
+  return saved;
+end $$;
+
+-- "Save as my default" (the Catalogue page). Returns how many items were saved.
+create or replace function public.save_my_catalog_default()
+returns integer
+language plpgsql
+as $$
+declare
+  b text := public.current_business_id();
+begin
+  if b is null then raise exception 'This account is not in a business yet.'; end if;
+  return public.save_catalog_default(b);
+end $$;
+
+-- "Go back to my default" (the Catalogue page). Returns how many items
+-- were restored. Each saved row is laid over the CURRENT row where there
+-- is one (jsonb_populate_record with that row as the base), so a column
+-- added to the table after the default was saved keeps its current value
+-- instead of being blanked.
+create or replace function public.restore_my_catalog_default()
+returns integer
+language plpgsql
+as $$
+declare
+  b text := public.current_business_id();
+  t text;
+  cols text;
+  restored integer := 0;
+  n integer;
+begin
+  if b is null then raise exception 'This account is not in a business yet.'; end if;
+  if not exists (select 1 from public.catalog_defaults where business_id = b) then
+    raise exception 'No default saved yet. Save your catalogue as your default first.';
+  end if;
+  foreach t in array public.catalog_tables() loop
+    select string_agg(format('%I = excluded.%I', column_name, column_name), ', ')
+      into cols
+      from information_schema.columns
+      where table_schema = 'public' and table_name = t and column_name not in ('id', 'business_id', 'created_at');
+    execute format(
+      $q$insert into public.%1$I
+         select (jsonb_populate_record(cur, d.row || jsonb_build_object('business_id', $1))).*
+         from public.catalog_defaults d
+         left join public.%1$I cur on cur.id = d.item_id and cur.business_id = $1
+         where d.business_id = $1 and d.table_name = %2$L
+         on conflict (id) do update set %3$s$q$,
+      t, t, cols)
+    using b;
+    get diagnostics n = row_count;
+    restored := restored + n;
+  end loop;
+  return restored;
+end $$;
+
+-- OWNER ONLY (SQL editor). Rebuilds the master starter from a business's
+-- catalogue. Returns how many items the starter now has.
+create or replace function public.refresh_starter_catalog(p_source text default 'biz_default')
+returns integer
+language plpgsql
+as $$
+declare
+  t text;
+  i integer;
+  tables text[] := public.catalog_tables();
+begin
+  if p_source = 'biz_starter' then raise exception 'Choose a real business to copy from.'; end if;
+  -- Reverse order: cabinet rows before the finishes they point at.
+  for i in reverse array_length(tables, 1)..1 loop
+    execute format('delete from public.%I where business_id = %L', tables[i], 'biz_starter');
+  end loop;
+  return public.copy_catalog(p_source, 'biz_starter', '', 'starter:');
+end $$;
+
+-- OWNER ONLY (SQL editor). Approves a waiting sign-up as a NEW, separate
+-- business: creates it (named from the sign-up form unless p_name is
+-- given), makes the person its owner, copies the starter catalogue in and
+-- saves that as the business's first default. Returns the new business id.
+-- For adding someone to an EXISTING business instead, see docs/DEPLOY.md.
+create or replace function public.approve_new_business(p_user uuid, p_name text default null)
+returns text
+language plpgsql
+as $$
+declare
+  b text;
+  v_name text;
+begin
+  if not exists (select 1 from auth.users where id = p_user) then
+    raise exception 'No user with id %.', p_user;
+  end if;
+  if exists (select 1 from public.business_users where user_id = p_user) then
+    raise exception 'That user already belongs to a business.';
+  end if;
+  if not exists (select 1 from public.surface_finishes where business_id = 'biz_starter') then
+    raise exception 'The starter catalogue is empty. Run: select public.refresh_starter_catalog(''biz_default'');';
+  end if;
+  select coalesce(nullif(trim(p_name), ''), nullif(trim(raw_user_meta_data->>'business_name'), ''), email)
+    into v_name from auth.users where id = p_user;
+  b := 'biz_' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 10);
+  insert into public.businesses (id, name) values (b, v_name);
+  insert into public.business_users (business_id, user_id, role) values (b, p_user, 'owner');
+  perform public.copy_catalog('biz_starter', b, 'starter:', b || ':');
+  perform public.save_catalog_default(b);
+  return b;
+end $$;
+
+-- Who may call what. Supabase lets every role execute new functions by
+-- default, so the owner-only ones are revoked from the app's roles; the
+-- SQL editor (the tables' owner) can still run them. The two "my" functions
+-- are the app's; save_catalog_default runs under them, as the caller, with
+-- RLS as its guard.
+revoke execute on function public.copy_catalog(text, text, text, text) from public, anon, authenticated;
+revoke execute on function public.refresh_starter_catalog(text) from public, anon, authenticated;
+revoke execute on function public.approve_new_business(uuid, text) from public, anon, authenticated;
+revoke execute on function public.save_catalog_default(text) from public, anon;
+revoke execute on function public.save_my_catalog_default() from public, anon;
+revoke execute on function public.restore_my_catalog_default() from public, anon;
+grant execute on function public.save_catalog_default(text) to authenticated;
+grant execute on function public.save_my_catalog_default() to authenticated;
+grant execute on function public.restore_my_catalog_default() to authenticated;

@@ -114,13 +114,19 @@ no error).
   After adding columns, tell the user to re-run it, because writes fail
   until they do.
 - **RLS is live.** Every table has `business_id`, scoped by
-  `current_business_id()`, with a `super_admins` bypass. Every write path
+  `current_business_id()`. **No super-admin bypass in the app** (§107):
+  the owner reaches all data via the SQL editor.
+  `supabase/isolation_check.sql` proves two businesses can't touch each
+  other (run it after any RLS or storage change). Every write path
   passes `business_id` explicitly; never use a DB default. Sign-in is
   real, and there's one business today. **Sign-up exists but only
   requests access** (§106): a new login is in no business, sees nothing
   and waits until it's linked by hand (`docs/DEPLOY.md`). Nothing in the
-  browser may create or join a business. Storage buckets allow public
-  read; writing needs business membership (not just a login).
+  browser may create or join a business; `approve_new_business()` (SQL
+  editor) does, with a copy of the master starter catalogue. Storage
+  buckets allow public read; writes go only into `<business_id>/...`,
+  the business's own folder. Pass the business id into every upload
+  path.
 - Supabase credentials come only from `.env` (`VITE_SUPABASE_URL`,
   `VITE_SUPABASE_ANON_KEY`), set up per machine (`docs/SUPABASE_SETUP.md`).
 - **Key data loading on `session.user.id`, never on the `session` object.**
@@ -171,8 +177,8 @@ no error).
 See `docs/STATUS.md` for the snapshot.
 
 **Not started**:
-- self-serve business creation / a second business (sign-up with
-  approval is built, §106)
+- self-serve business creation (sign-up with approval and approving a
+  new business by SQL are built, §106–§107)
 - the shared catalogue
 - appliance-driven cabinet cutouts
 - rectilinear rooms (deferred)

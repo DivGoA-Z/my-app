@@ -15,16 +15,20 @@ import { supabase } from './Supabaseclient';
 
 const QUOTE_PDF_BUCKET = 'quote-pdfs';
 
-function quotePdfStoragePath(projectId: string, version: number): string {
-  return `${projectId}/v${version}.pdf`;
+// Under the business's own folder (§107): storage only lets a member
+// write there. PDFs saved before §107 keep their old address, so links
+// already sent keep working.
+export function quotePdfStoragePath(businessId: string, projectId: string, version: number): string {
+  return `${businessId}/${projectId}/v${version}.pdf`;
 }
 
 export async function uploadQuotePdf(
+  businessId: string,
   projectId: string,
   version: number,
   blob: Blob
 ): Promise<string> {
-  const path = quotePdfStoragePath(projectId, version);
+  const path = quotePdfStoragePath(businessId, projectId, version);
 
   const { error } = await supabase.storage.from(QUOTE_PDF_BUCKET).upload(path, blob, {
     contentType: 'application/pdf',

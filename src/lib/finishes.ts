@@ -137,9 +137,11 @@ export async function deleteFinish(id: string): Promise<void> {
 // version param as panorama uploads, and for the same reason: the path
 // is stable, so without it the CDN and browser keep serving the
 // previous image and a replaced swatch looks like it did nothing.
-export async function uploadSwatch(finishId: string, file: File): Promise<string> {
+export async function uploadSwatch(businessId: string, finishId: string, file: File): Promise<string> {
   const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-  const path = `${finishId}.${extension}`;
+  // Under the business's own folder (§107): storage only lets a member
+  // write there.
+  const path = `${businessId}/${finishId}.${extension}`;
 
   const { error: uploadError } = await supabase.storage.from(SWATCH_BUCKET).upload(path, file, {
     contentType: file.type || 'image/jpeg',
@@ -154,11 +156,23 @@ export async function uploadSwatch(finishId: string, file: File): Promise<string
   return `${data.publicUrl}?v=${Date.now()}`;
 }
 
-export async function deleteSwatch(finishId: string, albedoUrl: string): Promise<void> {
-  // Recover the stored object name from the public URL (strip the query
-  // string the cache-buster added, then take the last path segment).
+// The object path inside the swatch bucket, from a public URL
+// ('…/object/public/material-swatches/biz_x/finish.jpg?v=1' →
+// 'biz_x/finish.jpg'). Null for anything that isn't one of its files.
+export function swatchObjectPath(albedoUrl: string): string | null {
   const withoutQuery = albedoUrl.split('?')[0];
-  const path = withoutQuery.substring(withoutQuery.lastIndexOf('/') + 1) || `${finishId}.jpg`;
+  const marker = `/${SWATCH_BUCKET}/`;
+  const at = withoutQuery.indexOf(marker);
+  return at === -1 ? null : decodeURIComponent(withoutQuery.slice(at + marker.length)) || null;
+}
+
+// Deletes the swatch file ONLY if it's in this business's own folder. A
+// swatch from before §107, or one a copied starter finish shares with the
+// business it came from, is someone else's file: left alone (storage
+// would refuse anyway).
+export async function deleteSwatch(businessId: string, albedoUrl: string): Promise<void> {
+  const path = swatchObjectPath(albedoUrl);
+  if (!path || !path.startsWith(`${businessId}/`)) return;
 
   const { error } = await supabase.storage.from(SWATCH_BUCKET).remove([path]);
   if (error) {

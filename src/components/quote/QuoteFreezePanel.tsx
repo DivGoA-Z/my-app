@@ -133,7 +133,9 @@ export function QuoteFreezePanel({ onOpenCutList }: { onOpenCutList?: (quoteId: 
     setExporting('whatsapp');
     try {
       const blob = generateQuotePdfBlob(latest, currentProject, await loadPdfBranding(useAuthStore.getState().businessProfile));
-      const pdfUrl = await uploadQuotePdf(currentProject.id, latest.version, blob);
+      const businessId = useAuthStore.getState().businessId;
+      if (!businessId) throw new Error('No business found for this account.');
+      const pdfUrl = await uploadQuotePdf(businessId, currentProject.id, latest.version, blob);
       const message = buildWhatsAppMessage(latest, currentProject, pdfUrl);
       // Opens in a new tab rather than navigating away from the
       // canvas — a designer sending a quote is usually mid-session,

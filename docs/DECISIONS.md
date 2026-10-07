@@ -6663,3 +6663,93 @@ doesn't arise.
 
 **Not seen:** a real sign-up end to end (email, approval, Check again).
 That needs the Supabase steps above.
+
+## 107. Separate businesses: approve as new, starter catalogue, own default, isolation proven
+
+You asked for what a second, outside business needs, plus a starter
+catalogue every business gets, which it can change and go back to.
+Your choices:
+- **Copy, not live:** the starter is copied into each business on
+  approval, not shared live, so principle 6 holds.
+- **Restore point:** each business can **save its own default** and go
+  back to it. A new business's first default is the starter.
+
+**Built (schema.sql, "STARTER CATALOGUE AND EACH BUSINESS'S OWN DEFAULT"):**
+- **Master starter:** `biz_starter` is a business with no members.
+  `refresh_starter_catalog('biz_default')` (owner, SQL editor) rebuilds
+  it from a curated catalogue. Refreshing never touches businesses
+  already approved.
+- **`approve_new_business(user, name?)`** (owner, SQL editor):
+  - creates `biz_<10 hex>`, named from the sign-up form, and makes the
+    person its owner;
+  - copies the starter in via `copy_catalog`. Ids become
+    `<business>:<original>`, since ids are global primary keys, and each
+    cabinet row's `finish_id`/`handle_id` is remapped to the copies;
+  - saves that copy as the business's default.
+- **`save_my_catalog_default()` / `restore_my_catalog_default()`** (the
+  app, via the Catalogue page's "Your default catalogue" card):
+  - Save snapshots the six catalogue tables as JSON rows in
+    `catalog_defaults`.
+  - Restore upserts them back: edited items return to the saved values
+    (prices included), deleted ones come back, and items added since are
+    kept, because deleting them could break designs. Each saved row is
+    laid over the current row, so a column added after the save keeps
+    its value instead of being blanked.
+  - The confirm warns that open quotes using a reset item move with it;
+    frozen quotes never change.
+- All of these run **as the caller, under RLS**. Owner-only functions are
+  revoked from the app's roles. `save_catalog_default(b)` refuses an app
+  login naming a business other than its own. RLS alone would have made
+  that a silent no-op; the isolation check caught it.
+- **No super-admin bypass in the app's rules.** Nothing used it, and a
+  super admin's app would have loaded every business's customers and
+  catalogue mixed together. The single-row reads (rate card, Workshop
+  settings) could even have picked another business's row. The owner
+  sees everything via the SQL editor, which RLS doesn't apply to. This
+  settles the "super-admin view" item in `AFTER_FIRST_CUSTOMERS.md`.
+- **Storage:**
+  - Every bucket's writes (upload, overwrite, delete) are limited to
+    `<business_id>/...`.
+  - The app writes panoramas, swatches and quote PDFs there; the
+    business id is passed explicitly.
+  - Older files outside any folder stay readable but can't be written.
+    Quote links already sent keep working.
+  - `deleteSwatch` deletes only a file in the business's own folder. A
+    copied starter finish shares the source business's photo, and the
+    old code (last URL segment) would have tried to delete it.
+
+**`supabase/isolation_check.sql`**, the two-business check (principle
+4). It runs in the SQL editor inside a transaction and rolls back. It
+creates three sign-ups, approves two as businesses, then acts as each
+person through RLS and proves seven things:
+1. Approval works: a separate business, the starter copied, a default
+   saved.
+2. Reads stay within the business.
+3. Writes into the other business are refused.
+4. A person can't create or join a business, or call owner-only
+   functions.
+5. Files can only be written in the business's own folder.
+6. Restore behaves as specified.
+7. A waiting sign-up sees and writes nothing.
+
+**Verified** against a local Postgres 14, with the real `schema.sql`
+loaded on small stand-ins for Supabase's `auth` and `storage`:
+- `schema.sql` loads and re-runs cleanly.
+- The check passes, and leaves no rows behind.
+- **The check bites:** with the old "any login can upload" storage rule
+  put back it fails at check 5, and with a super-admin read bypass put
+  back it fails at check 2.
+- App tests: storage paths and the swatch-delete rule
+  (`storagePaths.test.ts`), and the default-catalogue card (screen test,
+  database calls mocked).
+
+**Not yet done in the real Supabase:** re-running `schema.sql`, the
+starter refresh, and running the isolation check there. Supabase's real
+`auth` and `storage` are richer than the stand-ins, so the real run is
+the one that counts.
+
+**Notes:**
+- A new business's rate card and Workshop settings start on the in-app
+  defaults; the catalogue is the only thing copied.
+- A copied cabinet row naming a custom board that only `biz_default`'s
+  rate card has falls back to the standard 18mm line (§44).

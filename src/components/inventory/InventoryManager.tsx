@@ -28,6 +28,7 @@ import { FixtureManager } from './FixtureManager';
 import { CabinetCatalogImportExport } from './CabinetCatalogImportExport';
 import { ObstaclePresetImportExport } from './ObstaclePresetImportExport';
 import { ApplianceCatalogImportExport } from './ApplianceCatalogImportExport';
+import { DefaultCatalogueCard } from './DefaultCatalogueCard';
 
 // The rows themselves (read-only lists + an edit panel per item) live in
 // CatalogueLists.tsx since §76; they replaced inline-editable table rows.
@@ -86,6 +87,8 @@ export function InventoryManager({
         </div>
       ) : (
         <>
+          <DefaultCatalogueCard />
+
           <CatalogueSection
             id="cabinets"
             count={cabinetCatalog.length}

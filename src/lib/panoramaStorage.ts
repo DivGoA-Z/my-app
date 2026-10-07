@@ -17,17 +17,19 @@ const PANORAMA_BUCKET = 'panoramas';
 
 // One object per Camera Node, keyed by layout + camera id so a
 // re-capture overwrites (upsert: true below) the same node's previous
-// panorama rather than accumulating stale copies.
-function panoramaStoragePath(layoutId: string, cameraId: string): string {
-  return `${layoutId}/${cameraId}.jpg`;
+// panorama rather than accumulating stale copies. Under the business's
+// own folder (§107): storage only lets a member write there.
+export function panoramaStoragePath(businessId: string, layoutId: string, cameraId: string): string {
+  return `${businessId}/${layoutId}/${cameraId}.jpg`;
 }
 
 export async function uploadPanorama(
+  businessId: string,
   layoutId: string,
   cameraId: string,
   blob: Blob
 ): Promise<string> {
-  const path = panoramaStoragePath(layoutId, cameraId);
+  const path = panoramaStoragePath(businessId, layoutId, cameraId);
 
   const { error: uploadError } = await supabase.storage.from(PANORAMA_BUCKET).upload(path, blob, {
     contentType: 'image/jpeg',
@@ -60,8 +62,10 @@ export async function uploadPanorama(
 // Not currently wired to any UI button — kept available for later (e.g.
 // deleting a Camera Node could also clean up its panorama) so removing
 // a node doesn't leave an orphaned object in the bucket forever.
-export async function deletePanorama(layoutId: string, cameraId: string): Promise<void> {
-  const path = panoramaStoragePath(layoutId, cameraId);
+// A panorama captured before §107 sits outside any business folder; it
+// isn't found at this path, so its URL is cleared and the old file stays.
+export async function deletePanorama(businessId: string, layoutId: string, cameraId: string): Promise<void> {
+  const path = panoramaStoragePath(businessId, layoutId, cameraId);
   const { error } = await supabase.storage.from(PANORAMA_BUCKET).remove([path]);
   if (error) {
     throw new Error(`Failed to delete panorama: ${error.message}`);

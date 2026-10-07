@@ -1086,7 +1086,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
   capturePanoramaForCamera: async (cameraId, blob) => {
     const camera = get().cameras.find((c) => c.id === cameraId);
     if (!camera) return;
-    const panoramaUrl = await uploadPanorama(camera.layoutId, camera.id, blob);
+    const panoramaUrl = await uploadPanorama(requireBusinessId(), camera.layoutId, camera.id, blob);
     set((state) => ({
       cameras: state.cameras.map((c) =>
         c.id === cameraId
@@ -1100,7 +1100,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
   deletePanoramaForCamera: async (cameraId) => {
     const camera = get().cameras.find((c) => c.id === cameraId);
     if (!camera || !camera.panoramaUrl) return;
-    await deletePanorama(camera.layoutId, camera.id);
+    await deletePanorama(requireBusinessId(), camera.layoutId, camera.id);
     set((state) => ({
       cameras: state.cameras.map((c) =>
         c.id === cameraId ? { ...c, panoramaUrl: undefined, panoramaCapturedAt: undefined } : c
@@ -1392,7 +1392,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
     const finish = get().finishes.find((f) => f.id === id);
     if (finish?.albedoUrl && finish.source === 'uploaded') {
       try {
-        await deleteSwatch(finish.id, finish.albedoUrl);
+        await deleteSwatch(requireBusinessId(), finish.albedoUrl);
       } catch {
         // ignored on purpose — see above
       }
@@ -1401,7 +1401,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
     set((state) => ({ finishes: state.finishes.filter((f) => f.id !== id) }));
   },
 
-  uploadFinishSwatch: async (finishId, file) => uploadSwatch(finishId, file),
+  uploadFinishSwatch: async (finishId, file) => uploadSwatch(requireBusinessId(), finishId, file),
 
   saveProject: async (options) => {
     const silent = options?.silent ?? false;

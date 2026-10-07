@@ -31,16 +31,19 @@ what has to be true before customer #1 is onboarded by hand.
 
 ## Before the first customer (needed for hand-onboarding)
 
-- [ ] **Starter catalogue for a new business.** The seed rows (finishes,
-      cabinets, handles, fixtures, appliances, obstacle presets) belong
-      to `biz_default` only. A business created by hand today starts
-      with an EMPTY catalogue (the rate card and Workshop settings fall
-      back to defaults in-app). We need a one-line SQL step that copies
-      the starter rows into a new business.
-- [ ] **A written hand-onboarding runbook** in `docs/SUPABASE_SETUP.md`:
-      create the business, its login and its membership, copy the
-      starter catalogue, and do a first sign-in check.
-- [ ] **Two-business isolation check** (principle 4). Note: the
+- [x] **Starter catalogue for a new business.** Built 7 Oct 2026
+      (§107): a master starter (`biz_starter`, filled from your catalogue
+      by `refresh_starter_catalog`) is copied into each business by
+      `approve_new_business`, and saved as its default ("Go back to my
+      default" on the Catalogue page). The rate card and Workshop settings
+      still start on the in-app defaults.
+- [x] **A written onboarding runbook.** `docs/DEPLOY.md`, "Sign-up and
+      approving a new account" (§106–§107): they sign up, you run one
+      `approve_new_business` line, they press Check again.
+- [ ] **Two-business isolation check** (principle 4). The check is
+      written and passes against a local copy of the schema (§107):
+      `supabase/isolation_check.sql`. **Still to do: run it in the real
+      Supabase** after re-running `schema.sql`. Note: the
       `businesses` table itself had no RLS until 3 Oct (§70) — exactly the
       kind of gap this check exists to find. Sign in as each
       business and confirm neither sees the other's customers, quotes,
@@ -49,10 +52,10 @@ what has to be true before customer #1 is onboarded by hand.
       Built 4 Oct 2026 (§94). Remaining: re-run `schema.sql`, then fill in
       Settings → Business. Include it in the two-business isolation check
       (each sees and prints only its own name and logo).
-- [ ] **Your own super-admin view.** As super admin you bypass RLS and
-      would see every business's data mixed together. Decide whether
-      that's acceptable or whether you need a "view as business X"
-      switch.
+- [x] **Your own super-admin view.** Decided 7 Oct 2026 (§107): no
+      bypass in the app, so the app always shows your own business only;
+      you see everything through the SQL editor. A "view as business X"
+      switch can come later if support needs it.
 
 - [ ] **A proper domain.** The app runs at
       `my-app.divyanshgoyal240.workers.dev` (Cloudflare, `docs/DEPLOY.md`),
