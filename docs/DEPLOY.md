@@ -30,6 +30,55 @@ user (auto-confirm), then in the SQL editor:
 insert into business_users (business_id, user_id) values ('biz_default', '<their uid>');
 ```
 
+## Sign-up and approving a new account (§106)
+
+The sign-in screen has **Create an account**. It creates a login and
+nothing else: the person sees "Waiting for access" until you link them
+to a business. Nothing in the browser can create or join a business.
+
+**Once, before relying on it (in this order):**
+
+1. **Re-run `supabase/schema.sql`** in the SQL editor. It changes the
+   storage rules so only business members can upload. Until it's re-run,
+   a waiting account could still upload to (and overwrite files in) the
+   panoramas, swatches and quote-PDF buckets.
+2. Supabase → Authentication → Sign In / Providers → Email: turn on
+   **Allow new users to sign up**. While it's off, the form shows
+   Supabase's "Signups not allowed" message, which is harmless.
+3. Same page: **Confirm email** on (recommended) means a new person must
+   click an emailed link before they can sign in. Make sure Site URL
+   (Authentication → URL Configuration) is the live address, or the
+   link points at localhost. Supabase's built-in email sends only a few
+   messages an hour on the free plan; set up your own SMTP (Authentication
+   → Emails) before inviting many people.
+
+**Approving someone.** Find who's waiting:
+
+```sql
+select u.id, u.email, u.created_at,
+       u.raw_user_meta_data->>'full_name' as name,
+       u.raw_user_meta_data->>'business_name' as business
+from auth.users u
+where not exists (select 1 from business_users b where b.user_id = u.id)
+order by u.created_at desc;
+```
+
+To add them to **your** business (they'll see all of its customers,
+quotes and rates):
+
+```sql
+insert into business_users (business_id, user_id) values ('biz_default', '<their id>');
+```
+
+A **new, separate** business needs the steps in
+`docs/AFTER_FIRST_CUSTOMERS.md` first (starter catalogue copy, the
+two-business isolation check). Don't put an outside firm into
+`biz_default`.
+
+They press **Check again** (or sign in again) and they're in. To turn
+someone away, leave them unlinked or delete the user in Authentication →
+Users.
+
 ## A forgotten password
 
 Supabase can't show a password (it stores only a hash), and the app has

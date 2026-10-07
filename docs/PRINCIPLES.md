@@ -205,8 +205,11 @@ outcomes with pointers. The full original text is in git history
 (before commit "Compress docs").*
 
 - **Multi-tenant** → `business_id` + RLS on every table, real sign-in,
-  super-admin bypass (`docs/DECISIONS.md` §9). Still open: self-serve
-  sign-up, onboarding a second business, billing.
+  super-admin bypass (`docs/DECISIONS.md` §9). Sign-up with approval
+  (§106, 7 Oct 2026): anyone can create a login, which waits until it's
+  linked to a business by hand — hand-onboarding, with the first step
+  automated. Still open: self-serve business creation, onboarding a
+  second business, billing.
 - **Sales and production** → a millimetre cutting list built on
   construction *settings* (§41), with board lines and real-area pricing
   (§42), nesting (§49–§53), edge banding by the metre (§58), drawer

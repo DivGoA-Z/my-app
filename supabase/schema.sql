@@ -817,6 +817,14 @@ insert into storage.buckets (id, name, public)
 values ('panoramas', 'panoramas', true)
 on conflict (id) do nothing;
 
+-- WRITES NEED A BUSINESS (§106), here and for material-swatches and
+-- quote-pdfs below. These were "any signed-in account", which was
+-- harmless while only the team could sign in. With sign-up open, a
+-- stranger's account (no business until approved) could upload, or
+-- OVERWRITE a customer's quote PDF at its predictable path. Now only a
+-- member of some business can write. Still to do before a second
+-- business: scope writes to the business's OWN folder, as business-logos
+-- already is (part of the two-business isolation check).
 drop policy if exists "Public read access to panoramas" on storage.objects;
 create policy "Public read access to panoramas"
 on storage.objects for select
@@ -824,15 +832,17 @@ using (bucket_id = 'panoramas');
 
 drop policy if exists "Public upload access to panoramas" on storage.objects;
 drop policy if exists "Authenticated upload access to panoramas" on storage.objects;
-create policy "Authenticated upload access to panoramas"
+drop policy if exists "Members upload panoramas" on storage.objects;
+create policy "Members upload panoramas"
 on storage.objects for insert
-with check (bucket_id = 'panoramas' and auth.role() = 'authenticated');
+with check (bucket_id = 'panoramas' and public.current_business_id() is not null);
 
 drop policy if exists "Public overwrite access to panoramas" on storage.objects;
 drop policy if exists "Authenticated overwrite access to panoramas" on storage.objects;
-create policy "Authenticated overwrite access to panoramas"
+drop policy if exists "Members overwrite panoramas" on storage.objects;
+create policy "Members overwrite panoramas"
 on storage.objects for update
-using (bucket_id = 'panoramas' and auth.role() = 'authenticated');
+using (bucket_id = 'panoramas' and public.current_business_id() is not null);
 
 
 -- ============================================================
@@ -855,15 +865,17 @@ using (bucket_id = 'material-swatches');
 
 drop policy if exists "Public upload access to material swatches" on storage.objects;
 drop policy if exists "Authenticated upload access to material swatches" on storage.objects;
-create policy "Authenticated upload access to material swatches"
+drop policy if exists "Members upload material swatches" on storage.objects;
+create policy "Members upload material swatches"
 on storage.objects for insert
-with check (bucket_id = 'material-swatches' and auth.role() = 'authenticated');
+with check (bucket_id = 'material-swatches' and public.current_business_id() is not null);
 
 drop policy if exists "Public overwrite access to material swatches" on storage.objects;
 drop policy if exists "Authenticated overwrite access to material swatches" on storage.objects;
-create policy "Authenticated overwrite access to material swatches"
+drop policy if exists "Members overwrite material swatches" on storage.objects;
+create policy "Members overwrite material swatches"
 on storage.objects for update
-using (bucket_id = 'material-swatches' and auth.role() = 'authenticated');
+using (bucket_id = 'material-swatches' and public.current_business_id() is not null);
 
 -- ============================================================
 -- Business logos (§94) — drawn in the quote PDF header. Public read, like
@@ -923,15 +935,17 @@ using (bucket_id = 'quote-pdfs');
 
 drop policy if exists "Public upload access to quote pdfs" on storage.objects;
 drop policy if exists "Authenticated upload access to quote pdfs" on storage.objects;
-create policy "Authenticated upload access to quote pdfs"
+drop policy if exists "Members upload quote pdfs" on storage.objects;
+create policy "Members upload quote pdfs"
 on storage.objects for insert
-with check (bucket_id = 'quote-pdfs' and auth.role() = 'authenticated');
+with check (bucket_id = 'quote-pdfs' and public.current_business_id() is not null);
 
 drop policy if exists "Public overwrite access to quote pdfs" on storage.objects;
 drop policy if exists "Authenticated overwrite access to quote pdfs" on storage.objects;
-create policy "Authenticated overwrite access to quote pdfs"
+drop policy if exists "Members overwrite quote pdfs" on storage.objects;
+create policy "Members overwrite quote pdfs"
 on storage.objects for update
-using (bucket_id = 'quote-pdfs' and auth.role() = 'authenticated');
+using (bucket_id = 'quote-pdfs' and public.current_business_id() is not null);
 
 -- ============================================================
 -- HANDLES

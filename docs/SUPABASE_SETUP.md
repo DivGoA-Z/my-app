@@ -113,8 +113,10 @@ Four things that catch people:
 
 ## Step 5 — Create your login
 
-There is no sign-up screen (see `CLAUDE.md` — deliberate, not missing).
-Your one account is created by hand, once:
+*(Since §106 the app has a "Create an account" screen, but an account
+made there waits for approval: it's linked to a business by hand, as in
+step 3 below. See `docs/DEPLOY.md`, "Approving a sign-up".)* Your own
+account can be created here by hand, once:
 
 1. **Authentication → Users → Add user** in the dashboard. Set an
    email and password — this is what you'll type into the app's own
@@ -236,9 +238,11 @@ key still ships inside browser JavaScript, same as always, but it can
 no longer read or write another business's rows, because there isn't
 a second business yet to test that against. Storage buckets still
 allow public read (deliberate — a quote PDF link works with no
-account) but require sign-in to upload.
+account) but require business membership to upload (§106; it was
+"any signed-in account" until sign-up opened).
 
-**Still not built:** self-serve sign-up for a second business.
+**Still not built:** self-serve business creation. Sign-up exists
+(§106) but only creates a login waiting for approval.
 Onboarding another firm today means repeating Step 5 by hand — a new
 `businesses` row, a new Auth user, a new `business_users` row. Fine
 for "you plus maybe one more business you set up yourself"; a real

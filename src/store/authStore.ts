@@ -14,6 +14,13 @@
 // and passes it explicitly into the lib/*.ts function doing the
 // write — see CLAUDE.md's PricingContext story for why that's a
 // required, explicit value here rather than a silent default.
+//
+// SIGN-UP (§106) creates a login and nothing else. A new account belongs
+// to no business, so every RLS policy shows it nothing, and App.tsx
+// shows "waiting for access" until the software owner adds a
+// business_users row by hand (docs/DEPLOY.md). Creating a business, or
+// joining one, from the browser is deliberately impossible: the client
+// has no insert policy on businesses or business_users.
 
 import { create } from 'zustand';
 import type { Session } from '@supabase/supabase-js';
@@ -47,6 +54,14 @@ interface AuthStore {
   // React StrictMode's double-invoke in dev (guarded below).
   init: () => void;
   signIn: (email: string, password: string) => Promise<void>;
+  // Resolves to whether the email must be confirmed before signing in
+  // (Supabase's "Confirm email" setting): true → no session yet, the
+  // person is told to check their inbox. Throws on failure, with
+  // Supabase's message, so the form can show it.
+  signUp: (details: { email: string; password: string; fullName: string; businessName: string }) => Promise<{ needsEmailConfirmation: boolean }>;
+  // Looks up the membership again without signing out — the "Check
+  // again" button on the waiting screen, after the owner has approved.
+  recheckAccess: () => Promise<void>;
   signOut: () => Promise<void>;
   // Settings → Business (§78, §94). Each throws on failure so the form
   // can say so.
@@ -161,6 +176,30 @@ export const useAuthStore = create<AuthStore>((set) => {
       // onAuthStateChange's SIGNED_IN event fires from here and
       // resolveSession() takes it from there, including setting
       // isLoading back to false once businessId resolves.
+    },
+
+    signUp: async ({ email, password, fullName, businessName }) => {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          // Where the confirmation link lands: this site, whichever
+          // address it's served from.
+          emailRedirectTo: window.location.origin,
+          // Shown to the owner when approving (auth.users.raw_user_meta_data).
+          data: { full_name: fullName.trim(), business_name: businessName.trim() },
+        },
+      });
+      if (error) throw new Error(error.message);
+      // With "Confirm email" on, Supabase returns the user but no session;
+      // onAuthStateChange takes over once they confirm and sign in.
+      return { needsEmailConfirmation: !data.session };
+    },
+
+    recheckAccess: async () => {
+      const { data } = await supabase.auth.getSession();
+      set({ isLoading: true });
+      await resolveSession(data.session);
     },
 
     signOut: async () => {

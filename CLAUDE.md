@@ -116,8 +116,11 @@ no error).
 - **RLS is live.** Every table has `business_id`, scoped by
   `current_business_id()`, with a `super_admins` bypass. Every write path
   passes `business_id` explicitly; never use a DB default. Sign-in is
-  real, there's no self-serve sign-up, and there's one business today.
-  Storage buckets allow public read and signed-in upload.
+  real, and there's one business today. **Sign-up exists but only
+  requests access** (§106): a new login is in no business, sees nothing
+  and waits until it's linked by hand (`docs/DEPLOY.md`). Nothing in the
+  browser may create or join a business. Storage buckets allow public
+  read; writing needs business membership (not just a login).
 - Supabase credentials come only from `.env` (`VITE_SUPABASE_URL`,
   `VITE_SUPABASE_ANON_KEY`), set up per machine (`docs/SUPABASE_SETUP.md`).
 - **Key data loading on `session.user.id`, never on the `session` object.**
@@ -168,7 +171,8 @@ no error).
 See `docs/STATUS.md` for the snapshot.
 
 **Not started**:
-- self-serve sign-up / a second business
+- self-serve business creation / a second business (sign-up with
+  approval is built, §106)
 - the shared catalogue
 - appliance-driven cabinet cutouts
 - rectilinear rooms (deferred)

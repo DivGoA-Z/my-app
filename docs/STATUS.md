@@ -6,7 +6,7 @@ snapshot, not a history. The reasoning is in `docs/DECISIONS-INDEX.md`
 (one line per decision, with `§` pointers into `docs/DECISIONS.md`), and
 the history is in `git log`.
 
-**Last updated:** 6 Oct 2026. Everything is on `main` (the
+**Last updated:** 7 Oct 2026. Everything is on `main` (the
 `charges-and-cutting-list` branch was merged 5 Oct; this line still said
 "not yet merged" until 6 Oct).
 
@@ -69,13 +69,15 @@ the history is in `git log`.
 
 **Platform**
 - Supabase with per-business RLS on every table; real sign-in.
+- Sign-up with approval (§106): new accounts wait until linked to a
+  business by hand.
 - Excel import/export for all five catalogues (merges onto stored rows).
 - Inventory managers; customer pipeline dashboard; first-run checklist.
 - shadcn/ui throughout.
 
 ## Tests
 
-`npm test` (Vitest): **226 tests** in 29 files (this said 125, which
+`npm test` (Vitest): **230 tests** in 30 files (this said 125, which
 was stale). Maths tests cover pricing, the cutting list, nesting,
 panels, the importer, physical depth, the pipeline rules, and the image
 brief with its plan and elevation drawings. Screen tests (React Testing Library) cover the rate card, boards,
@@ -87,7 +89,8 @@ still checked by eye.
 
 1. **Re-run `supabase/schema.sql`.** Several new columns; saves fail
    without them. Re-run again after 3 Oct for the Installed/Lost stages
-   (§69).
+   (§69), and after 7 Oct **before switching sign-up on** in Supabase
+   (§106: storage writes now need business membership).
 2. **Lower the labour rate.** The ₹150/sq ft placeholder was set against
    the old small area estimate. Labour now bills on total cut-part area
    (a base unit went from 7.0 to 22.7 sq ft).
@@ -126,6 +129,8 @@ still checked by eye.
 - Saved camera views and the move pad (§102, §103): "Save this view",
   the tilted walkthrough and the glide are not yet seen in a browser
   (maths and the panel are tested).
+- Sign-up (§106): not yet tried end to end; needs `schema.sql` re-run,
+  then "Allow new users to sign up" turned on in Supabase.
 - Image generation (§105): models compared by hand on one design;
   nothing is sent to a model from the app (that needs a server-side
   piece holding the API key).

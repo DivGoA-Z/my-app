@@ -18,6 +18,7 @@ import { SettingsPage } from './components/settings/SettingsPage';
 import { useLayoutStore } from './store/layoutStore';
 import { useAuthStore } from './store/authStore';
 import { LoginScreen } from './components/auth/LoginScreen';
+import { AwaitingAccessScreen } from './components/auth/AwaitingAccessScreen';
 import { useUndoRedoShortcuts } from './hooks/useUndoRedoShortcuts';
 import { useSelectionShortcuts } from './hooks/useSelectionShortcuts';
 import { Toaster } from './components/ui/sonner';
@@ -80,6 +81,8 @@ function App() {
   // thrown away. The user only changes on an actual sign-in/out.
   const userId = session?.user.id;
   const isAuthLoading = useAuthStore((s) => s.isLoading);
+  const businessId = useAuthStore((s) => s.businessId);
+  const authError = useAuthStore((s) => s.error);
   const authInit = useAuthStore((s) => s.init);
 
   // Cmd+Z / Cmd+Shift+Z, app-wide (skipped while a text field has
@@ -114,6 +117,13 @@ function App() {
 
   if (!session) {
     return <LoginScreen />;
+  }
+
+  // Signed in but in no business: a new sign-up awaiting approval (§106).
+  // Not shown when the membership lookup itself FAILED (authError), so a
+  // network blip doesn't tell an approved user they're unapproved.
+  if (!businessId && !authError) {
+    return <AwaitingAccessScreen />;
   }
 
   // The Cabinet Designer is entered from a catalogue row or a placed

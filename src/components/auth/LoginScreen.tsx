@@ -1,10 +1,12 @@
 // src/components/auth/LoginScreen.tsx
 //
-// Sign-IN only, deliberately no sign-up form — there is no self-serve
-// onboarding for other businesses yet (see docs/PRINCIPLES.md's
-// "honest sequencing problem" and the DECISIONS.md entry for this
-// pass). The one account that exists is created via the Supabase
-// dashboard — docs/SUPABASE_SETUP.md has the exact steps.
+// Sign in, or create an account (§106). Creating an account was left
+// out at first (docs/PRINCIPLES.md's "honest sequencing problem"); it now
+// exists, but only as a REQUEST: the new login belongs to no business,
+// sees nothing, and waits on AwaitingAccessScreen until the software
+// owner links it to a business by hand (docs/DEPLOY.md). Self-serve
+// business creation is still not built. The name and business name are
+// asked for so the owner knows who they're approving.
 
 import { useState } from 'react';
 import { useAuthStore } from '../../store/authStore';
@@ -13,17 +15,57 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Alert, AlertDescription } from '../ui/alert';
 
+// Supabase's own minimum is 6; asked for here so the form says so before
+// a round trip does.
+const MIN_PASSWORD_LENGTH = 8;
+
 export function LoginScreen() {
   const signIn = useAuthStore((s) => s.signIn);
+  const signUp = useAuthStore((s) => s.signUp);
   const isLoading = useAuthStore((s) => s.isLoading);
-  const error = useAuthStore((s) => s.error);
+  const signInError = useAuthStore((s) => s.error);
 
+  const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [businessName, setBusinessName] = useState('');
+  const [signUpError, setSignUpError] = useState<string | null>(null);
+  const [isSigningUp, setIsSigningUp] = useState(false);
+  // Set once an account is created and the email must be confirmed first.
+  const [checkEmailFor, setCheckEmailFor] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  const signingUp = mode === 'sign-up';
+  const error = signingUp ? signUpError : signInError;
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    void signIn(email, password);
+    if (!signingUp) {
+      void signIn(email, password);
+      return;
+    }
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setSignUpError(`Use at least ${MIN_PASSWORD_LENGTH} characters for the password.`);
+      return;
+    }
+    setSignUpError(null);
+    setIsSigningUp(true);
+    try {
+      const { needsEmailConfirmation } = await signUp({ email, password, fullName, businessName });
+      if (needsEmailConfirmation) setCheckEmailFor(email);
+      // Otherwise Supabase signed them straight in, and App.tsx moves on
+      // to the waiting-for-access screen.
+    } catch (err) {
+      setSignUpError(err instanceof Error ? err.message : 'Could not create the account.');
+    } finally {
+      setIsSigningUp(false);
+    }
+  }
+
+  function switchMode(next: 'sign-in' | 'sign-up') {
+    setMode(next);
+    setSignUpError(null);
+    setCheckEmailFor(null);
   }
 
   // Premium A (§73-74): a material panel beside the form on tablet and
@@ -46,14 +88,56 @@ export function LoginScreen() {
       </div>
 
       <div className="flex flex-1 items-center justify-center p-6">
+        {checkEmailFor ? (
+          <div className="flex w-full max-w-[380px] flex-col gap-4" role="status">
+            <h1 className="text-[30px] font-extrabold tracking-[-0.03em]">Check your email</h1>
+            <p className="text-[15px] text-muted-foreground">
+              We sent a link to <span className="font-semibold text-foreground">{checkEmailFor}</span>. Open it to confirm
+              your address, then sign in. Your account will then wait for approval before you can use it.
+            </p>
+            <Button variant="outline" size="touch-lg" onClick={() => switchMode('sign-in')}>
+              Back to sign in
+            </Button>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="flex w-full max-w-[380px] flex-col gap-5">
           <div className="flex flex-col gap-2">
             <div className="mb-3 flex size-12 items-center justify-center rounded-2xl bg-sidebar text-lg font-extrabold text-sidebar-primary">
               K
             </div>
-            <h1 className="text-[30px] font-extrabold tracking-[-0.03em]">Welcome back</h1>
-            <p className="text-[15px] text-muted-foreground">Sign in to your business account.</p>
+            <h1 className="text-[30px] font-extrabold tracking-[-0.03em]">{signingUp ? 'Create an account' : 'Welcome back'}</h1>
+            <p className="text-[15px] text-muted-foreground">
+              {signingUp
+                ? 'New accounts are approved by hand before they can be used.'
+                : 'Sign in to your business account.'}
+            </p>
           </div>
+
+          {signingUp && (
+            <>
+              <Label className="flex flex-col items-stretch gap-1.5 text-[13px] font-semibold">
+                Your name
+                <Input
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                  autoFocus
+                  autoComplete="name"
+                  className="h-12 rounded-xl bg-card text-base"
+                />
+              </Label>
+              <Label className="flex flex-col items-stretch gap-1.5 text-[13px] font-semibold">
+                Business name
+                <Input
+                  value={businessName}
+                  onChange={(e) => setBusinessName(e.target.value)}
+                  required
+                  autoComplete="organization"
+                  className="h-12 rounded-xl bg-card text-base"
+                />
+              </Label>
+            </>
+          )}
 
           <Label className="flex flex-col items-stretch gap-1.5 text-[13px] font-semibold">
             Email
@@ -62,7 +146,7 @@ export function LoginScreen() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              autoFocus
+              autoFocus={!signingUp}
               autoComplete="email"
               className="h-12 rounded-xl bg-card text-base"
             />
@@ -75,7 +159,8 @@ export function LoginScreen() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              autoComplete="current-password"
+              autoComplete={signingUp ? 'new-password' : 'current-password'}
+              minLength={signingUp ? MIN_PASSWORD_LENGTH : undefined}
               className="h-12 rounded-xl bg-card text-base"
             />
           </Label>
@@ -86,13 +171,27 @@ export function LoginScreen() {
             </Alert>
           )}
 
-          <Button type="submit" size="touch-lg" className="mt-1 w-full shadow-cta" disabled={isLoading}>
-            {isLoading ? 'Signing in…' : 'Sign in'}
-          </Button>
+          {signingUp ? (
+            <Button type="submit" size="touch-lg" className="mt-1 w-full shadow-cta" disabled={isSigningUp}>
+              {isSigningUp ? 'Creating account…' : 'Create account'}
+            </Button>
+          ) : (
+            <Button type="submit" size="touch-lg" className="mt-1 w-full shadow-cta" disabled={isLoading}>
+              {isLoading ? 'Signing in…' : 'Sign in'}
+            </Button>
+          )}
           <p className="text-[13px] text-muted-foreground">
-            No account? Your business's login is set up for you. Ask whoever manages it.
+            {signingUp ? 'Already have an account? ' : 'New here? '}
+            <button
+              type="button"
+              onClick={() => switchMode(signingUp ? 'sign-in' : 'sign-up')}
+              className="font-semibold text-foreground underline underline-offset-2"
+            >
+              {signingUp ? 'Sign in' : 'Create an account'}
+            </button>
           </p>
         </form>
+        )}
       </div>
     </div>
   );

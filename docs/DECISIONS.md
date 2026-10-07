@@ -6602,3 +6602,64 @@ model until that's final.
 Still to do, from the Gemini result: guard the ceiling ("plain white,
 no wooden or false ceiling" when none is chosen), and say that an
 under-sink RO purifier stays inside the sink unit.
+
+## 106. Sign-up, with approval
+
+You asked for a sign-up button on the web app. Self-serve sign-up was
+parked ("hand-onboard first", `AFTER_FIRST_CUSTOMERS.md`), so the
+question was what a new account gets. You chose **an account that
+waits for approval**. The rejected options:
+- **Its own new business:** needs a starter-catalogue copy, a
+  server-side setup step and the two-business isolation check first.
+- **Joining the existing business:** anyone who signed up would see all
+  your customers and quotes.
+
+**Built:**
+- **Sign-in screen:** a **Create an account** mode asking for name,
+  business name, email and password (at least 8 characters).
+  - Name and business name are stored on the login
+    (`raw_user_meta_data`), so you know who you're approving.
+  - If Supabase requires email confirmation, the screen says "Check
+    your email".
+  - Supabase's own errors are shown as they come (e.g. "Signups not
+    allowed" while sign-up is off in Supabase).
+- **App gate:** a signed-in account with **no business** sees **Waiting
+  for access** (`AwaitingAccessScreen`), with Check again and Sign out,
+  instead of an app full of empty screens and failed saves. It isn't
+  shown when the membership lookup itself *failed*, so a network blip
+  doesn't tell an approved user they're unapproved.
+- **No path from the browser to a business.** Checked:
+  - `business_users` has only a read-own-row policy.
+  - `businesses` has no insert policy.
+  - Every table's policy is scoped by `current_business_id()`, which is
+    null for a waiting account.
+- **A real hole closed first.** The panoramas, material-swatches and
+  quote-pdfs buckets allowed upload and overwrite by any signed-in
+  account (`auth.role() = 'authenticated'`). That was harmless while
+  only the team could sign in. With sign-up open, a stranger could have
+  overwritten a customer's quote PDF at its predictable path. Writes
+  now need `current_business_id() is not null`. **Needs `schema.sql`
+  re-run before sign-up is switched on in Supabase.** Cross-business
+  overwrite (one member writing into another business's files) is
+  still possible, and is part of the isolation check before a second
+  business: scope writes to the business's own folder, as
+  `business-logos` already is.
+- **Approving** is SQL for now (`docs/DEPLOY.md`, "Sign-up and approving
+  a new account"): list waiting accounts with their name and business,
+  then insert a `business_users` row.
+
+A super admin with no `business_users` row would now see the waiting
+screen. Today the owner's login is a member of `biz_default`, so this
+doesn't arise.
+
+**Verified:**
+- Screen tests (`SignUp.test.tsx`): the request carries name and
+  business; "Check your email"; a short password is refused before
+  Supabase is asked; Supabase's error is shown; the waiting screen's
+  Check again and Sign out work.
+- The sign-up screen was looked at in a browser at laptop and phone
+  size, with no sideways overflow. No account was created against the
+  real Supabase.
+
+**Not seen:** a real sign-up end to end (email, approval, Check again).
+That needs the Supabase steps above.
