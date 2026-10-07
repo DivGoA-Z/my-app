@@ -6917,3 +6917,39 @@ heading (to 6 decimal places), and that a north camera doesn't open on
 the centre. **Not yet seen in the viewer by eye.** One assumption: a
 panorama captured with "Mirror horizontally" switched off starts
 mirrored round. The capture setting isn't stored, and the default is on.
+
+## 110. The move pad on the 3D view, including free orbit
+
+You asked for the hold-to-move pad (§103) in free orbit too, not only
+for saved cameras. A compact copy of the pad now sits **on the 3D view**
+(bottom-right) in the walkthrough/orbit view; it isn't shown in the
+Elevation tab's wall or top views:
+- **Standing at a camera,** it moves that camera, exactly as the Cameras
+  panel's pad does.
+- **In free orbit,** it glides the view:
+  - Forward/back go toward what you're looking at, kept **level**.
+    Looking down at the room, "forward" should carry you across it, not
+    into the floor.
+  - Left/right go sideways; up/down raise and lower.
+  - The camera and the point it orbits move together, so turning
+    afterwards still turns around what you were looking at.
+  - Speeds are 1 m/s across and 0.6 m/s up and down. There's no room
+    clamp: free orbit may be outside the room.
+
+How it's built:
+- `orbitMove` is pure and tested. `applyOrbitStep` applies it to the
+  live camera and the orbit controls.
+- The free orbit's `OrbitControls` is now `makeDefault`, so the view
+  bridge reaches it through r3f's state.
+- Each step calls `invalidate()`, since the view draws on demand (§108).
+- `CameraMovePad` takes either a `cameraId` or an `onStep`, plus a
+  `compact` size.
+
+**Verified:** `cameraMove.test.ts` checks forward is level and moves both
+camera and target, right is east when facing north, up only raises, and
+looking straight down doesn't fail. In a browser on Neha Verma's kitchen,
+holding Forward then Up visibly moved the view each time.
+
+Also asked: the countertop cut for the sink already exists (§3). It's
+drawn only when the sink's catalogue row has "Cutout width/depth" set,
+and it doesn't change the quote.

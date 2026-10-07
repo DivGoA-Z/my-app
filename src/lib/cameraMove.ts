@@ -48,3 +48,74 @@ export function moveCamera(
     heightMm: Math.round(clamp(heightMm, MIN_EYE_HEIGHT_MM, room.ceilingHeightMm - CEILING_CLEARANCE_MM)),
   };
 }
+
+// ---- Free orbit (§110) ----
+//
+// The same six moves for the 3D view's free orbit, where there's no saved
+// camera: the view itself (camera + the point it orbits) glides. Forward
+// is where you're looking, kept LEVEL (looking down at the room, forward
+// should carry you across it, not into the floor); left/right are
+// sideways to that; up/down raise and lower. Camera and target move
+// together, so orbiting afterwards still turns around what you were
+// looking at. World metres, Y-up (lib/scene3d.ts). No room clamp: free
+// orbit is allowed outside the room.
+
+export const ORBIT_MOVE_M_PER_S = 1.0;
+export const ORBIT_LIFT_M_PER_S = 0.6;
+
+type Vec3 = [number, number, number];
+
+export function orbitMove(
+  position: Vec3,
+  target: Vec3,
+  move: CameraMove,
+  seconds: number
+): { position: Vec3; target: Vec3 } {
+  let fx = target[0] - position[0];
+  let fz = target[2] - position[2];
+  const len = Math.hypot(fx, fz);
+  // Looking straight down: no level direction; treat "forward" as north.
+  if (len < 1e-6) {
+    fx = 0;
+    fz = -1;
+  } else {
+    fx /= len;
+    fz /= len;
+  }
+  // Right of a level forward (fx, fz): (−fz, fx). Facing north (0, −1)
+  // that's east (1, 0).
+  const d = ORBIT_MOVE_M_PER_S * seconds;
+  const lift = ORBIT_LIFT_M_PER_S * seconds;
+  const delta: Vec3 =
+    move === 'forward' ? [fx * d, 0, fz * d]
+    : move === 'back' ? [-fx * d, 0, -fz * d]
+    : move === 'right' ? [-fz * d, 0, fx * d]
+    : move === 'left' ? [fz * d, 0, -fx * d]
+    : move === 'up' ? [0, lift, 0]
+    : [0, -lift, 0];
+  const add = (v: Vec3): Vec3 => [v[0] + delta[0], v[1] + delta[1], v[2] + delta[2]];
+  return { position: add(position), target: add(target) };
+}
+
+// Applies one orbitMove step to a live camera and its orbit controls,
+// then asks for a redraw (the 3D view draws on demand, §108). Kept here,
+// not in the component, so the mutation of three.js objects happens in a
+// plain function the bridge calls at event time.
+export function applyOrbitStep(
+  camera: { position: { x: number; y: number; z: number; set(x: number, y: number, z: number): unknown } },
+  controls: { target: { x: number; y: number; z: number; set(x: number, y: number, z: number): unknown }; update(): unknown },
+  move: CameraMove,
+  seconds: number,
+  invalidate: () => void
+): void {
+  const r = orbitMove(
+    [camera.position.x, camera.position.y, camera.position.z],
+    [controls.target.x, controls.target.y, controls.target.z],
+    move,
+    seconds
+  );
+  camera.position.set(...r.position);
+  controls.target.set(...r.target);
+  controls.update();
+  invalidate();
+}

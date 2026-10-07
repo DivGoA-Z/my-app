@@ -105,6 +105,8 @@ import { HIDE_IN_SNAPSHOT, HIDE_IN_STRUCTURE, GUIDE_IMAGE_SIZE, cameraPose, rend
 import type { CameraPose, StructureOptions } from '../../lib/viewSnapshot';
 import { downloadBlob } from '../../lib/downloadBlob';
 import { useRenderBriefInput } from '../../hooks/useRenderBriefInput';
+import { CameraMovePad } from '../toolbar/CameraMovePad';
+import { applyOrbitStep, type CameraMove } from '../../lib/cameraMove';
 import { Cabinet3DInspector } from './Cabinet3DInspector';
 import { ApplianceModel } from './ApplianceModel';
 import { FixtureModel } from './FixtureModel';
@@ -915,7 +917,9 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
           ) : lockedCamera ? (
             <AnimatedFirstPersonCamera camera={lockedCamera} fovDeg={firstPersonFovDeg} />
           ) : (
-            <OrbitControls target={[roomWidthM / 2, ceilingHeightM / 3, roomDepthM / 2]} />
+            // makeDefault: the on-view move pad (§110) reaches these
+            // controls through the scene's state to glide the view.
+            <OrbitControls makeDefault target={[roomWidthM / 2, ceilingHeightM / 3, roomDepthM / 2]} />
           )}
 
           {/* Invisible — just hands the live renderer+scene up to
@@ -937,6 +941,19 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
         )}
 
         {inspectorOverlay && selectedCabinet && <Cabinet3DInspector cabinet={selectedCabinet} />}
+
+        {/* Hold-to-move pad on the view itself (§110): standing at a camera
+            it moves that camera (as the Cameras panel's pad does); in free
+            orbit it glides the view. Bottom-right, clear of the inspector. */}
+        {!drawingView && (
+          <div className="absolute bottom-3 right-3 rounded-xl border border-border bg-card/90 p-1.5 shadow-card backdrop-blur-sm">
+            {lockedCamera ? (
+              <CameraMovePad compact cameraId={lockedCamera.id} />
+            ) : (
+              <CameraMovePad compact onStep={(move, seconds) => viewFnsRef.current?.orbitStep(move, seconds)} />
+            )}
+          </div>
+        )}
       </div>
 
       <PanoramaViewerModal
@@ -1028,6 +1045,8 @@ function RedrawOn({ value }: { value: unknown }) {
 // render the wrong view.
 interface ViewFns {
   pose: () => CameraPose;
+  // One step of the free-orbit move pad (§110); no-op without orbit controls.
+  orbitStep: (move: CameraMove, seconds: number) => void;
   structure: (opts: StructureOptions) => string;
 }
 
@@ -1036,6 +1055,11 @@ function ViewSnapshotBridge({ viewFnsRef }: { viewFnsRef: { current: ViewFns | n
 
   useEffect(() => {
     viewFnsRef.current = {
+      orbitStep: (move, seconds) => {
+        const { camera, controls, invalidate } = get();
+        const orbit = controls as unknown as Parameters<typeof applyOrbitStep>[1] | null;
+        if (orbit && 'target' in orbit) applyOrbitStep(camera, orbit, move, seconds, invalidate);
+      },
       pose: () => {
         const { gl, camera } = get();
         return cameraPose(gl, camera);

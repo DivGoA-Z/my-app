@@ -27,3 +27,31 @@ describe('moveCamera', () => {
     expect(moveCamera(at(0), 'down', 100, room).heightMm).toBe(300);
   });
 });
+
+describe('orbitMove (§110)', () => {
+  const pos: [number, number, number] = [0, 5, 5];
+  const target: [number, number, number] = [0, 0, 0]; // looking north-and-down
+
+  it('goes forward LEVEL toward what you look at, moving camera and target together', async () => {
+    const { orbitMove, ORBIT_MOVE_M_PER_S } = await import('./cameraMove');
+    const r = orbitMove(pos, target, 'forward', 1);
+    expect(r.position[1]).toBe(5); // height unchanged
+    expect(r.position[2]).toBeCloseTo(5 - ORBIT_MOVE_M_PER_S);
+    expect(r.target[2]).toBeCloseTo(-ORBIT_MOVE_M_PER_S);
+  });
+
+  it('right is east when facing north; up only raises', async () => {
+    const { orbitMove, ORBIT_MOVE_M_PER_S, ORBIT_LIFT_M_PER_S } = await import('./cameraMove');
+    expect(orbitMove(pos, target, 'right', 1).position[0]).toBeCloseTo(ORBIT_MOVE_M_PER_S);
+    expect(orbitMove(pos, target, 'left', 1).position[0]).toBeCloseTo(-ORBIT_MOVE_M_PER_S);
+    const up = orbitMove(pos, target, 'up', 1);
+    expect(up.position).toEqual([0, 5 + ORBIT_LIFT_M_PER_S, 5]);
+    expect(up.target).toEqual([0, ORBIT_LIFT_M_PER_S, 0]);
+  });
+
+  it('copes with looking straight down', async () => {
+    const { orbitMove } = await import('./cameraMove');
+    const r = orbitMove([1, 5, 1], [1, 0, 1], 'forward', 1);
+    expect(Number.isFinite(r.position[0]) && Number.isFinite(r.position[2])).toBe(true);
+  });
+});

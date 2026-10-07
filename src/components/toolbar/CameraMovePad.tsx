@@ -29,7 +29,18 @@ const BUTTONS: { move: CameraMove; label: string; Icon: typeof ArrowUp; area: st
   { move: 'down', label: 'Down', Icon: ChevronsDown, area: 'col-start-5 row-start-3' },
 ];
 
-export function CameraMovePad({ cameraId }: { cameraId: string }) {
+// Moves a saved camera (`cameraId`, the Cameras panel and the 3D view
+// while standing at one) or anything else via `onStep` (the 3D view's
+// free orbit, §110).
+export function CameraMovePad({
+  cameraId,
+  onStep,
+  compact = false,
+}: {
+  cameraId?: string;
+  onStep?: (move: CameraMove, seconds: number) => void;
+  compact?: boolean;
+}) {
   const updateCamera = useLayoutStore((s) => s.updateCamera);
   // `last` is null until the first frame, which supplies the start time;
   // reading a clock here would be an impure call as far as the React
@@ -39,6 +50,11 @@ export function CameraMovePad({ cameraId }: { cameraId: string }) {
   // Read the camera and room fresh each step, never from a closure: the
   // loop runs across many renders.
   function step(move: CameraMove, seconds: number) {
+    if (onStep) {
+      onStep(move, seconds);
+      return;
+    }
+    if (!cameraId) return;
     const { cameras, currentLayout } = useLayoutStore.getState();
     const cam = cameras.find((c) => c.id === cameraId);
     if (!cam || !currentLayout) return;
@@ -68,7 +84,11 @@ export function CameraMovePad({ cameraId }: { cameraId: string }) {
   useEffect(() => stop, []);
 
   return (
-    <div className="grid grid-cols-[repeat(5,2.25rem)] grid-rows-[repeat(3,2.25rem)] gap-1" role="group" aria-label="Move camera">
+    <div
+      className={compact ? 'grid grid-cols-[repeat(5,2rem)] grid-rows-[repeat(3,2rem)] gap-1' : 'grid grid-cols-[repeat(5,2.25rem)] grid-rows-[repeat(3,2.25rem)] gap-1'}
+      role="group"
+      aria-label="Move camera"
+    >
       {BUTTONS.map(({ move, label, Icon, area }) => (
         <Button
           key={move}
@@ -77,7 +97,7 @@ export function CameraMovePad({ cameraId }: { cameraId: string }) {
           size="icon"
           aria-label={`Move camera ${label.toLowerCase()}`}
           title={`Hold to move ${label.toLowerCase()}`}
-          className={`${area} size-9 touch-none select-none`}
+          className={`${area} ${compact ? 'size-8' : 'size-9'} touch-none select-none`}
           onPointerDown={(e) => {
             // Optional call: jsdom (screen tests) has no pointer capture.
             e.currentTarget.setPointerCapture?.(e.pointerId);
