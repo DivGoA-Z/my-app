@@ -97,8 +97,8 @@ Users.
 **Checking that businesses can't see each other.** Paste
 `supabase/isolation_check.sql` into the SQL editor and run it. It creates
 two test businesses, tries everything a business shouldn't be able to do
-to the other one, and rolls it all back. It should end with "ALL ISOLATION
-CHECKS PASSED". Run it after re-running `schema.sql`, and again after any
+to the other one, and rolls it all back. The result should be one row: "ALL ISOLATION
+CHECKS PASSED". A failure shows a red error naming the check instead. Run it after re-running `schema.sql`, and again after any
 change to who can see or write what.
 
 ## A forgotten password

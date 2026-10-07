@@ -21,9 +21,11 @@
 --      and keeps an item added since;
 --   7. a sign-up still waiting for approval sees and writes nothing.
 --
--- Success ends with: NOTICE: ALL ISOLATION CHECKS PASSED. Any failure stops
--- with an error naming the check. Re-run after any change to RLS or storage
--- rules.
+-- Success: the editor's result shows one row, "ALL ISOLATION CHECKS
+-- PASSED". Any failure stops with a red error naming the check. (The
+-- numbered OK messages are notices, which psql prints but Supabase's
+-- editor doesn't, so nothing else in between returns a result.) Re-run
+-- after any change to RLS or storage rules.
 
 begin;
 
@@ -37,7 +39,7 @@ insert into auth.users (id, email, raw_user_meta_data) values
 
 -- As the owner (this editor session): fill the master starter from
 -- biz_default, then approve A and B as new businesses.
-select public.refresh_starter_catalog('biz_default');
+do $$ begin perform public.refresh_starter_catalog('biz_default'); end $$;
 create temp table iso (who text primary key, business text) on commit drop;
 insert into iso values
   ('a', public.approve_new_business('00000000-0000-4000-8000-00000000000a')),
@@ -66,7 +68,7 @@ end $$;
 
 -- From here on, act as A, through RLS, as the app does.
 set local role authenticated;
-select set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-8000-00000000000a", "role": "authenticated"}', true);
+do $$ begin perform set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-8000-00000000000a", "role": "authenticated"}', true); end $$;
 
 do $$
 declare a text := (select business from iso where who = 'a');
@@ -157,7 +159,7 @@ begin
 end $$;
 
 -- 7. A sign-up still waiting for approval.
-select set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-8000-00000000000c", "role": "authenticated"}', true);
+do $$ begin perform set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-8000-00000000000c", "role": "authenticated"}', true); end $$;
 do $$
 declare t text;
         n integer;
@@ -182,3 +184,6 @@ begin
 end $$;
 
 rollback;
+
+-- Only reached if every check above passed (an error stops the run).
+select 'ALL ISOLATION CHECKS PASSED' as result;
