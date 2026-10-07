@@ -87,6 +87,12 @@ what has to be true before customer #1 is onboarded by hand.
 - **Shared / global catalogue toggle.** The shape is in
   `docs/PRINCIPLES.md`; it needs real businesses to know what they'd
   share.
+- **Our own email sender (SMTP).** Supabase's built-in email, which
+  sends the sign-up confirmation link (§106), allows only a few messages
+  an hour on the free plan. Fine for a handful of sign-ups; once more
+  people are signing up, set up an email service (Supabase →
+  Authentication → Emails → SMTP settings) so confirmation emails don't
+  stall.
 - **Carpenter validation of the cutting list.** Compare one real job's
   parts and sheet count against what was actually cut, then confirm
   Workshop settings. It can come from the first customer who has a
