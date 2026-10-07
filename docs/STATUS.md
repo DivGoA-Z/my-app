@@ -82,7 +82,7 @@ the history is in `git log`.
 
 ## Tests
 
-`npm test` (Vitest): **246 tests** in 34 files (this said 125, which
+`npm test` (Vitest): **247 tests** in 34 files (this said 125, which
 was stale). Maths tests cover pricing, the cutting list, nesting,
 panels, the importer, physical depth, the pipeline rules, and the image
 brief with its plan and elevation drawings. Screen tests (React Testing Library) cover the rate card, boards,

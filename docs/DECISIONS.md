@@ -7048,3 +7048,38 @@ The other misses (tambour, ceiling, RO placement) are the lighter
 model's limits, not missing data: the brief states all three. For images
 a customer sees, prefer the heavier model; Flash Lite may do for quick
 drafts.
+
+## 113. A colour view beside the line drawing
+
+**Image brief**, standing at a camera, now downloads three files:
+- `-guide.png`: the line drawing;
+- **`-colour.png`**: the 3D view from the same camera at the same size, so
+  the two line up pixel for pixel (checked by overlaying them on Neha
+  Verma's kitchen);
+- the JSON.
+
+**Why bring a still back after §101 dropped it.** In §101 the textured
+still was the *only* image, sent to an image-to-image model, which
+copied its CG look. Here it's a second reference for a model that reads
+the JSON and looks at every image. Each image has a job:
+- the line drawing is the geometry to keep;
+- the colour view shows which finish goes on which surface.
+
+That's exactly what Gemini Flash Lite missed in §112: it made the dark
+wood ceiling white and the tambour a double door. Both are words in the
+JSON but obvious in colour.
+
+**The risk is copying the preview's look,** so the brief says plainly
+(both in the image's `whatItIs` and in instruction 1): use it only for
+which finish goes where; it's a simplified computer render; produce a
+real photograph.
+
+`renderColour` (`lib/viewSnapshot.ts`) shares `renderAtSize` with the
+line render. It hides only editor furniture (camera markers, hotspots,
+the selection outline); materials, lights and the view through windows
+stay as on screen.
+
+**Test plan:** the same design and camera in Gemini, with line drawing +
+JSON against line drawing + colour + JSON. Check the ceiling colour,
+the tambour, the RO placement, and that nothing is invented. Keep the
+colour view only if it clearly helps.

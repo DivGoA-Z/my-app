@@ -101,7 +101,7 @@ import { buildRenderBrief, renderBriefFileStem, viewFromWorldCamera } from '../.
 import type { ReferenceImage } from '../../lib/renderBrief';
 import { elevationSheetSvg } from '../../lib/elevationSheet';
 import { svgToPng } from '../../lib/svgToPng';
-import { HIDE_IN_SNAPSHOT, HIDE_IN_STRUCTURE, GUIDE_IMAGE_SIZE, cameraPose, renderStructure } from '../../lib/viewSnapshot';
+import { HIDE_IN_SNAPSHOT, HIDE_IN_STRUCTURE, GUIDE_IMAGE_SIZE, cameraPose, renderColour, renderStructure } from '../../lib/viewSnapshot';
 import type { CameraPose, StructureOptions } from '../../lib/viewSnapshot';
 import { downloadBlob } from '../../lib/downloadBlob';
 import { useRenderBriefInput } from '../../hooks/useRenderBriefInput';
@@ -434,11 +434,17 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
       if (lockedCamera) {
         const { widthPx, heightPx } = GUIDE_IMAGE_SIZE;
         const line = fns.structure({ widthPx, heightPx });
-        const images: ReferenceImage[] = [{ kind: 'line-render', file: `${stem}-guide.png`, widthPx, heightPx }];
+        // Same camera and size, so it lines up with the guide (§113).
+        const colour = fns.colour({ widthPx, heightPx });
+        const images: ReferenceImage[] = [
+          { kind: 'line-render', file: `${stem}-guide.png`, widthPx, heightPx },
+          { kind: 'colour-render', file: `${stem}-colour.png`, widthPx, heightPx },
+        ];
         const brief = buildRenderBrief({ ...base, referenceImages: images });
         downloadBlob(await (await fetch(line)).blob(), images[0].file);
+        downloadBlob(await (await fetch(colour)).blob(), images[1].file);
         json(brief, `${stem}-render-brief.json`);
-        toast.success(`Image brief downloaded: what ${lockedCamera.label} sees, and the brief (JSON).`);
+        toast.success(`Image brief downloaded: what ${lockedCamera.label} sees as a line drawing and in colour, and the brief (JSON).`);
       } else {
         // Drawn from a first pass of the brief, so the sheet and the JSON
         // share refs; the second pass only adds the image list.
@@ -522,7 +528,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
         {selectedCamera?.panoramaCapturedAt &&
           !captureError &&
           ` 360° photo taken ${new Date(selectedCamera.panoramaCapturedAt).toLocaleString()}.`}
-        {' '}Image brief saves a line drawing of what this camera sees and a description of everything in it, for a photo-realistic render; without a camera it saves the plan and all four walls instead.
+        {' '}Image brief saves what this camera sees as a line drawing and in colour, plus a description of everything in it, for a photo-realistic render; without a camera it saves the plan and all four walls instead.
       </p>
       {captureError && <p className="text-[13px] font-medium text-destructive">Capture failed: {captureError}</p>}
 
@@ -1048,6 +1054,8 @@ interface ViewFns {
   // One step of the free-orbit move pad (§110); no-op without orbit controls.
   orbitStep: (move: CameraMove, seconds: number) => void;
   structure: (opts: StructureOptions) => string;
+  // The 3D view itself at the same size (§113).
+  colour: (opts: StructureOptions) => string;
 }
 
 function ViewSnapshotBridge({ viewFnsRef }: { viewFnsRef: { current: ViewFns | null } }) {
@@ -1067,6 +1075,10 @@ function ViewSnapshotBridge({ viewFnsRef }: { viewFnsRef: { current: ViewFns | n
       structure: (opts) => {
         const { gl, scene, camera } = get();
         return renderStructure(gl, scene, camera, opts);
+      },
+      colour: (opts) => {
+        const { gl, scene, camera } = get();
+        return renderColour(gl, scene, camera, opts);
       },
     };
     return () => {

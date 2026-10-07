@@ -136,30 +136,70 @@ export function renderStructure(
     scene.background = new THREE.Color(0xffffff);
     restores.push(() => (scene.background = previousBackground));
 
-    // The exact output size, for this one frame.
-    const size = gl.getSize(new THREE.Vector2());
-    const ratio = gl.getPixelRatio();
-    gl.setPixelRatio(1);
-    gl.setSize(opts.widthPx, opts.heightPx, false);
-    restores.push(() => {
-      gl.setPixelRatio(ratio);
-      gl.setSize(size.x, size.y, false);
-    });
-    const perspective = (camera as THREE.PerspectiveCamera).isPerspectiveCamera ? (camera as THREE.PerspectiveCamera) : null;
-    if (perspective) {
-      const aspect = perspective.aspect;
-      perspective.aspect = opts.widthPx / opts.heightPx;
-      perspective.updateProjectionMatrix();
-      restores.push(() => {
-        perspective.aspect = aspect;
-        perspective.updateProjectionMatrix();
-      });
-    }
-
-    gl.render(scene, camera);
-    return gl.domElement.toDataURL('image/png');
+    return renderAtSize(gl, scene, camera, opts, restores);
   } finally {
     for (const undo of restores.reverse()) undo();
     for (const d of disposables) d.dispose();
+  }
+}
+
+// Renders one frame at exactly opts' size and reads it back. The renderer's
+// size, pixel ratio and the camera's aspect are changed for that frame
+// only; the undo steps go onto `restores`, which the caller runs in
+// `finally`. render → toDataURL stays synchronous (see the header).
+function renderAtSize(
+  gl: THREE.WebGLRenderer,
+  scene: THREE.Scene,
+  camera: THREE.Camera,
+  opts: StructureOptions,
+  restores: (() => void)[]
+): string {
+  const size = gl.getSize(new THREE.Vector2());
+  const ratio = gl.getPixelRatio();
+  gl.setPixelRatio(1);
+  gl.setSize(opts.widthPx, opts.heightPx, false);
+  restores.push(() => {
+    gl.setPixelRatio(ratio);
+    gl.setSize(size.x, size.y, false);
+  });
+  const perspective = (camera as THREE.PerspectiveCamera).isPerspectiveCamera ? (camera as THREE.PerspectiveCamera) : null;
+  if (perspective) {
+    const aspect = perspective.aspect;
+    perspective.aspect = opts.widthPx / opts.heightPx;
+    perspective.updateProjectionMatrix();
+    restores.push(() => {
+      perspective.aspect = aspect;
+      perspective.updateProjectionMatrix();
+    });
+  }
+  gl.render(scene, camera);
+  return gl.domElement.toDataURL('image/png');
+}
+
+// The 3D view itself, from the same camera and at the same size as the
+// line render, so the two line up pixel for pixel (§113). It shows WHICH
+// finish goes where — a dark wood ceiling, a ridged tambour shutter —
+// which a model can skim past in the JSON's words (a lighter model drew
+// the wood ceiling white and the tambour as a double door). Only editor
+// furniture is hidden (camera markers, hotspots, the selection outline);
+// materials, lights and the view through the windows stay as on screen.
+// It is a reference for placement, not the look to copy: the brief says so.
+export function renderColour(
+  gl: THREE.WebGLRenderer,
+  scene: THREE.Scene,
+  camera: THREE.Camera,
+  opts: StructureOptions
+): string {
+  const restores: (() => void)[] = [];
+  try {
+    scene.traverse((o) => {
+      if (o.userData[HIDE_IN_SNAPSHOT] && o.visible) {
+        o.visible = false;
+        restores.push(() => (o.visible = true));
+      }
+    });
+    return renderAtSize(gl, scene, camera, opts, restores);
+  } finally {
+    for (const undo of restores.reverse()) undo();
   }
 }

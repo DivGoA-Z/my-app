@@ -290,11 +290,14 @@ export interface RenderBrief {
 }
 
 // 'line-render' = a line drawing of exactly what the chosen camera sees
-// (lib/viewSnapshot.ts); 'elevations' = the plan + four-wall sheet
-// (lib/elevationSheet.ts), when no camera is chosen. The textured 3D
-// still ('perspective') went in §101, the depth map in §105.
+// (lib/viewSnapshot.ts); 'colour-render' = the 3D view from the same
+// camera, for which finish goes where (§113); 'elevations' = the plan +
+// four-wall sheet (lib/elevationSheet.ts), when no camera is chosen. A
+// textured still was dropped in §101 when it was the ONLY image an
+// image-to-image model got; §113 brings it back as a second reference,
+// explained, beside the line render.
 export interface ReferenceImage {
-  kind: 'elevations' | 'line-render';
+  kind: 'elevations' | 'line-render' | 'colour-render';
   file: string;
   widthPx: number;
   heightPx: number;
@@ -303,6 +306,8 @@ export interface ReferenceImage {
 const REFERENCE_IMAGE_MEANING: Record<ReferenceImage['kind'], string> = {
   elevations:
     'Line drawing of all four walls, each seen straight on from inside the room, to one common scale. It shows exactly what stands against each wall: every cabinet split into its real doors and drawers with handle marks, the countertop, sink, hob and chimney, windows, doors and pillars. Labels (C1, A1, O1, P1) match this file. Grey blocks at a wall\'s ends are the sides of units on the neighbouring wall. It is a diagram of geometry only; colours and materials come from this file.',
+  'colour-render':
+    'The app\'s 3D preview from the SAME camera and at the same size as the line render, so the two line up exactly. Use it to see which finish and colour goes on which surface (e.g. a dark wood ceiling, a ridged roll-up tambour shutter, white gloss fronts). Its lighting and materials are a simplified computer render: do NOT copy its look, colours as lit, or flatness; produce a real photograph.',
   'line-render':
     'Hidden-line drawing of this design from the camera in `view`: every surface white, every edge black. It fixes the camera, the composition and every edge (cabinet outlines, door and drawer seams, handles, the countertop). It has no materials or light of its own.',
 };
@@ -1385,6 +1390,7 @@ export function shortNegative(b: Omit<RenderBrief, 'prompt'>, maxChars = SHORT_N
 function geometryInstruction(images: RenderBrief['referenceImages']): string {
   const elevations = images.find((i) => i.kind === 'elevations');
   const perspective = images.find((i) => i.kind === 'line-render');
+  const colour = images.find((i) => i.kind === 'colour-render');
   const parts = ['1. GEOMETRY IS FIXED.'];
   if (elevations) {
     parts.push(
@@ -1394,6 +1400,11 @@ function geometryInstruction(images: RenderBrief['referenceImages']): string {
   if (perspective) {
     parts.push(
       `The attached line render (${perspective.file}) is this exact design from the exact camera: use it as edge/structure guidance, keep every line where it is, and add the materials and light from this file. Do not draw the lines themselves.`
+    );
+  }
+  if (colour) {
+    parts.push(
+      `The attached colour preview (${colour.file}) is the same view in colour: use it only to see which finish goes on which surface (ceiling, walls, floor, each cabinet front, the tambour shutter). It is a simplified computer render; make the result look like a real photograph, not like it.`
     );
   }
   if (!elevations && !perspective) parts.push('Place every item where the JSON says; keep the stated sizes and counts.');

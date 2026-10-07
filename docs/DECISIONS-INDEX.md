@@ -388,3 +388,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§111** New appliance models were 15–25 MB (≈290k triangles, 3–4k PNGs); `gltf-transform optimize` (meshopt + WebP 1024 + gentle simplify 0.3/0.0003) → 0.84–0.86 MB (faucet sink 4.2 MB, won't simplify). Harder simplify dented the shading. No Draco (CDN decoder). Recipe in `public/models/README.md`. Three duplicate .glb copies in `supabase/` untracked + ignored.
 
 **§112** Gemini Flash Lite painted the refs (C3, O1…) onto the image. Instructions now open with "NEVER DRAW ANY TEXT… codes are for your reasoning only"; full prompt and negatives forbid letters/numbers/labels/codes; short negative leads with "text or labels". Heavier model for customer images.
+
+**§113** Image brief at a camera adds `-colour.png`: the 3D view, same camera and size as the line drawing (aligned pixel-for-pixel), as a placement reference for which finish goes where; the brief says not to copy its CG look. To A/B against line + JSON only.

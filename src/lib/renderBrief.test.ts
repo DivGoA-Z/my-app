@@ -307,3 +307,19 @@ describe('no text in the image (§112)', () => {
     expect(p.negativePromptShort).toMatch(/^text or labels/);
   });
 });
+
+describe('colour reference (§113)', () => {
+  it('explains the colour view as placement only, not the look to copy', () => {
+    const b = buildRenderBrief(input({
+      referenceImages: [
+        { kind: 'line-render', file: 'k-guide.png', widthPx: 1024, heightPx: 576 },
+        { kind: 'colour-render', file: 'k-colour.png', widthPx: 1024, heightPx: 576 },
+      ],
+    }));
+    expect(b.referenceImages.map((i) => i.kind)).toEqual(['line-render', 'colour-render']);
+    expect(b.referenceImages[1].whatItIs).toMatch(/SAME camera/);
+    expect(b.referenceImages[1].whatItIs).toMatch(/do NOT copy its look/);
+    expect(b.prompt.instructions).toMatch(/k-colour\.png\) is the same view in colour/);
+    expect(b.prompt.instructions).toMatch(/k-guide\.png/);
+  });
+});
