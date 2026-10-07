@@ -442,6 +442,8 @@ export function CustomersPage({
         onClose={() => setPanorama(null)}
         cameraLabel={panorama?.label ?? ''}
         panoramaUrl={panorama?.panoramaUrl}
+        headingDeg={panorama?.viewAngleDeg}
+        pitchDeg={panorama?.pitchDeg}
       />
     </div>
   );

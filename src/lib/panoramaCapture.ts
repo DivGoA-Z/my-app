@@ -138,6 +138,29 @@ const EQUIRECT_FRAGMENT_SHADER = /* glsl */ `
   }
 `;
 
+// Where the 360° viewer should start looking for a camera that faces
+// `headingDeg` (clockwise from north, CameraNode.viewAngleDeg) and tilts
+// `pitchDeg` (+ up). Returns the viewer's yaw/pitch in radians.
+//
+// WHY THIS EXISTS (§109). The image's centre column is always world +Z —
+// SOUTH on the plan — whatever the camera's heading (u = 0.5 → lon = 0 →
+// dir = +Z in the shader above), and the viewer opens on the centre. So a
+// north-facing camera (the usual case) opened looking the opposite way.
+// From the shader: the column at viewer yaw θ looks along
+// (mirror·sin θ, cos θ) in world x/z; a heading h looks along
+// (sin h, −cos h) (lib/scene3d.ts). Solving: θ = h + π when mirrored (the
+// default), θ = π − h when not.
+export function panoramaStartView(
+  headingDeg: number,
+  pitchDeg = 0,
+  mirrorX: boolean = DEFAULT_CAPTURE_ORIENTATION.mirrorX
+): { yaw: number; pitch: number } {
+  const h = (headingDeg * Math.PI) / 180;
+  const raw = mirrorX ? h + Math.PI : Math.PI - h;
+  const yaw = ((raw % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  return { yaw, pitch: (pitchDeg * Math.PI) / 180 };
+}
+
 // Renders the scene from worldPosition in all directions and returns a
 // JPEG Blob of the resulting equirectangular panorama. Caller owns the
 // renderer/scene lifecycle — this only allocates and disposes its OWN

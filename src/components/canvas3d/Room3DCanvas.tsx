@@ -944,6 +944,8 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
         onClose={() => setIsViewerOpen(false)}
         cameraLabel={selectedCamera?.label ?? ''}
         panoramaUrl={selectedCamera?.panoramaUrl}
+        headingDeg={selectedCamera?.viewAngleDeg}
+        pitchDeg={selectedCamera?.pitchDeg}
       />
     </div>
   );

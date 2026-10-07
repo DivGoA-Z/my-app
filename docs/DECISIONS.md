@@ -6855,3 +6855,34 @@ to the 3D tab shows it at full size.
 **Out of scope, noticed:** a catalogue model URL fails to load (the
 error reads "Could not load /models/range-hood.glb."; the file exists,
 so the stored URL is probably slightly off). It falls back to a box.
+
+## 109. The 360° viewer opens facing the camera's direction
+
+Reported 7 Oct 2026: "360 view click gives us the default view opposite
+to the camera angle it is towards." This was older than §108 and not
+caused by it.
+
+**Cause.** The capture (`lib/panoramaCapture.ts`) always puts world +Z,
+which is **south** on the plan, at the centre of the 360° image,
+whatever the camera's heading. Photo Sphere Viewer opens on the centre,
+and was never given a heading. So a north-facing camera, the usual
+case, opened looking the opposite way.
+
+**Fix.** `panoramaStartView(heading, tilt)` gives the viewer its start
+yaw and pitch.
+- It's derived from the capture shader's mapping: θ = heading + 180°
+  with the default horizontal mirror, θ = 180° − heading without.
+- The tilt is passed straight through.
+- All three viewers pass the camera's `viewAngleDeg` and `pitchDeg`: the
+  3D view's "View 360°", the Cameras panel, and the Customers page.
+
+Existing panoramas need **no re-capture**. The image is fixed to the
+room, not to the camera, so the camera's current heading is the right
+start even if it was re-aimed after capturing.
+
+**Verified:** `panoramaCapture.test.ts` checks, for nine headings with
+and without the mirror, that the start column looks along the camera's
+heading (to 6 decimal places), and that a north camera doesn't open on
+the centre. **Not yet seen in the viewer by eye.** One assumption: a
+panorama captured with "Mirror horizontally" switched off starts
+mirrored round. The capture setting isn't stored, and the default is on.

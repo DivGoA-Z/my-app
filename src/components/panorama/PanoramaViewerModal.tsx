@@ -21,6 +21,7 @@ import { useEffect, useRef } from 'react';
 import { Viewer } from '@photo-sphere-viewer/core';
 import '@photo-sphere-viewer/core/index.css';
 import { Button } from '../ui/button';
+import { panoramaStartView } from '../../lib/panoramaCapture';
 
 export interface PanoramaViewerModalProps {
   isOpen: boolean;
@@ -30,6 +31,11 @@ export interface PanoramaViewerModalProps {
   // null/undefined means this node hasn't been captured yet — the
   // modal shows a short explanation instead of trying to load nothing.
   panoramaUrl?: string | null;
+  // Which way the camera faces (CameraNode.viewAngleDeg) and its tilt, so
+  // the viewer opens looking where the camera looks (§109). Without them
+  // it opened on the image's centre, which is always south.
+  headingDeg?: number;
+  pitchDeg?: number;
 }
 
 export function PanoramaViewerModal({
@@ -37,6 +43,8 @@ export function PanoramaViewerModal({
   onClose,
   cameraLabel,
   panoramaUrl,
+  headingDeg = 0,
+  pitchDeg = 0,
 }: PanoramaViewerModalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
@@ -54,10 +62,13 @@ export function PanoramaViewerModal({
       return;
     }
 
+    const start = panoramaStartView(headingDeg, pitchDeg);
     const viewer = new Viewer({
       container: containerRef.current,
       panorama: panoramaUrl,
       navbar: ['zoom', 'fullscreen'],
+      defaultYaw: start.yaw,
+      defaultPitch: start.pitch,
     });
     viewerRef.current = viewer;
 
@@ -65,7 +76,7 @@ export function PanoramaViewerModal({
       viewer.destroy();
       viewerRef.current = null;
     };
-  }, [isOpen, panoramaUrl]);
+  }, [isOpen, panoramaUrl, headingDeg, pitchDeg]);
 
   if (!isOpen) {
     return null;

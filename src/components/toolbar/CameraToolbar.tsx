@@ -227,6 +227,8 @@ export function CameraToolbar() {
         onClose={() => setViewingCameraId(null)}
         cameraLabel={viewingCamera?.label ?? ''}
         panoramaUrl={viewingCamera?.panoramaUrl}
+        headingDeg={viewingCamera?.viewAngleDeg}
+        pitchDeg={viewingCamera?.pitchDeg}
       />
     </div>
   );
