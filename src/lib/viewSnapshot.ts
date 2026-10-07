@@ -1,28 +1,24 @@
 // src/lib/viewSnapshot.ts
 //
-// What the 3D view hands the image pipeline (lib/renderBrief.ts,
-// lib/leonardo.ts): the camera's pose, and STRUCTURE renders of what
-// that camera sees — never the textured preview itself.
+// What the 3D view hands the image brief (lib/renderBrief.ts): the
+// camera's pose, and a STRUCTURE render of what that camera sees — never
+// the textured preview itself.
 //
 // WHY NOT THE PREVIEW (§97 → §101). A still of the 3D view was tried
 // first and didn't help: an image model copies its flat preview
 // materials, sky-blue background and cut-away walls, and comes back
-// looking like a better CG render rather than a photo. What a
-// structure-guided model (Leonardo's Edge/Depth to Image, a ControlNet)
-// needs is geometry with no look of its own:
+// looking like a better CG render rather than a photo. What it needs is
+// geometry with no look of its own: a hidden-line drawing, every surface
+// plain white and every edge black. Cabinet door and drawer seams,
+// handles and the countertop edge all survive as lines, which is what
+// stops a model inventing a third drawer. (A depth-map variant was built
+// for structure-guided models and removed with them in §105.)
 //
-//   'line'   every surface plain white, every edge black — a hidden-line
-//            drawing from the camera. Cabinet door and drawer seams,
-//            handles and the countertop edge all survive as lines, which
-//            is what stops a model inventing a third drawer.
-//   'depth'  near = white, far = black, linear in distance across the
-//            room — for pipelines that take a depth map directly.
-//
-// Rendered at an exact size (the image model's own, e.g. 1024 × 576) by
-// resizing the renderer for one frame and putting it back; render →
-// toDataURL stays synchronous so the WebGL buffer is still there to
-// read. Materials are swapped per mesh (not scene.overrideMaterial, which
-// would also turn the edge lines white) and restored in `finally`.
+// Rendered at an exact size (GUIDE_IMAGE_SIZE) by resizing the renderer
+// for one frame and putting it back; render → toDataURL stays
+// synchronous so the WebGL buffer is still there to read. Materials are
+// swapped per mesh (not scene.overrideMaterial, which would also turn
+// the edge lines white) and restored in `finally`.
 //
 // Editor furniture (camera markers, hotspots, the selection outline:
 // HIDE_IN_SNAPSHOT) and the photo behind a window (HIDE_IN_STRUCTURE) are
@@ -60,43 +56,18 @@ export function cameraPose(gl: THREE.WebGLRenderer, camera: THREE.Camera): Camer
   };
 }
 
-export type StructureKind = 'line' | 'depth';
-
 export interface StructureOptions {
   widthPx: number;
   heightPx: number;
-  // Depth only: distances (m) mapped to white and black. The caller
-  // knows the room, so it sets `far` to the farthest corner.
-  nearM?: number;
-  farM?: number;
 }
 
-const DEPTH_VERTEX = /* glsl */ `
-  varying vec3 vViewPos;
-  void main() {
-    vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    vViewPos = mv.xyz;
-    gl_Position = projectionMatrix * mv;
-  }
-`;
-// Written raw: a ShaderMaterial gets no tone mapping or colour-space
-// conversion unless its shader includes those chunks, so the grey level
-// IS the distance.
-const DEPTH_FRAGMENT = /* glsl */ `
-  uniform float uNear;
-  uniform float uFar;
-  varying vec3 vViewPos;
-  void main() {
-    float v = 1.0 - clamp((length(vViewPos) - uNear) / (uFar - uNear), 0.0, 1.0);
-    gl_FragColor = vec4(vec3(v), 1.0);
-  }
-`;
+// 16:9 at the size the first successful renders used (§101–§104).
+export const GUIDE_IMAGE_SIZE = { widthPx: 1024, heightPx: 576 };
 
 export function renderStructure(
   gl: THREE.WebGLRenderer,
   scene: THREE.Scene,
   camera: THREE.Camera,
-  kind: StructureKind,
   opts: StructureOptions
 ): string {
   const restores: (() => void)[] = [];
@@ -116,24 +87,16 @@ export function renderStructure(
     const surfaceFor = (side: THREE.Side) => {
       let m = bySide.get(side);
       if (!m) {
-        m =
-          kind === 'line'
-            ? new THREE.MeshBasicMaterial({
-                color: 0xffffff,
-                side,
-                toneMapped: false,
-                // Pushed back a touch so the edge lines on a surface win
-                // the depth test instead of flickering into it.
-                polygonOffset: true,
-                polygonOffsetFactor: 1,
-                polygonOffsetUnits: 1,
-              })
-            : new THREE.ShaderMaterial({
-                vertexShader: DEPTH_VERTEX,
-                fragmentShader: DEPTH_FRAGMENT,
-                uniforms: { uNear: { value: opts.nearM ?? 0.2 }, uFar: { value: opts.farM ?? 8 } },
-                side,
-              });
+        m = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          side,
+          toneMapped: false,
+          // Pushed back a touch so the edge lines on a surface win the
+          // depth test instead of flickering into it.
+          polygonOffset: true,
+          polygonOffsetFactor: 1,
+          polygonOffsetUnits: 1,
+        });
         bySide.set(side, m);
         disposables.push(m);
       }
@@ -160,7 +123,7 @@ export function renderStructure(
       if (!visible) continue;
       mesh.material = surfaceFor(side);
       restores.push(() => (mesh.material = original));
-      if (kind === 'line' && mesh.geometry) {
+      if (mesh.geometry) {
         const edges = new THREE.EdgesGeometry(mesh.geometry, EDGE_THRESHOLD_DEG);
         const lines = new THREE.LineSegments(edges, lineMaterial);
         mesh.add(lines);
@@ -170,7 +133,7 @@ export function renderStructure(
     }
 
     const previousBackground = scene.background;
-    scene.background = new THREE.Color(kind === 'line' ? 0xffffff : 0x000000);
+    scene.background = new THREE.Color(0xffffff);
     restores.push(() => (scene.background = previousBackground));
 
     // The exact output size, for this one frame.

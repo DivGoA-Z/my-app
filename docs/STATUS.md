@@ -23,15 +23,13 @@ the history is in `git log`.
 - 3D walkthrough with camera nodes, 360° panoramas, three lighting
   modes, HDRI + Lightformer environment.
 - Wall elevation; present mode (customer view with a price reveal).
-- Image brief (§97–§101), from the 3D view, for:
-  - **Leonardo:** a line render of the camera you stand at, plus a JSON
-    with ready Leonardo request bodies (structure-locked Vision XL;
-    Phoenix prompt-only).
+- Image brief (§97–§105), one button in the 3D view: standing at a
+  camera, a line drawing of that view; otherwise the plan + four-wall
+  sheet; always a JSON describing everything, with full, condensed and
+  short prompts. No image model is named (Gemini did best in tests).
 - Cameras are saved views (§102, §103): height and tilt in the Cameras
   panel, a hold-to-move pad (forward/back/left/right/up/down), and "Save
   this view" in the 3D walkthrough for heading, tilt and lens.
-  - **a chat image model:** one sheet (plan + four walls) and a JSON spec
-    with a full and a condensed prompt.
 - Top view (§99) in the Elevation tab: a line plan (Drawing) and a 3D
   view from straight above.
 - Parametric fronts: mixed rows, tambour, glass in four tints, three
@@ -77,7 +75,7 @@ the history is in `git log`.
 
 ## Tests
 
-`npm test` (Vitest): **233 tests** in 30 files (this said 125, which
+`npm test` (Vitest): **226 tests** in 29 files (this said 125, which
 was stale). Maths tests cover pricing, the cutting list, nesting,
 panels, the importer, physical depth, the pipeline rules, and the image
 brief with its plan and elevation drawings. Screen tests (React Testing Library) cover the rate card, boards,
@@ -128,17 +126,13 @@ still checked by eye.
 - Saved camera views and the move pad (§102, §103): "Save this view",
   the tilted walkthrough and the glide are not yet seen in a browser
   (maths and the panel are tested).
-- Leonardo (§104): first real run had exact geometry but drawn edges
-  and lost colour; strength lowered to Mid and a short prompt added,
-  not yet re-tried.
-- Leonardo pack (§101): the structure renderer was checked in a browser
-  on a test scene; not yet from a real design in the app, and no
-  Leonardo output yet. Sending to Leonardo isn't built (needs a
-  server-side proxy for the API key; your decision).
-- Image brief and Top view (§97–§100): the downloads and the Top view
-  were checked in a browser, but only on an empty design. Not yet seen:
-  the 3D top view with units in it, the optional 3D still, and any
-  result from an actual image model.
+- Image generation (§105): models compared by hand on one design;
+  nothing is sent to a model from the app (that needs a server-side
+  piece holding the API key).
+- Image brief and Top view (§97–§105): the guide image was downloaded
+  from a real design and used successfully by hand; the Top view was
+  checked in a browser only on an empty design (3D top view with units
+  not yet seen).
 
 ## Not built
 

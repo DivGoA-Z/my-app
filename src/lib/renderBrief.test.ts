@@ -276,3 +276,24 @@ describe('prompt wording (§104)', () => {
     expect(shortFinish(veneer, '')).toBe('teak matte wood-grain veneer');
   });
 });
+
+describe('short prompt (§105)', () => {
+  it('fits the length limits, materials first, no sizes or refs', async () => {
+    const { SHORT_PROMPT_MAX_CHARS, SHORT_NEGATIVE_MAX_CHARS } = await import('./renderBrief');
+    const p = buildRenderBrief(input()).prompt;
+    expect(p.imagePromptShort.length).toBeLessThanOrEqual(SHORT_PROMPT_MAX_CHARS);
+    expect(p.negativePromptShort.length).toBeLessThanOrEqual(SHORT_NEGATIVE_MAX_CHARS);
+    expect(p.imagePromptShort.split('. ')[1]).toMatch(/cabinets/);
+    expect(p.imagePromptShort).not.toMatch(/\bmm\b|\b[CAOPL]\d+\b/);
+  });
+
+  it('puts counter clutter first in the short negative (it was the term cut off when a dish rack appeared)', () => {
+    const neg = buildRenderBrief(input()).prompt.negativePromptShort;
+    expect(neg.startsWith('decor or utensils on the counters')).toBe(true);
+    expect(new Set(neg.split(', ')).size).toBe(neg.split(', ').length);
+  });
+
+  it('names no image model anywhere in the brief', () => {
+    expect(JSON.stringify(buildRenderBrief(input()))).not.toMatch(/leonardo|phoenix|gemini|qwen|flux|sdxl/i);
+  });
+});

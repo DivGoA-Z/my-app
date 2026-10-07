@@ -275,16 +275,26 @@ export interface RenderBrief {
   // imagePromptCondensed: ≤ CONDENSED_MAX_WORDS of visual description,
   // most important first, for a diffusion model's text encoder, which
   // truncates (CLIP at 77 tokens) and can't use millimetres or refs.
-  prompt: { instructions: string; imagePrompt: string; imagePromptCondensed: string; negativePrompt: string };
+  // imagePromptShort / negativePromptShort: ≤ SHORT_PROMPT_MAX_CHARS /
+  // SHORT_NEGATIVE_MAX_CHARS, colours first, for a tool with a prompt-
+  // length limit (§104–§105). Paste these rather than shortening a longer
+  // one elsewhere, which loses the grounding.
+  prompt: {
+    instructions: string;
+    imagePrompt: string;
+    imagePromptCondensed: string;
+    imagePromptShort: string;
+    negativePrompt: string;
+    negativePromptShort: string;
+  };
 }
 
-// 'elevations' = the plan + four-wall sheet (lib/elevationSheet.ts), for
-// chat-style models. 'line-render' / 'depth-map' = structure renders from
-// the 3D camera (lib/viewSnapshot.ts), for structure-guided models such
-// as Leonardo's Edge/Depth to Image. The textured 3D still that was
-// 'perspective' is gone (§101).
+// 'line-render' = a line drawing of exactly what the chosen camera sees
+// (lib/viewSnapshot.ts); 'elevations' = the plan + four-wall sheet
+// (lib/elevationSheet.ts), when no camera is chosen. The textured 3D
+// still ('perspective') went in §101, the depth map in §105.
 export interface ReferenceImage {
-  kind: 'elevations' | 'line-render' | 'depth-map';
+  kind: 'elevations' | 'line-render';
   file: string;
   widthPx: number;
   heightPx: number;
@@ -295,8 +305,6 @@ const REFERENCE_IMAGE_MEANING: Record<ReferenceImage['kind'], string> = {
     'Line drawing of all four walls, each seen straight on from inside the room, to one common scale. It shows exactly what stands against each wall: every cabinet split into its real doors and drawers with handle marks, the countertop, sink, hob and chimney, windows, doors and pillars. Labels (C1, A1, O1, P1) match this file. Grey blocks at a wall\'s ends are the sides of units on the neighbouring wall. It is a diagram of geometry only; colours and materials come from this file.',
   'line-render':
     'Hidden-line drawing of this design from the camera in `view`: every surface white, every edge black. It fixes the camera, the composition and every edge (cabinet outlines, door and drawer seams, handles, the countertop). It has no materials or light of its own.',
-  'depth-map':
-    'Depth map from the same camera: near is white, far is black, linear across the room.',
 };
 
 export interface RenderBriefInput {
@@ -1074,7 +1082,14 @@ function buildPrompt(b: Omit<RenderBrief, 'prompt'>): RenderBrief['prompt'] {
   // "people"), and a repeated term only costs tokens.
   const negativePrompt = [...new Set(negativeTerms)].join(', ');
 
-  return { instructions, imagePrompt: lines.join('\n'), imagePromptCondensed: condensedPrompt(b), negativePrompt };
+  return {
+    instructions,
+    imagePrompt: lines.join('\n'),
+    imagePromptCondensed: condensedPrompt(b),
+    imagePromptShort: shortPrompt(b),
+    negativePrompt,
+    negativePromptShort: shortNegative(b),
+  };
 }
 
 // ---- The condensed prompt ----
@@ -1206,7 +1221,7 @@ function runPhrase(cabinets: CabinetEntry[]): string {
   return `${joinAnd(finishes)}${handle ? `, with ${handle}` : ''}`;
 }
 
-// `maxWords` lets a caller reserve room for its own prefix (lib/leonardo.ts).
+// `maxWords` lets a caller reserve room for its own prefix.
 export function condensedPrompt(b: Omit<RenderBrief, 'prompt'>, maxWords = CONDENSED_MAX_WORDS): string {
   // dropRank: 0 = never dropped; higher drops first.
   const parts: { text: string; dropRank: number }[] = [];
@@ -1255,8 +1270,8 @@ export function condensedPrompt(b: Omit<RenderBrief, 'prompt'>, maxWords = CONDE
     const a = has(label);
     if (a) appl.push(proseCase(withoutSizes(a.model ?? a.type)));
   }
-  // One flowing paragraph, not a list of labelled fields: Leonardo's
-  // Phoenix and the SDXL encoders read prose better than "Key: value".
+  // One flowing paragraph, not a list of labelled fields: image models'
+  // text encoders read prose better than "Key: value".
   if (appl.length) add(`It has ${joinAnd(appl.map(withArticle))}.`, 1);
   const pillars = b.obstacles.filter((o) => o.floorToCeiling);
   if (pillars.length) add(`${pillars.length === 1 ? 'A plastered floor-to-ceiling pillar' : `${pillars.length} plastered floor-to-ceiling pillars`} built into the walls.`, 4);
@@ -1282,6 +1297,81 @@ export function condensedPrompt(b: Omit<RenderBrief, 'prompt'>, maxWords = CONDE
     kept = kept.filter((p) => p.dropRank !== rank);
   }
   return kept.map((p) => p.text).join(' ');
+}
+
+// ---- The short prompt (§104–§105) ----
+//
+// For tools with a prompt-length limit. Colours and materials first (a
+// short prompt's first words weigh most), then appliances and light, then
+// style; whole clauses are dropped from the end of the optional list
+// until it fits. No counts, sizes or refs.
+
+export const SHORT_PROMPT_MAX_CHARS = 400;
+export const SHORT_NEGATIVE_MAX_CHARS = 300;
+
+// The finish most cabinets wear, with their most common handle: the one
+// sentence a short prompt can afford about the units.
+function mainCabinetLook(cabinets: CabinetEntry[]): string | null {
+  if (!cabinets.length) return null;
+  const tally = (keys: string[]) => {
+    const n = new Map<string, number>();
+    for (const k of keys) n.set(k, (n.get(k) ?? 0) + 1);
+    return [...n].sort((a, b) => b[1] - a[1])[0]?.[0];
+  };
+  const finish = tally(cabinets.map((c) => shortFinish(c.finish, 'plain light')));
+  const handle = tally(
+    cabinets
+      .filter((c) => c.handle)
+      .map((c) => (c.handle!.kind === 'handleless' ? 'handleless fronts' : `${metalColour(c.handle!)} ${c.handle!.kind} handles`))
+  );
+  return `${finish} cabinets${handle ? ` with ${handle}` : ''}`;
+}
+
+const sentence = (t: string) => `${t}.`.replace(/^./, (c) => c.toUpperCase());
+
+export function shortPrompt(b: Omit<RenderBrief, 'prompt'>, maxChars = SHORT_PROMPT_MAX_CHARS): string {
+  const first = `Photorealistic interior photo of a compact ${kitchenShape(b.cabinets)} in an Indian apartment.`;
+  const look: string[] = [];
+  const cabinets = mainCabinetLook(b.cabinets);
+  if (cabinets) look.push(cabinets);
+  if (b.countertop) look.push(`${shortFinish(b.countertop.finish, 'polished light-grey stone')} countertop`);
+  look.push(`${shortFinish(b.room.floor, 'light-grey tile')} floor`);
+  const optional: string[] = [];
+  const hob = b.appliances.find((a) => a.type === APPLIANCE_TYPE_LABELS.stove);
+  const chimney = b.appliances.some((a) => a.type === APPLIANCE_TYPE_LABELS.chimney);
+  const sink = b.appliances.some((a) => a.type === APPLIANCE_TYPE_LABELS.sink);
+  const kit = [
+    hob ? `${withArticle(proseCase(withoutSizes(hob.model ?? 'built-in hob')))}${chimney ? ' under a chimney hood' : ''}` : '',
+    sink ? 'an inset sink' : '',
+  ].filter(Boolean);
+  if (kit.length) optional.push(sentence(kit.join(' and ')));
+  const light = [
+    b.openings.some((o) => o.daylight) ? 'soft daylight from a window' : '',
+    // "Warm" only where it is: 3,500 K and below.
+    ...[...new Set(b.lighting.fixtures.filter((f) => f.on).map((f) => `${f.colourTempK <= 3500 ? 'warm ' : ''}${f.colourTempK} K ${f.kind.toLowerCase()}`))].slice(0, 1),
+  ].filter(Boolean);
+  if (light.length) optional.push(sentence(light.join(' and ')));
+  const style = 'True-to-colour, uncluttered, sharp.';
+
+  const lookSentence = sentence(look.join(', '));
+  for (let keep = optional.length; keep >= 0; keep--) {
+    const text = [first, lookSentence, ...optional.slice(0, keep), style].join(' ');
+    if (text.length <= maxChars) return text;
+  }
+  return [first, lookSentence, style].join(' ').slice(0, maxChars);
+}
+
+// Counter clutter first: a model with only a short negative still added
+// a dish rack and towel when that term was the one cut off (§104). Then
+// the generic guards, then what's absent.
+export function shortNegative(b: Omit<RenderBrief, 'prompt'>, maxChars = SHORT_NEGATIVE_MAX_CHARS): string {
+  const terms = [...new Set(['decor or utensils on the counters', 'clutter', 'extra cabinets', 'extra appliances', 'people', 'text', 'watermark', 'CGI look', 'distorted perspective', ...b.notInThisRoom])];
+  const out: string[] = [];
+  for (const t of terms) {
+    if ([...out, t].join(', ').length > maxChars) break;
+    out.push(t);
+  }
+  return out.join(', ');
 }
 
 function geometryInstruction(images: RenderBrief['referenceImages']): string {

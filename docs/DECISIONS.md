@@ -6564,3 +6564,41 @@ the Mid strength, the artefact terms in the negative, and the short
 prompt's limits and order. A short prompt for a kitchen like the one
 tried was printed and read (350 characters). **Not yet tried on
 Leonardo.**
+
+## 105. One Image brief, no model names; Leonardo set aside
+
+**Tried, 6–7 Oct 2026**, on one design with the same guide image and
+data:
+
+| Model | Result |
+|---|---|
+| Leonardo Lightning XL + Edge to Image | exact layout, but drawn "stitched" edges and lost colour (§104) |
+| Leonardo + Flux with a plain image reference | right look, but rearranged the layout: hob and sink swapped, window moved, tambour gone |
+| Gemini (thinking image model) with the full JSON + guide image | kept the layout and the look; invented only a wooden ceiling |
+| Qwen Image 2.0 (3.0 was "high demand" on the free plan) | ignored most of the guide: tall unit and tambour gone, window moved, and **an oven added** despite "oven" in the negative prompt |
+
+**Decision:** for now, the target is a chat-style model that reads the
+JSON and looks at the guide image (Gemini did best). The app names no
+model until that's final.
+
+**What changed:**
+- **One "Image brief" button**, no selector:
+  - Standing at a camera: `<design>-guide.png` (the line drawing of
+    that exact view) plus `<design>-render-brief.json`.
+  - Free orbit: `<design>-elevations.png` (plan + four walls) plus the
+    JSON, since a cut-away orbit view would be painted as a dollhouse.
+- **Leonardo-specific code removed:** `lib/leonardo.ts` (request bodies,
+  model IDs, the "Masterpiece…" prefix, the line-artefact negative
+  terms, the 1,500-character cap) and the depth-map variant of
+  `renderStructure`. It's all kept on the git branch `leonardo-pack`.
+- **The short prompt is model-neutral and stays.** The brief carries
+  `prompt.imagePromptShort` (≤ 400 characters) and
+  `prompt.negativePromptShort` (≤ 300) for any tool with a length
+  limit. The short negative now leads with "decor or utensils on the
+  counters": when that term was the one cut off, a dish rack and a
+  towel appeared. A fixture is called "warm" only at 3,500 K or below.
+- A test checks that the brief names no image model.
+
+Still to do, from the Gemini result: guard the ceiling ("plain white,
+no wooden or false ceiling" when none is chosen), and say that an
+under-sink RO purifier stays inside the sink unit.

@@ -101,9 +101,8 @@ import { buildRenderBrief, renderBriefFileStem, viewFromWorldCamera } from '../.
 import type { ReferenceImage } from '../../lib/renderBrief';
 import { elevationSheetSvg } from '../../lib/elevationSheet';
 import { svgToPng } from '../../lib/svgToPng';
-import { HIDE_IN_SNAPSHOT, HIDE_IN_STRUCTURE, cameraPose, renderStructure } from '../../lib/viewSnapshot';
-import type { CameraPose, StructureKind, StructureOptions } from '../../lib/viewSnapshot';
-import { buildLeonardoPack, LEONARDO_SIZE } from '../../lib/leonardo';
+import { HIDE_IN_SNAPSHOT, HIDE_IN_STRUCTURE, GUIDE_IMAGE_SIZE, cameraPose, renderStructure } from '../../lib/viewSnapshot';
+import type { CameraPose, StructureOptions } from '../../lib/viewSnapshot';
 import { downloadBlob } from '../../lib/downloadBlob';
 import { useRenderBriefInput } from '../../hooks/useRenderBriefInput';
 import { Cabinet3DInspector } from './Cabinet3DInspector';
@@ -379,25 +378,20 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
     }
   }
 
-  // The image brief (lib/renderBrief.ts), packaged for one of two kinds
-  // of image model (§98–§101):
-  //   leonardo  a line render + depth map of THIS camera (structure, no
-  //             look of its own) and ready Leonardo request bodies
-  //             (lib/leonardo.ts). Needs a standing camera: a cut-away
-  //             orbit view would be rendered as a dollhouse.
-  //   chat      the plan + four-wall sheet (lib/elevationSheet.ts) for a
-  //             chat-style model that reads drawings.
+  // The image brief (lib/renderBrief.ts): the JSON that says what every
+  // shape is, plus ONE picture of the geometry (§105):
+  //   standing at a camera → a line drawing of exactly what that camera
+  //     sees (lib/viewSnapshot.ts). With the JSON, this is what kept the
+  //     layout in the first real tests.
+  //   free orbit → the plan + four-wall sheet (lib/elevationSheet.ts),
+  //     since a cut-away orbit view would be painted as a dollhouse.
+  // No model is named anywhere: which image service to use is still open.
   const viewFnsRef = useRef<ViewFns | null>(null);
   const briefInput = useRenderBriefInput();
-  const [briefTarget, setBriefTarget] = useState<'leonardo' | 'chat'>('leonardo');
 
   async function handleRenderBrief() {
     const fns = viewFnsRef.current;
     if (!currentLayout || !briefInput || !fns) return;
-    if (briefTarget === 'leonardo' && !lockedCamera) {
-      toast.error('Choose a camera in "Look from" first: Leonardo is guided by what that camera sees.');
-      return;
-    }
     try {
       const pose = fns.pose();
       const stem = renderBriefFileStem(currentLayout.name);
@@ -418,17 +412,14 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
       const json = (data: unknown, file: string) =>
         downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), file);
 
-      if (briefTarget === 'leonardo') {
-        // Only the line render: it's the one image Leonardo is sent. A
-        // depth map was downloaded too and got uploaded by mistake (§102).
-        const { widthPx, heightPx } = LEONARDO_SIZE;
-        const line = fns.structure('line', { widthPx, heightPx });
-        const images: ReferenceImage[] = [{ kind: 'line-render', file: `${stem}-leonardo-guide.png`, widthPx, heightPx }];
+      if (lockedCamera) {
+        const { widthPx, heightPx } = GUIDE_IMAGE_SIZE;
+        const line = fns.structure({ widthPx, heightPx });
+        const images: ReferenceImage[] = [{ kind: 'line-render', file: `${stem}-guide.png`, widthPx, heightPx }];
         const brief = buildRenderBrief({ ...base, referenceImages: images });
-        const leonardo = buildLeonardoPack(brief, { guidance: images[0].file });
         downloadBlob(await (await fetch(line)).blob(), images[0].file);
-        json({ ...brief, leonardo }, `${stem}-leonardo.json`);
-        toast.success('Leonardo pack downloaded: the guide image and the request (JSON).');
+        json(brief, `${stem}-render-brief.json`);
+        toast.success(`Image brief downloaded: what ${lockedCamera.label} sees, and the brief (JSON).`);
       } else {
         // Drawn from a first pass of the brief, so the sheet and the JSON
         // share refs; the second pass only adds the image list.
@@ -440,7 +431,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
         const brief = buildRenderBrief({ ...base, referenceImages: images });
         downloadBlob(await svgToPng(sheet.svg, sheet.widthPx, sheet.heightPx, sheetScale), images[0].file);
         json(brief, `${stem}-render-brief.json`);
-        toast.success('Image brief downloaded: plan and elevations, and the brief (JSON).');
+        toast.success('Image brief downloaded: plan and walls, and the brief (JSON). Stand at a camera for a picture of that view instead.');
       }
     } catch (err) {
       toast.error(err instanceof Error ? `Image brief failed: ${err.message}` : 'Image brief failed.');
@@ -450,7 +441,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
   // Saves where you're looking now (after dragging to look around) as
   // this camera's view: heading, tilt and lens (§102). The image brief
   // renders exactly that, so framing by eye here is how you set up the
-  // Leonardo shot.
+  // shot for a photo-realistic render.
   const updateCamera = useLayoutStore((state) => state.updateCamera);
   function handleSaveView() {
     const fns = viewFnsRef.current;
@@ -494,17 +485,6 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1.5 text-[13px] font-semibold">
-          Image brief for
-          <select
-            value={briefTarget}
-            onChange={(e) => setBriefTarget(e.target.value as 'leonardo' | 'chat')}
-            className="h-11 rounded-[10px] border border-input bg-card px-3 text-[15px]"
-          >
-            <option value="leonardo">Leonardo (guided by this camera)</option>
-            <option value="chat">Chat image model (plan + walls)</option>
-          </select>
-        </label>
         {lockedCamera && (
           <Button variant="outline" size="touch" onClick={handleSaveView}>
             <Save /> Save this view
@@ -523,7 +503,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
         {selectedCamera?.panoramaCapturedAt &&
           !captureError &&
           ` 360° photo taken ${new Date(selectedCamera.panoramaCapturedAt).toLocaleString()}.`}
-        {' '}Image brief for Leonardo saves a line drawing of what this camera sees, a depth map and the request to send; stand at a camera first. For a chat model it saves the plan and all four walls.
+        {' '}Image brief saves a line drawing of what this camera sees and a description of everything in it, for a photo-realistic render; without a camera it saves the plan and all four walls instead.
       </p>
       {captureError && <p className="text-[13px] font-medium text-destructive">Capture failed: {captureError}</p>}
 
@@ -968,7 +948,7 @@ function PanoramaCaptureBridge({
 // render the wrong view.
 interface ViewFns {
   pose: () => CameraPose;
-  structure: (kind: StructureKind, opts: StructureOptions) => string;
+  structure: (opts: StructureOptions) => string;
 }
 
 function ViewSnapshotBridge({ viewFnsRef }: { viewFnsRef: { current: ViewFns | null } }) {
@@ -980,9 +960,9 @@ function ViewSnapshotBridge({ viewFnsRef }: { viewFnsRef: { current: ViewFns | n
         const { gl, camera } = get();
         return cameraPose(gl, camera);
       },
-      structure: (kind, opts) => {
+      structure: (opts) => {
         const { gl, scene, camera } = get();
-        return renderStructure(gl, scene, camera, kind, opts);
+        return renderStructure(gl, scene, camera, opts);
       },
     };
     return () => {
