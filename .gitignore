@@ -28,3 +28,7 @@ e2e/screens/
 e2e/.results/
 playwright-report/
 .wrangler/
+
+# 3D models belong in public/models/. Loose .glb files here were swept
+# into a commit once (7 Oct 2026, §111); never track them from here.
+supabase/*.glb

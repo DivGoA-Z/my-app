@@ -61,3 +61,26 @@ with two differences:
 These load in the browser, often on mobile over mobile data. Aim for
 low-poly assets under a couple of MB each. Draco-compressed files are
 **not** currently supported — the loader has no decoder configured.
+
+## Shrink every model before adding it (§111)
+
+Models from stores like Furnimesh often come at film detail: ~290,000
+triangles and 3–4k PNG textures, 15–25 MB and 100–200 MB of GPU memory
+each. On screen they fill a few hundred pixels. Run this first (writes
+`out.glb`; check it looks the same, then use it):
+
+```sh
+npx -y @gltf-transform/cli@4 optimize in.glb out.glb \
+  --compress meshopt --texture-compress webp --texture-size 1024 \
+  --simplify true --simplify-ratio 0.3 --simplify-error 0.0003
+```
+
+- `meshopt` compression and WebP textures load with no extra download: the
+  app's loader (drei `useGLTF`) includes the meshopt decoder. Don't use
+  `--compress draco` — that fetches a decoder from Google's CDN at runtime.
+- Keep the simplification gentle. `--simplify-ratio 0.08 --simplify-error
+  0.001` was tried on the fridge and made its doors look dented (§111).
+- If the triangle count barely drops, the mesh has hard edges/seams
+  everywhere and won't simplify; the compression and smaller textures
+  still cut most of the size.
+- Target: under ~1 MB per appliance; a few MB at most.

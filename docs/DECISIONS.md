@@ -6953,3 +6953,52 @@ holding Forward then Up visibly moved the view each time.
 Also asked: the countertop cut for the sink already exists (§3). It's
 drawn only when the sink's catalogue row has "Cutout width/depth" set,
 and it doesn't change the quote.
+
+## 111. Heavy appliance models shrunk; stray duplicates untracked
+
+**Duplicates.** Commit `10c87b5` (§108's "keep the 3D tab alive") was
+made by a background worker that staged everything in the folder. It
+swept in three copies of your new models that were sitting in
+`supabase/` under random names (~58 MB), and they were pushed. They're
+now untracked, with `supabase/*.glb` in `.gitignore`; the files stay on
+disk. They remain in git history: removing them would need a history
+rewrite and a force-push, which isn't done. They were never served (only
+`public/` is).
+
+**The new models were film-detail:**
+
+| Model | Triangles | Textures | File | GPU memory |
+|---|---|---|---|---|
+| black_sink | 285k | 3072 px PNG | 15 MB | ~100 MB |
+| fridge | 289k | 3072 px PNG | 18 MB | ~100 MB |
+| black_sink_w_faucet | 291k | 4096 px PNG | 25 MB | ~180 MB |
+
+Each fills a few hundred pixels on screen. Optimised with
+`gltf-transform optimize`: meshopt geometry compression, WebP textures
+at 1024 px, and gentle simplification (ratio 0.3, error 0.0003).
+
+| Model | Before | After |
+|---|---|---|
+| black_sink | 15 MB, 285k triangles | **0.86 MB**, 85k triangles |
+| fridge | 18 MB, 289k triangles | **0.84 MB**, 87k triangles |
+| black_sink_w_faucet | 25 MB, 291k triangles | **4.2 MB**, 257k triangles |
+
+The faucet model has seams everywhere (446k corners for 291k triangles),
+so it won't simplify; compression and smaller textures still cut it by
+83%. Re-exporting it at lower detail from the source would be the next
+step.
+
+**How the settings were chosen, by rendering side by side:**
+- A harder simplification (ratio 0.08, error 0.001: 29k/27k triangles,
+  ~0.5 MB) made the fridge doors and the sink bowl look **dented**: big
+  triangles bent the smooth shading. Rejected.
+- The gentle setting matched the originals by eye.
+- No simplification at all matched too, at twice the size.
+
+Decoder safety:
+- **meshopt:** drei's `useGLTF` enables it by default, with three-stdlib's
+  bundled decoder, so there's no network fetch. All three load through
+  that exact loader, with textures.
+- **Draco:** avoided, because it fetches its decoder from a CDN.
+
+The recipe is in `public/models/README.md`, for the next model added.
