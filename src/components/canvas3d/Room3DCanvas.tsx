@@ -146,6 +146,11 @@ export interface Room3DCanvasProps {
   // wallView rather than a fifth value of it, because everything keyed
   // on wallView means "one wall and what's against it".
   topView?: boolean;
+  // False while the view is kept mounted but hidden (the editor's 3D tab
+  // when another tab is showing, §108): draws nothing, but keeps its
+  // compiled shaders and loaded textures for when it's shown again.
+  // display:none alone wouldn't stop the frame loop.
+  active?: boolean;
 }
 
 const DEFAULT_CEILING_HEIGHT_MM = 2700;
@@ -195,7 +200,7 @@ const SELECTION_OUTLINE_SCALE = 1.012;
 const HOTSPOT_COLOR = '#2dd4bf'; // teal-400 — matches CameraMarker's teal family
 const HOTSPOT_ACTIVE_COLOR = '#facc15'; // amber-400 — deliberately distinct so "you are here" stands out
 
-export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = false, topView = false }: Room3DCanvasProps) {
+export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = false, topView = false, active = true }: Room3DCanvasProps) {
   // Either fixed-camera drawing view: no walkthrough controls, no
   // camera markers, fills the editor's height.
   const drawingView = !!wallView || topView;
@@ -632,7 +637,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
           // and drei's OrbitControls asks on every move; the rest
           // (camera easing, the hotspot pulse, exposure, textures that
           // finish loading) call invalidate() themselves.
-          frameloop={shadersReady ? 'demand' : 'never'}
+          frameloop={shadersReady && active ? 'demand' : 'never'}
           // Fires when a click hits no mesh at all — clicking the
           // floor or empty space clears the selection, matching how
           // the 2D canvas behaves.
@@ -919,6 +924,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
           <ViewSnapshotBridge viewFnsRef={viewFnsRef} />
           <ShaderWarmup onReady={setShadersReady} />
           <RedrawOn value={shadersReady} />
+          <RedrawOn value={active} />
         </Canvas>
 
         {/* Overlays the canvas (the wrapper is position:relative) rather

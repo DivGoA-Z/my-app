@@ -127,6 +127,10 @@ export function DesignEditor({
   const bom = useBOM();
 
   const [view, setView] = useState<EditorView>('plan');
+  // Set the first time the 3D tab is shown, and never unset (§108).
+  // Adjusted during render, not in an effect (CLAUDE.md).
+  const [visited3d, setVisited3d] = useState(false);
+  if (view === '3d' && !visited3d) setVisited3d(true);
   // Elevation: the measured drawing or the 3D wall view, for one wall.
   const [elevMode, setElevMode] = useState<'drawing' | '3d'>('3d');
   // A wall, or 'top': the room from above, which shows what the four
@@ -437,11 +441,7 @@ export function DesignEditor({
                 </RoomCanvas>
               )}
             </div>
-          ) : view === '3d' ? (
-            <div className="flex-1 overflow-y-auto p-4 md:p-6">
-              <Room3DCanvas widthMm={roomWidthMm} depthMm={roomDepthMm} />
-            </div>
-          ) : (
+          ) : view === '3d' ? null : (
             <div className="flex min-h-0 flex-1 flex-col">
               {/* One wall picker for both the measured drawing and the 3D
                   wall view (§82), so switching mode keeps the wall. */}
@@ -496,6 +496,17 @@ export function DesignEditor({
                   <Room3DCanvas widthMm={roomWidthMm} depthMm={roomDepthMm} wallView={elevWall} />
                 )}
               </div>
+            </div>
+          )}
+
+          {/* The 3D tab stays mounted once opened, hidden and paused while
+              another tab shows (§108). Remounting it rebuilt the scene and
+              recompiled its shaders on every visit: a visible freeze each
+              time you came back. Mounted only after the first visit, so a
+              session that never opens 3D pays nothing. */}
+          {!isLoading && visited3d && (
+            <div className={cn('flex-1 overflow-y-auto p-4 md:p-6', view !== '3d' && 'hidden')}>
+              <Room3DCanvas widthMm={roomWidthMm} depthMm={roomDepthMm} active={view === '3d'} />
             </div>
           )}
         </main>
