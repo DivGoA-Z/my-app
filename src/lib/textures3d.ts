@@ -39,7 +39,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import * as THREE from 'three';
-import { useThree } from '@react-three/fiber';
+import { invalidate, useThree } from '@react-three/fiber';
 import { GENERATED_TEXTURE_FILES } from './textureManifest';
 
 export type SurfaceKind = 'wood' | 'quartz' | 'tile';
@@ -396,13 +396,22 @@ function generateTextureSet(kind: SurfaceKind): TextureSet {
   };
 }
 
+// The image arrives after the texture object is in the scene, with no
+// React render to say so, and the 3D views draw only on demand (§108):
+// without this a surface would stay blank until the next mouse move.
+// Wrapped because R3F's invalidate(state?, frames?) would take the
+// loaded texture for its first argument.
+function redrawWhenLoaded() {
+  invalidate();
+}
+
 function loadTextureSet(files: SurfaceFileSet): TextureSet {
   // TextureLoader returns the Texture synchronously and fills in the
   // image when the request finishes, so callers don't need to handle a
   // loading state — the surface just pops in.
   const loader = new THREE.TextureLoader();
   const load = (url: string, isColorData: boolean) => {
-    const texture = loader.load(url);
+    const texture = loader.load(url, redrawWhenLoaded);
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
     texture.colorSpace = isColorData ? THREE.SRGBColorSpace : THREE.LinearSRGBColorSpace;
@@ -502,7 +511,7 @@ function getUrlTexture(url: string, isColorData: boolean): THREE.Texture {
   const cached = urlTextureCache.get(key);
   if (cached) return cached;
 
-  const texture = new THREE.TextureLoader().load(url);
+  const texture = new THREE.TextureLoader().load(url, redrawWhenLoaded);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
   // Same rule as note 1 in the header, and the most common way to get a

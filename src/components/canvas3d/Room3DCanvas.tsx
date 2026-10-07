@@ -164,6 +164,11 @@ const DEFAULT_FIRST_PERSON_FOV_DEG = 60;
 // position/rotation lerp — see the comment on its useFrame for why this
 // (rather than a plain delta*speed lerp) is frame-rate independent.
 const CAMERA_TRANSITION_DAMPING = 6;
+// Where the ease counts as arrived and frames stop being requested
+// (§108): half a millimetre and a hundredth of a degree, below anything
+// visible.
+const EASE_DONE_M = 0.0005;
+const EASE_DONE_RAD = (0.01 * Math.PI) / 180;
 // Radians of look rotation per pixel dragged — tuned for a "natural"
 // mouse feel at typical drag distances; easy single-number retune if
 // it reads too sensitive/sluggish once tried for real.
@@ -175,6 +180,8 @@ const MAX_PITCH_RAD = (85 * Math.PI) / 180;
 // not a click — see wasDrag in Room3DCanvas.
 const CLICK_DRAG_TOLERANCE_PX = 5;
 const HOTSPOT_RADIUS_M = 0.35;
+// How long the active hotspot pulses after you step onto it (§108).
+const HOTSPOT_PULSE_SECONDS = 3;
 // Selection is shown as an edge outline AROUND the cabinet, never as
 // a change to its surface. An emissive tint was tried first and was
 // wrong: emissive ADDS light to the material, which shifts the
@@ -612,6 +619,15 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
       >
         <Canvas
           shadows
+          // Draw only when something changed (§108). A kitchen is still
+          // unless the camera moves, and the default "always" loop
+          // redrew the whole room, shadows included, 60 times a second:
+          // a quarter of the main thread with nothing on screen moving.
+          // R3F redraws on its own after any React change to the scene
+          // and drei's OrbitControls asks on every move; the rest
+          // (camera easing, the hotspot pulse, exposure, textures that
+          // finish loading) call invalidate() themselves.
+          frameloop="demand"
           // Fires when a click hits no mesh at all — clicking the
           // floor or empty space clears the selection, matching how
           // the 2D canvas behaves.
@@ -1006,6 +1022,9 @@ function ViewSnapshotBridge({ viewFnsRef }: { viewFnsRef: { current: ViewFns | n
 // teleporting anywhere always starts level and un-panned again.
 function AnimatedFirstPersonCamera({ camera, fovDeg }: { camera: CameraNode; fovDeg: number }) {
   const { gl } = useThree();
+  // Demand rendering (§108): a new target or a drag asks for a frame;
+  // the frame loop below keeps asking until the ease has arrived.
+  const invalidate = useThree((s) => s.invalidate);
   const cameraRef = useRef<THREE.PerspectiveCamera>(null);
   const targetPositionRef = useRef(new THREE.Vector3());
   const targetQuaternionRef = useRef(new THREE.Quaternion());
@@ -1026,7 +1045,8 @@ function AnimatedFirstPersonCamera({ camera, fovDeg }: { camera: CameraNode; fov
     const [worldX, worldZ] = groundPosition(camera.x, camera.y);
     const worldY = mmToWorld(camera.heightMm || DEFAULT_CAMERA_HEIGHT_MM);
     targetPositionRef.current.set(worldX, worldY, worldZ);
-  }, [camera.x, camera.y, camera.heightMm]);
+    invalidate();
+  }, [camera.x, camera.y, camera.heightMm, invalidate]);
 
   useEffect(() => {
     // Heading and the saved tilt (§102), in the same 'YXZ' order the
@@ -1048,7 +1068,8 @@ function AnimatedFirstPersonCamera({ camera, fovDeg }: { camera: CameraNode; fov
       cameraRef.current.quaternion.copy(targetQuaternionRef.current);
       hasPositionedRef.current = true;
     }
-  }, [camera.id, camera.viewAngleDeg, camera.pitchDeg]);
+    invalidate();
+  }, [camera.id, camera.viewAngleDeg, camera.pitchDeg, invalidate]);
 
   // Native pointer listeners on the canvas's own DOM element (not R3F
   // synthetic events) so dragging keeps tracking via setPointerCapture
@@ -1088,6 +1109,7 @@ function AnimatedFirstPersonCamera({ camera, fovDeg }: { camera: CameraNode; fov
         MAX_PITCH_RAD
       );
       freeLookActiveRef.current = true;
+      invalidate();
     }
 
     function handlePointerUp(e: PointerEvent) {
@@ -1110,15 +1132,18 @@ function AnimatedFirstPersonCamera({ camera, fovDeg }: { camera: CameraNode; fov
       el.removeEventListener('pointerup', handlePointerUp);
       el.removeEventListener('pointercancel', handlePointerUp);
     };
-  }, [gl]);
+  }, [gl, invalidate]);
 
-  useFrame((_state, delta) => {
+  useFrame((state, delta) => {
     const cam = cameraRef.current;
     if (!cam) return;
     // 1 - e^(-delta * damping): converges toward the target smoothly
     // regardless of frame rate (a plain `delta * speed` lerp factor
     // would overshoot/oscillate at low FPS since it can exceed 1).
-    const t = 1 - Math.exp(-delta * CAMERA_TRANSITION_DAMPING);
+    // Capped at one 30fps frame: with demand rendering (§108) the first
+    // frame after an idle spell sees the whole idle time as `delta`,
+    // which would make the ease jump straight to its target.
+    const t = 1 - Math.exp(-Math.min(delta, 1 / 30) * CAMERA_TRANSITION_DAMPING);
     cam.position.lerp(targetPositionRef.current, t);
 
     if (freeLookActiveRef.current) {
@@ -1126,6 +1151,12 @@ function AnimatedFirstPersonCamera({ camera, fovDeg }: { camera: CameraNode; fov
     } else {
       cam.quaternion.slerp(targetQuaternionRef.current, t);
     }
+
+    // Keep drawing until the ease has visibly arrived, then stop.
+    const moving =
+      cam.position.distanceToSquared(targetPositionRef.current) > EASE_DONE_M * EASE_DONE_M ||
+      (!freeLookActiveRef.current && cam.quaternion.angleTo(targetQuaternionRef.current) > EASE_DONE_RAD);
+    if (moving) state.invalidate();
   });
 
   // fov is safe to pass declaratively (unlike position/quaternion,
@@ -1148,14 +1179,31 @@ interface HotspotMarkerProps {
 function HotspotMarker({ camera, isActive, onSelect }: HotspotMarkerProps) {
   const [worldX, worldZ] = groundPosition(camera.x, camera.y);
   const meshRef = useRef<THREE.Mesh>(null);
+  // When this marker became the active one (clock seconds), or null.
+  const activeSinceRef = useRef<number | null>(null);
 
-  useFrame(({ clock }) => {
+  useFrame((state) => {
     if (!meshRef.current) return;
     // Gentle pulse on the active marker only, so "you are standing
     // here" is easy to spot at a glance without every hotspot
     // distractingly animating at once.
-    const pulse = isActive ? 1 + Math.sin(clock.elapsedTime * 3) * 0.08 : 1;
+    //
+    // It pulses for HOTSPOT_PULSE_SECONDS after you arrive, then rests
+    // (§108). A pulse that never stops would keep the whole room
+    // redrawing at 60fps for as long as you stand at a camera — the
+    // most common way the 3D view is used — undoing demand rendering for
+    // a two-pixel animation.
+    if (!isActive) {
+      activeSinceRef.current = null;
+      meshRef.current.scale.set(1, 1, 1);
+      return;
+    }
+    const now = state.clock.elapsedTime;
+    activeSinceRef.current ??= now;
+    const t = now - activeSinceRef.current;
+    const pulse = t < HOTSPOT_PULSE_SECONDS ? 1 + Math.sin(t * 3) * 0.08 : 1;
     meshRef.current.scale.set(pulse, pulse, 1);
+    if (t < HOTSPOT_PULSE_SECONDS) state.invalidate();
   });
 
   return (
@@ -1680,6 +1728,14 @@ function SceneExposure({ exposure }: { exposure: number }) {
       gl.toneMappingExposure = wanted;
     }
   });
+
+  // With demand rendering (§108) the frame above only runs when one is
+  // requested, and nothing in the scene graph changes when only the
+  // slider moves, so ask for one.
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(() => {
+    invalidate();
+  }, [exposure, invalidate]);
 
   return null;
 }

@@ -157,7 +157,8 @@ export function CabinetPreview3D({
   return (
     <div className="flex flex-col gap-1.5">
       <div className="relative h-80 overflow-hidden rounded-md border border-gray-200 bg-gradient-to-b from-gray-50 to-gray-200">
-        <Canvas camera={{ position: camera, fov: 35, near: 0.01, far: 50 }} dpr={[1, 2]}>
+        {/* Drawn only on change (§108): the preview is still unless dragged. */}
+        <Canvas frameloop="demand" camera={{ position: camera, fov: 35, near: 0.01, far: 50 }} dpr={[1, 2]}>
           <ambientLight intensity={0.7} />
           <directionalLight position={[2, 4, 3]} intensity={1.1} />
           <directionalLight position={[-3, 2, -2]} intensity={0.35} />
