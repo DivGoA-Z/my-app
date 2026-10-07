@@ -272,6 +272,11 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
   // null = free orbit (Pass 1's behavior). Otherwise, the id of a
   // saved Camera Node to lock the view to.
   const [lockedCameraId, setLockedCameraId] = useState<string | null>(null);
+
+  // False until the scene's shaders are compiled (§108, ShaderWarmup).
+  // No frames are drawn until then: the first frame is what used to
+  // compile them, blocking the whole app for up to 4 s on a cold cache.
+  const [shadersReady, setShadersReady] = useState(false);
   const lockedCamera = cameras.find((c) => c.id === lockedCameraId) ?? null;
 
   const ceilingHeightMm = currentLayout?.dimensions.ceilingHeightMm ?? DEFAULT_CEILING_HEIGHT_MM;
@@ -627,7 +632,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
           // and drei's OrbitControls asks on every move; the rest
           // (camera easing, the hotspot pulse, exposure, textures that
           // finish loading) call invalidate() themselves.
-          frameloop="demand"
+          frameloop={shadersReady ? 'demand' : 'never'}
           // Fires when a click hits no mesh at all — clicking the
           // floor or empty space clears the selection, matching how
           // the 2D canvas behaves.
@@ -912,11 +917,19 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
               handleCapture above via captureFnRef (see its comment). */}
           <PanoramaCaptureBridge captureFnRef={captureFnRef} />
           <ViewSnapshotBridge viewFnsRef={viewFnsRef} />
+          <ShaderWarmup onReady={setShadersReady} />
+          <RedrawOn value={shadersReady} />
         </Canvas>
 
         {/* Overlays the canvas (the wrapper is position:relative) rather
             than sitting beside it — a side panel would squeeze the 3D
             view, which is the thing you're trying to look at. */}
+        {!shadersReady && (
+          <div role="status" className="pointer-events-none absolute inset-0 flex items-center justify-center text-[15px] font-semibold text-muted-foreground">
+            Preparing 3D…
+          </div>
+        )}
+
         {inspectorOverlay && selectedCabinet && <Cabinet3DInspector cabinet={selectedCabinet} />}
       </div>
 
@@ -954,6 +967,49 @@ function PanoramaCaptureBridge({
     };
   }, [gl, scene, captureFnRef]);
 
+  return null;
+}
+
+// Compiles every shader the scene needs BEFORE the first frame, without
+// blocking the app (§108). Measured on a real kitchen: drawing the first
+// frame used to stall the main thread ~4 s on a cold shader cache (and
+// 0.2–0.7 s on a warm one), almost all of it three.js waiting for the
+// GPU driver to finish compiling and linking programs (`onFirstUse`).
+// compileAsync hands the same work to the driver and polls with
+// KHR_parallel_shader_compile, so the page stays responsive meanwhile.
+//
+// Mounted inside the scene, so it runs only after the scene's suspended
+// parts (the HDRI) have arrived and the materials it compiles are the
+// real ones. Appliance models load later behind their own Suspense and
+// compile on first use; they're few. The timeout means a driver that
+// never reports back can't leave "Preparing 3D…" up for good.
+const SHADER_WARMUP_TIMEOUT_MS = 10_000;
+// `onReady` is a state setter: its identity never changes, so the effect
+// runs once per mount instead of restarting (and abandoning the compile)
+// on every re-render of the parent while the scene loads.
+function ShaderWarmup({ onReady }: { onReady: (ready: true) => void }) {
+  const get = useThree((state) => state.get);
+  useEffect(() => {
+    let cancelled = false;
+    const { gl, scene, camera } = get();
+    const timeout = new Promise<void>((resolve) => setTimeout(resolve, SHADER_WARMUP_TIMEOUT_MS));
+    Promise.race([gl.compileAsync(scene, camera).catch(() => {}), timeout]).then(() => {
+      if (!cancelled) onReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [get, onReady]);
+  return null;
+}
+
+// Asks for one frame whenever `value` changes: switching from "never" to
+// "demand" doesn't draw by itself (§108).
+function RedrawOn({ value }: { value: unknown }) {
+  const invalidate = useThree((state) => state.invalidate);
+  useEffect(() => {
+    invalidate();
+  }, [value, invalidate]);
   return null;
 }
 
