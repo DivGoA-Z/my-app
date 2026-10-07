@@ -6753,3 +6753,105 @@ the one that counts.
   defaults; the catalogue is the only thing copied.
 - A copied cabinet row naming a custom board that only `biz_default`'s
   rate card has falls back to the standard 18mm line (§44).
+
+## 108. The 3D "hang": measured, then three fixes
+
+The app sometimes hung. A performance plan listed seven suspects and
+asked for measurement before any fix. Measured on a real design (Neha
+Verma's kitchen, about 38 items on the plan, two cameras) with a
+local production build on an M1 laptop. A Playwright script drove it
+with **every write to Supabase blocked**. It recorded main-thread busy
+time, frame times and long tasks via CDP and in-page observers, and a
+CPU profile of each phase.
+
+**Before:**
+
+| Phase | Result |
+|---|---|
+| App load / open project | 0.4 s / 0.9 s, fine |
+| Drag a cabinet on the plan | 60 fps, 12% busy, no long tasks, fine |
+| **First 3D open, cold shader cache** | **3.97 s frozen**; 3,860 ms of it in three.js `onFirstUse`, waiting for the GPU driver to compile shader programs |
+| 3D open, warm cache | 0.25 s frozen |
+| Reopening 3D after another tab | 0.67 s frozen (the view unmounted, so it rebuilt and recompiled every visit) |
+| Elevation's 3D wall view | 0.75 s frozen |
+| **3D sitting idle** | **26% main thread, non-stop** (default frameloop: the whole room, shadows included, redrawn 60×/s) |
+
+Ruled out by checks:
+- whole-store Zustand subscriptions;
+- both canvases mounted at once;
+- the HDRI from drei's CDN (self-hosted since §29);
+- textures (1024 px) and models (3–650 KB);
+- pricing per mouse-move: a drag updates local state, and the store is
+  written on drop. `useBOM` does run in five components, each with its
+  own memo.
+
+**Found wrong in CLAUDE.md: "React 19 compiler is active".** Only its
+lint rules run (`eslint-plugin-react-hooks` 7); the compiler transform
+isn't enabled in `vite.config.ts` or installed. Corrected. On this
+machine React work wasn't the bottleneck, so turning it on is a separate
+decision, not part of this fix.
+
+**The fixes:**
+1. **Draw on demand.** `Room3DCanvas` and the Cabinet Designer preview
+   use `frameloop="demand"`. What changes the scene outside a React
+   render now calls `invalidate()`:
+   - The walkthrough camera, on a new target, on drag-look, and every
+     frame until the ease arrives. `delta` is capped at 1/30 s, or the
+     first frame after an idle spell would jump straight to the target.
+   - The exposure slider.
+   - Textures that finish loading (`redrawWhenLoaded` in
+     `textures3d.ts`).
+
+   The active hotspot now pulses for 3 s after you arrive instead of
+   forever; a permanent pulse would have kept the room redrawing at
+   60 fps for as long as you stand at a camera. The panorama capture
+   and the image-brief render draw explicitly, so they're unaffected.
+2. **Compile shaders in the background before the first frame.**
+   - `ShaderWarmup` runs `renderer.compileAsync(scene, camera)`
+     (KHR_parallel_shader_compile) after the scene's suspended parts
+     (the HDRI) arrive.
+   - The canvas draws nothing ("Preparing 3D…") until it's done, then
+     switches to demand rendering.
+   - A 10 s timeout means a driver that never answers can't strand the
+     overlay.
+   - `onReady` is the state setter, so the effect can't restart and
+     abandon the compile on every parent re-render.
+3. **Keep the editor's 3D tab alive.** `Room3DCanvas` gained `active`;
+   when inactive it uses `frameloop="never"`, since `display:none` alone
+   doesn't stop r3f. `DesignEditor` mounts the 3D tab on its first visit
+   (a session that never opens 3D pays nothing) and keeps it hidden
+   while Plan or Elevation shows. Side effect: the 3D tab keeps its
+   viewpoint, e.g. standing at a camera, across tab switches.
+   Elevation's 3D view is still a separate instance; after fix 2 it
+   opens without a long task, so it was left alone.
+
+**After** (warm cache; two runs each, consistent):
+
+| Phase | Before | After |
+|---|---|---|
+| 3D idle, main thread busy | 26% | **3%** |
+| Time blocked in `onFirstUse` on 3D open | 3,860 ms (cold) | 85 ms |
+| 3D open freeze (warm) | 0.25 s | 0.15 s (texture upload and a few programs compile-ahead can't see: shadow depth, the HDRI capture, appliance models that load later) |
+| Reopening 3D | 0.67 s | **none** |
+| Elevation 3D view | 0.75 s | **none** |
+| Orbiting | 60 fps | 60 fps |
+| Drag on the plan with 3D alive in the background | — | 13% busy (12% without) |
+| Plan idle with 3D alive | 2–3% | 4–5% |
+
+**Verified in a browser** (screenshots on her design): the room renders
+fully after idling; stepping to a camera arrives (the ease doesn't stall
+under demand rendering); the move pad's glide moves the view; returning
+to the 3D tab shows it at full size.
+
+**Not verified:**
+- The cold-cache first open after fix 2. macOS keeps compiled Metal
+  shaders across runs, so a cold run couldn't be reproduced. By the
+  profile, the blocking compile path is now 85 ms of the former 3,860,
+  so a cold open should freeze far less, but that's inferred.
+- The hotspot pulse, by eye.
+- Weaker hardware (Windows integrated graphics, phones), where shader
+  compiles are slower; these fixes matter most there.
+
+**Out of scope, noticed:** a catalogue model URL fails to load (the
+error reads "Could not load /models/range-hood.glb."; the file exists,
+so the stored URL is probably slightly off). It falls back to a box.

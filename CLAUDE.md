@@ -43,12 +43,20 @@ Supabase, Tailwind v4, shadcn/ui (Radix), Vitest.
 - Tailwind **v4**: `@import "tailwindcss";`, no `tailwind.config.js`.
 - `npm run dev` / `npm run build` (`tsc -b && vite build`) /
   `npm run lint` / `npm test`.
-- **React 19 compiler is active.**
+- **The React Compiler's LINT rules are active; the compiler itself is
+  NOT** (`vite.config.ts` uses plain `react()`, and
+  `babel-plugin-react-compiler` isn't installed). This file said "the
+  compiler is active" until 7 Oct 2026 (§108), which was wrong: nothing
+  is auto-memoised, so a derived value is recomputed on every render.
   - Never mutate anything returned from a hook. Example: write
     `gl.toneMappingExposure` inside a `useFrame` callback.
   - Never sync state in an effect body; adjust it during render.
-  - Never manually `useMemo` on a derived value (§60).
+  - Never manually `useMemo` on a derived value (§60). This assumed the
+    compiler; profile before relying on it for anything hot.
   - Don't eslint-disable; restructure.
+- **3D views draw on demand** (§108): after changing the scene outside a
+  React render (a `useFrame` animation, a texture that loads late), call
+  `invalidate()`, or nothing redraws.
 - **Never run `prettier --write`.** The repo isn't Prettier-formatted, so
   it rewrites whole files (§43).
 
