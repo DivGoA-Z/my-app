@@ -32,3 +32,6 @@ playwright-report/
 # 3D models belong in public/models/. Loose .glb files here were swept
 # into a commit once (7 Oct 2026, §111); never track them from here.
 supabase/*.glb
+
+# Originals kept by `npm run optimize-models` (§111). Local only.
+models-originals/

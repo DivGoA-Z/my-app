@@ -64,10 +64,26 @@ low-poly assets under a couple of MB each. Draco-compressed files are
 
 ## Shrink every model before adding it (§111)
 
-Models from stores like Furnimesh often come at film detail: ~290,000
+**Just run this after dropping new `.glb` files anywhere under
+`public/models/`:**
+
+```sh
+npm run optimize-models
+```
+
+It shrinks every model that still needs it, in place (same file name, so
+catalogue addresses don't change), keeps each original in
+`models-originals/` (not committed, not served), and skips models that are
+already optimised or under 1 MB. Running it again is harmless and quick.
+Look at changed models in the 3D view before committing.
+`npm run optimize-models -- --dry-run` lists what it would do;
+`--min-kb 500` lowers the size threshold.
+
+What it runs, per file, if you ever need it by hand:
+
+(Models from stores like Furnimesh often come at film detail: ~290,000
 triangles and 3–4k PNG textures, 15–25 MB and 100–200 MB of GPU memory
-each. On screen they fill a few hundred pixels. Run this first (writes
-`out.glb`; check it looks the same, then use it):
+each, for something that fills a few hundred pixels on screen.)
 
 ```sh
 npx -y @gltf-transform/cli@4 optimize in.glb out.glb \

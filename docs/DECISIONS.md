@@ -7001,4 +7001,18 @@ Decoder safety:
   that exact loader, with textures.
 - **Draco:** avoided, because it fetches its decoder from a CDN.
 
-The recipe is in `public/models/README.md`, for the next model added.
+**For the next model: `npm run optimize-models`** (`scripts/optimize-models.mjs`;
+`@gltf-transform/cli` 4 is a pinned dev dependency, so it never ships to
+the site).
+- It optimises every `.glb` under `public/models/` in place, keeping the
+  file name, and keeps the original in `models-originals/` (git-ignored
+  and outside `public/`).
+- It skips files already carrying meshopt compression (which only this
+  step adds) or under 1 MB, so re-running is cheap.
+- Temporary output goes to the OS temp folder, so an interrupted run
+  can't leave a stray `.glb` for the next run to treat as new.
+- Tested: a dry run on the repo found nothing to do. An original 18 MB
+  fridge dropped in became 836 KB with a backup, and a second run
+  skipped it.
+
+The manual recipe is in `public/models/README.md`.
