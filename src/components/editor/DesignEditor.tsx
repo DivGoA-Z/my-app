@@ -36,7 +36,11 @@ import {
   Scissors,
   Undo2,
   X,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
+import { SELECTABLE_TYPE_LABELS } from '../../types/selection';
+import { KitchenStyleButton } from '../style/KitchenStyleButton';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
@@ -146,7 +150,11 @@ export function DesignEditor({
   // §84): open by default on a wide laptop, where there's room beside the
   // plan; a slide-over below that. Selecting an item always shows its
   // inspector, whatever this says.
-  const [quoteOpen, setQuoteOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1280);
+  // Closed at the start (§118): open, it took the right column, so the
+  // first selection went into that column instead of the slim tab (§115)
+  // until the quote was closed by hand. The total is always in the bottom
+  // bar; the Quote button opens the panel.
+  const [quoteOpen, setQuoteOpen] = useState(false);
   const [checksOpen, setChecksOpen] = useState(false);
   const [showOpen, setShowOpen] = useState(false);
   // The four display switches (moved here from App.tsx in §81):
@@ -227,6 +235,19 @@ export function DesignEditor({
       <FixtureInspector />
     ) : null;
   const rightOpen = !!inspector || quoteOpen;
+  // §115: with the Quote panel closed, selecting something used to open a
+  // 400px column that pushed the plan left (and back on deselect). Now it
+  // floats over the plan as a slim tab ("peek") and slides out on hover,
+  // tap or focus, so nothing reflows. Closes on deselect; the next
+  // selection starts as a tab again. With the Quote panel open the
+  // inspector simply takes its column, which never moved anything.
+  const peek = !!inspector && !quoteOpen;
+  const [peekOpen, setPeekOpen] = useState(false);
+  const [peekWasShown, setPeekWasShown] = useState(peek);
+  if (peek !== peekWasShown) {
+    setPeekWasShown(peek);
+    if (!peek) setPeekOpen(false);
+  }
 
   const saved = isSaving ? 'Saving…' : saveError ? 'Not saved' : lastAutosaveAt ? `Saved ${new Date(lastAutosaveAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Saved';
 
@@ -273,6 +294,13 @@ export function DesignEditor({
           {!saveError && !isSaving && <Check className="size-4 text-primary" />}
           {saved}
         </button>
+        {/* This kitchen's default finish/colour/handle/board (§117). */}
+        <div className="hidden lg:block">
+          <KitchenStyleButton />
+        </div>
+        <div className="lg:hidden">
+          <KitchenStyleButton compact />
+        </div>
         <div className="hidden md:block">
           <RoomSettingsPanel />
         </div>
@@ -390,7 +418,8 @@ export function DesignEditor({
               {/* What the plan draws, on its own button (§88): these are
                   view settings, not design problems, so they don't live
                   under the checks button any more. */}
-              <div className="absolute top-3 right-3 z-10">
+              {/* Clear of the inspector's slim tab when it floats here (§115). */}
+              <div className={cn('absolute top-3 z-10 transition-[right] duration-200', peek ? 'right-[68px]' : 'right-3')}>
                 <Button
                   variant="outline"
                   size="touch"
@@ -514,13 +543,44 @@ export function DesignEditor({
         {/* ---- Right: inspector for the selection, otherwise the quote ---- */}
         <aside
           aria-label={inspector ? 'Selected item' : 'Quote'}
+          onMouseEnter={() => peek && setPeekOpen(true)}
+          // Tucks back when the pointer leaves, unless a button is held (a
+          // colour drag can stray off the panel) or a field inside has focus
+          // (typing a size or hex code shouldn't fold the panel away).
+          onMouseLeave={(e) => {
+            if (peek && e.buttons === 0 && !e.currentTarget.contains(document.activeElement)) setPeekOpen(false);
+          }}
           className={cn(
-            'absolute inset-y-0 right-0 z-20 w-[400px] max-w-full flex-col overflow-y-auto border-l border-border bg-card shadow-float xl:static xl:shadow-none',
+            'absolute inset-y-0 right-0 z-20 max-w-full flex-col border-l border-border bg-card shadow-float',
+            peek
+              ? cn('transition-[width] duration-200 ease-out', peekOpen ? 'w-[400px] overflow-y-auto' : 'w-14 overflow-hidden')
+              : 'w-[400px] overflow-y-auto xl:static xl:shadow-none',
             rightOpen ? 'flex' : 'hidden'
           )}
         >
+          {peek && !peekOpen ? (
+            <button
+              type="button"
+              onClick={() => setPeekOpen(true)}
+              onFocus={() => setPeekOpen(true)}
+              aria-label={`Show the selected ${selection ? SELECTABLE_TYPE_LABELS[selection.type].toLowerCase() : 'item'}`}
+              className="flex h-full w-full flex-col items-center gap-3 pt-4 text-muted-foreground hover:bg-secondary hover:text-foreground"
+            >
+              <ChevronsLeft className="size-5" />
+              <span className="text-[13px] font-semibold [writing-mode:vertical-rl]">
+                {selection ? SELECTABLE_TYPE_LABELS[selection.type] : 'Selected'}
+              </span>
+            </button>
+          ) : (
+          <>
           <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-4 py-2">
             <span className="text-[17px] font-semibold">{inspector ? 'Selected' : 'Quote'}</span>
+            <div className="flex items-center">
+            {peek && (
+              <Button variant="ghost" size="icon-touch" aria-label="Tuck the panel away" onClick={() => setPeekOpen(false)}>
+                <ChevronsRight />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon-touch"
@@ -532,10 +592,13 @@ export function DesignEditor({
             >
               <X />
             </Button>
+            </div>
           </div>
           <div className="flex flex-col gap-4 p-4 [&>*]:w-full [&>aside]:border-0 [&>aside]:p-0 [&>div]:w-full">
             {inspector ?? <QuoteSidebar onOpenCutList={(quoteId) => onOpenCutList(quoteId)} />}
           </div>
+          </>
+          )}
         </aside>
       </div>
 

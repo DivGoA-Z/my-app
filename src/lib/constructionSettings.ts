@@ -5,6 +5,7 @@
 // as lib/rates.ts: one row per business, no create/delete, a fetch that
 // falls back to defaults when no row exists yet, and an upsert on save.
 
+import type { StyleDefaults } from './styleDefaults';
 import { supabase } from './Supabaseclient';
 import {
   defaultConstructionSettings,
@@ -76,4 +77,33 @@ export async function saveConstructionSettings(
   };
   const { error } = await supabase.from('construction_settings').upsert(row);
   if (error) throw new Error(`Failed to save construction settings: ${error.message}`);
+}
+
+// The business's kitchen style defaults (§117), in their own column of
+// the same row: kept out of ConstructionSettings, which is part of every
+// quote's pricing context. Null when none are set — and when the column
+// doesn't exist yet (schema.sql not re-run), so loading never breaks.
+export async function fetchBusinessStyleDefaults(): Promise<StyleDefaults | null> {
+  const { data, error } = await supabase.from('construction_settings').select('style_defaults').maybeSingle();
+  if (error || !data) return null;
+  return (data as { style_defaults: StyleDefaults | null }).style_defaults ?? null;
+}
+
+// Writes only that column (plus the row's keys, for a first save): an
+// upsert updates just the columns it's given, so `settings` is untouched.
+export async function saveBusinessStyleDefaults(
+  defaults: StyleDefaults | null,
+  settingsId: string,
+  businessId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('construction_settings')
+    .upsert({ id: settingsId, business_id: businessId, style_defaults: defaults });
+  if (error) {
+    throw new Error(
+      /style_defaults/.test(error.message)
+        ? 'Saving defaults needs a database update: re-run supabase/schema.sql in the Supabase SQL editor.'
+        : `Failed to save defaults: ${error.message}`
+    );
+  }
 }

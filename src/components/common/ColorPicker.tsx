@@ -22,7 +22,7 @@ import { useRef, useState } from 'react';
 import { Button } from '../ui/button';
 import {
   COLOR_FAMILY_LABELS,
-  HEX_PATTERN,
+  parseHexInput,
   PRESET_SWATCHES,
   clamp01,
   colorFamily,
@@ -39,6 +39,15 @@ export interface ColorPickerProps {
 export function ColorPicker({ value, onChange }: ColorPickerProps) {
   const hsv = hexToHsv(value);
   const [familyFilter, setFamilyFilter] = useState<ColorFamily | null>(null);
+  // The hex box's own text. Follows `value` when the colour changes
+  // elsewhere (adjusted during render, not in an effect), but keeps an
+  // unfinished code while typing.
+  const [hexDraft, setHexDraft] = useState(value);
+  const [lastValue, setLastValue] = useState(value);
+  if (value !== lastValue) {
+    setLastValue(value);
+    if (parseHexInput(hexDraft) !== value.toLowerCase()) setHexDraft(value);
+  }
   const squareRef = useRef<HTMLDivElement>(null);
   const hueRef = useRef<HTMLDivElement>(null);
 
@@ -131,16 +140,30 @@ export function ColorPicker({ value, onChange }: ColorPickerProps) {
           className="h-6 w-6 shrink-0 rounded border border-gray-300"
           style={{ backgroundColor: value }}
         />
-        <input
-          value={value}
-          onChange={(e) => {
-            const next = e.target.value;
-            // Only push valid hex upward — otherwise typing "#" would
-            // immediately repaint the cabinet black.
-            if (HEX_PATTERN.test(next)) onChange(next);
-          }}
-          className="w-20 rounded border border-gray-300 px-1.5 py-1 font-mono text-[11px]"
-        />
+        {/* Typed freely (§115): this box used to be bound straight to
+            `value` and refused every partial code, so each keystroke
+            snapped back and nothing could be typed. Now it holds its own
+            text, applies the colour the moment the code is complete (with
+            or without '#', 3 or 6 digits), and follows the swatches and
+            the square when those change the colour. */}
+        <label className="flex items-center gap-1.5 text-[12px] font-semibold text-muted-foreground">
+          Hex
+          <input
+            value={hexDraft}
+            onChange={(e) => {
+              setHexDraft(e.target.value);
+              const hex = parseHexInput(e.target.value);
+              if (hex) onChange(hex);
+            }}
+            onBlur={() => setHexDraft(value)}
+            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            spellCheck={false}
+            aria-label="Hex colour code"
+            aria-invalid={parseHexInput(hexDraft) === null}
+            placeholder="#c08a4e"
+            className="h-9 w-28 rounded-[8px] border border-input bg-card px-2 font-mono text-[13px] font-normal text-foreground aria-invalid:border-destructive"
+          />
+        </label>
         <span className="text-[10px] text-gray-500">{COLOR_FAMILY_LABELS[colorFamily(value)]}</span>
       </div>
 

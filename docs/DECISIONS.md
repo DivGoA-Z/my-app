@@ -7131,3 +7131,209 @@ counter clutter.
 shortlist; Flash Lite is out (it draws codes). Next: the same 2–3
 kitchens through both, scored on the checklist, with "invented items"
 as its own line.
+
+## 115. First hand-built kitchen: double-click on stacked items, a floating inspector, a typeable hex box
+
+Three problems from building a kitchen from scratch after the overhaul.
+
+**Double-click couldn't turn a sink unit, though it turned the sink.**
+Every layer had double-click-to-turn, but a single click where two items
+overlap opens the "items here" chooser *immediately*, right under the
+pointer. The chooser caught the second click of the double-click, so
+Konva never saw a double-click there. A sink sits on its sink unit, and a
+hob on its unit, so exactly those cabinets could never be turned this
+way. The sink alone worked because the sink's top area is a one-item
+spot. Fixes:
+- The chooser now opens after Konva's double-click window
+  (`Konva.dblClickWindow`, 400 ms). A double-click cancels it
+  (`cancelPendingPick`).
+- Double-click goes through one rule shared by the cabinet, appliance and
+  pillar layers (`useRotateOnDoubleClick`, `lib/rotateTarget.ts`). It
+  turns the **selected** item when the double-click lands inside it,
+  otherwise the item clicked. So: select the sink unit from the list, then
+  double-click the sink, and the unit turns. Shift turns anticlockwise on
+  all three; before, only appliances took Shift.
+
+Rejected: making the sink "click-through". It would make the sink itself
+hard to select.
+
+**The plan jumped sideways on every select and deselect.** With the Quote
+panel closed, selecting an item opened a 400 px column that pushed the
+plan left; deselecting pushed it back. Now, with the Quote panel closed,
+the inspector **floats over the plan as a 56 px tab** naming the item
+("Cabinet"):
+- It slides open on hover, tap or keyboard focus.
+- It tucks back when the pointer leaves, unless a mouse button is held (a
+  colour drag) or a field inside has focus (typing a size or hex).
+- `»` tucks it by hand; deselecting closes it. The plan never moves. The
+  Guides button shifts left while the tab shows.
+- With the Quote panel open, the inspector still takes that column, as
+  before (nothing reflows there).
+
+Rejected: always reserving the column. That would permanently cost 400 px
+of plan on a laptop.
+
+**The hex box couldn't be typed into.** It was bound straight to the
+colour and ignored every partial code, so each keystroke snapped back:
+only a full paste could ever work. It now:
+- keeps its own text while you type;
+- applies the colour as soon as the code is complete (`parseHexInput`:
+  with or without `#`, 3 or 6 digits, either case, spaces trimmed);
+- follows the swatches and the colour square when they change the colour;
+- tidies itself on blur or Enter.
+
+It's labelled "Hex". The opening (door/window) colour pickers share the
+same component, so they're fixed too.
+
+Checked in a browser on Neha Verma's kitchen, with saves blocked:
+- the list still opens on a single click;
+- double-clicking the sink turned the selected sink unit 0° → 90° → 180°;
+- the plan's position was identical before and after select and deselect;
+- typing `c08a4e` set the swatch to that colour.
+
+## 116. Blind and magic corners get a fixed panel where the meeting run sits
+
+A blind or magic corner was a plain rectangle with doors across its whole
+width (a double door at 800 mm and over). In a real corner, the cabinets
+on the other wall stand in front of part of it. That part can't open, and
+its door leaf's swing ran straight into them: a clearance error on every
+blind corner placed properly.
+
+**What it is now.** `PlacedCabinetItem.cornerPanel = { side, widthMm }`
+(blind and magic only; side is as you face the unit):
+- that much of the front is a **fixed panel**, priced and drawn like a
+  false front (board and finish, no hinges, no handle);
+- the front layout fills the remaining width;
+- the door is hinged on the side **away** from the panel, so it opens into
+  free floor;
+- at least 150 mm of door always remains.
+
+It is applied in `cabinetFrontBreakdown`, which feeds 3D, the quote, the
+front picker, the image brief and (now) the cutting list. So the panel is
+a real board part, "Corner fixed panel", on the list and in the price.
+
+**Fitted automatically on placement** (`lib/cornerPanel.ts`, on PHYSICAL
+cabinets, §61):
+- **side:** the end where another floor cabinet stands in front of the
+  unit; failing that, the end against a wall;
+- **width:** how far that meeting run reaches out from the wall (618 when
+  shutters add to a 600 carcass);
+- with no meeting run yet, the most common depth of the kitchen's other
+  base cabinets, or 600 plus the unit's own shutter allowance.
+
+The unit's own depth is NOT the fallback: the catalogue's blind corners
+are 900 deep, which says nothing about the run meeting them. (Neha
+Verma's kitchen fitted 457, her runs' depth.)
+
+The inspector has None / Left end / Right end, a width, and **Fit to
+corner** to work both out again after a move. The panel is never refitted
+on load, so existing corner units (no panel) and their quotes don't move.
+
+**Clearance.** The swing and pull-out are those of the door part only
+(`doorPart`), drawn that way on the plan with a solid bar on the panel's
+edge. One more allowance: a fitted corner unit and the cabinet standing in
+front of its panel share the corner floor by design (their doors open one
+at a time, like the carousel and its neighbours). So for that pair only,
+"the swing paths cross" isn't flagged. A door hitting the other's BOX
+still is: a panel fitted too narrow (300 against a 600 run) is still
+caught.
+
+Rejected: depth plus a 50 mm filler as the default (the user chose depth
+alone). Worth knowing: with no filler, a protruding handle on the meeting
+run can catch the corner door's edge. Widening the panel by 50 mm in the
+inspector gives that gap.
+
+## 117. Kitchen style defaults: business → kitchen → cabinet
+
+Changing a finish meant changing it on every cabinet. Now there are three
+levels:
+- **Business:** "Default kitchen style" card, Catalogue page.
+- **Kitchen:** the **Style** button in the editor's top bar.
+- **Cabinet:** the inspector, as before.
+
+Each level sets finish, colour, handle and carcass board, separately for
+**base, wall and tall** cabinets. Tall starts as "same as the base
+cabinets", because two-tone kitchens often pair tall units with the wall
+cabinets instead. Any field can be "no default", which keeps each
+catalogue item's own value. A kitchen uses the business's defaults until
+it changes one, and "Use my business defaults" goes back.
+
+**Copied, never inherited.** Every cabinet still stores its real finish,
+handle and board. A default is copied onto cabinets:
+- when one is placed;
+- when the default changes: cabinets still on the OLD default move, and
+  cabinets set by hand are left alone. The dialog counts those and offers
+  "Change them too" (the user's choice). With no old default, every
+  cabinet in the group moves.
+
+That's per field, so changing the handle never touches finishes. A change
+and the cabinets it moves are ONE undo step. Rejected: cabinets resolving
+"inherit" at read time. It would add a moving part to `PricingContext`
+and the cutting list, and an old quote's cabinets would silently change
+with the default.
+
+**Kept out of anything priced.** The quote fingerprint hashes the whole
+pricing context, which includes `currentLayout` and `constructionSettings`.
+A default stored in either one would mark quotes stale when nothing priced
+had changed; a business default would do it to every customer at once. So:
+- the kitchen's defaults are `layouts.style_defaults`, carried beside the
+  layout (`ProjectBundle.styleDefaults`, store `projectStyleDefaults`);
+- the business's are `construction_settings.style_defaults`, a column
+  beside `settings`, not inside it.
+
+Both columns are new, so **schema.sql must be re-run**. Until then, loading
+is unaffected (a missing column reads as "no defaults"), and saving a
+default says the database needs the update. The layout upsert only writes
+`style_defaults` once a kitchen has set one, so autosave keeps working on
+an un-migrated database.
+
+Checked in a browser on Neha Verma's kitchen (saves blocked): choosing
+Teak Veneer for base cabinets moved her base cabinets and sink unit, and
+her wall cabinet kept Ivory Satin.
+
+## 118. First-build follow-ups: quote closed at start, a colour-drag bug, wall corners, a floating "back to kitchen"
+
+**The quote panel starts closed.** It opened by itself on wide screens and
+took the right column. So the first selection went into that column
+instead of the slim tab (§115), until the quote was closed by hand. The
+total is always in the bottom bar, and the Quote button opens the panel.
+
+**Style: a colour DRAG left cabinets on the wrong colour.** The colour
+square and hue strip call `onChange` many times from the closure of the
+render where the drag began. `KitchenStyleButton.change` took "the old
+default" from that render too. So:
+- the first step moved every wall cabinet to colour 1;
+- every later step saw cabinets on colour 1 against a remembered old
+  default of colour 0, and counted them as set by hand;
+- they all stuck on the drag's first colour while the default ended on
+  the last.
+
+The user reported it as "the same colour on all of them, but a different
+one". Typing a hex code never showed it (one change per render), which is
+why the §117 browser check passed. The fix reads "before" from the store
+at the moment of each change. Checked by dragging across the square in a
+browser: the picker ended on #523310, and both wall cabinets were #523310.
+
+Tone mapping was suspected first and ruled out. ACES Filmic vs Neutral
+rendered this blue almost identically; ACES is kept. A colour in 3D still
+looks deeper than its swatch where the cabinet is in shade, which is the
+lighting, not the colour.
+
+**Wall corners.** Common in the market; the blind wall corner is the most
+common kind. The fixed panel (§116) now also applies to wall cabinets:
+- its meeting run is the wall cabinets hung at overlapping heights, never
+  the base cabinets below (`sameTier`);
+- the fallback width is the kitchen's usual wall-cabinet depth, else 350;
+- an ordinary wall cabinet gets one on placement ONLY where another wall
+  run really hangs in front of its end (`fitCornerPanelDetail().metRun`);
+  otherwise every wall cabinet near a corner would sprout a panel;
+- the inspector's None / Left / Right / Fit to corner shows on every wall
+  cabinet, for one moved into a corner later.
+
+L-shaped and diagonal wall corners (bi-fold door) are not built.
+
+**Back to the kitchen from the Catalogue.** The "Back to design" button
+sat at the top of the Catalogue page and scrolled away. It now floats at
+the bottom right (above the phone's tab bar; the section jump bar owns
+the top edge on small screens) and names the kitchen ("Back to Neha
+Verma's kitchen"). Checked scrolled to the very bottom of the page.

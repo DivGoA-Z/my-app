@@ -27,7 +27,7 @@ import type {
   HandleOrientation,
   HandleSpec,
 } from '../types/front';
-import { clampCount, clampTambourShelfCount, DOUBLE_DOOR_MIN_WIDTH_MM } from '../types/front';
+import { clampCount, clampTambourShelfCount, defaultFrontLayout, DOUBLE_DOOR_MIN_WIDTH_MM } from '../types/front';
 import type { HardwareSpec, PlacedCabinetItem } from '../types/cabinet';
 import type { HardwareRates } from '../types/rates';
 
@@ -110,6 +110,9 @@ export interface FrontPanel {
   // flat door) without re-deriving "what kind of front is this" from
   // the panel's shape alone, which a plain rectangle can't answer.
   kind: FrontRowKind;
+  // The fixed panel of a blind/magic corner (§116), so the cutting list
+  // can name it. Its kind is 'false-front': it's priced and drawn as one.
+  cornerPanel?: true;
   // Set only for a glass door in front of open shelves (see
   // FrontLayout.glass) — tells the 3D renderer to draw transparent/
   // tinted glass instead of the cabinet's own finish, and tells
@@ -762,19 +765,58 @@ export function computeFrontBreakdown(
 // layout and handle. Falls back to the module type's default when a
 // cabinet has no stored layout — which is every cabinet saved before
 // this feature existed.
+//
+// A blind/magic corner's fixed panel (§116) is applied here, so every
+// reader of a placed cabinet's fronts — 3D, quote, cutting list, image
+// brief — gets the same split: the front layout is laid out over the
+// remaining width and moved over, and the panel added at the corner end.
 export function cabinetFrontBreakdown(
   item: PlacedCabinetItem,
   fallbackLayout: FrontLayout,
   handle: HandleSpec | undefined,
   rates: HardwareRates
 ): FrontBreakdown {
-  return computeFrontBreakdown(
-    item.frontLayout ?? fallbackLayout,
-    item.widthMm,
-    item.heightMm,
-    handle,
-    rates
-  );
+  const panelMm = cornerPanelWidthMm(item);
+  if (panelMm === 0) return computeFrontBreakdown(item.frontLayout ?? fallbackLayout, item.widthMm, item.heightMm, handle, rates);
+
+  const doorsMm = item.widthMm - panelMm;
+  // The callers' fallback is sized on the full width (a double door at
+  // 900); the doors here only span what the panel leaves.
+  const layout = item.frontLayout ?? defaultFrontLayout(item.moduleType, doorsMm);
+  const doors = computeFrontBreakdown(layout, doorsMm, item.heightMm, handle, rates);
+  const left = item.cornerPanel!.side === 'left';
+  // Door centres move away from the panel by half its width.
+  const shift = left ? panelMm / 2 : -panelMm / 2;
+  const panels: FrontPanel[] = doors.panels.map((p) => ({
+    ...p,
+    centerXMm: p.centerXMm + shift,
+    handle: p.handle ? { ...p.handle, centerXMm: p.handle.centerXMm + shift } : null,
+  }));
+  panels.push({
+    index: panels.length,
+    centerXMm: left ? -item.widthMm / 2 + panelMm / 2 : item.widthMm / 2 - panelMm / 2,
+    centerYMm: 0,
+    widthMm: panelMm,
+    heightMm: item.heightMm,
+    handle: null,
+    kind: 'false-front',
+    cornerPanel: true,
+  });
+  return {
+    ...doors,
+    panels,
+    shelves: doors.shelves.map((r) => ({ ...r, centerXMm: r.centerXMm + shift })),
+    panelAreaMm2: doors.panelAreaMm2 + panelMm * item.heightMm,
+  };
+}
+
+// The fixed panel's width as built: 0 for anything but a blind/magic
+// corner that has one, and never so wide that less than MIN_CORNER_DOOR_MM
+// of door is left (a stored width from a since-narrowed cabinet).
+export const MIN_CORNER_DOOR_MM = 150;
+export function cornerPanelWidthMm(item: Pick<PlacedCabinetItem, 'moduleType' | 'widthMm' | 'cornerPanel'>): number {
+  if (!item.cornerPanel || (item.moduleType !== 'corner-blind' && item.moduleType !== 'corner-magic' && item.moduleType !== 'wall-cabinet')) return 0;
+  return Math.max(0, Math.min(Math.round(item.cornerPanel.widthMm), item.widthMm - MIN_CORNER_DOOR_MM));
 }
 
 // A magic-corner pull-out system or a carousel/lazy-susan mechanism is

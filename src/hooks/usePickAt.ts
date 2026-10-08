@@ -24,10 +24,23 @@
 
 import { usePhysicalCabinets } from './usePhysicalCabinets';
 import { useCallback } from 'react';
+import Konva from 'konva';
 import { useLayoutStore } from '../store/layoutStore';
 import { usePickerStore } from '../store/pickerStore';
 import { hitTestAt } from '../lib/hitTest';
 import type { HitCandidate } from '../lib/hitTest';
+
+// The chooser opens only once Konva's double-click window has passed
+// (§115). Opened at once, it appeared under the pointer and swallowed the
+// second click of a double-click, so a double-click wherever two items
+// overlap (a sink on its sink unit) never turned anything. A double-click
+// cancels the pending chooser via cancelPendingPick().
+let pendingPick: ReturnType<typeof setTimeout> | null = null;
+
+export function cancelPendingPick() {
+  if (pendingPick) clearTimeout(pendingPick);
+  pendingPick = null;
+}
 
 export function usePickAt() {
   const currentLayout = useLayoutStore((s) => s.currentLayout);
@@ -42,6 +55,7 @@ export function usePickAt() {
   return useCallback(
     (xMm: number, yMm: number, screenX: number, screenY: number) => {
       if (!currentLayout) return;
+      cancelPendingPick();
 
       // Obstacles live in their own store slice rather than on
       // currentLayout — the same reassembly RoomSurfacesPanel and
@@ -65,7 +79,10 @@ export function usePickAt() {
         return;
       }
 
-      openPicker(candidates, screenX, screenY);
+      pendingPick = setTimeout(() => {
+        pendingPick = null;
+        openPicker(candidates, screenX, screenY);
+      }, Konva.dblClickWindow);
     },
     [currentLayout, cabinets, appliances, obstacles, fixtureCatalog, select, openPicker, closePicker]
   );

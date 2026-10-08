@@ -147,6 +147,11 @@ export interface ExtraPart {
 // consumed by the Phase 2 panorama renderer for wall-module placement.
 // All spatial fields are in millimeters — matches how cabinet hardware,
 // carcasses, and shutters are actually specified and cut in the trade.
+export interface CornerPanel {
+  side: 'left' | 'right';
+  widthMm: number;
+}
+
 export interface PlacedCabinetItem {
   id: string;
   layoutId: string;          // FK -> RoomLayout.id
@@ -205,6 +210,14 @@ export interface PlacedCabinetItem {
   // FK -> HandleSpec.id (types/front.ts). Absent uses the default
   // handle, which is why a legacy cabinet still draws handles.
   handleId?: string;
+  // Blind and magic corners only (§116): the part of the front that runs
+  // into the corner, behind the meeting run, as a FIXED panel — board and
+  // finish like a false front, no hinges, no handle, no swing. The doors
+  // (frontLayout) fill the rest of the width. `side` is as you face the
+  // cabinet. Absent = the whole width is doors, which is what every corner
+  // unit placed before this has, so their quotes don't move; a new one
+  // gets it fitted on placement (lib/cornerPanel.ts).
+  cornerPanel?: CornerPanel;
   // EXPLICIT hardware override. Nothing populates this — which is why
   // every quote before parametric fronts charged ₹0 of hardware. It's
   // kept so a genuine one-off (a lift-up mechanism, an imported

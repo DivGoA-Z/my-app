@@ -43,6 +43,7 @@ import type Konva from 'konva';
 import { Layer, Group, Rect, Line, Arc, Text } from 'react-konva';
 import { useLayoutStore } from '../../store/layoutStore';
 import { usePickAt } from '../../hooks/usePickAt';
+import { useRotateOnDoubleClick } from '../../hooks/useRotateOnDoubleClick';
 import { useSelectedCabinetId } from '../../hooks/useSelection';
 import { computeRoomScale } from '../../lib/canvasScale';
 import { useCollisions } from '../../hooks/useCollisions';
@@ -51,12 +52,14 @@ import { detectCollisions } from '../../lib/collision';
 import {
   detectCabinetReachConflicts,
   winningReachRow,
+  doorPart,
   carouselDoorArc,
 } from '../../lib/cabinetClearance';
 import { touchesFloor } from '../../lib/surfaceAreas';
+import { cornerPanelWidthMm } from '../../lib/fronts';
 import { currentFootprintRect } from '../../lib/footprint';
 import { defaultFrontLayout } from '../../types/front';
-import { rotateCabinet, getFootprint } from '../../lib/cabinetGeometry';
+import { getFootprint } from '../../lib/cabinetGeometry';
 import { snapCabinetFootprint } from '../../lib/cabinetSnapping';
 import type { ModuleType } from '../../types/cabinet';
 
@@ -224,6 +227,7 @@ export function CabinetLayer({
   // drag under "carcass only" would creep the cabinet forward.
   const cabinets = usePhysicalCabinets();
   const storedCabinets = useLayoutStore((state) => state.cabinets);
+  const rotateOnDoubleClick = useRotateOnDoubleClick();
   const storedById = new Map(storedCabinets.map((c) => [c.id, c]));
   const frontExtraFor = useFrontExtraFor();
   const pickAt = usePickAt();
@@ -318,9 +322,16 @@ export function CabinetLayer({
         // its winning row was a door, "kept simple rather than picking
         // a row's hinge to arc" — fixed now that winningReachRow is
         // shared rather than re-derived per file.
+        // A blind/magic corner's fixed panel (§116) doesn't open: swings
+        // and pull-outs are those of the door part beside it, and the
+        // panel's own front edge gets a solid bar instead.
+        const panelPx = cornerPanelWidthMm(item) * scale;
+        const panelOnLeft = item.cornerPanel?.side === 'left';
+        const doorsOffsetPx = panelOnLeft ? panelPx : 0;
+        const doors = doorPart(item);
         const winningRow =
           onFloor && item.moduleType !== 'corner-carousel'
-            ? winningReachRow(item, itemFrontLayout)
+            ? winningReachRow(doors, doors.frontLayout ?? itemFrontLayout)
             : null;
         const winningRowIsDoor =
           winningRow?.kind === 'single-door' || winningRow?.kind === 'double-door';
@@ -330,7 +341,10 @@ export function CabinetLayer({
 
         const localArcs =
           winningRow && (winningRow.kind === 'single-door' || winningRow.kind === 'double-door')
-            ? localDoorArcs(winningRow.kind, winningRow.hinge, widthPx, depthPx)
+            ? localDoorArcs(winningRow.kind, winningRow.hinge, widthPx - panelPx, depthPx).map((a) => ({
+                ...a,
+                pivotXPx: a.pivotXPx + doorsOffsetPx,
+              }))
             : [];
 
         // ROOM-SPACE (not local — see carouselDoorArc's own comment):
@@ -449,8 +463,16 @@ export function CabinetLayer({
               // since a finger is bigger than the offset anyway.
               pickAt((pos.x - originX) / scale, (pos.y - originY) / scale, pos.x, pos.y);
             }}
-            onDblClick={() => updateCabinet(item.id, rotateCabinet(storedById.get(item.id) ?? item, 1, widthMm, depthMm))}
-            onDblTap={() => updateCabinet(item.id, rotateCabinet(storedById.get(item.id) ?? item, 1, widthMm, depthMm))}
+            // Turns this cabinet, or the selected item if the double-click
+            // is inside it (§115). Shift turns anticlockwise.
+            onDblClick={(e: Konva.KonvaEventObject<MouseEvent>) => {
+              const pos = e.target.getStage()!.getPointerPosition()!;
+              rotateOnDoubleClick({ type: 'cabinet', id: item.id }, (pos.x - originX) / scale, (pos.y - originY) / scale, e.evt.shiftKey ? -1 : 1);
+            }}
+            onDblTap={(e: Konva.KonvaEventObject<Event>) => {
+              const pos = e.target.getStage()!.getPointerPosition()!;
+              rotateOnDoubleClick({ type: 'cabinet', id: item.id }, (pos.x - originX) / scale, (pos.y - originY) / scale);
+            }}
           >
             {/*
               IMPORTANT: these children are drawn at local (0,0), NOT
@@ -522,11 +544,19 @@ export function CabinetLayer({
                 actually crossing another cabinet's own zone or box.
                 listening=false so it never steals the cabinet's own
                 drag/click target. */}
+            {panelPx > 0 && (
+              <Line
+                points={[doorsOffsetPx === 0 ? widthPx - panelPx : 0, depthPx, doorsOffsetPx === 0 ? widthPx : panelPx, depthPx]}
+                stroke="#374151"
+                strokeWidth={3}
+                listening={false}
+              />
+            )}
             {reachPx > 0 && (
               <Rect
-                x={0}
+                x={doorsOffsetPx}
                 y={depthPx}
-                width={widthPx}
+                width={widthPx - panelPx}
                 height={reachPx}
                 fill={isClearanceBlocked ? CLEARANCE_ZONE_FILL : 'rgba(107, 114, 128, 0.08)'}
                 stroke={isClearanceBlocked ? CLEARANCE_STROKE : 'rgba(107, 114, 128, 0.3)'}

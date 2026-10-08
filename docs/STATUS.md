@@ -6,7 +6,7 @@ snapshot, not a history. The reasoning is in `docs/DECISIONS-INDEX.md`
 (one line per decision, with `§` pointers into `docs/DECISIONS.md`), and
 the history is in `git log`.
 
-**Last updated:** 7 Oct 2026. Everything is on `main` (the
+**Last updated:** 8 Oct 2026. Everything is on `main` (the
 `charges-and-cutting-list` branch was merged 5 Oct; this line still said
 "not yet merged" until 6 Oct).
 
@@ -34,6 +34,15 @@ the history is in `git log`.
   view from straight above.
 - Parametric fronts: mixed rows, tambour, glass in four tints, three
   corner types, pantry; hardware derived from fronts.
+- Kitchen style defaults (§117): finish, colour, handle and board for
+  base / wall / tall cabinets, at business (Catalogue page), kitchen
+  (Style button) and cabinet level; copied onto cabinets, never priced.
+- Fixed corner panel on blind/magic corners and wall cabinets in a corner
+  (§116, §118), fitted on placement; no false swing clashes.
+- Editor polish from the first hand-built kitchen (§115, §118): double-click
+  turns a stacked item's selected base; inspector floats as a slim tab;
+  hex colour box typeable; quote panel starts closed; Catalogue's "Back to
+  <customer>'s kitchen" floats.
 - Depth convention ("includes shutter" or "carcass only"): business
   setting with a per-project override, followed by the plan, 3D and
   collisions. Shutter thickness comes from each cabinet's fronts board.
@@ -82,7 +91,7 @@ the history is in `git log`.
 
 ## Tests
 
-`npm test` (Vitest): **251 tests** in 34 files (this said 125, which
+`npm test` (Vitest): **282 tests** in 37 files (this said 125, which
 was stale). Maths tests cover pricing, the cutting list, nesting,
 panels, the importer, physical depth, the pipeline rules, and the image
 brief with its plan and elevation drawings. Screen tests (React Testing Library) cover the rate card, boards,
@@ -95,7 +104,9 @@ still checked by eye.
 1. **Re-run `supabase/schema.sql`.** Several new columns; saves fail
    without them. Re-run again after 3 Oct for the Installed/Lost stages
    (§69), and after 7 Oct **before switching sign-up on** in Supabase
-   (§106: storage writes now need business membership).
+   (§106: storage writes now need business membership), and after 8 Oct
+   for the style-default columns (§117: until then a kitchen or business
+   style default can't be saved; everything else works).
 2. **Lower the labour rate.** The ₹150/sq ft placeholder was set against
    the old small area estimate. Labour now bills on total cut-part area
    (a base unit went from 7.0 to 22.7 sq ft).
@@ -113,6 +124,9 @@ still checked by eye.
    then confirm and lock Workshop settings.
 
 ## Unverified (built, not seen in a browser)
+
+- §116: the corner fixed panel in 3D with a unit pushed into a real
+  corner (geometry is tested; the look isn't seen).
 
 - Most of §41–§67:
   - cutting-list screens and exports
@@ -182,6 +196,10 @@ assumed settings, which is a check, not a blocker.
 2. ~~Merge `charges-and-cutting-list` into `main`.~~ Done 5 Oct 2026 (fast-forward, §1–§96 now on `main`). Next: host it (Cloudflare Pages, free `.pages.dev` address) and add the co-founder by hand.
 3. Browser tests that script the walkthrough's flows.
 4. The "before the first customer" list in `docs/AFTER_FIRST_CUSTOMERS.md`.
+5. Countertop slab options (asked 8 Oct, waiting on the answer): a slab
+   picker with material/surface/colour, or several slab choices saved on
+   one kitchen to compare in front of the customer.
+6. L-shaped / bi-fold wall corner units (not built; blind wall corners are).
 
 Open issues: none (`docs/ISSUES.md`). Fixed issues are logged in
 `docs/ISSUES-FIXED.md`.

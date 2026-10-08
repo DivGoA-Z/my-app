@@ -56,7 +56,7 @@ import { defaultFrontLayout, GLASS_TINT_LABELS } from '../types/front';
 import type { BoardRate, HardwareRates, RateCard } from '../types/rates';
 import { boardLabel, LEGACY_BOARD_THICKNESS_MM, MATERIAL_RATE_LABELS } from '../types/rates';
 import { hasCountertop } from './cabinetGeometry';
-import { carcassBands, computeFrontBreakdown, REVEAL_MM } from './fronts';
+import { carcassBands, cabinetFrontBreakdown, REVEAL_MM } from './fronts';
 import { describeFinish } from './materials3d';
 import { resolvePanels } from './panels';
 
@@ -562,7 +562,9 @@ export function cabinetCutParts(
   const bands = carcassBands(layout, H);
   // No handle is passed: only panel/shelf GEOMETRY is read here, and a
   // handle never changes a panel's size.
-  const breakdown = computeFrontBreakdown(layout, W, H, undefined, NO_RATES);
+  // Through cabinetFrontBreakdown, so a corner's fixed panel (§116) is
+  // a part here exactly as it is in 3D and the quote.
+  const breakdown = cabinetFrontBreakdown(item, layout, undefined, NO_RATES);
 
   if (has('shelves') && !isCarousel) {
     const tShelf = thick('shelves');
@@ -648,7 +650,7 @@ export function cabinetCutParts(
     if (!has('fronts') || isCarousel) continue;
     add('fronts', {
       kind: 'front',
-      name: FRONT_PART_NAMES[panel.kind] ?? 'Front',
+      name: panel.cornerPanel ? 'Corner fixed panel' : (FRONT_PART_NAMES[panel.kind] ?? 'Front'),
       lengthMm: panel.heightMm,
       widthMm: panel.widthMm,
       finish: finishLabel,

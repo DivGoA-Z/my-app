@@ -19,10 +19,11 @@ import { Layer, Group, Rect, Text } from 'react-konva';
 import type Konva from 'konva';
 import { useLayoutStore } from '../../store/layoutStore';
 import { usePickAt } from '../../hooks/usePickAt';
+import { useRotateOnDoubleClick } from '../../hooks/useRotateOnDoubleClick';
 import { useSelectedObstacleId } from '../../hooks/useSelection';
 import { detectClearanceIssues } from '../../lib/clearance';
 import { computeRoomScale } from '../../lib/canvasScale';
-import { getFootprint, rotateFootprint } from '../../lib/footprint';
+import { getFootprint } from '../../lib/footprint';
 import type { ObstacleType } from '../../types/layout';
 
 // Amber rather than the collision red: a pillar in a door's swing is a
@@ -61,6 +62,7 @@ export function ObstacleLayer({
   const obstacles = useLayoutStore((state) => state.obstacles);
   const pickAt = usePickAt();
   const updateObstacle = useLayoutStore((state) => state.updateObstacle);
+  const rotateOnDoubleClick = useRotateOnDoubleClick();
   const selectedObstacleId = useSelectedObstacleId();
   const currentLayout = useLayoutStore((state) => state.currentLayout);
   const cabinets = usePhysicalCabinets();
@@ -165,8 +167,14 @@ export function ObstacleLayer({
               // since a finger is bigger than the offset anyway.
               pickAt((pos.x - originX) / scale, (pos.y - originY) / scale, pos.x, pos.y);
             }}
-            onDblClick={() => updateObstacle(obstacle.id, rotateFootprint(obstacle, 1, widthMm, depthMm))}
-            onDblTap={() => updateObstacle(obstacle.id, rotateFootprint(obstacle, 1, widthMm, depthMm))}
+            onDblClick={(e: Konva.KonvaEventObject<MouseEvent>) => {
+              const pos = e.target.getStage()!.getPointerPosition()!;
+              rotateOnDoubleClick({ type: 'obstacle', id: obstacle.id }, (pos.x - originX) / scale, (pos.y - originY) / scale, e.evt.shiftKey ? -1 : 1);
+            }}
+            onDblTap={(e: Konva.KonvaEventObject<Event>) => {
+              const pos = e.target.getStage()!.getPointerPosition()!;
+              rotateOnDoubleClick({ type: 'obstacle', id: obstacle.id }, (pos.x - originX) / scale, (pos.y - originY) / scale);
+            }}
           >
             {/*
               Drawn at local (0,0), not (-widthPx/2,-depthPx/2) — see the

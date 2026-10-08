@@ -56,6 +56,7 @@ import { defaultFrontLayout } from '../types/front';
 import { currentFootprintRect } from './footprint';
 import type { FootprintRect } from './footprint';
 import { touchesFloor } from './surfaceAreas';
+import { cornerPanelWidthMm } from './fronts';
 import type { RoomRect } from './openings';
 
 // How far a front kind reaches into the room when operated. A hinged
@@ -239,6 +240,50 @@ export function carouselDoorArc(
 // exactly +Y/-X/-Y/+X (south/west/north/east) for all four — the same
 // four results those cases returned, just derived from one formula
 // instead of read off by hand per case.
+// The part of a cabinet that has doors (§116): a blind/magic corner's
+// fixed panel doesn't open, so its swing and reach are those of a
+// narrower cabinet beside the panel. The same cabinet when it has none.
+// Centre-based, since x/y is the UNROTATED corner (CLAUDE.md).
+export function doorPart(item: PlacedCabinetItem): PlacedCabinetItem {
+  const panelMm = cornerPanelWidthMm(item);
+  if (panelMm === 0) return item;
+  const widthMm = item.widthMm - panelMm;
+  const off = rotateCW({ x: item.cornerPanel!.side === 'left' ? panelMm / 2 : -panelMm / 2, y: 0 }, item.rotationDeg);
+  const cx = item.x + item.widthMm / 2 + off.x;
+  const cy = item.y + item.depthMm / 2 + off.y;
+  return {
+    ...item,
+    widthMm,
+    x: cx - widthMm / 2,
+    y: cy - item.depthMm / 2,
+    // Undefined resolves on the narrower width (a single door), as the
+    // fronts do.
+    frontLayout: item.frontLayout ?? defaultFrontLayout(item.moduleType, widthMm),
+  };
+}
+
+// The strip of floor just in front of a corner unit's fixed panel (40mm
+// deep), or null without one: whatever stands there is the meeting run
+// the panel was fitted for (lib/cornerPanel.ts).
+function panelFrontStrip(item: PlacedCabinetItem): Point[] | null {
+  const panelMm = cornerPanelWidthMm(item);
+  if (panelMm === 0) return null;
+  const sign = item.cornerPanel!.side === 'left' ? -1 : 1;
+  const cx = item.x + item.widthMm / 2;
+  const cy = item.y + item.depthMm / 2;
+  const x0 = sign * (item.widthMm / 2 - panelMm / 2);
+  const local: Point[] = [
+    { x: x0 - panelMm / 2, y: item.depthMm / 2 },
+    { x: x0 + panelMm / 2, y: item.depthMm / 2 },
+    { x: x0 + panelMm / 2, y: item.depthMm / 2 + 40 },
+    { x: x0 - panelMm / 2, y: item.depthMm / 2 + 40 },
+  ];
+  return local.map((p) => {
+    const r = rotateCW(p, item.rotationDeg);
+    return { x: cx + r.x, y: cy + r.y };
+  });
+}
+
 function rotateCW(v: Point, deg: number): Point {
   const rad = (deg * Math.PI) / 180;
   const cos = Math.cos(rad);
@@ -336,7 +381,9 @@ function doorSectorPolygon(item: PlacedCabinetItem, hinge: 'left' | 'right', rad
 // own sector). This is what detectCabinetReachConflicts tests for
 // overlap, replacing the conservative bounding-box version this
 // function used to return.
-function reachPolygons(item: PlacedCabinetItem, layout: FrontLayout): Point[][] {
+function reachPolygons(whole: PlacedCabinetItem, wholeLayout: FrontLayout): Point[][] {
+  const item = doorPart(whole);
+  const layout = item === whole ? wholeLayout : item.frontLayout!;
   if (item.moduleType === 'corner-carousel') {
     const footprint = currentFootprintRect(item);
     const arc = carouselDoorArc(footprint, item.rotationDeg);
@@ -480,10 +527,19 @@ export function detectCabinetReachConflicts(
       const b = entries[j];
       if (a.item.ignoreClearance || b.item.ignoreClearance) continue;
 
+      // A blind/magic corner and the run that meets its fixed panel (§116)
+      // share the corner's floor by design: their doors open one at a
+      // time, as with any corner unit. Only "the paths cross" is waived
+      // for that pair; a door hitting the other's BOX still counts.
+      const meetsPanel = (x: typeof a, y: typeof a) => {
+        const strip = panelFrontStrip(x.item);
+        return strip !== null && polygonsOverlap(strip, y.footprintPoly);
+      };
+      const cornerPair = meetsPanel(a, b) || meetsPanel(b, a);
       const conflict =
         a.shapes.some((shape) => polygonsOverlap(shape, b.footprintPoly)) ||
         b.shapes.some((shape) => polygonsOverlap(shape, a.footprintPoly)) ||
-        a.shapes.some((sa) => b.shapes.some((sb) => polygonsOverlap(sa, sb)));
+        (!cornerPair && a.shapes.some((sa) => b.shapes.some((sb) => polygonsOverlap(sa, sb))));
 
       if (conflict) {
         issues.push({

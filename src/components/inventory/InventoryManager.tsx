@@ -29,6 +29,7 @@ import { CabinetCatalogImportExport } from './CabinetCatalogImportExport';
 import { ObstaclePresetImportExport } from './ObstaclePresetImportExport';
 import { ApplianceCatalogImportExport } from './ApplianceCatalogImportExport';
 import { DefaultCatalogueCard } from './DefaultCatalogueCard';
+import { BusinessStyleCard } from '../style/BusinessStyleCard';
 
 // The rows themselves (read-only lists + an edit panel per item) live in
 // CatalogueLists.tsx since §76; they replaced inline-editable table rows.
@@ -88,6 +89,7 @@ export function InventoryManager({
       ) : (
         <>
           <DefaultCatalogueCard />
+          <BusinessStyleCard />
 
           <CatalogueSection
             id="cabinets"

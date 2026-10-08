@@ -31,6 +31,7 @@ import { useSelectedCabinetId, useSelectedObstacleId } from '../../hooks/useSele
 import { rotateCabinet, resizeCabinet, duplicateCabinet } from '../../lib/cabinetGeometry';
 import { FinishPicker } from './FinishPicker';
 import { FrontPicker } from './FrontPicker';
+import { CornerPanelControl } from './CornerPanelControl';
 
 
 // Mirrors the fallback used in App.tsx/CabinetToolbar — only matters
@@ -139,6 +140,7 @@ export function CabinetInspector({ onOpenDesigner }: { onOpenDesigner?: (cabinet
           the two are orthogonal, and grouping them adjacently is what
           makes that legible in the UI rather than just in the types. */}
       <FrontPicker cabinet={cabinet} />
+      <CornerPanelControl cabinet={cabinet} />
 
       <div className="flex flex-col gap-2 border-t border-border pt-4">
         <span className="text-[13px] font-semibold">Size</span>

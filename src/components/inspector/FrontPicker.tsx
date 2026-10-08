@@ -50,7 +50,7 @@ import type {
   HandleSpec,
 } from '../../types/front';
 import {
-  computeFrontBreakdown,
+  cabinetFrontBreakdown,
   shelfBoards,
   FRONT_THICKNESS_MM,
   GLASSABLE_FRONT_KINDS,
@@ -179,13 +179,9 @@ export function FrontPicker({ cabinet }: { cabinet: PlacedCabinetItem }) {
     cabinet.frontLayout ?? defaultFrontLayout(cabinet.moduleType, cabinet.widthMm);
 
   const handle = resolveHandle(handles, cabinet.handleId);
-  const breakdown = computeFrontBreakdown(
-    layout,
-    cabinet.widthMm,
-    cabinet.heightMm,
-    handle,
-    rateCard.hardware
-  );
+  // The placed cabinet's own breakdown, so a corner's fixed panel (§116)
+  // is left out of the doors' hardware here exactly as in the quote.
+  const breakdown = cabinetFrontBreakdown(cabinet, layout, handle, rateCard.hardware);
 
   const hardwareTotal = breakdown.hardware.reduce((s, h) => s + h.count * h.unitCost, 0);
   const isOverridden = (cabinet.hardware?.length ?? 0) > 0;

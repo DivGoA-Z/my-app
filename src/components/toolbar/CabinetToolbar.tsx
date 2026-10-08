@@ -27,6 +27,8 @@ import { Chips, SearchBox } from '../inventory/CatalogueKit';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
 import { getDefaultElevationMm } from '../../lib/cabinetGeometry';
+import { useFitCornerPanel } from '../../hooks/useFitCornerPanel';
+import { effectiveStyleDefaults, withStyleDefaults } from '../../lib/styleDefaults';
 import type { CatalogItem } from '../../types/Catalog';
 import type { PlacedCabinetItem } from '../../types/cabinet';
 
@@ -44,6 +46,16 @@ export function CabinetToolbar({ onManageInventory }: CabinetToolbarProps) {
   const currentLayout = useLayoutStore((state) => state.currentLayout);
   const cabinetCatalog = useLayoutStore((state) => state.cabinetCatalog);
   const isInventoryLoading = useLayoutStore((state) => state.isInventoryLoading);
+  // A blind/magic corner gets its fixed panel fitted where it lands (§116).
+  const fitCornerPanel = useFitCornerPanel();
+  // And this kitchen's style defaults for its group (§117) on top of the
+  // catalogue item's own finish/handle/board.
+  const styleDefaults = useLayoutStore((s) => effectiveStyleDefaults(s.businessStyleDefaults ?? undefined, s.projectStyleDefaults ?? undefined));
+  const place = (cabinet: PlacedCabinetItem) => {
+    const styled = withStyleDefaults(cabinet, styleDefaults);
+    // A wall cabinet gets one only where another wall run meets its end.
+    addCabinet({ ...styled, ...fitCornerPanel(styled, { onlyWhereRunMeets: styled.moduleType === 'wall-cabinet' }) });
+  };
 
   const roomWidthMm = currentLayout?.dimensions.widthMm ?? DEFAULT_ROOM_WIDTH_MM;
   const roomDepthMm = currentLayout?.dimensions.depthMm ?? DEFAULT_ROOM_DEPTH_MM;
@@ -97,7 +109,7 @@ export function CabinetToolbar({ onManageInventory }: CabinetToolbarProps) {
   }
 
   function handleAdd(item: CatalogItem) {
-    addCabinet(buildCabinet(item));
+    place(buildCabinet(item));
     toast.success(`Added ${item.label}`, { description: 'It’s in the middle of the room. Next time, drag the tile straight to where it goes.' });
   }
 
@@ -109,7 +121,7 @@ export function CabinetToolbar({ onManageInventory }: CabinetToolbarProps) {
       depthMm: cabinet.depthMm,
       autoTurn: true,
       cabinet,
-      commit: ({ x, y, rotationDeg }) => addCabinet({ ...cabinet, x, y, rotationDeg }),
+      commit: ({ x, y, rotationDeg }) => place({ ...cabinet, x, y, rotationDeg }),
     };
   }
 

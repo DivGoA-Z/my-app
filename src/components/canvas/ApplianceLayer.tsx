@@ -28,11 +28,11 @@ import type Konva from 'konva';
 import { Layer, Group, Rect, Text } from 'react-konva';
 import { useLayoutStore } from '../../store/layoutStore';
 import { usePickAt } from '../../hooks/usePickAt';
+import { useRotateOnDoubleClick } from '../../hooks/useRotateOnDoubleClick';
 import { useSelectedApplianceId } from '../../hooks/useSelection';
 import { computeRoomScale } from '../../lib/canvasScale';
 import { useCollisions } from '../../hooks/useCollisions';
 import { detectCollisions } from '../../lib/collision';
-import { rotateAppliance } from '../../lib/applianceGeometry';
 import { getFootprint } from '../../lib/footprint';
 import type { ApplianceType } from '../../types/appliance';
 
@@ -97,6 +97,7 @@ export function ApplianceLayer({
   const cabinets = usePhysicalCabinets();
   const obstacles = useLayoutStore((state) => state.obstacles);
   const updateAppliance = useLayoutStore((state) => state.updateAppliance);
+  const rotateOnDoubleClick = useRotateOnDoubleClick();
   const pickAt = usePickAt();
   const selectedApplianceId = useSelectedApplianceId();
 
@@ -230,16 +231,18 @@ export function ApplianceLayer({
               // since a finger is bigger than the offset anyway.
               pickAt((pos.x - originX) / scale, (pos.y - originY) / scale, pos.x, pos.y);
             }}
+            // Turns this appliance, or the selected item if the double-click
+            // is inside it: select the sink unit, double-click the sink on
+            // it, and the UNIT turns (§115). Shift turns anticlockwise.
             onDblClick={(e: Konva.KonvaEventObject<MouseEvent>) => {
-              updateAppliance(
-                item.id,
-                rotateAppliance(item, e.evt.shiftKey ? -1 : 1, widthMm, depthMm)
-              );
+              const pos = e.target.getStage()!.getPointerPosition()!;
+              rotateOnDoubleClick({ type: 'appliance', id: item.id }, (pos.x - originX) / scale, (pos.y - originY) / scale, e.evt.shiftKey ? -1 : 1);
             }}
-            onDblTap={() => {
+            onDblTap={(e: Konva.KonvaEventObject<Event>) => {
               // No modifier keys on touch — clockwise only. Four taps
               // returns to where it started.
-              updateAppliance(item.id, rotateAppliance(item, 1, widthMm, depthMm));
+              const pos = e.target.getStage()!.getPointerPosition()!;
+              rotateOnDoubleClick({ type: 'appliance', id: item.id }, (pos.x - originX) / scale, (pos.y - originY) / scale);
             }}
           >
             {/* Drawn at local (0,0), NOT (-widthPx/2, -depthPx/2) —

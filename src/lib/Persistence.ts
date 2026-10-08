@@ -7,6 +7,7 @@
 // inline. Makes this swappable later (different backend, offline mode,
 // etc.) without touching the store's public API.
 
+import type { StyleDefaults } from './styleDefaults';
 import { sanitizeOtherRates, type OtherRate } from '../types/rates';
 import { supabase } from './Supabaseclient';
 import type { CustomerProject, LeadStatus, LostReason } from '../types/customer';
@@ -82,6 +83,9 @@ interface LayoutRow {
   loose_parts: RoomLayout['looseParts'] | null;
   // §61 — project override of the depth convention; NULL = business setting.
   depth_includes_front: boolean | null;
+  // §117 — this kitchen's style defaults; NULL = the business's. Absent
+  // on a database that hasn't re-run schema.sql yet.
+  style_defaults?: StyleDefaults | null;
   grid_snap_mm: number;
   // Same reasoning as ProjectRow.business_id.
   business_id: string;
@@ -338,10 +342,16 @@ export interface ProjectBundle {
   layout: RoomLayout;
   cabinets: PlacedCabinetItem[];
   appliances: PlacedApplianceItem[];
+  // §117. Beside the layout, not on it: the layout object is part of the
+  // pricing context (and so the quote fingerprint), and a style default
+  // prices nothing. Undefined = don't write the column (a kitchen that
+  // never set one, so a database without the column still saves);
+  // null = back to the business's.
+  styleDefaults?: StyleDefaults | null;
 }
 
 export async function saveProjectBundle(bundle: ProjectBundle, businessId: string): Promise<void> {
-  const { project, layout, cabinets, appliances } = bundle;
+  const { project, layout, cabinets, appliances, styleDefaults } = bundle;
 
   const { error: projectError } = await supabase
     .from('projects')
@@ -352,7 +362,10 @@ export async function saveProjectBundle(bundle: ProjectBundle, businessId: strin
 
   const { error: layoutError } = await supabase
     .from('layouts')
-    .upsert(layoutToRow(layout, cabinets, appliances, businessId));
+    .upsert({
+      ...layoutToRow(layout, cabinets, appliances, businessId),
+      ...(styleDefaults !== undefined ? { style_defaults: styleDefaults } : {}),
+    });
   if (layoutError) {
     throw new Error(`Failed to save layout: ${layoutError.message}`);
   }
@@ -427,6 +440,7 @@ export async function loadProjectBundle(projectId: string): Promise<ProjectBundl
   return {
     project,
     layout: rowToLayout(typedLayoutRow),
+    styleDefaults: typedLayoutRow.style_defaults ?? undefined,
     cabinets: typedLayoutRow.cabinets.map(normalizeCabinet),
     // Defensive fallback for a row saved before the appliances column
     // existed — same reasoning as the cameras ?? [] fallback in

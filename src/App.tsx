@@ -1,5 +1,6 @@
 // src/App.tsx
 
+import { ArrowLeft } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
 import { InventoryManager, type InventorySection } from './components/inventory/InventoryManager';
 import { CatalogueJumpBar } from './components/inventory/CatalogueSection';
@@ -69,6 +70,7 @@ function App() {
   // for the dashboard's generic "Manage Inventory" button.
   const [manageSection, setManageSection] = useState<InventorySection | undefined>(undefined);
   const currentLayout = useLayoutStore((s) => s.currentLayout);
+  const currentProjectName = useLayoutStore((s) => s.currentProject?.clientName);
   const loadProject = useLayoutStore((s) => s.loadProject);
   const loadInventory = useLayoutStore((s) => s.loadInventory);
 
@@ -251,10 +253,18 @@ function App() {
         {view === 'settings' && <SettingsPage />}
         {view === 'catalogue' && (
           <div className="flex flex-col gap-5 px-4 py-6 md:px-8 lg:px-10 lg:py-8">
-            {/* Opened from a toolbar's "Manage" inside a design: one tap back. */}
+            {/* Opened from inside a design: one tap back, and it floats, so
+                it's there wherever the catalogue is scrolled (§118) — it
+                used to sit at the top and scroll away. Bottom-right, clear
+                of the phone's tab bar; the section jump bar already owns
+                the top edge on smaller screens. */}
             {previousView === 'canvas' && (
-              <Button variant="outline" size="touch" className="self-start" onClick={() => setView('canvas')}>
-                ← Back to design
+              <Button
+                size="touch"
+                className="fixed right-4 bottom-[92px] z-30 shadow-float md:right-8 md:bottom-6"
+                onClick={() => setView('canvas')}
+              >
+                <ArrowLeft /> Back to {currentProjectName ? `${currentProjectName}\u2019s kitchen` : 'the design'}
               </Button>
             )}
             <PageHeader title="Catalogue" subtitle="What you pick from when designing" />

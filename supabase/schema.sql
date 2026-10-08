@@ -1152,6 +1152,11 @@ alter table public.layouts add column if not exists loose_parts jsonb;
 -- follow construction_settings. Drives the cutting list, the price, and
 -- the plan / 3D / collision geometry alike.
 alter table public.layouts add column if not exists depth_includes_front boolean;
+-- This kitchen's style defaults (§117): finish / colour / handle / board
+-- for base, wall and tall cabinets. NULL = use the business's
+-- (construction_settings.style_defaults). Its own column, not inside a
+-- priced field, so changing a default can't mark a quote stale by itself.
+alter table public.layouts add column if not exists style_defaults jsonb;
 
 -- Starter set, at plausible Delhi NCR retail. `on conflict do nothing`
 -- so re-running never overwrites a business's own rates — same as the
@@ -1557,6 +1562,10 @@ create table if not exists public.construction_settings (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+-- The business's kitchen style defaults (§117), what every new kitchen
+-- starts from. Beside `settings`, not in it: `settings` is part of every
+-- quote's pricing context, and a style default prices nothing.
+alter table public.construction_settings add column if not exists style_defaults jsonb;
 
 -- ============================================================
 -- BUSINESS ISOLATION (RLS)

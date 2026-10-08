@@ -66,7 +66,8 @@ import {
   deleteFixtureCatalogItemsBulk,
 } from '../lib/fixtureCatalog';
 import { fetchRateCard, saveRateCard } from '../lib/rates';
-import { fetchConstructionSettings, saveConstructionSettings } from '../lib/constructionSettings';
+import { fetchBusinessStyleDefaults, fetchConstructionSettings, saveBusinessStyleDefaults, saveConstructionSettings } from '../lib/constructionSettings';
+import type { StyleDefaults } from '../lib/styleDefaults';
 import {
   defaultConstructionSettings,
   sanitizeConstruction,
@@ -145,6 +146,8 @@ interface HistorySnapshot {
   appliances: PlacedApplianceItem[];
   cameras: CameraNode[];
   selection: SelectionRef | null;
+  // §117: a style change is undone with the cabinets it moved.
+  projectStyleDefaults: StyleDefaults | null | undefined;
 }
 
 const HISTORY_DEBOUNCE_MS = 500;
@@ -226,6 +229,14 @@ interface LayoutStore {
   // "never changes a price" and was deliberately kept out of
   // PricingContext — true then, not since §42. See types/construction.ts.
   constructionSettings: ConstructionSettings;
+  // Kitchen style defaults (§117, lib/styleDefaults.ts). Kept OUT of
+  // constructionSettings and currentLayout on purpose: both reach the
+  // pricing context, and a default prices nothing — only the cabinets it
+  // is copied onto do. Business: what a new kitchen starts with. Project:
+  // this kitchen's own, undefined until it sets one (then saved with the
+  // layout row; null = back to the business's).
+  businessStyleDefaults: StyleDefaults | null;
+  projectStyleDefaults: StyleDefaults | null | undefined;
   // The business's finish catalogue (types/finish.ts). Read by the
   // 3D renderer, the inspector's finish picker and BOM costing.
   finishes: SurfaceFinish[];
@@ -344,6 +355,16 @@ interface LayoutStore {
   // separate updateCabinet calls would each carry a different
   // signature and become N undo steps.
   updateCabinets: (ids: string[], updates: Partial<PlacedCabinetItem>) => void;
+  // Different changes to several cabinets as ONE edit (one undo step,
+  // one autosave) — a style default reaching every base cabinet.
+  patchCabinets: (patches: { id: string; patch: Partial<PlacedCabinetItem> }[]) => void;
+  // This kitchen's style defaults (§117); null = back to the business's.
+  // With the cabinet changes that go with it, as ONE edit (one undo).
+  setProjectStyleDefaults: (
+    defaults: StyleDefaults | null,
+    patches?: { id: string; patch: Partial<PlacedCabinetItem> }[]
+  ) => void;
+  saveBusinessStyleDefaults: (defaults: StyleDefaults | null) => Promise<void>;
   removeCabinet: (id: string) => void;
 
   addObstacle: (obstacle: Obstacle) => void;
@@ -447,6 +468,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
       appliances: state.appliances,
       cameras: state.cameras,
       selection: state.selection,
+      projectStyleDefaults: state.projectStyleDefaults,
     };
   }
 
@@ -575,6 +597,8 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
   fixtureCatalog: [],
   rateCard: defaultRateCard(),
   constructionSettings: defaultConstructionSettings(),
+  businessStyleDefaults: null,
+  projectStyleDefaults: undefined,
   finishes: [],
   isInventoryLoading: false,
   inventoryError: null,
@@ -961,6 +985,31 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
     set((state) => ({ cabinets: [...state.cabinets, item] }));
   },
 
+  patchCabinets: (patches) => {
+    if (patches.length === 0) return;
+    noteDesignEdit('patchCabinets');
+    const byId = new Map(patches.map((p) => [p.id, p.patch]));
+    set((state) => ({
+      cabinets: state.cabinets.map((c) => (byId.has(c.id) ? { ...c, ...byId.get(c.id) } : c)),
+    }));
+  },
+
+  setProjectStyleDefaults: (defaults, patches = []) => {
+    noteDesignEdit('styleDefaults');
+    const byId = new Map(patches.map((p) => [p.id, p.patch]));
+    set((state) => ({
+      projectStyleDefaults: defaults,
+      cabinets: byId.size
+        ? state.cabinets.map((c) => (byId.has(c.id) ? { ...c, ...byId.get(c.id) } : c))
+        : state.cabinets,
+    }));
+  },
+
+  saveBusinessStyleDefaults: async (defaults) => {
+    await saveBusinessStyleDefaults(defaults, get().constructionSettings.id, requireBusinessId());
+    set({ businessStyleDefaults: defaults });
+  },
+
   updateCabinets: (ids, updates) => {
     if (ids.length === 0) return;
     noteDesignEdit('updateCabinets');
@@ -1121,6 +1170,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
         fixtureCatalog,
         rateCard,
         constructionSettings,
+        businessStyleDefaults,
       ] = await Promise.all([
         fetchCabinetCatalog(),
         fetchObstaclePresets(),
@@ -1130,6 +1180,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
         fetchFixtureCatalog(),
         fetchRateCard(),
         fetchConstructionSettings(),
+        fetchBusinessStyleDefaults(),
       ]);
       set({
         cabinetCatalog,
@@ -1140,6 +1191,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
         fixtureCatalog,
         rateCard,
         constructionSettings,
+        businessStyleDefaults,
         isInventoryLoading: false,
       });
     } catch (err) {
@@ -1447,6 +1499,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
           layout: layoutForQuote,
           cabinets,
           appliances,
+          styleDefaults: get().projectStyleDefaults,
         },
         requireBusinessId()
       );
@@ -1475,10 +1528,11 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
 
     set({ isLoading: true, loadError: null });
     try {
-      const { project, layout, cabinets, appliances } = await loadProjectBundle(projectId);
+      const { project, layout, cabinets, appliances, styleDefaults } = await loadProjectBundle(projectId);
       set({
         currentProject: project,
         currentLayout: layout,
+        projectStyleDefaults: styleDefaults,
         cabinets,
         obstacles: layout.obstacles,
         appliances,

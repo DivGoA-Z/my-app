@@ -136,3 +136,14 @@ export function colorFamily(hex: string): ColorFamily {
 }
 
 export const HEX_PATTERN = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+// What someone typed into a hex box, as a full '#rrggbb', or null while
+// it isn't a colour yet. Accepts it with or without '#', in either case,
+// and the 3-digit shorthand (#abc → #aabbcc), trimming spaces from a
+// paste (§115).
+export function parseHexInput(text: string): string | null {
+  const t = text.trim().replace(/^#?/, '#');
+  if (!HEX_PATTERN.test(t)) return null;
+  const h = t.slice(1).toLowerCase();
+  return `#${h.length === 3 ? h.split('').map((c) => c + c).join('') : h}`;
+}
