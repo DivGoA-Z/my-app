@@ -97,7 +97,7 @@ import { lightingEnvironmentFor, clampExposure, DEFAULT_EXPOSURE, FIXTURE_LUMEN_
 import { capturePanorama, DEFAULT_CAPTURE_ORIENTATION } from '../../lib/panoramaCapture';
 import type { CapturePanoramaOptions } from '../../lib/panoramaCapture';
 import { PanoramaViewerModal } from '../panorama/PanoramaViewerModal';
-import { buildRenderBrief, renderBriefFileStem, viewFromWorldCamera } from '../../lib/renderBrief';
+import { buildRenderBrief, renderBriefFileStem, viewFromWorldCamera, withoutRefs } from '../../lib/renderBrief';
 import type { ReferenceImage } from '../../lib/renderBrief';
 import { elevationSheetSvg } from '../../lib/elevationSheet';
 import { svgToPng } from '../../lib/svgToPng';
@@ -440,10 +440,12 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
           { kind: 'line-render', file: `${stem}-guide.png`, widthPx, heightPx },
           { kind: 'colour-render', file: `${stem}-colour.png`, widthPx, heightPx },
         ];
-        const brief = buildRenderBrief({ ...base, referenceImages: images });
+        // No codes in this route (§114): the images carry no labels, and a
+        // model given "C3" in the text painted it onto the cabinet.
+        const brief = buildRenderBrief({ ...base, referenceImages: images, refs: false });
         downloadBlob(await (await fetch(line)).blob(), images[0].file);
         downloadBlob(await (await fetch(colour)).blob(), images[1].file);
-        json(brief, `${stem}-render-brief.json`);
+        json(withoutRefs(brief), `${stem}-render-brief.json`);
         toast.success(`Image brief downloaded: what ${lockedCamera.label} sees as a line drawing and in colour, and the brief (JSON).`);
       } else {
         // Drawn from a first pass of the brief, so the sheet and the JSON

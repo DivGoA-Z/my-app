@@ -390,3 +390,5 @@ and bug stories. Open the matching `§` there when you work in that area.
 **§112** Gemini Flash Lite painted the refs (C3, O1…) onto the image. Instructions now open with "NEVER DRAW ANY TEXT… codes are for your reasoning only"; full prompt and negatives forbid letters/numbers/labels/codes; short negative leads with "text or labels". Heavier model for customer images.
 
 **§113** Image brief at a camera adds `-colour.png`: the 3D view, same camera and size as the line drawing (aligned pixel-for-pixel), as a placement reference for which finish goes where; the brief says not to copy its CG look. To A/B against line + JSON only.
+
+**§114** Camera route brief has NO codes (`refs: false`: descriptions and counts in all text; `withoutRefs` drops `ref` fields) — a light model painted them. Instructions open with a per-design "ADD NOTHING" list (bare counters, walls/backsplash, only the placed lights, no sockets, no window scenery), mirrored in the negatives. Shortlist: ChatGPT (most photographic, invents styling) vs heavier Gemini.

@@ -331,6 +331,11 @@ export interface RenderBriefInput {
   // the file still points somewhere once it leaves the browser.
   assetOrigin: string;
   generatedAt: string;
+  // false = describe items in words, never by code (§114). The camera
+  // route's images carry no labels, so codes there only tempt a model to
+  // paint "C3" onto a cabinet (a lighter one did, twice). The plan/walls
+  // route keeps codes: that sheet's labels need them. Default true.
+  refs?: boolean;
 }
 
 // ---- Small, tested helpers ----
@@ -545,6 +550,7 @@ function plural(n: number, [one, many]: [string, string]) {
 
 export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
   const { layout, finishes, handles, assetOrigin: origin } = input;
+  const useRefs = input.refs !== false;
   const roomW = layout.dimensions.widthMm;
   const roomD = layout.dimensions.depthMm;
   const ceilingMm = layout.dimensions.ceilingHeightMm ?? DEFAULT_CEILING_HEIGHT_MM;
@@ -636,7 +642,11 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
       countertop: hasCountertop(c.moduleType),
     };
   });
-  const cabinetRefById = new Map(placedCabinets.map((p, i) => [p.c.id, cabinets[i].ref]));
+  // What other items call a cabinet: its code, or (§114) its description.
+  const cabinetNames = itemNames(cabinets.map((c) => ({ ref: c.ref, noun: c.type, wall: c.against?.wall ?? null })));
+  const cabinetLabelById = new Map(
+    placedCabinets.map((p, i) => [p.c.id, useRefs ? cabinets[i].ref : cabinetNames.get(cabinets[i].ref)!])
+  );
 
   // ---- Appliances ----
   const placedAppliances = byKey(
@@ -659,7 +669,7 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
       box: boxOf(rect, a.elevationMm, a.heightMm),
       facing: facingOf(a.rotationDeg),
       against,
-      relation: applianceRelation(a, rect, placedCabinets, cabinetRefById, placedAppliances),
+      relation: applianceRelation(a, rect, placedCabinets, cabinetLabelById, placedAppliances),
       sinkCutoutMm: cutout ? { width: cutout.widthMm, depth: cutout.depthMm } : undefined,
     };
   });
@@ -803,7 +813,7 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
         thicknessMm: COUNTERTOP_THICKNESS_MM,
         overhangMm: COUNTERTOP_OVERHANG_MM,
         topHeightsMm: [...new Set(slabCabinets.map((c) => c.box.maxZ + COUNTERTOP_THICKNESS_MM))].sort((a, b) => a - b),
-        covers: slabCabinets.map((c) => c.ref),
+        covers: useRefs ? slabCabinets.map((c) => c.ref) : [`the ${countByType(slabCabinets.map((c) => c.type))}`],
       }
     : null;
 
@@ -811,7 +821,7 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
   const fixtures: LightEntry[] = resolveAllFixtures(layout, input.cabinets, input.fixtureCatalog).map((p, i) => {
     const linear = p.item.kind === 'strip' || p.item.kind === 'cove' || p.item.kind === 'plinth';
     const host =
-      p.fixture.mount.kind === 'cabinet' ? cabinetRefById.get(p.fixture.mount.cabinetId) : undefined;
+      p.fixture.mount.kind === 'cabinet' ? cabinetLabelById.get(p.fixture.mount.cabinetId) : undefined;
     return {
       ref: `L${i + 1}`,
       kind: FIXTURE_KIND_LABELS[p.item.kind],
@@ -896,7 +906,35 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
     notInThisRoom,
   };
 
-  return { ...brief, prompt: buildPrompt(brief) };
+  return { ...brief, prompt: buildPrompt(brief, useRefs) };
+}
+
+// Plain-words names for items, for briefs without codes (§114): "the
+// drawer base unit on the north wall", with "second from the left" only
+// when two of the same kind share a wall.
+const ORDINAL = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth'];
+function itemNames(items: { ref: string; noun: string; wall: WallOrientation | null }[]): Map<string, string> {
+  const out = new Map<string, string>();
+  const groups = new Map<string, string[]>();
+  for (const it of items) {
+    const key = `${it.noun}|${it.wall ?? '-'}`;
+    groups.set(key, [...(groups.get(key) ?? []), it.ref]);
+  }
+  for (const it of items) {
+    const key = `${it.noun}|${it.wall ?? '-'}`;
+    const same = groups.get(key)!;
+    const where = it.wall ? ` on the ${it.wall} wall` : ' standing free of the walls';
+    const nth = same.length > 1 ? `, ${ORDINAL[same.indexOf(it.ref)] ?? `number ${same.indexOf(it.ref) + 1}`} from the left` : '';
+    out.set(it.ref, `the ${it.noun}${where}${nth}`);
+  }
+  return out;
+}
+
+// "3 base cabinets and 1 sink base unit" — a group named without codes.
+export function countByType(types: string[]): string {
+  const n = new Map<string, number>();
+  for (const t of types) n.set(t, (n.get(t) ?? 0) + 1);
+  return joinAnd([...n].map(([t, k]) => `${k} ${t}${k > 1 ? 's' : ''}`));
 }
 
 // What an appliance is doing relative to the cabinets: a hob ON the
@@ -942,9 +980,16 @@ function compass(deg: number): string {
   return names[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
 }
 
-function buildPrompt(b: Omit<RenderBrief, 'prompt'>): RenderBrief['prompt'] {
+function buildPrompt(b: Omit<RenderBrief, 'prompt'>, useRefs = true): RenderBrief['prompt'] {
   const lines: string[] = [];
   const v = b.view;
+  // With codes: "C3 600 mm-wide…", "of C1, C2". Without (§114): no prefix,
+  // groups by count of each kind, items by description.
+  const pre = (ref: string) => (useRefs ? `${ref} ` : '');
+  const openingName = itemNames(b.openings.map((o) => ({ ref: o.ref, noun: o.kind.toLowerCase(), wall: o.wall })));
+  const group = (refs: string[]) =>
+    useRefs ? refs.join(', ') : `the ${countByType(refs.map((r) => b.cabinets.find((c) => c.ref === r)!.type))}`;
+  const opening = (o: { ref: string }) => (useRefs ? o.ref : openingName.get(o.ref)!);
 
   lines.push(
     `Photorealistic interior photograph of a real, compact modular kitchen in an Indian apartment. Room ${mm(b.room.widthMm)} wide (east–west) × ${mm(b.room.depthMm)} deep (north–south), ceiling ${mm(b.room.ceilingHeightMm)}.`
@@ -965,26 +1010,26 @@ function buildPrompt(b: Omit<RenderBrief, 'prompt'>): RenderBrief['prompt'] {
       const cab = cabByRef.get(e.ref);
       if (cab) {
         const level = cab.box.minZ > 900 ? ` hung at ${mm(cab.box.minZ)}–${mm(cab.box.maxZ)}` : '';
-        return `${e.ref} ${mm(cab.sizeMm.width)}-wide ${cab.type}${level} with ${cab.fronts.summary}`;
+        return `${pre(e.ref)}${mm(cab.sizeMm.width)}-wide ${cab.type}${level} with ${cab.fronts.summary}`;
       }
       const app = appByRef.get(e.ref);
       if (app) {
         const name = app.model ? `${app.model} (${app.type.toLowerCase()})` : app.type.toLowerCase();
-        return `${e.ref} ${name}, ${mm(app.sizeMm.width)} wide${app.relation ? `, ${app.relation}` : ''}`;
+        return `${pre(e.ref)}${name}, ${mm(app.sizeMm.width)} wide${app.relation ? `, ${app.relation}` : ''}`;
       }
       const op = b.openings.find((o) => o.ref === e.ref);
       if (op) {
         const extra = op.door ? `, ${op.door.state.toLowerCase()}` : `, sill at ${mm(op.sillMm)}`;
-        return `${e.ref} ${op.kind.toLowerCase()} ${mm(op.widthMm)} wide × ${mm(op.heightMm)} high starting ${mm(op.fromLeftMm)} from the left corner${extra}`;
+        return `${pre(e.ref)}${op.kind.toLowerCase()} ${mm(op.widthMm)} wide × ${mm(op.heightMm)} high starting ${mm(op.fromLeftMm)} from the left corner${extra}`;
       }
-      return `${e.ref} ${e.what.toLowerCase()} ${mm(e.widthMm)} wide, ${mm(e.fromLeftMm)} from the left corner, ${mm(e.bottomMm)}–${mm(e.topMm)} high`;
+      return `${pre(e.ref)}${e.what.toLowerCase()} ${mm(e.widthMm)} wide, ${mm(e.fromLeftMm)} from the left corner, ${mm(e.bottomMm)}–${mm(e.topMm)} high`;
     });
     lines.push(`${cap(w.wall)} wall (${mm(w.lengthMm)}, left to right as you face it): ${parts.join('; ')}.`);
   }
   const freestanding = b.cabinets.filter((c) => !c.against);
   if (freestanding.length) {
     lines.push(
-      `Freestanding, not against any wall: ${freestanding.map((c) => `${c.ref} ${c.type} ${mm(c.sizeMm.width)} × ${mm(c.sizeMm.depth)} at x ${mm(c.box.minX)}–${mm(c.box.maxX)}, y ${mm(c.box.minY)}–${mm(c.box.maxY)}`).join('; ')}.`
+      `Freestanding, not against any wall: ${freestanding.map((c) => `${pre(c.ref)}${c.type} ${mm(c.sizeMm.width)} × ${mm(c.sizeMm.depth)} at x ${mm(c.box.minX)}–${mm(c.box.maxX)}, y ${mm(c.box.minY)}–${mm(c.box.maxY)}`).join('; ')}.`
     );
   }
 
@@ -994,7 +1039,7 @@ function buildPrompt(b: Omit<RenderBrief, 'prompt'>): RenderBrief['prompt'] {
     const key = finishPhrase(c.finish, UNSET.cabinet);
     byFinish.set(key, [...(byFinish.get(key) ?? []), c.ref]);
   }
-  for (const [phrase, refs] of byFinish) lines.push(`Shutters and visible cabinet sides of ${refs.join(', ')}: ${phrase}.`);
+  for (const [phrase, refs] of byFinish) lines.push(`Shutters and visible cabinet sides of ${group(refs)}: ${phrase}.`);
 
   const handleGroups = new Map<string, string[]>();
   for (const c of b.cabinets) {
@@ -1005,7 +1050,7 @@ function buildPrompt(b: Omit<RenderBrief, 'prompt'>): RenderBrief['prompt'] {
         : `${c.handle.colourName} ${c.handle.finish} ${c.handle.kind === 'gola' ? 'continuous gola (recessed aluminium channel) profile' : c.handle.kind === 'edge-profile' ? 'edge-profile handle along the top edge' : `${c.handle.kind} handles`} (${c.handle.name})`;
     handleGroups.set(key, [...(handleGroups.get(key) ?? []), c.ref]);
   }
-  for (const [phrase, refs] of handleGroups) lines.push(`Handles on ${refs.join(', ')}: ${phrase}.`);
+  for (const [phrase, refs] of handleGroups) lines.push(`Handles on ${group(refs)}: ${phrase}.`);
 
   if (b.countertop) {
     lines.push(
@@ -1013,11 +1058,11 @@ function buildPrompt(b: Omit<RenderBrief, 'prompt'>): RenderBrief['prompt'] {
     );
   }
   for (const o of b.obstacles) {
-    lines.push(`${o.ref}: ${o.type.toLowerCase()} ${mm(o.sizeMm.width)} × ${mm(o.sizeMm.depth)}, ${o.floorToCeiling ? 'floor to ceiling' : `${mm(o.box.minZ)}–${mm(o.box.maxZ)} high`}, finished like the wall it stands against.`);
+    lines.push(`${useRefs ? `${o.ref}: ${o.type.toLowerCase()}` : cap(o.type.toLowerCase())} ${mm(o.sizeMm.width)} × ${mm(o.sizeMm.depth)}, ${o.floorToCeiling ? 'floor to ceiling' : `${mm(o.box.minZ)}–${mm(o.box.maxZ)} high`}, finished like the wall it stands against.`);
   }
   for (const o of b.openings) {
-    if (o.door && o.door.state !== DOOR_STATE_LABELS.doorway) lines.push(`Door ${o.ref} leaf: ${finishPhrase(o.door.leafFinish, UNSET.door)}.`);
-    lines.push(`Through ${o.ref}: ${o.outside}.`);
+    if (o.door && o.door.state !== DOOR_STATE_LABELS.doorway) lines.push(`${useRefs ? `Door ${o.ref} leaf` : `Leaf of ${opening(o)}`}: ${finishPhrase(o.door.leafFinish, UNSET.door)}.`);
+    lines.push(`Through ${opening(o)}: ${o.outside}.`);
   }
 
   // Grouped like the cabinets, so four plain walls are one clause.
@@ -1035,7 +1080,7 @@ function buildPrompt(b: Omit<RenderBrief, 'prompt'>): RenderBrief['prompt'] {
   const on = b.lighting.fixtures.filter((f) => f.on);
   const daylit = b.openings.filter((o) => o.daylight);
   const light: string[] = [];
-  if (daylit.length) light.push(daylit.map((o) => `${o.daylight!.mode.toLowerCase()} (${o.daylight!.colourTempK} K) through ${o.ref}`).join(', '));
+  if (daylit.length) light.push(daylit.map((o) => `${o.daylight!.mode.toLowerCase()} (${o.daylight!.colourTempK} K) through ${opening(o)}`).join(', '));
   if (on.length) light.push(on.map((f) => `${f.quantity > 1 ? `${f.quantity}× ` : ''}${f.kind.toLowerCase()} ${f.colourTempK} K at (${f.positionMm.x}, ${f.positionMm.y}, ${f.positionMm.z}) throwing ${f.throws}`).join('; '));
   lines.push(
     light.length
@@ -1055,15 +1100,22 @@ function buildPrompt(b: Omit<RenderBrief, 'prompt'>): RenderBrief['prompt'] {
     // §112: a lighter model painted "C3", "A4", "O1"… onto the cabinets.
     // Said first and in capitals because it is the one mistake that ruins
     // an image outright.
-    'NEVER DRAW ANY TEXT. No letters, numbers, labels, reference codes (C1, A2, O1…), dimensions or captions anywhere in the image. The codes in this file are for your reasoning only.',
+    useRefs
+      ? 'NEVER DRAW ANY TEXT. No letters, numbers, labels, reference codes (C1, A2, O1…), dimensions or captions anywhere in the image. The codes in this file are for your reasoning only.'
+      : 'NEVER DRAW ANY TEXT. No letters, numbers, labels, dimensions or captions anywhere in the image.',
+    // §114: the stylist models added plants, a backsplash, LED strips and
+    // a leafy view; the rule was there but spread across the file. One
+    // blunt list, built from THIS design, near the top.
+    addNothingRule(b),
     geometryInstruction(b.referenceImages),
-    '2. USE THE JSON AS THE SOURCE OF TRUTH for what each shape is: cabinet fronts (doors vs drawers, counts, handle positions), finishes, handles, appliances, openings and lights. Refs (C1, A2, O1…) tie the data to the attached drawings; they are never drawn.',
-    '3. ADD NOTHING. No extra cabinets, appliances, windows, shelves, backsplash tiles, lights, decor, people or clutter. Everything in `notInThisRoom` must be absent.',
-    `4. "Not specified" is not permission to invent: ${b.room.notSpecifiedMeans}`,
-    '5. Finishes: when `swatchImageUrl` is given, match that photo (pattern, colour, scale from `swatchRepeatMm`); otherwise match `colourHex`/`colourName`, `pattern` and `sheen` exactly.',
-    '6. Units are millimetres; `coordinateSystem` explains the axes. `fromLeftMm` is measured standing in the room facing that wall.',
-    '7. If something cannot be honoured, leave it plain rather than guessing.',
-    'Two prompts are generated from the same data: `imagePrompt` (complete, with refs and sizes; use it with this file and the attached images) and `imagePromptCondensed` (short and purely visual, for diffusion models), each with `negativePrompt`.',
+    useRefs
+      ? '2. USE THE JSON AS THE SOURCE OF TRUTH for what each shape is: cabinet fronts (doors vs drawers, counts, handle positions), finishes, handles, appliances, openings and lights. Refs (C1, A2, O1…) tie the data to the attached drawings; they are never drawn.'
+      : '2. USE THE JSON AS THE SOURCE OF TRUTH for what each shape is: cabinet fronts (doors vs drawers, counts, handle positions), finishes, handles, appliances, openings and lights.',
+    `3. "Not specified" is not permission to invent: ${b.room.notSpecifiedMeans}`,
+    '4. Finishes: when `swatchImageUrl` is given, match that photo (pattern, colour, scale from `swatchRepeatMm`); otherwise match `colourHex`/`colourName`, `pattern` and `sheen` exactly.',
+    '5. Units are millimetres; `coordinateSystem` explains the axes. `fromLeftMm` is measured standing in the room facing that wall.',
+    '6. If something cannot be honoured, leave it plain rather than guessing.',
+    `Two prompts are generated from the same data: \`imagePrompt\` (complete, with ${useRefs ? 'refs and ' : ''}sizes; use it with this file and the attached images) and \`imagePromptCondensed\` (short and purely visual, for diffusion models), each with \`negativePrompt\`.`,
   ].join('\n');
 
   const negativeTerms = [
@@ -1089,6 +1141,7 @@ function buildPrompt(b: Omit<RenderBrief, 'prompt'>): RenderBrief['prompt'] {
     'cartoon',
     'CGI look',
     'oversaturated',
+    ...inventedExtras(b),
     ...b.notInThisRoom,
   ];
   // Deduped: the generic terms and the absences overlap ("plants",
@@ -1378,13 +1431,47 @@ export function shortPrompt(b: Omit<RenderBrief, 'prompt'>, maxChars = SHORT_PRO
 // a dish rack and towel when that term was the one cut off (§104). Then
 // the generic guards, then what's absent.
 export function shortNegative(b: Omit<RenderBrief, 'prompt'>, maxChars = SHORT_NEGATIVE_MAX_CHARS): string {
-  const terms = [...new Set(['text or labels', 'decor or utensils on the counters', 'clutter', 'extra cabinets', 'extra appliances', 'people', 'watermark', 'CGI look', 'distorted perspective', ...b.notInThisRoom])];
+  const extras = inventedExtras(b).filter((t) => ['backsplash tiles', 'LED strip lights', 'scenery outside the window'].includes(t));
+  const terms = [...new Set(['text or labels', 'decor or utensils on the counters', ...extras, 'clutter', 'extra cabinets', 'extra appliances', 'people', 'watermark', 'CGI look', 'distorted perspective', ...b.notInThisRoom])];
   const out: string[] = [];
   for (const t of terms) {
     if ([...out, t].join(', ').length > maxChars) break;
     out.push(t);
   }
   return out.join(', ');
+}
+
+// What the "stylist" models add on their own (§114), as plain things to
+// leave out — only those this design really doesn't have.
+function inventedExtras(b: Omit<RenderBrief, 'prompt'>): string[] {
+  const out = ['potted plants', 'utensil holder', 'soap dispenser', 'kettle', 'wall sockets or switches'];
+  if (b.room.walls.every((w) => !w.finish)) out.push('backsplash tiles');
+  if (!b.lighting.fixtures.some((f) => f.kind === FIXTURE_KIND_LABELS.strip)) out.push('LED strip lights');
+  if (b.openings.some((o) => o.kind === OPENING_KIND_LABELS.window && !o.outsideImageUrl)) out.push('scenery outside the window');
+  return out;
+}
+
+// The "add nothing" rule, spelled out for THIS design (§114).
+function addNothingRule(b: Omit<RenderBrief, 'prompt'>): string {
+  const walls = b.room.walls.every((w) => !w.finish)
+    ? 'plain matte paint everywhere; no backsplash and no tiles'
+    : `only the finishes listed for each wall; no backsplash or tiles beyond them`;
+  const on = [...new Set(b.lighting.fixtures.filter((f) => f.on).map((f) => f.kind.toLowerCase()))];
+  const strips = b.lighting.fixtures.some((f) => f.kind === FIXTURE_KIND_LABELS.strip);
+  const lights = on.length
+    ? `only the ${joinAnd(on)} listed${strips ? '' : '; no LED strips under the wall cabinets'}`
+    : 'no visible light fittings';
+  const windows = b.openings.filter((o) => o.kind === OPENING_KIND_LABELS.window);
+  const view = !windows.length
+    ? ''
+    : windows.every((o) => o.outsideImageUrl)
+      ? ' Through the window: the supplied photo.'
+      : ' Through the window: soft, bright daylight only; no trees, buildings or scenery.';
+  return (
+    'ADD NOTHING. Counters bare: no plants, fruit, utensils, utensil holders, dispensers, kettles or anything not listed. ' +
+    `Walls: ${walls}. Lights: ${lights}. No wall sockets or switches.${view} ` +
+    'No extra cabinets, appliances, windows, shelves, decor, people or clutter; everything in `notInThisRoom` is absent.'
+  );
 }
 
 function geometryInstruction(images: RenderBrief['referenceImages']): string {
@@ -1442,6 +1529,13 @@ export function viewFromWorldCamera(args: {
     imageWidthPx: args.imageWidthPx,
     imageHeightPx: args.imageHeightPx,
   };
+}
+
+// The brief as downloaded with refs: false (§114): every `ref` field
+// removed, so no code like "C3" appears anywhere a model could copy it.
+// (The texts were already written without them.)
+export function withoutRefs(brief: RenderBrief): unknown {
+  return JSON.parse(JSON.stringify(brief, (key, value) => (key === 'ref' ? undefined : value)));
 }
 
 export function renderBriefFileStem(designName: string): string {

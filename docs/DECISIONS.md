@@ -7083,3 +7083,51 @@ stay as on screen.
 JSON against line drawing + colour + JSON. Check the ceiling colour,
 the tambour, the RO placement, and that nothing is invented. Keep the
 colour view only if it clearly helps.
+
+## 114. No codes in the camera route; "add nothing" spelled out per design
+
+Two results with the colour view (§113):
+- **Gemini Flash Lite** got the wood ceiling and the tambour right, but
+  **still painted codes** ("C9", "A4", "O1"…), despite the §112 rule.
+- **ChatGPT's image tool**, given only the JSON and the colour view, gave
+  the most photographic result yet, with no codes. But it **invented
+  styling**: a plant, a utensil holder, dispensers, a beige stone
+  backsplash, LED strips under the wall units, sockets, and trees
+  through the window. The brief forbade these, but the rules were spread
+  across the file.
+
+**Codes removed in the camera route.** `buildRenderBrief({ refs: false })`
+writes every text without codes:
+- each element in the wall lists drops its code prefix;
+- groups become counts ("the 3 base cabinets and 1 sink base unit");
+- items become descriptions ("the drawer base unit on the north wall",
+  with "second from the left" only when needed). Appliance relations,
+  fixture hosts and the countertop's coverage use the same wording.
+
+`withoutRefs()` drops every `ref` field from the download. The camera
+route has nothing that needs a code: its two images carry no labels.
+The plan-and-walls route keeps codes, because its sheet's labels need
+them. A real download from Neha Verma's kitchen contained no code and
+no `ref` key.
+
+**"Add nothing", built from the design.** The instructions now open, just
+after the no-text rule, with one blunt list:
+- **Counters bare:** no plants, fruit, utensils, holders, dispensers or
+  kettles.
+- **Walls:** plain paint with no backsplash or tiles when no wall finish
+  is chosen; otherwise only the listed finishes.
+- **Lights:** only the fixture kinds actually placed, plus "no LED strips"
+  when there are none.
+- **No wall sockets or switches.**
+- **Window:** soft daylight with no scenery, unless an outside photo is
+  supplied.
+
+The same items go into the negative prompt (`inventedExtras`), only
+those this design doesn't have. The short negative carries the three
+most likely ones (backsplash, LED strips, scenery) right after text and
+counter clutter.
+
+**Where the comparison stands:** ChatGPT and the heavier Gemini are the
+shortlist; Flash Lite is out (it draws codes). Next: the same 2–3
+kitchens through both, scored on the checklist, with "invented items"
+as its own line.

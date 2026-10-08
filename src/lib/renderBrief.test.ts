@@ -323,3 +323,43 @@ describe('colour reference (§113)', () => {
     expect(b.prompt.instructions).toMatch(/k-guide\.png/);
   });
 });
+
+describe('without codes (§114)', () => {
+  const noRefs = () => buildRenderBrief(input({ refs: false }));
+
+  it('leaves no code anywhere a model could copy it', async () => {
+    const { withoutRefs } = await import('./renderBrief');
+    const text = JSON.stringify(withoutRefs(noRefs()));
+    expect(text).not.toMatch(/\b[CAOPL]\d+\b/);
+    expect(text).not.toMatch(/"ref"/);
+  });
+
+  it('names things in words instead, so relations still make sense', () => {
+    const b = noRefs();
+    expect(b.appliances[0].relation).toBe('standing on the countertop over the drawer base unit on the north wall');
+    expect(b.prompt.imagePrompt).toMatch(/Shutters and visible cabinet sides of the 2 base cabinets|Shutters and visible cabinet sides of the 1 base cabinet/);
+    expect(b.prompt.imagePrompt).toMatch(/Through the window on the south wall/);
+    expect(b.countertop?.covers[0]).toMatch(/^the /);
+  });
+
+  it('keeps codes by default, for the plan-and-walls sheet', () => {
+    expect(buildRenderBrief(input()).prompt.imagePrompt).toMatch(/\bC1\b/);
+  });
+});
+
+describe('add nothing, spelled out for this design (§114)', () => {
+  it('lists what stylist models add, near the top', () => {
+    const p = buildRenderBrief(input()).prompt;
+    const line = p.instructions.split('\n')[2];
+    expect(line).toMatch(/^ADD NOTHING\. Counters bare: no plants/);
+    // The fixture layout has no wall finishes and no fixtures: plain walls,
+    // no fittings, and its window has no outside photo.
+    expect(line).toMatch(/plain matte paint everywhere; no backsplash/);
+    expect(line).toMatch(/no visible light fittings/);
+    expect(line).toMatch(/no trees, buildings or scenery/);
+    for (const t of ['potted plants', 'backsplash tiles', 'LED strip lights', 'scenery outside the window']) {
+      expect(p.negativePrompt.split(', ')).toContain(t);
+    }
+    expect(p.negativePromptShort).toMatch(/^text or labels, decor or utensils on the counters, backsplash tiles/);
+  });
+});
