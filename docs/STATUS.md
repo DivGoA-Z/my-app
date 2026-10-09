@@ -43,6 +43,8 @@ the history is in `git log`.
   turns a stacked item's selected base; inspector floats as a slim tab;
   hex colour box typeable; quote panel starts closed; Catalogue's "Back to
   <customer>'s kitchen" floats.
+- Countertop slab picker (§119): slab materials with surface and ₹/m²,
+  plus a slab tint, in Surfaces.
 - Depth convention ("includes shutter" or "carcass only"): business
   setting with a per-project override, followed by the plan, 3D and
   collisions. Shutter thickness comes from each cabinet's fronts board.
@@ -91,7 +93,7 @@ the history is in `git log`.
 
 ## Tests
 
-`npm test` (Vitest): **282 tests** in 37 files (this said 125, which
+`npm test` (Vitest): **285 tests** in 38 files (this said 125, which
 was stale). Maths tests cover pricing, the cutting list, nesting,
 panels, the importer, physical depth, the pipeline rules, and the image
 brief with its plan and elevation drawings. Screen tests (React Testing Library) cover the rate card, boards,
@@ -105,8 +107,9 @@ still checked by eye.
    without them. Re-run again after 3 Oct for the Installed/Lost stages
    (§69), and after 7 Oct **before switching sign-up on** in Supabase
    (§106: storage writes now need business membership), and after 8 Oct
-   for the style-default columns (§117: until then a kitchen or business
-   style default can't be saved; everything else works).
+   for the style-default and slab-tint columns (§117, §119: until then a
+   kitchen or business style default, or a slab tint, can't be saved;
+   everything else works).
 2. **Lower the labour rate.** The ₹150/sq ft placeholder was set against
    the old small area estimate. Labour now bills on total cut-part area
    (a base unit went from 7.0 to 22.7 sq ft).
@@ -196,10 +199,7 @@ assumed settings, which is a check, not a blocker.
 2. ~~Merge `charges-and-cutting-list` into `main`.~~ Done 5 Oct 2026 (fast-forward, §1–§96 now on `main`). Next: host it (Cloudflare Pages, free `.pages.dev` address) and add the co-founder by hand.
 3. Browser tests that script the walkthrough's flows.
 4. The "before the first customer" list in `docs/AFTER_FIRST_CUSTOMERS.md`.
-5. Countertop slab options (asked 8 Oct, waiting on the answer): a slab
-   picker with material/surface/colour, or several slab choices saved on
-   one kitchen to compare in front of the customer.
-6. L-shaped / bi-fold wall corner units (not built; blind wall corners are).
+5. L-shaped / bi-fold wall corner units (not built; blind wall corners are).
 
 Open issues: none (`docs/ISSUES.md`). Fixed issues are logged in
 `docs/ISSUES-FIXED.md`.

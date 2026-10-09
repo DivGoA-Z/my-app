@@ -3361,7 +3361,9 @@ function CountertopMesh({
   const countertopFinishId = useLayoutStore((s) => s.currentLayout?.countertopFinishId);
   const finishes = useLayoutStore((s) => s.finishes);
   const chosenFinish = resolveFinish(finishes, countertopFinishId);
-  const material = resolveMaterial(chosenFinish);
+  // The slab's tint (§119), applied exactly as a cabinet's colour is.
+  const countertopTint = useLayoutStore((s) => s.currentLayout?.countertopColorOverride ?? undefined);
+  const material = resolveMaterial(chosenFinish, countertopTint);
   // Both called unconditionally, every render — hooks can't be
   // conditional — and only the one the JSX below actually needs gets
   // used. Scaled off the horizontal face, since that's the one anyone

@@ -809,7 +809,7 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
   const slabCabinets = cabinets.filter((c) => c.countertop);
   const countertop = slabCabinets.length
     ? {
-        finish: optionalFinish(layout.countertopFinishId),
+        finish: describeFinish(findFinish(finishes, layout.countertopFinishId), origin, layout.countertopColorOverride ?? undefined),
         thicknessMm: COUNTERTOP_THICKNESS_MM,
         overhangMm: COUNTERTOP_OVERHANG_MM,
         topHeightsMm: [...new Set(slabCabinets.map((c) => c.box.maxZ + COUNTERTOP_THICKNESS_MM))].sort((a, b) => a - b),

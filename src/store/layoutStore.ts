@@ -284,6 +284,7 @@ interface LayoutStore {
         | 'floorConcealedFinishId'
         | 'ceilingFinishId'
         | 'countertopFinishId'
+        | 'countertopColorOverride'
         | 'priceCountertop'
       >
     >

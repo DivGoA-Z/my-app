@@ -7337,3 +7337,41 @@ sat at the top of the Catalogue page and scrolled away. It now floats at
 the bottom right (above the phone's tab bar; the section jump bar owns
 the top edge on small screens) and names the kitchen ("Back to Neha
 Verma's kitchen"). Checked scrolled to the very bottom of the page.
+
+## 119. Countertop slab: material, surface and colour, picked in Surfaces
+
+The countertop was a bare dropdown of every finish, with no price shown
+(against Principle 10) and no way to tint it. The user wanted to add
+slabs like any material, with a surface and a colour, and to switch the
+slab in Surfaces when needed. Switching IS just changing it there:
+several slab options saved on one kitchen to compare was offered and
+declined as unnecessary.
+
+**A slab is a finish, told apart by its type:** Granite, Quartz, Marble,
+Sintered stone, Solid surface or Compact laminate (`SLAB_MATERIAL_LABELS`,
+`isSlabMaterial`). No new table. The catalogue, the countertop's price
+(bom.ts prices it from its finish, behind `priceCountertop`) and 3D
+already handle finishes.
+- In Catalogue → Finishes, those types are suggested, and choosing one
+  starts it polished.
+- A **Surface** choice (Polished / Honed / Leather) appears for slab
+  types. It's stored as the finish's own roughness, clearcoat and relief
+  (`SLAB_SURFACE_PRESET`), read back by `slabSurfaceOf`, so no column.
+
+**Surfaces → Countertop / slab** is now a swatch picker:
+- slab materials only, each with its type, surface and ₹/m²;
+- "Show all finishes" for laminate or other tops. It's on by itself when
+  the kitchen already uses a non-slab finish, so nothing existing
+  disappears;
+- a **Colour** choice: "Material's own", or a custom tint.
+
+The tint is `RoomLayout.countertopColorOverride`, saved in the new
+`layouts.countertop_color_override` column (re-run schema.sql). It works
+like a cabinet's colour: it replaces a solid colour and stains a photo.
+3D and the image brief use it. Clearing it stores null, so the clearing
+is saved too. The column is written only once a tint is set, so an
+un-migrated database still saves every other kitchen.
+
+Checked in a browser on Neha Verma's kitchen (saves blocked): Quartz
+showed as "Quartz · Polished, ₹2,800/m²"; a #3b3b3b tint turned the
+slab charcoal in the north wall's 3D view.

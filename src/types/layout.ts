@@ -198,6 +198,10 @@ export interface RoomLayout {
   // layout — a kitchen's slab is one continuous material in practice,
   // same reasoning as floor/ceiling being singular rather than per-run.
   countertopFinishId?: string;
+  // A tint on the slab's finish, as on a cabinet (§119): replaces a solid
+  // colour, stains a photo. Unset or null = the material's own colour
+  // (null when cleared, so the save writes the clearing too).
+  countertopColorOverride?: string | null;
   // Whether the countertop appears as a CHARGE on the quote.
   //
   // Same shape as priceElectrical, for the same market reason: in Delhi

@@ -32,6 +32,12 @@ import {
   PATTERN_CATEGORY_LABELS,
   PATTERN_RELIEF_PRESET,
   COMMON_FINISH_TYPE_LABELS,
+  SLAB_MATERIAL_LABELS,
+  SLAB_SURFACE_LABELS,
+  SLAB_SURFACE_PRESET,
+  isSlabMaterial,
+  slabSurfaceOf,
+  type SlabSurface,
   FINISH_TYPE_OPTICAL_PRESET,
   FALLBACK_OPTICAL_PRESET,
 } from '../../types/finish';
@@ -309,8 +315,40 @@ function FinishEditor({ draft, setDraft }: FinishEditorProps) {
             {COMMON_FINISH_TYPE_LABELS.map((label) => (
               <option key={label} value={label} />
             ))}
+            {/* Countertop slabs (§119): a finish of one of these types is
+                offered as a slab in Surfaces. */}
+            {SLAB_MATERIAL_LABELS.map((label) => (
+              <option key={label} value={label} />
+            ))}
           </datalist>
+          <span className="text-xs font-normal text-muted-foreground">
+            For a countertop slab, pick Granite, Quartz, Marble, Sintered stone, Solid surface or Compact laminate.
+          </span>
         </label>
+
+        {isSlabMaterial(draft) && (
+          <div className={labelClass}>
+            Surface
+            <div role="radiogroup" aria-label="Slab surface" className="grid grid-cols-3 gap-1.5">
+              {(Object.keys(SLAB_SURFACE_LABELS) as SlabSurface[]).map((surface) => (
+                <Button
+                  key={surface}
+                  type="button"
+                  role="radio"
+                  aria-checked={slabSurfaceOf(draft) === surface}
+                  size="sm"
+                  variant={slabSurfaceOf(draft) === surface ? 'default' : 'outline'}
+                  onClick={() => patch({ ...SLAB_SURFACE_PRESET[surface] })}
+                >
+                  {SLAB_SURFACE_LABELS[surface]}
+                </Button>
+              ))}
+            </div>
+            <span className="text-xs font-normal text-muted-foreground">
+              How the stone is finished; sets the gloss below. A "Swatch photo" of the real slab shows its pattern in 3D.
+            </span>
+          </div>
+        )}
 
         <div className={labelClass}>
           Pattern

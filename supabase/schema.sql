@@ -1157,6 +1157,8 @@ alter table public.layouts add column if not exists depth_includes_front boolean
 -- (construction_settings.style_defaults). Its own column, not inside a
 -- priced field, so changing a default can't mark a quote stale by itself.
 alter table public.layouts add column if not exists style_defaults jsonb;
+-- The countertop slab's tint (§119), hex. NULL = the material's own colour.
+alter table public.layouts add column if not exists countertop_color_override text;
 
 -- Starter set, at plausible Delhi NCR retail. `on conflict do nothing`
 -- so re-running never overwrites a business's own rates — same as the

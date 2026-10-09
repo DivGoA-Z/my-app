@@ -75,6 +75,8 @@ interface LayoutRow {
   floor_concealed_finish_id: string | null;
   ceiling_finish_id: string | null;
   countertop_finish_id: string | null;
+  // §119 — the slab's tint; NULL = the material's own colour.
+  countertop_color_override?: string | null;
   price_countertop: boolean | null;
   margin_percent: number | null;
   sheet_waste_factor: number | null;
@@ -171,6 +173,9 @@ function layoutToRow(
     floor_concealed_finish_id: layout.floorConcealedFinishId ?? null,
     ceiling_finish_id: layout.ceilingFinishId ?? null,
     countertop_finish_id: layout.countertopFinishId ?? null,
+    // Written only once set, so a database that hasn't re-run schema.sql
+    // still saves every kitchen that doesn't use it.
+    ...(layout.countertopColorOverride !== undefined ? { countertop_color_override: layout.countertopColorOverride } : {}),
     price_countertop: layout.priceCountertop ?? null,
     margin_percent: layout.marginPercent ?? null,
     sheet_waste_factor: layout.sheetWasteFactor ?? null,
@@ -213,6 +218,7 @@ function rowToLayout(row: LayoutRow): RoomLayout {
     floorConcealedFinishId: row.floor_concealed_finish_id ?? undefined,
     ceilingFinishId: row.ceiling_finish_id ?? undefined,
     countertopFinishId: row.countertop_finish_id ?? undefined,
+    countertopColorOverride: row.countertop_color_override ?? undefined,
     // Same reasoning as priceElectrical — "is the countertop charged?"
     // has a real answer for every project, and it's usually no.
     priceCountertop: row.price_countertop ?? false,

@@ -156,7 +156,56 @@ export const FINISH_TYPE_OPTICAL_PRESET: Record<
   Laminate: { roughness: 0.45, clearcoat: 0, clearcoatRoughness: 0, metalness: 0.05 },
   Membrane: { roughness: 0.55, clearcoat: 0, clearcoatRoughness: 0, metalness: 0.05 },
   Veneer: { roughness: 0.6, clearcoat: 0, clearcoatRoughness: 0, metalness: 0.05 },
+  // Slab materials start polished (§119); the Surface buttons change it.
+  Granite: { roughness: 0.12, clearcoat: 0.8, clearcoatRoughness: 0.08, metalness: 0.02 },
+  Quartz: { roughness: 0.12, clearcoat: 0.8, clearcoatRoughness: 0.08, metalness: 0.02 },
+  Marble: { roughness: 0.12, clearcoat: 0.8, clearcoatRoughness: 0.08, metalness: 0.02 },
+  'Sintered stone': { roughness: 0.12, clearcoat: 0.8, clearcoatRoughness: 0.08, metalness: 0.02 },
+  'Solid surface': { roughness: 0.3, clearcoat: 0.3, clearcoatRoughness: 0.2, metalness: 0.02 },
+  'Compact laminate': { roughness: 0.45, clearcoat: 0, clearcoatRoughness: 0, metalness: 0.02 },
 };
+
+// ---- Countertop slab materials (§119) ----
+//
+// A slab is a finish like any other (photo, price per m²), told apart by
+// its finish TYPE: one of these. No separate table: the catalogue,
+// pricing (bom.ts prices the countertop from its finish) and 3D already
+// handle finishes; what a slab adds is how its SURFACE is worked.
+export const SLAB_MATERIAL_LABELS = [
+  'Granite',
+  'Quartz',
+  'Marble',
+  'Sintered stone',
+  'Solid surface',
+  'Compact laminate',
+] as const;
+
+export function isSlabMaterial(finish: Pick<SurfaceFinish, 'finishTypeLabel'>): boolean {
+  const t = finish.finishTypeLabel.trim().toLowerCase();
+  return SLAB_MATERIAL_LABELS.some((l) => l.toLowerCase() === t);
+}
+
+// How the stone's face is worked, as the 3D look it gives. Stored as the
+// finish's own roughness/clearcoat (no new column), read back by
+// slabSurfaceOf.
+export type SlabSurface = 'polished' | 'honed' | 'leather';
+export const SLAB_SURFACE_LABELS: Record<SlabSurface, string> = {
+  polished: 'Polished (glossy)',
+  honed: 'Honed (matte)',
+  leather: 'Leather (textured)',
+};
+export const SLAB_SURFACE_PRESET: Record<
+  SlabSurface,
+  Pick<SurfaceFinish, 'roughness' | 'clearcoat' | 'clearcoatRoughness' | 'metalness' | 'reliefStrength'>
+> = {
+  polished: { roughness: 0.12, clearcoat: 0.8, clearcoatRoughness: 0.08, metalness: 0.02, reliefStrength: 0.05 },
+  honed: { roughness: 0.55, clearcoat: 0, clearcoatRoughness: 0, metalness: 0.02, reliefStrength: 0.05 },
+  leather: { roughness: 0.75, clearcoat: 0, clearcoatRoughness: 0, metalness: 0.02, reliefStrength: 0.45 },
+};
+export function slabSurfaceOf(finish: Pick<SurfaceFinish, 'roughness' | 'clearcoat'>): SlabSurface {
+  if (finish.clearcoat > 0.3 || finish.roughness <= 0.25) return 'polished';
+  return finish.roughness >= 0.7 ? 'leather' : 'honed';
+}
 
 export const FALLBACK_OPTICAL_PRESET = FINISH_TYPE_OPTICAL_PRESET.Laminate;
 
