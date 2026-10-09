@@ -35,6 +35,9 @@ interface SurfaceFinishRow {
   metalness: number;
   swatch_width_mm: number;
   swatch_height_mm: number;
+  // §122 — one tile's size in a tile photo; absent before schema.sql re-run.
+  tile_width_mm?: number | null;
+  tile_height_mm?: number | null;
   tiling_mode: TilingMode;
   price_per_sq_m: number;
   source: FinishSource;
@@ -63,6 +66,8 @@ function rowToFinish(row: SurfaceFinishRow): SurfaceFinish {
     metalness: row.metalness,
     swatchWidthMm: row.swatch_width_mm,
     swatchHeightMm: row.swatch_height_mm,
+    tileWidthMm: row.tile_width_mm ?? undefined,
+    tileHeightMm: row.tile_height_mm ?? undefined,
     tilingMode: row.tiling_mode,
     pricePerSqM: row.price_per_sq_m,
     source: row.source,
@@ -92,6 +97,8 @@ function finishToRow(finish: SurfaceFinish, businessId: string): SurfaceFinishRo
     metalness: finish.metalness,
     swatch_width_mm: finish.swatchWidthMm,
     swatch_height_mm: finish.swatchHeightMm,
+    // Only once set, so a database without the column still saves.
+    ...(finish.tileWidthMm !== undefined ? { tile_width_mm: finish.tileWidthMm, tile_height_mm: finish.tileHeightMm ?? finish.tileWidthMm } : {}),
     tiling_mode: finish.tilingMode,
     price_per_sq_m: finish.pricePerSqM,
     source: finish.source,

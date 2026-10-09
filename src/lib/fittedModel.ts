@@ -36,7 +36,11 @@ export function fitModelToBox(
   widthMm: number,
   heightMm: number,
   depthMm: number,
-  orientation: ModelOrientation
+  orientation: ModelOrientation,
+  // 'uniform' (§126, sinks): one scale on all axes, fitted inside the
+  // footprint, so a model whose proportions differ from its catalogue
+  // row is never stretched or squashed (a tap stays upright).
+  fit: 'stretch' | 'uniform' = 'stretch'
 ): FittedModelResult {
   const model = scene.clone(true);
 
@@ -54,11 +58,14 @@ export function fitModelToBox(
   box.getCenter(center);
 
   const safe = (n: number) => (n > 1e-6 ? n : 1);
-  const scale: [number, number, number] = [
-    mmToWorld(widthMm) / safe(size.x),
-    mmToWorld(heightMm) / safe(size.y),
-    mmToWorld(depthMm) / safe(size.z),
-  ];
+  const sx = mmToWorld(widthMm) / safe(size.x);
+  const sz = mmToWorld(depthMm) / safe(size.z);
+  // No height on the catalogue row (§126: a sink set to 0 because it sits
+  // IN the counter) used to squash the model flat — invisible. Keep the
+  // model's own proportions instead, scaled like its width and depth.
+  const sy = heightMm > 0 ? mmToWorld(heightMm) / safe(size.y) : (sx + sz) / 2;
+  const u = Math.min(sx, sz);
+  const scale: [number, number, number] = fit === 'uniform' ? [u, u, u] : [sx, sy, sz];
 
   const offset: [number, number, number] = [
     -center.x * scale[0],

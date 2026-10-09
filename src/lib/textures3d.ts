@@ -499,6 +499,19 @@ export function useSurfaceTextures(
   return textures;
 }
 
+// Which maps a texture set has, as a React key for the material that
+// uses it (§121). three.js compiles a material's shader once and doesn't
+// recompile when a map goes from null to a texture (or back): only
+// material.needsUpdate does, and R3F doesn't set it. So a slab switched
+// from a plain finish to granite kept a no-map shader and drew plain
+// white, and one switched to "not specified" reused the old material and
+// drew black. Keying the material on this gives every combination of
+// maps its own freshly compiled material.
+export function textureSetKey(textures: Partial<TextureSet> | null | undefined): string {
+  if (!textures) return 'none';
+  return `m${textures.map ? 1 : 0}n${textures.normalMap ? 1 : 0}r${textures.roughnessMap ? 1 : 0}`;
+}
+
 // ---- Finish-driven textures ----
 
 // Loaded once per URL and shared, same reasoning as the procedural

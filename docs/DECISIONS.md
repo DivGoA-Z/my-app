@@ -7460,3 +7460,238 @@ a white subway tile showed life-size on the north wall's backsplash; a
 sage paint with a custom shade showed on the east wall; the total moved
 with the marble floor. The seed ran twice cleanly against a scratch
 Postgres.
+
+## 121. Slab drew black or plain white: materials kept their first shader; countertop uses the library picker
+
+Reported: "Not specified" turned the slab **black**, and any stone left
+it **white**. Reproduced in both the 3D view and the wall elevation.
+
+**Cause.** three.js compiles a material's shader once. It recompiles for
+a fixed list of reasons (lights, fog, tone mapping, skinning…), and a map
+going from null to a texture or back is NOT one of them; only
+`material.needsUpdate` triggers it, and R3F never sets it. So:
+- **White:** the slab started on White Gloss (no map), so its material
+  compiled without a texture. Picking granite set `map`, but the shader
+  ignored it and drew the material colour, which is white for a textured
+  finish.
+- **Black:** both branches of the slab material are a
+  `<meshPhysicalMaterial>` at the same place in the tree, so React reused
+  ONE material. Switching to "not specified" swapped the procedural
+  quartz's maps and settings onto a shader built for the previous finish.
+
+**Fix.** `textureSetKey(textures)` (lib/textures3d.ts) is used as a React
+`key` on every material that takes optional maps:
+- floors, walls and ceilings (`FinishedSurface`);
+- cabinet bodies, door fronts and tambour slats;
+- the slab, plus a fixed key on its procedural branch.
+
+A different set of maps now means a freshly compiled material.
+
+Floors, walls and cabinets had the same latent bug in any view already
+open when a finish went from plain to textured. Not noticed before,
+because most switches were textured to textured.
+
+Checked, Neha Verma's kitchen, Camera 2:
+- Not specified: light quartz;
+- Black & Gold and Red Granite: their stone;
+- grey-veined marble: grey veins;
+- back to Not specified: quartz again.
+
+**The countertop now uses the same picker** as the floor and walls (the
+user: keep it a dropdown, not a grid in the panel). A swatch row opens
+the library window; for the slab, the chips are by stone (Granite,
+Marble, Quartz…) and swatches show type, surface and ₹/m². Custom shade
+as before.
+
+## 122. Tile size and grout for floors and walls
+
+Each floor and wall can be **laid as tiles**:
+- size: preset (300×300 to 1200×1200, 75×150, 75×300) or custom;
+- straight or offset (brick) rows;
+- grout 1/2/3/5 mm, in white, light grey, grey, beige or charcoal.
+
+Stored as `RoomLayout.floorTiling` (new `layouts.floor_tiling` column)
+and `Wall.tiling` (walls JSONB; added to `normalizeWalls`, §120's trap).
+The ceiling has none.
+
+Two cases, decided by the finish (`lib/tiling.ts`, `tilingMode`):
+- **A photo that already shows tiles** (a tile-type finish with a photo,
+  or any finish with `tileWidthMm` set). Its grout is in the photo, so a
+  tile size **rescales the photo** (`finishForTiling` scales the swatch
+  by chosen ÷ photo tile size). This needs the photo's own tile size:
+  - the new `surface_finishes.tile_width_mm`/`tile_height_mm` columns;
+  - "Tile size in this photo" in Catalogue → Finishes;
+  - filled by schema.sql for the library's tile photos, only where
+    still NULL.
+
+  Without that size, "Lay as tiles" is disabled and says where to set
+  it. That's honest rather than guessing.
+- **Anything seamless** (marble, granite, terrazzo, microcement, paint, a
+  plain colour or a placeholder). The app **draws the grout**
+  (`GroutOverlay`): a transparent plane 1 mm in front of the surface,
+  textured with one repeat of the grid (`lib/groutTexture.ts`, a canvas
+  cached by look).
+  - Grout is centred on the cell edges, so repeats join into whole lines.
+  - The texture's offset lines the grid up from the room's corner and
+    carries it on across a wall's pieces either side of a window
+    (`groutRepeat`).
+  - South and west walls run right to left seen from inside, and the
+    floor plane's V runs south to north; both handled by sign.
+  - A joint is never thinner than 1.5 px, or 2 mm on a 1200 tile vanishes
+    with distance.
+
+  A separate plane, rather than a change to the surface's material,
+  works over every material without touching its shader (§121's lesson).
+
+The inspector row and the image brief say how it's laid ("600×1200 mm
+tiles, 3 mm charcoal grout"). Price is unchanged: ₹/m² of visible area.
+
+Checked in a browser, Neha Verma's kitchen (saves blocked):
+- floor in cream marble at 600×1200 with 3 mm charcoal grout showed
+  about 3 × 2.8 tiles in the 1825 × 3371 room from the top view;
+- the east wall in 600×600 offset rows showed a correct brick bond from
+  the corner;
+- the white subway tile rescaled to 300×150 (given its recorded 150×75);
+- without the recorded size, the box was disabled with its explanation.
+
+Not built: grout pricing; tiles starting at the counter rather than the
+floor on a backsplash; tiling in the 2D elevation drawing.
+
+## 123. Charging floor, walls and ceiling is optional, like the slab
+
+The user assumed room-surface finishes were optional on the quote, like
+the slab. They weren't: once a finish was chosen, floor, walls and
+ceiling were always charged (Neha Verma's "Floor / walls / ceiling"
+₹22,908). Often the civil contractor or the homeowner does the tiling and
+painting, so the finishes are designed and shown but not supplied.
+
+**`RoomLayout.priceSurfaces`** (new `layouts.price_surfaces` column) is
+the same shape as `priceCountertop`:
+- the surface lines keep their real rates;
+- bom.ts charges `surfaceSubtotal` only when the switch is on;
+- `surfaceSpecifiedTotal` keeps what it would come to.
+
+Unset means **charged**, because that's how every kitchen worked before,
+so no existing or frozen quote changes. The switch is at the top of
+Surfaces. When it's off, the quote panel shows "not charged · ₹X if
+charged", and the PDF leaves the line out.
+
+Also settled, user's call:
+- **No grout cost.** The tile's ₹/m² includes everything.
+- **Backsplash.** The area behind units is already uncharged when its
+  "Behind units" finish is left unset. Only where grout lines start in 3D
+  differs (from the floor, not the counter), which doesn't matter.
+- **Tiling stays 3D-only** (no 2D elevation drawing of tiles).
+
+Checked on Neha Verma's kitchen: switching it off took the total from
+₹5,75,406 to ₹5,52,497 (her ₹22,908 surfaces line, with margin
+rounding).
+
+## 124. A model address with "public/" in front drew a box; the double sink is a placeholder anyway
+
+Priya Kapoor's sink drew as two white boxes in 3D, and the image models
+reproduced them as a vague steel tray. Two separate causes:
+- **The address.** The catalogue row's `model_url` is
+  `public/models/appliances/sink-topmount-double.glb` (another sink row:
+  `/public/models/…`). Files in `public/` are served from the site root
+  (`/models/…`), so that path doesn't exist. The server answers with the
+  app's HTML page, the GLB fails to parse, and the fallback box is drawn.
+  - **Fix:** `servedModelUrl` strips a leading `public/` or `/public/`
+    when loading (ApplianceModel, FixtureModel), so rows saved that way
+    work at once.
+  - `modelUrlProblem` now flags it in the catalogue form and importers
+    ('Leave out "public/"…') so new rows are typed right.
+- **The file.** `sink-topmount-double.glb` is a 5.6 KB box placeholder
+  (§7's "box-stack GLBs", unwired on purpose), so even loading correctly
+  it's two boxes. There's no real double-bowl sink model. For a
+  realistic render use the black single-bowl sink with tap
+  (`black_sink_w_faucet.glb`). A real double-bowl model is a gap to
+  fill.
+
+Found while matching a render to a reference photo. Also from that
+session, advice rather than code:
+- **Camera:** eye level (about 1500 mm), tilt 0° and stepping back, not
+  up, is what reads as a photograph. The camera was at 1989 mm, −15°;
+  converging verticals are the "3D render" tell.
+- **Design:** the design itself drives the result more than the JSON;
+  the models followed the design closely.
+
+## 125. Cabinet finish is a compact row; Escape inside a window no longer deselects
+
+**The finish was a long swatch grid** plus a colour block in the cabinet
+inspector, so reaching Front, Size or Board meant scrolling past it
+every time. It's now one row: swatch, name, type and ₹/m², the same
+pattern as Surfaces.
+
+Tapping the row opens the shared library window (`SurfaceFinishPicker`,
+new `'cabinet'` mode):
+- the shutter finishes, meaning anything that isn't a room-surface or
+  slab type;
+- chips by type (Acrylic, Laminate, Membrane, PU, Veneer);
+- "Show all finishes" for tiles or stone;
+- the colour override inside, with its replace-vs-tint note.
+
+There's no "Not specified": a cabinet always has a finish. Both the
+plan's inspector and the 3D overlay use `FinishPicker`, so both changed.
+
+**Escape bug found on the way.** The selection shortcuts
+(`useSelectionShortcuts`) ran on keys pressed inside an open window. So
+Escape closed the finish window AND deselected the cabinet behind it,
+and Delete or the arrow keys pressed there would have deleted or nudged
+it. The shortcuts now ignore keys from inside a dialog, alert, menu or
+listbox, and keys the window already handled.
+
+Checked in a browser:
+- Natural Oak picked through the row;
+- Escape closed the window with the cabinet still selected;
+- Escape on the plan still deselects.
+
+**Where the sink cut-out lives** (the user asked; it's not on the
+cabinet): Catalogue → Appliances → the sink's "Countertop cutout width" /
+"Cutout depth" (`sinkCutoutWidthMm`/`DepthMm`, resolved by
+`resolveSinkCutout`). With them unset, the slab stays solid and the sink
+sits on top.
+
+## 126. Sink models: proportions kept, dropped into the counter; a height of 0 no longer hides a model
+
+The user's new sink model (`SingleblackSink_w_Faucet.glb`) opened fine
+on the laptop but didn't show in the app. There were three causes:
+1. **Not in git, so not on the live site.** The site's fallback served
+   the app's HTML for that address, and the model failed to parse. The
+   two new files also arrived unshrunk (25 MB and 15 MB).
+   `npm run optimize-models` brought them to 4.4 MB and 0.86 MB
+   (originals kept locally in models-originals/). They're committed with
+   this.
+   - The files they replaced (`black_sink.glb`, `black_sink_w_faucet.glb`)
+     had been deleted locally, but catalogue rows (and so the starter
+     catalogue copied to new businesses) still point at them.
+   - So both old names are **kept**. `SingleBlackSink.glb` is
+     byte-identical to `black_sink.glb`.
+2. **Catalogue height 0 squashed the model to nothing.** `fitModelToBox`
+   stretched the model to width × height × depth, and a height of 0
+   meant zero height. This was also the real cause of the three reverted
+   sink offsets in "Sink cutout" (that section's own postscript). With no
+   height, the model now keeps its own proportions.
+3. **The model sat on top of the slab** (bowl and all), oversized and
+   with its tap squashed when a small height was set.
+
+**Sinks now, from the catalogue row:**
+- **Fitted evenly** (`fit: 'uniform'`): one scale on every axis, fitted
+  inside the footprint, so the tap stays upright whatever the row's
+  proportions.
+- **Height means bowl depth.** For a sink, the catalogue height is how
+  deep the bowl goes (200 mm when unset).
+- **Dropped into the counter** (`lib/sinkPlacement.ts`). A sink resting
+  on a counter cabinet (centre over it, `elevationMm` within 100 mm of
+  its top, the same test as the countertop cut-out) is drawn with its
+  base at counter top − bowl depth, rim at the slab. A sink set to some
+  other height by hand is left there.
+
+The fallback box (no model) is unchanged.
+
+Checked live on Priya Kapoor's kitchen with the real numbers: a
+600×450 sink with a 200 mm bowl at 825 mm on an 850 mm sink unit drew
+as a black basin in the counter with an upright tap.
+
+For a hole in the slab, the sink's catalogue cut-out (Catalogue →
+Appliances → "Countertop cutout width/depth") still has to be filled.

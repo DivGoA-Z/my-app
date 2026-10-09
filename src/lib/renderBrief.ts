@@ -30,6 +30,7 @@
 // far from the left corner as you face that wall" — the second form is
 // what a person (or a model) actually composes a picture with.
 
+import { describeTiling, type SurfaceTiling } from './tiling';
 import type { PlacedCabinetItem, ModuleType } from '../types/cabinet';
 import type { PlacedApplianceItem } from '../types/appliance';
 import { APPLIANCE_TYPE_LABELS } from '../types/appliance';
@@ -115,6 +116,8 @@ export interface FinishDescription {
   // model as a material reference rather than describing wood in words.
   swatchImageUrl?: string;
   swatchRepeatMm?: { width: number; height: number };
+  // A floor or wall laid as tiles (§122): "800×1600 mm tiles, 2 mm grey grout".
+  laidAs?: string;
 }
 
 export interface FrontPanelDescription {
@@ -503,7 +506,8 @@ export function finishPhrase(f: FinishDescription | null, ifUnset: string = UNSE
   const pattern = f.pattern === PATTERN_CATEGORY_LABELS.solid ? '' : `${f.pattern.toLowerCase()} `;
   const brand = [f.brand, f.code].filter(Boolean).join(' ');
   const tint = f.tintHex ? `, tinted ${colourName(f.tintHex) ?? f.tintHex}` : '';
-  return `${colour}${pattern}${f.type.toLowerCase()} in ${f.sheen} (${f.name}${brand && !f.name.includes(brand) ? `, ${brand}` : ''}${tint})`;
+  const laid = f.laidAs ? `, laid as ${f.laidAs}` : '';
+  return `${colour}${pattern}${f.type.toLowerCase()} in ${f.sheen} (${f.name}${brand && !f.name.includes(brand) ? `, ${brand}` : ''}${tint})${laid}`;
 }
 
 function boxOf(rect: FootprintRect, bottomMm: number, heightMm: number): BoxMm {
@@ -555,8 +559,10 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
   const roomD = layout.dimensions.depthMm;
   const ceilingMm = layout.dimensions.ceilingHeightMm ?? DEFAULT_CEILING_HEIGHT_MM;
   // With a surface's tint where it has one (§119, §120).
-  const optionalFinish = (id: string | undefined, tint?: string | null) =>
-    describeFinish(findFinish(finishes, id), origin, tint ?? undefined);
+  const optionalFinish = (id: string | undefined, tint?: string | null, tiling?: SurfaceTiling | null) => {
+    const d = describeFinish(findFinish(finishes, id), origin, tint ?? undefined);
+    return d && tiling ? { ...d, laidAs: describeTiling(tiling) } : d;
+  };
 
   // Sort key: wall order, then left to right, then bottom to top; the
   // freestanding ones last. Refs are numbered in this order so C1 is
@@ -804,7 +810,8 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
       leftCorner: LEFT_CORNER[wall],
       finish: optionalFinish(
         layout.walls.find((w) => w.orientation === wall)?.finishId,
-        layout.walls.find((w) => w.orientation === wall)?.colorOverride
+        layout.walls.find((w) => w.orientation === wall)?.colorOverride,
+        layout.walls.find((w) => w.orientation === wall)?.tiling
       ),
       elementsLeftToRight: elements,
     };
@@ -895,7 +902,7 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
       widthMm: roomW,
       depthMm: roomD,
       ceilingHeightMm: ceilingMm,
-      floor: optionalFinish(layout.floorFinishId, layout.floorColorOverride),
+      floor: optionalFinish(layout.floorFinishId, layout.floorColorOverride, layout.floorTiling),
       ceiling: optionalFinish(layout.ceilingFinishId, layout.ceilingColorOverride),
       walls,
       notSpecifiedMeans: `A finish of null means nothing has been chosen yet, and the surface stays as plain as the reference image shows it: walls matte off-white plaster (${PLAIN_PLASTER_HEX}), the floor plain light-grey tiles, the ceiling plain white, the countertop plain polished light-grey stone. Do not invent tiles, wallpaper, backsplashes, paint colours or patterns.`,

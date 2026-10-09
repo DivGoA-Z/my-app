@@ -116,6 +116,11 @@ export interface SurfaceFinish {
   // grain renders four times too large. Ignored for solid colours.
   swatchWidthMm: number;
   swatchHeightMm: number;
+  // For a photo that shows tiles (§122): the size of ONE tile in it, so a
+  // floor can be laid at another tile size by rescaling the photo.
+  // Unset for seamless materials, where the app draws the grout instead.
+  tileWidthMm?: number;
+  tileHeightMm?: number;
   // Photographed swatches don't tile seamlessly; 'mirror' flips
   // alternate copies so edges always match. Costs a little realism
   // (visible symmetry) but removes hard seams, which read as far worse.

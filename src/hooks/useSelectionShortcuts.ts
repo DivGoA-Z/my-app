@@ -70,6 +70,10 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
 }
 
+function insideOverlay(target: EventTarget | null): boolean {
+  return target instanceof Element && !!target.closest('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]');
+}
+
 // `enabled` gates the whole hook rather than just the handler body —
 // selection is store state, not view state, so it survives a switch
 // away from the 2D canvas (to the dashboard, Manage Inventory, the 3D
@@ -83,6 +87,11 @@ export function useSelectionShortcuts(enabled: boolean) {
 
     function handleKeyDown(e: KeyboardEvent) {
       if (isEditableTarget(e.target)) return;
+      // Keys pressed inside an open window or menu are for it (§125):
+      // Escape there closes the finish library, and must not ALSO
+      // deselect the cabinet behind it; Delete/arrows mustn't act on the
+      // cabinet either. Also skipped if the window already handled it.
+      if (e.defaultPrevented || insideOverlay(e.target)) return;
 
       const state = useLayoutStore.getState();
       const selection = state.selection;

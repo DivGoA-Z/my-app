@@ -17,6 +17,7 @@
 // this component renders ONLY the primitive geometry from the file, and
 // never adds its own light or emissive material on top.
 
+import { servedModelUrl } from '../../lib/modelUrl';
 import { useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { fitModelToBox, NO_MODEL_ORIENTATION } from '../../lib/fittedModel';
@@ -44,7 +45,8 @@ function useFittedFixtureModel(
   depthMm: number,
   orientation: ModelOrientation
 ) {
-  const { scene } = useGLTF(url);
+  // Tolerates a stray "public/" prefix in a saved address (§124).
+  const { scene } = useGLTF(servedModelUrl(url));
   const { xDeg, yDeg, zDeg } = orientation;
 
   return useMemo(

@@ -769,6 +769,26 @@ values
    0, 0.15, 0, 0, 0.02, 600, 600, 'repeat', 1500, 'bundled', 'biz_default')
 on conflict (id) do nothing;
 
+-- One tile's size in a tile PHOTO (§122), so a floor can be laid at
+-- another tile size by rescaling the photo. NULL for seamless materials
+-- (the app draws their grout). Filled for the library's tile photos only
+-- where still NULL, so a size you've set is never overwritten.
+alter table public.surface_finishes add column if not exists tile_width_mm integer;
+alter table public.surface_finishes add column if not exists tile_height_mm integer;
+update public.surface_finishes set tile_width_mm = 600, tile_height_mm = 600 where id = 'surf_tile_plain_white' and tile_width_mm is null;
+update public.surface_finishes set tile_width_mm = 600, tile_height_mm = 600 where id = 'surf_tile_glossy_black' and tile_width_mm is null;
+update public.surface_finishes set tile_width_mm = 333, tile_height_mm = 333 where id = 'surf_tile_cream_matt' and tile_width_mm is null;
+update public.surface_finishes set tile_width_mm = 350, tile_height_mm = 350 where id = 'surf_tile_checker_marble' and tile_width_mm is null;
+update public.surface_finishes set tile_width_mm = 600, tile_height_mm = 600 where id = 'surf_tile_botticino_marble' and tile_width_mm is null;
+update public.surface_finishes set tile_width_mm = 400, tile_height_mm = 400 where id = 'surf_tile_bw_pattern_marble' and tile_width_mm is null;
+update public.surface_finishes set tile_width_mm = 150, tile_height_mm = 150 where id = 'surf_tile_white_square_wall' and tile_width_mm is null;
+update public.surface_finishes set tile_width_mm = 100, tile_height_mm = 100 where id = 'surf_tile_white_small_square' and tile_width_mm is null;
+update public.surface_finishes set tile_width_mm = 150, tile_height_mm = 75 where id = 'surf_tile_white_subway' and tile_width_mm is null;
+update public.surface_finishes set tile_width_mm = 300, tile_height_mm = 75 where id = 'surf_tile_green_subway' and tile_width_mm is null;
+update public.surface_finishes set tile_width_mm = 300, tile_height_mm = 300 where id = 'surf_tile_white_large_matt' and tile_width_mm is null;
+update public.surface_finishes set tile_width_mm = 300, tile_height_mm = 300 where id = 'surf_tile_terrazzo_white' and tile_width_mm is null;
+update public.surface_finishes set tile_width_mm = 300, tile_height_mm = 300 where id = 'surf_tile_charcoal_large' and tile_width_mm is null;
+
 -- ------------------------------------------------------------
 -- MIGRATION: cabinet_catalog_items.finish -> finish_id
 --
@@ -1315,6 +1335,13 @@ alter table public.layouts add column if not exists countertop_color_override te
 -- Floor and ceiling tints (§120); a wall's lives in the walls JSONB.
 alter table public.layouts add column if not exists floor_color_override text;
 alter table public.layouts add column if not exists ceiling_color_override text;
+-- The floor laid as tiles (§122): {tileWidthMm, tileHeightMm, pattern,
+-- groutMm, groutColor}; a wall's lives in the walls JSONB. NULL = as the
+-- finish is.
+alter table public.layouts add column if not exists floor_tiling jsonb;
+-- Whether floor/wall/ceiling finishes are charged on the quote (§123).
+-- NULL = charged, as every kitchen was before this column existed.
+alter table public.layouts add column if not exists price_surfaces boolean;
 
 -- Starter set, at plausible Delhi NCR retail. `on conflict do nothing`
 -- so re-running never overwrites a business's own rates — same as the

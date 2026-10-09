@@ -45,6 +45,7 @@
 //    boundary AND the error boundary below, both falling back to the
 //    plain box.
 
+import { servedModelUrl } from '../../lib/modelUrl';
 import { useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { useGLTF } from '@react-three/drei';
@@ -68,7 +69,11 @@ export interface ApplianceModelProps {
   // Rendered while the model loads and if it fails to load — the caller
   // passes its existing box mesh, so a missing model degrades to the
   // old behaviour rather than to a hole in the scene.
+  //
+  // (baseMm, below: where the model's base is drawn, when the caller
+  // knows better than elevationMm — a sink dropped into its counter.)
   fallback: ReactNode;
+  baseMm?: number;
 }
 
 // Per-axis scaling makes the model occupy EXACTLY the box the quote was
@@ -93,13 +98,17 @@ export interface ApplianceModelProps {
 // dependency list can be verified, since passing `item`/`orientation`
 // themselves would re-clone the scene on every render.
 function useFittedModel(item: PlacedApplianceItem, url: string, orientation: ModelOrientation) {
-  const { scene } = useGLTF(url);
+  // Tolerates a stray "public/" prefix in a saved address (§124).
+  const { scene } = useGLTF(servedModelUrl(url));
   const { xDeg, yDeg, zDeg } = orientation;
   const { widthMm, heightMm, depthMm } = item;
+  // A sink keeps its model's proportions (§126); everything else fills
+  // its box exactly, as before.
+  const fit = item.applianceType === 'sink' ? 'uniform' : 'stretch';
 
   return useMemo(
-    () => fitModelToBox(scene, widthMm, heightMm, depthMm, { xDeg, yDeg, zDeg }),
-    [scene, widthMm, heightMm, depthMm, xDeg, yDeg, zDeg]
+    () => fitModelToBox(scene, widthMm, heightMm, depthMm, { xDeg, yDeg, zDeg }, fit),
+    [scene, widthMm, heightMm, depthMm, xDeg, yDeg, zDeg, fit]
   );
 }
 
@@ -107,10 +116,12 @@ function FittedModel({
   item,
   url,
   orientation,
+  baseMm,
 }: {
   item: PlacedApplianceItem;
   url: string;
   orientation: ModelOrientation;
+  baseMm?: number;
 }) {
   const { model, scale, offset } = useFittedModel(item, url, orientation);
 
@@ -123,7 +134,9 @@ function FittedModel({
     item.x + item.widthMm / 2,
     item.y + item.depthMm / 2
   );
-  const elevationM = mmToWorld(item.elevationMm);
+  // A sink resting on a counter is drawn dropped into it (§126,
+  // lib/sinkPlacement); otherwise the base sits at elevationMm.
+  const elevationM = mmToWorld(baseMm ?? item.elevationMm);
 
   return (
     <group
@@ -145,12 +158,13 @@ export function ApplianceModel({
   modelUrl,
   orientation = NO_MODEL_ORIENTATION,
   fallback,
+  baseMm,
 }: ApplianceModelProps) {
   if (!modelUrl) return <>{fallback}</>;
 
   return (
     <ModelWithFallback fallback={fallback} logPrefix="ApplianceModel">
-      <FittedModel item={item} url={modelUrl} orientation={orientation} />
+      <FittedModel item={item} url={modelUrl} orientation={orientation} baseMm={baseMm} />
     </ModelWithFallback>
   );
 }

@@ -1,5 +1,6 @@
 // src/types/layout.ts
 
+import type { SurfaceTiling } from '../lib/tiling';
 import type { OtherRate } from './rates';
 import type { ExtraPart } from './cabinet';
 import type { CameraNode } from './Camera';
@@ -45,6 +46,9 @@ export interface Wall {
   // or a tile/stone photo stained another tone. Unset/null = the
   // finish's own colour. In the walls JSONB, so no column.
   colorOverride?: string | null;
+  // Laid as tiles (§122): size, offset rows, grout. In the walls JSONB.
+  // Unset/null = a continuous surface (paint, or the photo as it is).
+  tiling?: SurfaceTiling | null;
 }
 
 export type ObstacleType = 'pillar' | 'shaft' | 'exposed-pipe' | 'electrical-panel';
@@ -208,6 +212,8 @@ export interface RoomLayout {
   countertopColorOverride?: string | null;
   // The same for the floor and ceiling (§120).
   floorColorOverride?: string | null;
+  // The floor laid as tiles (§122); null = as the finish is.
+  floorTiling?: SurfaceTiling | null;
   ceilingColorOverride?: string | null;
   // Whether the countertop appears as a CHARGE on the quote.
   //
@@ -220,6 +226,12 @@ export interface RoomLayout {
   // specification at zero, same as an unpriced fixture — not supplying
   // it is different from it being free.
   priceCountertop?: boolean;
+  // Whether floor, wall and ceiling finishes are CHARGED on the quote
+  // (§123). Same shape as priceCountertop: often the civil contractor or
+  // the homeowner does the tiling, so the finishes are designed and shown
+  // but not supplied. Unset = charged, which is how every kitchen before
+  // this worked, so no existing quote changes.
+  priceSurfaces?: boolean;
   // Cost-plus markup (%) applied to this PROJECT's own quote —
   // deliberately per-project, not a single business-wide number on
   // the rate card (docs/DECISIONS.md §15): a big order and a rush

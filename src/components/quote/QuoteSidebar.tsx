@@ -464,6 +464,13 @@ export function QuoteSidebar({ onOpenCutList }: { onOpenCutList?: (quoteId: stri
             <span>{formatINR(markup(bom.surfaceSubtotal))}</span>
           </div>
         )}
+        {/* Not charged (§123), but shown, as the slab is when off. */}
+        {bom.surfaceSubtotal === 0 && (bom.surfaceSpecifiedTotal ?? 0) > 0 && (
+          <div className="flex justify-between">
+            <span>Floor / walls / ceiling</span>
+            <span>not charged · {formatINR(markup(bom.surfaceSpecifiedTotal!))} if charged</span>
+          </div>
+        )}
         {bom.countertopSubtotal > 0 && (
           <div className="flex justify-between">
             <span>Countertop / slab</span>

@@ -7,6 +7,7 @@
 // inline. Makes this swappable later (different backend, offline mode,
 // etc.) without touching the store's public API.
 
+import type { SurfaceTiling } from './tiling';
 import type { StyleDefaults } from './styleDefaults';
 import { sanitizeOtherRates, type OtherRate } from '../types/rates';
 import { supabase } from './Supabaseclient';
@@ -80,6 +81,10 @@ interface LayoutRow {
   // §120 — floor and ceiling tints; NULL = the finish's own colour.
   floor_color_override?: string | null;
   ceiling_color_override?: string | null;
+  // §122 — the floor laid as tiles; NULL = as the finish is.
+  floor_tiling?: SurfaceTiling | null;
+  // §123 — NULL = charged (as before this existed).
+  price_surfaces?: boolean | null;
   price_countertop: boolean | null;
   margin_percent: number | null;
   sheet_waste_factor: number | null;
@@ -181,6 +186,8 @@ function layoutToRow(
     ...(layout.countertopColorOverride !== undefined ? { countertop_color_override: layout.countertopColorOverride } : {}),
     ...(layout.floorColorOverride !== undefined ? { floor_color_override: layout.floorColorOverride } : {}),
     ...(layout.ceilingColorOverride !== undefined ? { ceiling_color_override: layout.ceilingColorOverride } : {}),
+    ...(layout.floorTiling !== undefined ? { floor_tiling: layout.floorTiling } : {}),
+    ...(layout.priceSurfaces !== undefined ? { price_surfaces: layout.priceSurfaces } : {}),
     price_countertop: layout.priceCountertop ?? null,
     margin_percent: layout.marginPercent ?? null,
     sheet_waste_factor: layout.sheetWasteFactor ?? null,
@@ -226,6 +233,8 @@ function rowToLayout(row: LayoutRow): RoomLayout {
     countertopColorOverride: row.countertop_color_override ?? undefined,
     floorColorOverride: row.floor_color_override ?? undefined,
     ceilingColorOverride: row.ceiling_color_override ?? undefined,
+    floorTiling: row.floor_tiling ?? undefined,
+    priceSurfaces: row.price_surfaces ?? undefined,
     // Same reasoning as priceElectrical — "is the countertop charged?"
     // has a real answer for every project, and it's usually no.
     priceCountertop: row.price_countertop ?? false,
@@ -283,6 +292,7 @@ function normalizeWalls(walls: Wall[], roomWidthMm: number, roomDepthMm: number)
       // Listed field by field above, so a new wall field is dropped on
       // load unless it's added here (§120).
       colorOverride: existing?.colorOverride ?? undefined,
+      tiling: existing?.tiling ?? undefined,
     };
   });
 }

@@ -48,6 +48,11 @@ the history is in `git log`.
 - Room-surface library (§120): 67 floors, walls, stones, wood floors,
   paints and Indian-stone placeholders, picked from a swatch library with
   prices and a custom shade per surface. Prices are placeholders.
+- Sinks drop into the counter with their tap upright (§126); room
+  surfaces optional on the quote (§123); cabinet Finish is a compact row
+  opening the finish library (§125).
+- Floors and walls laid as tiles (§122): size, straight/offset, grout
+  width and colour; tile photos rescale, seamless finishes get drawn grout.
 - Depth convention ("includes shutter" or "carcass only"): business
   setting with a per-project override, followed by the plan, 3D and
   collisions. Shutter thickness comes from each cabinet's fronts board.
@@ -96,7 +101,7 @@ the history is in `git log`.
 
 ## Tests
 
-`npm test` (Vitest): **287 tests** in 38 files (this said 125, which
+`npm test` (Vitest): **304 tests** in 41 files (this said 125, which
 was stale). Maths tests cover pricing, the cutting list, nesting,
 panels, the importer, physical depth, the pipeline rules, and the image
 brief with its plan and elevation drawings. Screen tests (React Testing Library) cover the rate card, boards,
@@ -205,7 +210,8 @@ assumed settings, which is a check, not a blocker.
 3. Browser tests that script the walkthrough's flows.
 4. The "before the first customer" list in `docs/AFTER_FIRST_CUSTOMERS.md`.
 5. L-shaped / bi-fold wall corner units (not built; blind wall corners are).
-6. Tile size per surface and visible grout lines (§120's second step).
+6. Tiling extras (§122): backsplash tiles starting at the counter (3D
+   only; grout pricing and 2D tiles decided against, §123).
 
 Open issues: none (`docs/ISSUES.md`). Fixed issues are logged in
 `docs/ISSUES-FIXED.md`.

@@ -23,12 +23,8 @@ import type { SurfaceAreaBreakdown } from '../../lib/surfaceAreas';
 import { countertopAreaSqM } from '../../lib/cabinetGeometry';
 import type { WallOrientation } from '../../types/layout';
 import { Checkbox } from '../ui/checkbox';
-import { Button } from '../ui/button';
-import { ColorPicker } from '../common/ColorPicker';
-import { cn } from '@/lib/utils';
-import { useState } from 'react';
-import { finishSwatch } from '../../lib/designFinishes';
-import { isSlabMaterial, SLAB_SURFACE_LABELS, slabSurfaceOf, type RoomSurface } from '../../types/finish';
+import type { RoomSurface } from '../../types/finish';
+import type { SurfaceTiling } from '../../lib/tiling';
 import { SurfaceFinishPicker } from './SurfaceFinishPicker';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -70,6 +66,24 @@ export function RoomSurfacesPanel() {
         </p>
       </div>
 
+      {/* §123: like the slab, floor/wall/ceiling finishes can be designed
+          and shown without being supplied (civil contractor or homeowner). */}
+      <div className="flex flex-col gap-1">
+        <Label className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
+          <Checkbox
+            checked={currentLayout.priceSurfaces !== false}
+            onCheckedChange={(checked) => updateRoomSurfaces({ priceSurfaces: checked === true })}
+            className="size-3"
+          />
+          Charge floor, walls and ceiling on the quote
+        </Label>
+        {currentLayout.priceSurfaces === false && (
+          <span className="text-xs text-muted-foreground">
+            Off — tiling and painting arranged by someone else. The finishes still show in the design.
+          </span>
+        )}
+      </div>
+
       <SurfaceRow
         label="Floor"
         area={areas.floor}
@@ -79,6 +93,8 @@ export function RoomSurfacesPanel() {
         concealedFinishId={currentLayout.floorConcealedFinishId}
         onFinishChange={(id) => updateRoomSurfaces({ floorFinishId: id })}
         onTintChange={(hex) => updateRoomSurfaces({ floorColorOverride: hex })}
+        tiling={currentLayout.floorTiling}
+        onTilingChange={(t) => updateRoomSurfaces({ floorTiling: t })}
         onConcealedChange={(id) => updateRoomSurfaces({ floorConcealedFinishId: id })}
       />
 
@@ -108,6 +124,8 @@ export function RoomSurfacesPanel() {
             concealedFinishId={wall?.concealedFinishId}
             onFinishChange={(id) => updateWallFinish(orientation, { finishId: id })}
             onTintChange={(hex) => updateWallFinish(orientation, { colorOverride: hex })}
+            tiling={wall?.tiling}
+            onTilingChange={(t) => updateWallFinish(orientation, { tiling: t })}
             onConcealedChange={(id) => updateWallFinish(orientation, { concealedFinishId: id })}
           />
         );
@@ -138,6 +156,8 @@ interface SurfaceRowProps {
   finishId?: string;
   tint?: string | null;
   onTintChange: (hex: string | null) => void;
+  tiling?: SurfaceTiling | null;
+  onTilingChange?: (t: SurfaceTiling | null) => void;
   concealedFinishId?: string;
   onFinishChange: (finishId: string | undefined) => void;
   onConcealedChange?: (finishId: string | undefined) => void;
@@ -150,6 +170,8 @@ function SurfaceRow({
   finishId,
   tint,
   onTintChange,
+  tiling,
+  onTilingChange,
   concealedFinishId,
   onFinishChange,
   onConcealedChange,
@@ -173,6 +195,8 @@ function SurfaceRow({
         tint={tint}
         onFinishChange={onFinishChange}
         onTintChange={onTintChange}
+        tiling={tiling}
+        onTilingChange={onTilingChange}
       />
 
       {onConcealedChange && area.concealedSqM > 0 && (
@@ -247,126 +271,23 @@ function CountertopRow({
   onColorChange,
   onPriceCountertopChange,
 }: CountertopRowProps) {
-  const finishes = useLayoutStore((state) => state.finishes);
-  // Slab materials first (§119): finishes whose type is Granite, Quartz…
-  // "Show all finishes" for a laminate or other top; it's on by itself
-  // when the chosen finish isn't a slab material.
-  const slabs = finishes.filter(isSlabMaterial);
-  const chosen = finishes.find((f) => f.id === finishId);
-  const [showAll, setShowAll] = useState(false);
-  const listAll = showAll || (chosen !== undefined && !isSlabMaterial(chosen)) || slabs.length === 0;
-  const shown = listAll ? finishes : slabs;
-  const [picking, setPicking] = useState(false);
-
   return (
-    <div className="flex flex-col gap-2 border-t border-gray-100 pt-2">
+    <div className="flex flex-col gap-1 border-t border-gray-100 pt-2">
       <div className="flex items-baseline justify-between">
         <span className="text-xs font-medium text-foreground">Countertop / slab</span>
         <span className="text-xs tabular-nums text-muted-foreground">{areaSqM.toFixed(2)} m²</span>
       </div>
 
-      {slabs.length === 0 && (
-        <span className="text-xs text-muted-foreground">
-          No slab materials in your catalogue yet. In Catalogue → Finishes, add one with the type Granite, Quartz,
-          Marble, Sintered stone, Solid surface or Compact laminate.
-        </span>
-      )}
-
-      {/* Swatches with their price (Principle 10: a material choice is
-          never shown without its price). */}
-      <div role="radiogroup" aria-label="Countertop material" className="grid grid-cols-3 gap-1.5">
-        <button
-          type="button"
-          role="radio"
-          aria-checked={!finishId}
-          onClick={() => onFinishChange(undefined)}
-          className={cn(
-            'flex flex-col justify-center gap-0.5 rounded-lg border p-1.5 text-left',
-            !finishId ? 'border-primary ring-2 ring-primary' : 'border-border hover:border-primary/60'
-          )}
-        >
-          <span className="text-[11px] font-medium leading-tight">Not specified</span>
-          <span className="text-[10px] text-muted-foreground">plain light stone</span>
-        </button>
-        {shown.map((f) => {
-          const sw = finishSwatch(f);
-          const on = f.id === finishId;
-          const name = f.brand ? `${f.brand} ${f.label}` : f.label;
-          return (
-            <button
-              key={f.id}
-              type="button"
-              role="radio"
-              aria-checked={on}
-              title={name}
-              onClick={() => onFinishChange(f.id)}
-              className={cn(
-                'flex flex-col gap-0.5 rounded-lg border p-1 text-left',
-                on ? 'border-primary ring-2 ring-primary' : 'border-border hover:border-primary/60'
-              )}
-            >
-              <span
-                className="block aspect-[4/3] w-full rounded-md border border-black/5 bg-cover bg-center"
-                style={sw?.image ? { backgroundImage: `url(${sw.image})` } : { backgroundColor: sw?.color ?? '#dcd7cf' }}
-              />
-              <span className="line-clamp-2 text-[11px] leading-tight font-medium">{name}</span>
-              <span className="text-[10px] leading-tight text-muted-foreground">
-                {isSlabMaterial(f) ? `${f.finishTypeLabel} · ${SLAB_SURFACE_LABELS[slabSurfaceOf(f)].split(' ')[0]}` : f.finishTypeLabel}
-              </span>
-              <span className="text-[10px] tabular-nums text-muted-foreground">₹{Math.round(f.pricePerSqM).toLocaleString('en-IN')}/m²</span>
-            </button>
-          );
-        })}
-      </div>
-      {slabs.length > 0 && (
-        <Label className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
-          <Checkbox checked={listAll} disabled={chosen !== undefined && !isSlabMaterial(chosen)} onCheckedChange={(c) => setShowAll(c === true)} className="size-3" />
-          Show all finishes (laminate and other tops)
-        </Label>
-      )}
-
-      {chosen && (
-        <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-foreground">Colour</span>
-          <div role="radiogroup" aria-label="Countertop colour" className="grid grid-cols-2 gap-1.5">
-            <Button
-              role="radio"
-              aria-checked={!colorOverride}
-              size="sm"
-              variant={!colorOverride ? 'default' : 'outline'}
-              onClick={() => {
-                onColorChange(undefined);
-                setPicking(false);
-              }}
-            >
-              Material&rsquo;s own
-            </Button>
-            <Button
-              role="radio"
-              aria-checked={!!colorOverride}
-              size="sm"
-              variant={colorOverride ? 'default' : 'outline'}
-              onClick={() => {
-                if (!colorOverride) onColorChange(chosen.solidColor ?? '#9a9389');
-                setPicking(true);
-              }}
-            >
-              {colorOverride && <span className="size-3.5 rounded-sm border border-black/10" style={{ backgroundColor: colorOverride }} />}
-              Custom
-            </Button>
-          </div>
-          {colorOverride && picking && (
-            <div className="rounded-xl border border-border bg-card p-2.5">
-              <ColorPicker value={colorOverride} onChange={(hex) => onColorChange(hex)} />
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                {chosen.albedoUrl || chosen.proceduralKind
-                  ? 'This slab has a photo, so the colour tints it like a stain: greys and browns read well.'
-                  : 'This slab is a plain colour, so this replaces it.'}
-              </p>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Same picker as the floor and walls (§121): slab materials by
+          stone, with their surface, price and a custom shade. */}
+      <SurfaceFinishPicker
+        title="Countertop / slab"
+        surface="countertop"
+        finishId={finishId}
+        tint={colorOverride}
+        onFinishChange={onFinishChange}
+        onTintChange={(hex) => onColorChange(hex ?? undefined)}
+      />
 
       <Label className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
         <Checkbox

@@ -263,6 +263,10 @@ export interface BOMSummary {
   hardwareSubtotal: number;
   applianceSubtotal: number;
   surfaceSubtotal: number;
+  // What floor/walls/ceiling WOULD come to (§123): surfaceSubtotal is
+  // zero when layout.priceSurfaces is off. Optional only so a quote
+  // frozen before this still reads.
+  surfaceSpecifiedTotal?: number;
   // Only non-zero for openings the business actually supplies.
   openingSubtotal: number;
   // Zero unless layout.priceElectrical is on. `fixtureSpecifiedTotal`
@@ -589,7 +593,11 @@ export function calculateBOM(
   const surfaceLineItems = layout
     ? buildSurfaceLineItems(layout, physicalItems, appliances, finishes)
     : [];
-  const surfaceSubtotal = sum(surfaceLineItems, (l) => l.lineTotal);
+  const surfaceSpecifiedTotal = sum(surfaceLineItems, (l) => l.lineTotal);
+  // Same switch shape as the countertop's (§123): the lines keep their
+  // real rates; whether the total is charged is the layout's call.
+  // Unset = charged, as before the switch existed.
+  const surfaceSubtotal = layout?.priceSurfaces === false ? 0 : surfaceSpecifiedTotal;
 
   const openingLineItems = layout ? buildOpeningLineItems(layout) : [];
   const openingSubtotal = sum(openingLineItems, (l) => l.cost);
@@ -696,6 +704,7 @@ export function calculateBOM(
     hardwareSubtotal: sum(lineItems, (l) => l.hardwareCost),
     applianceSubtotal,
     surfaceSubtotal,
+    surfaceSpecifiedTotal,
     openingSubtotal,
     fixtureSubtotal,
     fixtureSpecifiedTotal,

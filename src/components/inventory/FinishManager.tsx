@@ -495,6 +495,35 @@ function FinishEditor({ draft, setDraft }: FinishEditorProps) {
               className={inputClass}
             />
           </label>
+          {/* §122: for a photo that shows tiles, one tile's size, so a floor
+              or wall can be laid at another tile size by rescaling it. */}
+          <label className={labelClass}>
+            Tile size in this photo (mm, W × H)
+            <span className="flex items-center gap-1.5">
+              <input
+                type="number"
+                min={10}
+                placeholder="—"
+                aria-label="Tile width in this photo"
+                value={draft.tileWidthMm ?? ''}
+                onChange={(e) => patch({ tileWidthMm: e.target.value ? Number(e.target.value) : undefined })}
+                className={inputClass}
+              />
+              ×
+              <input
+                type="number"
+                min={10}
+                placeholder="—"
+                aria-label="Tile height in this photo"
+                value={draft.tileHeightMm ?? ''}
+                onChange={(e) => patch({ tileHeightMm: e.target.value ? Number(e.target.value) : undefined })}
+                className={inputClass}
+              />
+            </span>
+            <span className="text-xs font-normal text-muted-foreground">
+              Only if the photo shows tiles with grout. Leave empty for marble, stone or anything seamless.
+            </span>
+          </label>
           <div className={labelClass}>
             Tiling
             <Select value={draft.tilingMode} onValueChange={(value) => patch({ tilingMode: value as TilingMode })}>

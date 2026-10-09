@@ -61,7 +61,7 @@ import { cn } from '@/lib/utils';
 import { Camera as CameraIcon, ChevronDown, Download, Eye, Save, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePhysicalCabinets } from '../../hooks/usePhysicalCabinets';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
@@ -80,10 +80,14 @@ import { resolveMaterial } from '../../lib/materials3d';
 import {
   useSurfaceTextures,
   useFinishTextures,
+  textureSetKey,
   useOpeningBackdrop,
   useMetalHardwareTextures,
 } from '../../lib/textures3d';
 import { resolveFinish } from '../../types/finish';
+import { finishForTiling, tilingMode, type SurfaceTiling } from '../../lib/tiling';
+import { GroutOverlay } from './GroutOverlay';
+import { sinkModelBaseMm } from '../../lib/sinkPlacement';
 import {
   hasCountertop,
   COUNTERTOP_THICKNESS_MM,
@@ -890,6 +894,9 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
                 item={item}
                 modelUrl={modelUrl}
                 orientation={orientation}
+                // A sink resting on a counter drops in, rim at the counter
+                // top (§126). The fallback box is unchanged.
+                baseMm={item.applianceType === 'sink' ? sinkModelBaseMm(item, cabinets) : undefined}
                 fallback={<ApplianceMesh item={item} />}
               />
             );
@@ -1356,6 +1363,8 @@ interface FinishedSurfaceProps {
   side?: THREE.Side;
   // Hex tint on the finish (§120); null/undefined = its own colour.
   tint?: string | null;
+  // Laid as tiles (§122): rescales a tile photo to the chosen tile size.
+  tiling?: SurfaceTiling | null;
 }
 
 const PLASTER_COLOR = '#f5f3ef';
@@ -1389,9 +1398,13 @@ function FinishedSurface({
   rotation,
   side,
   tint,
+  tiling,
 }: FinishedSurfaceProps) {
   const finishes = useLayoutStore((state) => state.finishes);
-  const finish = finishId ? resolveFinish(finishes, finishId) : undefined;
+  const resolved = finishId ? resolveFinish(finishes, finishId) : undefined;
+  // A tile photo laid at another tile size is the same photo, rescaled
+  // (§122); a seamless finish is unchanged (its grout is drawn on top).
+  const finish = resolved ? finishForTiling(resolved, tiling) : undefined;
   // A surface's tint (§120): a paint shade, or a photo stained another tone.
   const material = resolveMaterial(finish, tint ?? undefined);
   const textures = useFinishTextures(finish, widthM, heightM);
@@ -1400,6 +1413,8 @@ function FinishedSurface({
     <mesh position={position} rotation={rotation} receiveShadow>
       {children}
       <meshStandardMaterial
+        // New material when the set of maps changes (§121, textureSetKey).
+        key={textureSetKey(textures)}
         color={finish ? material.color : PLASTER_COLOR}
         map={textures?.map ?? null}
         normalMap={textures?.normalMap ?? null}
@@ -1441,6 +1456,10 @@ function RoomWalls({ widthM, depthM, heightM, only }: RoomWallsProps) {
   // never overlap, which is what stops this from z-fighting or leaking
   // daylight through a seam.
   const walls = currentLayout?.walls ?? [];
+  const allFinishes = useLayoutStore((state) => state.finishes);
+  const wallFinishes = new Map(
+    walls.map((w) => [w.orientation, w.finishId ? resolveFinish(allFinishes, w.finishId) : undefined] as const)
+  );
   // Ceiling height comes from the heightM PROP, converted back to mm —
   // not re-read from the layout. The caller already resolved it (with
   // its own DEFAULT_CEILING_HEIGHT_MM fallback), so reading the store
@@ -1478,11 +1497,39 @@ function RoomWalls({ widthM, depthM, heightM, only }: RoomWallsProps) {
                 ? [segWidthM, segHeightM, WALL_THICKNESS_M]
                 : [WALL_THICKNESS_M, segHeightM, segWidthM];
 
+              // Drawn grout for a seamless finish laid as tiles (§122), on
+              // the wall's inside face, carried on from the corner.
+              const groutOn = tilingMode(wallFinishes.get(orientation), wall?.tiling).kind === 'overlay';
+              const inside = WALL_THICKNESS_M / 2 + 0.001;
+              const facePos: [number, number, number] =
+                orientation === 'north'
+                  ? [position[0], position[1], inside]
+                  : orientation === 'south'
+                    ? [position[0], position[1], depthM - inside]
+                    : orientation === 'west'
+                      ? [inside, position[1], position[2]]
+                      : [widthM - inside, position[1], position[2]];
+              const faceRot: [number, number, number] =
+                orientation === 'north' ? [0, 0, 0] : orientation === 'south' ? [0, Math.PI, 0] : orientation === 'west' ? [0, Math.PI / 2, 0] : [0, -Math.PI / 2, 0];
+
               return (
+                <Fragment key={`${orientation}-${i}`}>
+                {groutOn && wall?.tiling && (
+                  <GroutOverlay
+                    tiling={wall.tiling}
+                    widthMm={seg.widthMm}
+                    heightMm={seg.heightMm}
+                    startAlongMm={seg.alongMm}
+                    startUpMm={seg.bottomMm}
+                    reversed={orientation === 'south' || orientation === 'west'}
+                    position={facePos}
+                    rotation={faceRot}
+                  />
+                )}
                 <FinishedSurface
-                  key={`${orientation}-${i}`}
                   finishId={wall?.finishId}
                   tint={wall?.colorOverride}
+                  tiling={wall?.tiling}
                   // Texture scale follows the SEGMENT, not the whole
                   // wall, so tile size stays physically consistent
                   // across the pieces either side of a window instead
@@ -1493,6 +1540,7 @@ function RoomWalls({ widthM, depthM, heightM, only }: RoomWallsProps) {
                 >
                   <boxGeometry args={args} />
                 </FinishedSurface>
+                </Fragment>
               );
             })}
 
@@ -1733,11 +1781,29 @@ function RoomFloor({ widthM, depthM }: { widthM: number; depthM: number }) {
 
   const proceduralTile = useSurfaceTextures('tile', widthM, depthM);
 
+  const floorFinish = useLayoutStore((s) => (floorFinishId ? resolveFinish(s.finishes, floorFinishId) : undefined));
+  const floorTiling = currentLayout?.floorTiling;
   if (floorFinishId) {
     return (
+      <>
+      {floorTiling && tilingMode(floorFinish, floorTiling).kind === 'overlay' && (
+        // Lined up from the north-west corner (§122): the plane's V runs
+        // south to north, hence the start at minus the room's depth.
+        <GroutOverlay
+          tiling={floorTiling}
+          widthMm={widthM * 1000}
+          heightMm={depthM * 1000}
+          startAlongMm={0}
+          startUpMm={-depthM * 1000}
+          reversed={false}
+          position={[widthM / 2, 0.001, depthM / 2]}
+          rotation={[-Math.PI / 2, 0, 0]}
+        />
+      )}
       <FinishedSurface
         finishId={floorFinishId}
         tint={currentLayout?.floorColorOverride}
+        tiling={floorTiling}
         widthM={widthM}
         heightM={depthM}
         position={[widthM / 2, 0, depthM / 2]}
@@ -1745,6 +1811,7 @@ function RoomFloor({ widthM, depthM }: { widthM: number; depthM: number }) {
       >
         <planeGeometry args={[widthM, depthM]} />
       </FinishedSurface>
+      </>
     );
   }
 
@@ -2621,6 +2688,8 @@ function CabinetMesh({ item, isSelected, onSelect }: CabinetMeshProps) {
   function renderFinishMaterial() {
     return (
       <meshPhysicalMaterial
+        // New material when the set of maps changes (§121, textureSetKey).
+        key={textureSetKey(textures)}
         color={material.color}
         map={textures?.map ?? null}
         normalMap={textures?.normalMap ?? null}
@@ -2712,6 +2781,8 @@ function CabinetMesh({ item, isSelected, onSelect }: CabinetMeshProps) {
                   <mesh castShadow receiveShadow>
                     <boxGeometry args={[geo.doorLengthM, bandHeightM, frontThicknessM]} />
                     <meshPhysicalMaterial
+                      // New material when the set of maps changes (§121, textureSetKey).
+                      key={textureSetKey(textures)}
                       color={material.color}
                       map={textures?.map ?? null}
                       normalMap={textures?.normalMap ?? null}
@@ -2865,6 +2936,8 @@ function CabinetMesh({ item, isSelected, onSelect }: CabinetMeshProps) {
                       args={[mmToWorld(panel.widthMm), mmToWorld(slat.heightMm), frontThicknessM]}
                     />
                     <meshPhysicalMaterial
+                      // New material when the set of maps changes (§121, textureSetKey).
+                      key={textureSetKey(textures)}
                       color={material.color}
                       map={textures?.map ?? null}
                       normalMap={textures?.normalMap ?? null}
@@ -2920,6 +2993,8 @@ function CabinetMesh({ item, isSelected, onSelect }: CabinetMeshProps) {
                     args={[mmToWorld(panel.widthMm), mmToWorld(panel.heightMm), frontThicknessM]}
                   />
                   <meshPhysicalMaterial
+                    // New material when the set of maps changes (§121, textureSetKey).
+                    key={textureSetKey(textures)}
                     color={material.color}
                     map={textures?.map ?? null}
                     normalMap={textures?.normalMap ?? null}
@@ -3390,6 +3465,8 @@ function CountertopMesh({
       // uses for shutters, so a laminate or acrylic countertop looks
       // like the same product as the cabinet it sits on.
       <meshPhysicalMaterial
+        // New material when the set of maps changes (§121, textureSetKey).
+        key={`finish-${textureSetKey(finishTextures)}`}
         color={material.color}
         map={finishTextures?.map ?? null}
         normalMap={finishTextures?.normalMap ?? null}
@@ -3404,6 +3481,8 @@ function CountertopMesh({
       /* Polished stone default: low roughness plus a light clearcoat,
          the same way materials3d.ts models glossy cabinet finishes. */
       <meshPhysicalMaterial
+        // New material when the set of maps changes (§121, textureSetKey).
+        key="procedural-quartz"
         map={proceduralTextures.map}
         normalMap={proceduralTextures.normalMap}
         roughnessMap={proceduralTextures.roughnessMap}

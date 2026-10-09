@@ -176,3 +176,25 @@ describe('charges and margin (§38-§40)', () => {
     expect(bom.shownOtherLines.find((c) => c.label === 'Extra service')).toMatchObject({ amount: 20000, applyMargin: false });
   });
 });
+
+describe('charging floor, walls and ceiling is optional (§123)', () => {
+  const withFloor = (priceSurfaces: boolean | undefined) =>
+    calculateBOM([baseUnit()], [], {
+      ...pricing({ layout: layout({ floorFinishId: 'tile', priceSurfaces }) }),
+      finishes: [{ id: 'tile', label: 'Vitrified', pricePerSqM: 1000, patternCategory: 'stone' }] as never,
+    });
+
+  it('charges them by default, as before the switch existed', () => {
+    const b = withFloor(undefined);
+    expect(b.surfaceSubtotal).toBeGreaterThan(0);
+    expect(b.surfaceSpecifiedTotal).toBe(b.surfaceSubtotal);
+  });
+
+  it('switched off: nothing charged, the figure still known', () => {
+    const on = withFloor(true);
+    const off = withFloor(false);
+    expect(off.surfaceSubtotal).toBe(0);
+    expect(off.surfaceSpecifiedTotal).toBe(on.surfaceSpecifiedTotal);
+    expect(off.grandTotal).toBeLessThan(on.grandTotal);
+  });
+});
