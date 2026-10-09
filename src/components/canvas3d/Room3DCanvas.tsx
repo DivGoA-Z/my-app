@@ -415,58 +415,64 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
   // The brief's styling (§127): a session choice, Bare by default.
   const [briefStyling, setBriefStyling] = useState<BriefStyling>('bare');
 
-  // §128: one kitchen, several cameras. Every camera's line drawing,
-  // colour view and brief, in order — view 1 (the hero) is the camera
-  // you're standing at, else the first. Views 2+ ask for the photo you
-  // generate and pick for view 1, so the set reads as one shoot.
-  async function handleSeriesBrief() {
+  // §128: ONE image from the main camera (the one you're standing at,
+  // else the first), with every other camera's colour view attached as
+  // context, so the model understands parts this shot sees edge-on.
+  async function handleContextBrief() {
     const fns = viewFnsRef.current;
     if (!currentLayout || !briefInput || !fns || cameras.length < 2) return;
     try {
-      const ordered = lockedCamera ? [lockedCamera, ...cameras.filter((c) => c.id !== lockedCamera.id)] : cameras;
+      const main = lockedCamera ?? cameras[0];
+      const others = cameras.filter((c) => c.id !== main.id);
       const stem = renderBriefFileStem(currentLayout.name);
-      const setId = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
-      const heroPhoto = `${stem}-v1-photo.png`;
       const { widthPx, heightPx } = GUIDE_IMAGE_SIZE;
-      for (const [i, node] of ordered.entries()) {
-        const n = i + 1;
-        const prefix = `${stem}-v${n}-${renderBriefFileStem(node.label)}`;
-        const { line, colour, pose } = fns.fromCamera(node, { widthPx, heightPx });
-        const images: ReferenceImage[] = [
-          { kind: 'line-render', file: `${prefix}-guide.png`, widthPx, heightPx },
-          { kind: 'colour-render', file: `${prefix}-colour.png`, widthPx, heightPx },
-          ...(n > 1 ? [{ kind: 'hero-photo' as const, file: heroPhoto, widthPx, heightPx, suppliedBy: 'you' as const }] : []),
-        ];
-        const brief = buildRenderBrief({
-          ...briefInput,
-          view: viewFromWorldCamera({
-            mode: 'walkthrough',
-            cameraLabel: node.label,
-            position: pose.position,
-            direction: pose.direction,
-            verticalFovDeg: pose.verticalFovDeg,
-            imageWidthPx: widthPx,
-            imageHeightPx: heightPx,
-          }),
-          assetOrigin: window.location.origin,
-          generatedAt: new Date().toISOString(),
-          referenceImages: images,
-          refs: false,
-          styling: briefStyling,
-          series: { view: n, of: ordered.length, heroCamera: ordered[0].label, setId },
-        });
-        downloadBlob(await (await fetch(line)).blob(), images[0].file);
-        downloadBlob(await (await fetch(colour)).blob(), images[1].file);
-        downloadBlob(new Blob([JSON.stringify(withoutRefs(brief), null, 2)], { type: 'application/json' }), `${prefix}-render-brief.json`);
+      const shot = fns.fromCamera(main, { widthPx, heightPx });
+      const ctx = others.map((c) => ({ node: c, img: fns.fromCamera(c, { widthPx, heightPx }) }));
+      const images: ReferenceImage[] = [
+        { kind: 'line-render', file: `${stem}-guide.png`, widthPx, heightPx },
+        { kind: 'colour-render', file: `${stem}-colour.png`, widthPx, heightPx },
+        ...ctx.map(({ node }) => ({
+          kind: 'context-view' as const,
+          file: `${stem}-context-${renderBriefFileStem(node.label)}.png`,
+          widthPx,
+          heightPx,
+          cameraLabel: node.label,
+        })),
+      ];
+      const brief = buildRenderBrief({
+        ...briefInput,
+        view: viewFromWorldCamera({
+          mode: 'walkthrough',
+          cameraLabel: main.label,
+          position: shot.pose.position,
+          direction: shot.pose.direction,
+          verticalFovDeg: shot.pose.verticalFovDeg,
+          imageWidthPx: widthPx,
+          imageHeightPx: heightPx,
+        }),
+        assetOrigin: window.location.origin,
+        generatedAt: new Date().toISOString(),
+        referenceImages: images,
+        refs: false,
+        styling: briefStyling,
+      });
+      const files: [string, string][] = [
+        [shot.line, images[0].file],
+        [shot.colour, images[1].file],
+        ...ctx.map(({ img }, k): [string, string] => [img.colour, images[2 + k].file]),
+      ];
+      for (const [url, name] of files) {
+        downloadBlob(await (await fetch(url)).blob(), name);
         // Browsers drop rapid-fire downloads; a short gap keeps them.
-        await new Promise((r) => setTimeout(r, 400));
+        await new Promise((r) => setTimeout(r, 300));
       }
-      toast.success(`Downloaded ${ordered.length} views (${ordered.map((c) => c.label).join(', ')}).`, {
-        description: `Generate view 1 first. Save the photo you pick as ${heroPhoto} and attach it to every other view, so they look like one kitchen.`,
-        duration: 12000,
+      downloadBlob(new Blob([JSON.stringify(withoutRefs(brief), null, 2)], { type: 'application/json' }), `${stem}-render-brief.json`);
+      toast.success(`Image brief for ${main.label}, with ${others.length} other ${others.length === 1 ? 'view' : 'views'} as context.`, {
+        description: 'Give the model all the files: it makes ONE photo from the main camera and uses the rest only to understand the kitchen.',
+        duration: 10000,
       });
     } catch (err) {
-      toast.error(err instanceof Error ? `Image briefs failed: ${err.message}` : 'Image briefs failed.');
+      toast.error(err instanceof Error ? `Image brief failed: ${err.message}` : 'Image brief failed.');
     }
   }
 
@@ -594,8 +600,8 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
           <Download /> Image brief
         </Button>
         {cameras.length >= 2 && (
-          <Button variant="outline" size="touch" onClick={handleSeriesBrief} disabled={!currentLayout}>
-            <Download /> All cameras ({cameras.length})
+          <Button variant="outline" size="touch" onClick={handleContextBrief} disabled={!currentLayout}>
+            <Download /> Brief + other views ({cameras.length - 1})
           </Button>
         )}
       </div>

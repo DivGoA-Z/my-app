@@ -7747,43 +7747,37 @@ Also fixed: "2700 K cove light lighting" in the short prompt.
 Checked with a real Styled download from Priya Kapoor's kitchen at
 Camera 1.
 
-## 128. One kitchen, several cameras: a series of briefs tied to the hero photo
+## 128. One image, with the other cameras attached as context
 
-A kitchen too big for one frame is shot the way an interior
-photographer would: 2–4 cameras. That includes a corner camera, which
-sees two walls at once and so covers most L- and U-shapes. Lenses wider
-than about 18 mm distort the edges, and models exaggerate it; 360° photos
-don't turn into convincing photographs.
+A kitchen too big for one frame. First built as a SERIES (one brief per
+camera, later views tied to a hero photo). The user corrected that: they
+want ONE final image, with the other angles only to help the model
+understand the whole kitchen. The series code was replaced, not kept.
 
-The real problem with several images is **consistency**: generated
-separately, the marble, the green and the light drift, and the photos
-stop looking like one kitchen.
+**"Brief + other views (N)"** (next to Image brief, with two or more
+cameras):
+- The **main camera** is the one you're standing at, else the first. It
+  gets the usual line drawing and colour view.
+- Every **other camera's colour view** is attached as a `context-view`
+  (`cameraLabel` says which). They're rendered off-screen
+  (`ViewFns.fromCamera`, the same pose the walkthrough gives that node),
+  so the live view doesn't move.
+- One brief and one JSON. Its **ONE IMAGE ONLY** rule (instructions and
+  full prompt; an undroppable line in the condensed prompt): a single
+  photograph from the main camera; the other views are for
+  understanding parts this shot sees edge-on or partly. Never output
+  them, never combine views, never pull into frame what this camera
+  can't see.
 
-**"All cameras (N)"** (next to Image brief, with two or more cameras)
-downloads, for every camera, its line drawing, colour view and brief,
-named in order (`<design>-v1-<camera>-…`).
-- View 1, the hero, is the camera you're standing at, else the first.
-- Each camera is rendered **off-screen** (`ViewFns.fromCamera`), with the
-  same pose the walkthrough gives that node (position, heading, tilt,
-  saved lens) and the same snapshot code. The live view doesn't move.
+Also advised: shoot from a corner (two walls at once), keep the camera
+level, and don't go much wider than about 18 mm. A 360° photo doesn't
+make a convincing photograph.
 
-**The chain.** Generate view 1 first and save the photo you pick as
-`<design>-v1-photo.png`. Every later brief lists it as a `hero-photo`
-reference (`suppliedBy: 'you'`), with a **SAME KITCHEN AS PHOTO 1** rule
-in the instructions and the full prompt, and an undroppable line in the
-condensed prompt:
-- match the hero photo's materials, colours, finishes, textures and
-  lighting exactly;
-- take this view's geometry ONLY from its own line drawing.
+Checked with a real download from Neha Verma's kitchen (2 cameras):
+the guide and colour view from Camera 1, Camera 2's view as context, one
+JSON with the rule.
 
-`RenderBrief.series` = {view, of, heroCamera, setId}.
-
-Rejected:
-- one ultra-wide frame (distortion);
-- feeding the 360° panorama (warped results);
-- the app generating images itself (no model chosen yet, §105).
-
-Checked with a real run on Neha Verma's kitchen (2 cameras): six files
-in order; each brief carried its own camera (1600 mm and 984 mm, as in
-her Cameras panel); view 2 asked for the hero photo; the on-screen view
-was unchanged.
+Round 4 note: Gemini's "image" with Pro produced the best render yet
+from the single-camera brief, faithful and photographic. What's left
+comes from the design (the hood's colour) and the 60° lens (stretched
+edges).

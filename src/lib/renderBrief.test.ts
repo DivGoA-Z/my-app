@@ -405,31 +405,26 @@ describe('re-photograph, and bare vs styled (§127)', () => {
   });
 });
 
-describe('one kitchen from several cameras (§128)', () => {
-  const view = (n: number) =>
-    buildRenderBrief(
-      input({
-        referenceImages: [
-          { kind: 'line-render', file: `k-v${n}-guide.png`, widthPx: 1024, heightPx: 576 },
-          { kind: 'colour-render', file: `k-v${n}-colour.png`, widthPx: 1024, heightPx: 576 },
-          ...(n > 1 ? [{ kind: 'hero-photo' as const, file: 'k-v1-photo.png', widthPx: 1024, heightPx: 576, suppliedBy: 'you' as const }] : []),
-        ],
-        series: { view: n, of: 3, heroCamera: 'Camera 1', setId: 'x' },
-      })
-    );
+describe('one image, other cameras as context (§128)', () => {
+  const b = buildRenderBrief(
+    input({
+      referenceImages: [
+        { kind: 'line-render', file: 'k-guide.png', widthPx: 1024, heightPx: 576 },
+        { kind: 'colour-render', file: 'k-colour.png', widthPx: 1024, heightPx: 576 },
+        { kind: 'context-view', file: 'k-context-camera-2.png', widthPx: 1024, heightPx: 576, cameraLabel: 'Camera 2' },
+      ],
+    })
+  );
 
-  it('view 1 is the hero: no reference photo, no "same kitchen" rule', () => {
-    const b = view(1);
-    expect(b.series).toMatchObject({ view: 1, of: 3 });
-    expect(b.prompt.instructions).not.toMatch(/SAME KITCHEN/);
+  it('asks for a single photo from the main camera, the rest for understanding', () => {
+    expect(b.referenceImages[2].whatItIs).toMatch(/for understanding only/);
+    expect(b.prompt.instructions).toMatch(/ONE IMAGE ONLY\. Produce a single photograph from the main camera \(k-guide\.png\)/);
+    expect(b.prompt.instructions).toMatch(/k-context-camera-2\.png, Camera 2/);
+    expect(b.prompt.imagePrompt).toMatch(/never combine views/);
+    expect(b.prompt.imagePromptCondensed).toMatch(/One single photograph from the main camera/);
   });
 
-  it('later views match the hero photo for materials and light, geometry from their own drawing', () => {
-    const b = view(2);
-    expect(b.referenceImages[2]).toMatchObject({ kind: 'hero-photo', suppliedBy: 'you' });
-    expect(b.referenceImages[2].whatItIs).toMatch(/THIS SAME KITCHEN/);
-    expect(b.prompt.instructions).toMatch(/SAME KITCHEN AS PHOTO 1\. This is view 2 of 3.*k-v1-photo\.png.*Camera 1/);
-    expect(b.prompt.imagePrompt).toMatch(/geometry ONLY from its own line drawing/);
-    expect(b.prompt.imagePromptCondensed).toMatch(/Same kitchen as the attached photo/);
+  it('says nothing about context without context views', () => {
+    expect(buildRenderBrief(input()).prompt.instructions).not.toMatch(/ONE IMAGE ONLY/);
   });
 });
