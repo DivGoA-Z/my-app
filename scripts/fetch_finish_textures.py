@@ -70,6 +70,69 @@ PINNED: dict[str, dict[str, str]] = {
     "tile-moroccan-geometric": {"assetId": "Tiles138", "note": "ambientCG has no ornate Moroccan pattern; closest geometric stone/tile scan"},
 }
 
+# The room-surface library (§120): floors, walls, stone, wood flooring,
+# chosen by eye from ambientCG previews for what Delhi NCR kitchens use.
+# Seen from standing height across a room, so stored at 512 px (see the
+# resolution note in CREDITS_FINISHES.md); `fetch` downsizes them.
+SURFACE_LIBRARY: dict[str, dict[str, str]] = {
+    "tile-plain-white":         {"assetId": "Tiles107",  "note": "plain white grid; tinted to any vitrified shade"},
+    "tile-glossy-black":        {"assetId": "Tiles108",  "note": ""},
+    "tile-beige-stone-rect":    {"assetId": "Tiles143",  "note": "limestone-look rectangular"},
+    "tile-cream-matt":          {"assetId": "Tiles139",  "note": ""},
+    "tile-checker-marble":      {"assetId": "Tiles074",  "note": ""},
+    "tile-black-marble":        {"assetId": "Tiles075",  "note": ""},
+    "tile-botticino-marble":    {"assetId": "Tiles078",  "note": ""},
+    "tile-bw-pattern-marble":   {"assetId": "Tiles081",  "note": ""},
+    "tile-dark-grey-stone":     {"assetId": "Tiles140",  "note": ""},
+    "tile-white-square-wall":   {"assetId": "Tiles036",  "note": ""},
+    "tile-white-small-square":  {"assetId": "Tiles133A", "note": ""},
+    "tile-white-subway":        {"assetId": "Tiles136A", "note": ""},
+    "tile-white-hexagon":       {"assetId": "Tiles071",  "note": ""},
+    "tile-black-penny":         {"assetId": "Tiles129B", "note": ""},
+    "tile-encaustic":           {"assetId": "Tiles131",  "note": ""},
+    "tile-blue-white-painted":  {"assetId": "Tiles101",  "note": ""},
+    "tile-white-large-matt":    {"assetId": "Tiles040",  "note": ""},
+    "tile-terrazzo-white":      {"assetId": "Tiles043",  "note": ""},
+    "tile-charcoal-large":      {"assetId": "Tiles052",  "note": ""},
+    "tile-green-subway":        {"assetId": "Tiles032",  "note": ""},
+    "marble-grey-veined":       {"assetId": "Marble012", "note": ""},
+    "marble-black-white-vein":  {"assetId": "Marble016", "note": ""},
+    "marble-cream":             {"assetId": "Marble014", "note": ""},
+    "marble-rose-beige":        {"assetId": "Marble020", "note": ""},
+    "marble-yellow-cream":      {"assetId": "Marble026", "note": ""},
+    "marble-dark-green":        {"assetId": "Marble009", "note": ""},
+    "marble-taupe":             {"assetId": "Marble024", "note": ""},
+    "marble-white":             {"assetId": "Marble001", "note": ""},
+    "marble-golden-brown":      {"assetId": "Marble008", "note": ""},
+    "marble-blue-grey":         {"assetId": "Marble003", "note": ""},
+    "granite-rosy-pink":        {"assetId": "Granite001A", "note": ""},
+    "granite-grey-speckled":    {"assetId": "Granite003A", "note": ""},
+    "granite-brown":            {"assetId": "Granite004A", "note": ""},
+    "granite-light-grey":       {"assetId": "Granite005A", "note": ""},
+    "granite-red":              {"assetId": "Granite006A", "note": ""},
+    "granite-black-gold":       {"assetId": "Granite007A", "note": ""},
+    "terrazzo-multicolour":     {"assetId": "Terrazzo013", "note": ""},
+    "terrazzo-beige":           {"assetId": "Terrazzo019M", "note": ""},
+    "terrazzo-black-chips":     {"assetId": "Terrazzo005", "note": ""},
+    "terrazzo-deep-green":      {"assetId": "Terrazzo016", "note": ""},
+    "travertine-cream":         {"assetId": "Travertine009", "note": ""},
+    "travertine-silver":        {"assetId": "Travertine004", "note": ""},
+    "onyx-honey":               {"assetId": "Onyx007", "note": ""},
+    "woodfloor-oak-natural":    {"assetId": "WoodFloor051", "note": ""},
+    "woodfloor-walnut-parquet": {"assetId": "WoodFloor070", "note": ""},
+    "woodfloor-oak-herringbone": {"assetId": "WoodFloor034", "note": ""},
+    "woodfloor-dark-walnut":    {"assetId": "WoodFloor046", "note": ""},
+    "woodfloor-pale-ash":       {"assetId": "WoodFloor066A", "note": ""},
+    "woodfloor-teak-tone":      {"assetId": "WoodFloor064", "note": ""},
+    "microcement-ivory":        {"assetId": "Concrete046", "note": ""},
+    "microcement-grey":         {"assetId": "Concrete016", "note": ""},
+    "plaster-white-textured":   {"assetId": "Plaster001", "note": ""},
+    "brick-white-painted":      {"assetId": "Bricks060", "note": ""},
+    "brick-red-exposed":        {"assetId": "Bricks092", "note": ""},
+}
+PINNED.update(SURFACE_LIBRARY)
+LIBRARY_PX = 512
+
 MAP_TARGETS = {
     "color.jpg": ("_color",),
     "normal.jpg": ("_normalgl", "_normal", "_normaldx"),
@@ -192,6 +255,11 @@ def fetch(material_name: str, asset_id: str, note: str, force: bool = False) -> 
     if "color.jpg" not in written:
         print(f"  ! {material_name}: no color map extracted", file=sys.stderr)
         return False
+
+    if material_name in SURFACE_LIBRARY:
+        import subprocess
+        for f in written:
+            subprocess.run(["sips", "-Z", str(LIBRARY_PX), str(destination / f)], check=True, capture_output=True)
 
     note_line = f"note: {note}\n" if note else ""
     (destination / "SOURCE.txt").write_text(

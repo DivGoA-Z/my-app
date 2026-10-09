@@ -1,0 +1,4 @@
+assetId: Bricks092
+source: https://ambientcg.com/view?id=Bricks092
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG

@@ -1,0 +1,5 @@
+assetId: Tiles107
+source: https://ambientcg.com/view?id=Tiles107
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+note: plain white grid; tinted to any vitrified shade

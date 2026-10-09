@@ -77,6 +77,9 @@ interface LayoutRow {
   countertop_finish_id: string | null;
   // §119 — the slab's tint; NULL = the material's own colour.
   countertop_color_override?: string | null;
+  // §120 — floor and ceiling tints; NULL = the finish's own colour.
+  floor_color_override?: string | null;
+  ceiling_color_override?: string | null;
   price_countertop: boolean | null;
   margin_percent: number | null;
   sheet_waste_factor: number | null;
@@ -176,6 +179,8 @@ function layoutToRow(
     // Written only once set, so a database that hasn't re-run schema.sql
     // still saves every kitchen that doesn't use it.
     ...(layout.countertopColorOverride !== undefined ? { countertop_color_override: layout.countertopColorOverride } : {}),
+    ...(layout.floorColorOverride !== undefined ? { floor_color_override: layout.floorColorOverride } : {}),
+    ...(layout.ceilingColorOverride !== undefined ? { ceiling_color_override: layout.ceilingColorOverride } : {}),
     price_countertop: layout.priceCountertop ?? null,
     margin_percent: layout.marginPercent ?? null,
     sheet_waste_factor: layout.sheetWasteFactor ?? null,
@@ -219,6 +224,8 @@ function rowToLayout(row: LayoutRow): RoomLayout {
     ceilingFinishId: row.ceiling_finish_id ?? undefined,
     countertopFinishId: row.countertop_finish_id ?? undefined,
     countertopColorOverride: row.countertop_color_override ?? undefined,
+    floorColorOverride: row.floor_color_override ?? undefined,
+    ceilingColorOverride: row.ceiling_color_override ?? undefined,
     // Same reasoning as priceElectrical — "is the countertop charged?"
     // has a real answer for every project, and it's usually no.
     priceCountertop: row.price_countertop ?? false,
@@ -273,6 +280,9 @@ function normalizeWalls(walls: Wall[], roomWidthMm: number, roomDepthMm: number)
       hasDoor: existing?.hasDoor,
       finishId: existing?.finishId,
       concealedFinishId: existing?.concealedFinishId,
+      // Listed field by field above, so a new wall field is dropped on
+      // load unless it's added here (§120).
+      colorOverride: existing?.colorOverride ?? undefined,
     };
   });
 }

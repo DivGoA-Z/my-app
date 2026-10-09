@@ -33,6 +33,7 @@ import {
   PATTERN_RELIEF_PRESET,
   COMMON_FINISH_TYPE_LABELS,
   SLAB_MATERIAL_LABELS,
+  SURFACE_MATERIAL_TYPES,
   SLAB_SURFACE_LABELS,
   SLAB_SURFACE_PRESET,
   isSlabMaterial,
@@ -320,9 +321,17 @@ function FinishEditor({ draft, setDraft }: FinishEditorProps) {
             {SLAB_MATERIAL_LABELS.map((label) => (
               <option key={label} value={label} />
             ))}
+            {/* Room surfaces (§120): which floor/wall/ceiling a finish is
+                offered for follows its type. */}
+            {Object.keys(SURFACE_MATERIAL_TYPES)
+              .filter((t) => !(SLAB_MATERIAL_LABELS as readonly string[]).includes(t) && t !== 'Tile' && t !== 'Stone')
+              .map((label) => (
+                <option key={label} value={label} />
+              ))}
           </datalist>
           <span className="text-xs font-normal text-muted-foreground">
-            For a countertop slab, pick Granite, Quartz, Marble, Sintered stone, Solid surface or Compact laminate.
+            The type decides where it's offered: a countertop slab (Granite, Quartz, Marble…), a floor or wall (Vitrified
+            tile, Wall tile, Wooden flooring, Paint…), or cabinets (Laminate, Acrylic…).
           </span>
         </label>
 

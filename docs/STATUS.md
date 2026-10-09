@@ -45,6 +45,9 @@ the history is in `git log`.
   <customer>'s kitchen" floats.
 - Countertop slab picker (§119): slab materials with surface and ₹/m²,
   plus a slab tint, in Surfaces.
+- Room-surface library (§120): 67 floors, walls, stones, wood floors,
+  paints and Indian-stone placeholders, picked from a swatch library with
+  prices and a custom shade per surface. Prices are placeholders.
 - Depth convention ("includes shutter" or "carcass only"): business
   setting with a per-project override, followed by the plan, 3D and
   collisions. Shutter thickness comes from each cabinet's fronts board.
@@ -93,7 +96,7 @@ the history is in `git log`.
 
 ## Tests
 
-`npm test` (Vitest): **285 tests** in 38 files (this said 125, which
+`npm test` (Vitest): **287 tests** in 38 files (this said 125, which
 was stale). Maths tests cover pricing, the cutting list, nesting,
 panels, the importer, physical depth, the pipeline rules, and the image
 brief with its plan and elevation drawings. Screen tests (React Testing Library) cover the rate card, boards,
@@ -107,9 +110,11 @@ still checked by eye.
    without them. Re-run again after 3 Oct for the Installed/Lost stages
    (§69), and after 7 Oct **before switching sign-up on** in Supabase
    (§106: storage writes now need business membership), and after 8 Oct
-   for the style-default and slab-tint columns (§117, §119: until then a
-   kitchen or business style default, or a slab tint, can't be saved;
-   everything else works).
+   for the style-default and surface-tint columns and the surface
+   library (§117, §119, §120: until then the library is empty and a style
+   default or surface tint can't be saved; everything else works). Then
+   `select public.refresh_starter_catalog('biz_default');` so new
+   businesses get the library too.
 2. **Lower the labour rate.** The ₹150/sq ft placeholder was set against
    the old small area estimate. Labour now bills on total cut-part area
    (a base unit went from 7.0 to 22.7 sq ft).
@@ -200,6 +205,7 @@ assumed settings, which is a check, not a blocker.
 3. Browser tests that script the walkthrough's flows.
 4. The "before the first customer" list in `docs/AFTER_FIRST_CUSTOMERS.md`.
 5. L-shaped / bi-fold wall corner units (not built; blind wall corners are).
+6. Tile size per surface and visible grout lines (§120's second step).
 
 Open issues: none (`docs/ISSUES.md`). Fixed issues are logged in
 `docs/ISSUES-FIXED.md`.

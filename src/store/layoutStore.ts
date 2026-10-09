@@ -285,6 +285,8 @@ interface LayoutStore {
         | 'ceilingFinishId'
         | 'countertopFinishId'
         | 'countertopColorOverride'
+        | 'floorColorOverride'
+        | 'ceilingColorOverride'
         | 'priceCountertop'
       >
     >
@@ -295,7 +297,7 @@ interface LayoutStore {
   // lib/Persistence.ts), and it's what the UI and costing both key on.
   updateWallFinish: (
     orientation: WallOrientation,
-    updates: Partial<Pick<Wall, 'finishId' | 'concealedFinishId'>>
+    updates: Partial<Pick<Wall, 'finishId' | 'concealedFinishId' | 'colorOverride'>>
   ) => void;
   setCabinets: (cabinets: PlacedCabinetItem[]) => void;
   setObstacles: (obstacles: Obstacle[]) => void;

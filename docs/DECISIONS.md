@@ -7375,3 +7375,88 @@ un-migrated database still saves every other kitchen.
 Checked in a browser on Neha Verma's kitchen (saves blocked): Quartz
 showed as "Quartz · Polished, ₹2,800/m²"; a #3b3b3b tint turned the
 slab charcoal in the north wall's 3D view.
+
+## 120. A room-surface library: about 60 floors, walls and stones, picked with swatches and a shade
+
+The user wanted a "decently wide library" of floors and walls (tiles,
+marble, colours, designs, shades) to show customers. The decision was
+about 60 surfaces, with placeholders for Indian stones a free library
+can't supply.
+
+**The library** (67 `surface_finishes` rows, seeded in schema.sql for
+biz_default, `on conflict do nothing`):
+- **54 textured surfaces** from ambientCG (CC0, free for commercial use).
+  They were chosen by eye from previews for what Delhi NCR kitchens use,
+  skipping the worn and medieval ones:
+  - vitrified and ceramic floor tiles: plain, marble-look, stone-look,
+    checker, patterned;
+  - wall tiles: square, small square, white and green subway, hexagon and
+    penny mosaic, painted;
+  - marble ×10, granite ×6, terrazzo ×5, travertine ×2, honey onyx;
+  - wooden flooring ×6 (planks, parquet, herringbone);
+  - microcement ×2, plaster, brick ×2.
+- **8 paint shades**, plain colour; any other shade comes from the tint.
+- **5 placeholders**, plain colours named "(add your photo)": Kota stone,
+  Jaisalmer yellow, Rajasthan green marble, Makrana white marble, and
+  Italian-marble-look GVT.
+
+Texture details:
+- Stored at **512 px** (the floor-distance resolution rule in
+  CREDITS_FINISHES.md): about 9 MB for all 54, with colour, normal and
+  roughness maps.
+- Fetched and shrunk by `scripts/fetch_finish_textures.py sync`
+  (`SURFACE_LIBRARY`); credits are written automatically.
+
+**Sizes are real-world**, so tiles come out life-size: ambientCG's
+recorded size where it has one; otherwise counted tiles × a standard
+size (subway 75×150, penny 25 mm, wall tile 100 and 150). The two plain
+grid tiles are scaled to **600×600**, the standard vitrified size, not
+the source's 125 mm. The plain white one is the "tint to any shade"
+tile.
+
+**Every price is a placeholder** per m² of visible area. Edit them on
+the Catalogue page.
+
+**Which surface a finish is offered for follows its TYPE**
+(`SURFACE_MATERIAL_TYPES`):
+- floors: tiles, stone, wood, microcement;
+- walls: tiles, mosaic, stone, paint, plaster, brick;
+- ceilings: paint and plaster.
+
+The older starter rows' generic "Tile" and "Stone" types map in, and
+"Stone" also counts as a slab material (Black Granite and White Quartz
+use it). "Show all finishes" lists everything, and is on by itself when
+a surface already uses something outside the list.
+
+**The picker.** Each Surfaces row shows the current finish as a swatch
+with its type and ₹/m². Tapping it opens the library:
+- chips: Tiles, Stone, Wood, Paint & plaster;
+- a search, and a price on every swatch (Principle 10);
+- a **Colour**: "Material's own" or a custom shade, which replaces a
+  plain colour and stains a photo.
+
+A paint is "Paint" plus any shade. Tints are
+`layouts.floor_color_override` / `ceiling_color_override` (new columns:
+re-run schema.sql) and `Wall.colorOverride` inside the walls JSONB. 3D
+(`FinishedSurface`) and the image brief use them.
+
+Two traps found on the way:
+- `normalizeWalls` copies wall fields one by one, so a wall tint would
+  have vanished on reload until it was added there.
+- The slab-tint rule applies here too: a cleared tint is stored as null,
+  so the clearing itself is saved.
+
+Rejected: bundling manufacturers' catalogue images (Kajaria, Somany…).
+They're copyrighted and change every season. A business photographs the
+exact tile it sells and adds it as a finish (upload already works).
+
+**Not built yet:** a tile-size choice per surface and visible **grout
+lines** (width, colour), the agreed second step.
+
+Checked in a browser on Neha Verma's kitchen, with the 67 rows fed to
+the page alongside the real finishes (the database itself untouched,
+saves blocked): the floor offered 54 floor-suited surfaces under chips;
+a white subway tile showed life-size on the north wall's backsplash; a
+sage paint with a custom shade showed on the east wall; the total moved
+with the marble floor. The seed ran twice cleanly against a scratch
+Postgres.

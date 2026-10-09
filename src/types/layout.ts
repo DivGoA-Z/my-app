@@ -41,6 +41,10 @@ export interface Wall {
   // isn't charged at all, which is the other common case (not tiled
   // behind units).
   concealedFinishId?: string;
+  // A tint on the visible finish (§120), as on a cabinet: a paint shade,
+  // or a tile/stone photo stained another tone. Unset/null = the
+  // finish's own colour. In the walls JSONB, so no column.
+  colorOverride?: string | null;
 }
 
 export type ObstacleType = 'pillar' | 'shaft' | 'exposed-pipe' | 'electrical-panel';
@@ -202,6 +206,9 @@ export interface RoomLayout {
   // colour, stains a photo. Unset or null = the material's own colour
   // (null when cleared, so the save writes the clearing too).
   countertopColorOverride?: string | null;
+  // The same for the floor and ceiling (§120).
+  floorColorOverride?: string | null;
+  ceilingColorOverride?: string | null;
   // Whether the countertop appears as a CHARGE on the quote.
   //
   // Same shape as priceElectrical, for the same market reason: in Delhi

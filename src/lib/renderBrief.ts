@@ -554,7 +554,9 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
   const roomW = layout.dimensions.widthMm;
   const roomD = layout.dimensions.depthMm;
   const ceilingMm = layout.dimensions.ceilingHeightMm ?? DEFAULT_CEILING_HEIGHT_MM;
-  const optionalFinish = (id: string | undefined) => describeFinish(findFinish(finishes, id), origin);
+  // With a surface's tint where it has one (§119, §120).
+  const optionalFinish = (id: string | undefined, tint?: string | null) =>
+    describeFinish(findFinish(finishes, id), origin, tint ?? undefined);
 
   // Sort key: wall order, then left to right, then bottom to top; the
   // freestanding ones last. Refs are numbered in this order so C1 is
@@ -800,7 +802,10 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
       wall,
       lengthMm: wallLengthMm(wall, roomW, roomD),
       leftCorner: LEFT_CORNER[wall],
-      finish: optionalFinish(layout.walls.find((w) => w.orientation === wall)?.finishId),
+      finish: optionalFinish(
+        layout.walls.find((w) => w.orientation === wall)?.finishId,
+        layout.walls.find((w) => w.orientation === wall)?.colorOverride
+      ),
       elementsLeftToRight: elements,
     };
   });
@@ -890,8 +895,8 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
       widthMm: roomW,
       depthMm: roomD,
       ceilingHeightMm: ceilingMm,
-      floor: optionalFinish(layout.floorFinishId),
-      ceiling: optionalFinish(layout.ceilingFinishId),
+      floor: optionalFinish(layout.floorFinishId, layout.floorColorOverride),
+      ceiling: optionalFinish(layout.ceilingFinishId, layout.ceilingColorOverride),
       walls,
       notSpecifiedMeans: `A finish of null means nothing has been chosen yet, and the surface stays as plain as the reference image shows it: walls matte off-white plaster (${PLAIN_PLASTER_HEX}), the floor plain light-grey tiles, the ceiling plain white, the countertop plain polished light-grey stone. Do not invent tiles, wallpaper, backsplashes, paint colours or patterns.`,
     },

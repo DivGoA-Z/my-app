@@ -1,0 +1,4 @@
+assetId: Marble014
+source: https://ambientcg.com/view?id=Marble014
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG

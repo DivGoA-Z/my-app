@@ -28,7 +28,8 @@ import { ColorPicker } from '../common/ColorPicker';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
 import { finishSwatch } from '../../lib/designFinishes';
-import { isSlabMaterial, SLAB_SURFACE_LABELS, slabSurfaceOf } from '../../types/finish';
+import { isSlabMaterial, SLAB_SURFACE_LABELS, slabSurfaceOf, type RoomSurface } from '../../types/finish';
+import { SurfaceFinishPicker } from './SurfaceFinishPicker';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
@@ -72,17 +73,23 @@ export function RoomSurfacesPanel() {
       <SurfaceRow
         label="Floor"
         area={areas.floor}
+        surface="floor"
         finishId={currentLayout.floorFinishId}
+        tint={currentLayout.floorColorOverride}
         concealedFinishId={currentLayout.floorConcealedFinishId}
         onFinishChange={(id) => updateRoomSurfaces({ floorFinishId: id })}
+        onTintChange={(hex) => updateRoomSurfaces({ floorColorOverride: hex })}
         onConcealedChange={(id) => updateRoomSurfaces({ floorConcealedFinishId: id })}
       />
 
       <SurfaceRow
         label="Ceiling"
         area={areas.ceiling}
+        surface="ceiling"
         finishId={currentLayout.ceilingFinishId}
+        tint={currentLayout.ceilingColorOverride}
         onFinishChange={(id) => updateRoomSurfaces({ ceilingFinishId: id })}
+        onTintChange={(hex) => updateRoomSurfaces({ ceilingColorOverride: hex })}
         // No concealed rate: nothing in a kitchen hides ceiling except a
         // full-height unit, and that occupies the area rather than
         // concealing it.
@@ -95,9 +102,12 @@ export function RoomSurfacesPanel() {
             key={orientation}
             label={WALL_LABELS[orientation]}
             area={areas.walls[orientation]}
+            surface="wall"
             finishId={wall?.finishId}
+            tint={wall?.colorOverride}
             concealedFinishId={wall?.concealedFinishId}
             onFinishChange={(id) => updateWallFinish(orientation, { finishId: id })}
+            onTintChange={(hex) => updateWallFinish(orientation, { colorOverride: hex })}
             onConcealedChange={(id) => updateWallFinish(orientation, { concealedFinishId: id })}
           />
         );
@@ -123,8 +133,11 @@ export function RoomSurfacesPanel() {
 
 interface SurfaceRowProps {
   label: string;
+  surface: RoomSurface;
   area: SurfaceAreaBreakdown;
   finishId?: string;
+  tint?: string | null;
+  onTintChange: (hex: string | null) => void;
   concealedFinishId?: string;
   onFinishChange: (finishId: string | undefined) => void;
   onConcealedChange?: (finishId: string | undefined) => void;
@@ -132,8 +145,11 @@ interface SurfaceRowProps {
 
 function SurfaceRow({
   label,
+  surface,
   area,
   finishId,
+  tint,
+  onTintChange,
   concealedFinishId,
   onFinishChange,
   onConcealedChange,
@@ -149,22 +165,15 @@ function SurfaceRow({
         </span>
       </div>
 
-      <Select
-        value={finishId ?? NO_FINISH_VALUE}
-        onValueChange={(value) => onFinishChange(value === NO_FINISH_VALUE ? undefined : value)}
-      >
-        <SelectTrigger className="w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={NO_FINISH_VALUE}>Not specified</SelectItem>
-          {finishes.map((f) => (
-            <SelectItem key={f.id} value={f.id}>
-              {f.brand ? `${f.brand} ${f.label}` : f.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {/* The surface library (§120): swatches, prices and a shade. */}
+      <SurfaceFinishPicker
+        title={label}
+        surface={surface}
+        finishId={finishId}
+        tint={tint}
+        onFinishChange={onFinishChange}
+        onTintChange={onTintChange}
+      />
 
       {onConcealedChange && area.concealedSqM > 0 && (
         <>

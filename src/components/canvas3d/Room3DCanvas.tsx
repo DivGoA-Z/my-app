@@ -1354,6 +1354,8 @@ interface FinishedSurfaceProps {
   position: [number, number, number];
   rotation?: [number, number, number];
   side?: THREE.Side;
+  // Hex tint on the finish (§120); null/undefined = its own colour.
+  tint?: string | null;
 }
 
 const PLASTER_COLOR = '#f5f3ef';
@@ -1386,10 +1388,12 @@ function FinishedSurface({
   position,
   rotation,
   side,
+  tint,
 }: FinishedSurfaceProps) {
   const finishes = useLayoutStore((state) => state.finishes);
   const finish = finishId ? resolveFinish(finishes, finishId) : undefined;
-  const material = resolveMaterial(finish);
+  // A surface's tint (§120): a paint shade, or a photo stained another tone.
+  const material = resolveMaterial(finish, tint ?? undefined);
   const textures = useFinishTextures(finish, widthM, heightM);
 
   return (
@@ -1478,6 +1482,7 @@ function RoomWalls({ widthM, depthM, heightM, only }: RoomWallsProps) {
                 <FinishedSurface
                   key={`${orientation}-${i}`}
                   finishId={wall?.finishId}
+                  tint={wall?.colorOverride}
                   // Texture scale follows the SEGMENT, not the whole
                   // wall, so tile size stays physically consistent
                   // across the pieces either side of a window instead
@@ -1732,6 +1737,7 @@ function RoomFloor({ widthM, depthM }: { widthM: number; depthM: number }) {
     return (
       <FinishedSurface
         finishId={floorFinishId}
+        tint={currentLayout?.floorColorOverride}
         widthM={widthM}
         heightM={depthM}
         position={[widthM / 2, 0, depthM / 2]}
@@ -1789,6 +1795,7 @@ function RoomCeiling({
   return (
     <FinishedSurface
       finishId={ceilingFinishId}
+      tint={currentLayout?.ceilingColorOverride}
       widthM={widthM}
       heightM={depthM}
       position={[widthM / 2, heightM, depthM / 2]}

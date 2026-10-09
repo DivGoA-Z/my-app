@@ -1,0 +1,4 @@
+assetId: Tiles136A
+source: https://ambientcg.com/view?id=Tiles136A
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG

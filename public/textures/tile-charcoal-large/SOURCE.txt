@@ -1,0 +1,4 @@
+assetId: Tiles052
+source: https://ambientcg.com/view?id=Tiles052
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG

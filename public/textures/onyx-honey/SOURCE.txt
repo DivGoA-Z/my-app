@@ -1,0 +1,4 @@
+assetId: Onyx007
+source: https://ambientcg.com/view?id=Onyx007
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG

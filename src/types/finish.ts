@@ -165,6 +165,49 @@ export const FINISH_TYPE_OPTICAL_PRESET: Record<
   'Compact laminate': { roughness: 0.45, clearcoat: 0, clearcoatRoughness: 0, metalness: 0.02 },
 };
 
+// ---- Room surface materials (§120) ----
+//
+// Like slabs, a floor/wall/ceiling material is a finish told apart by
+// its TYPE: the Surfaces panel offers each surface the types that suit
+// it (a wooden floor isn't offered for a wall), with "Show all finishes"
+// for anything else. Grouped for the picker's chips.
+export type RoomSurface = 'floor' | 'wall' | 'ceiling';
+export const SURFACE_MATERIAL_TYPES: Record<string, { group: string; uses: RoomSurface[] }> = {
+  'Vitrified tile': { group: 'Tiles', uses: ['floor', 'wall'] },
+  'Ceramic tile': { group: 'Tiles', uses: ['floor', 'wall'] },
+  'Wall tile': { group: 'Tiles', uses: ['wall'] },
+  Mosaic: { group: 'Tiles', uses: ['wall', 'floor'] },
+  Marble: { group: 'Stone', uses: ['floor', 'wall'] },
+  Granite: { group: 'Stone', uses: ['floor', 'wall'] },
+  'Natural stone': { group: 'Stone', uses: ['floor', 'wall'] },
+  Terrazzo: { group: 'Stone', uses: ['floor', 'wall'] },
+  'Wooden flooring': { group: 'Wood', uses: ['floor'] },
+  Microcement: { group: 'Paint & plaster', uses: ['floor', 'wall'] },
+  Plaster: { group: 'Paint & plaster', uses: ['wall', 'ceiling'] },
+  Paint: { group: 'Paint & plaster', uses: ['wall', 'ceiling'] },
+  Brick: { group: 'Paint & plaster', uses: ['wall'] },
+  // The older starter rows' types (scripts/seed_finishes_and_appliances.sql).
+  Tile: { group: 'Tiles', uses: ['floor', 'wall'] },
+  Stone: { group: 'Stone', uses: ['floor', 'wall'] },
+};
+export const SURFACE_MATERIAL_GROUPS = ['Tiles', 'Stone', 'Wood', 'Paint & plaster'] as const;
+
+function surfaceType(finish: Pick<SurfaceFinish, 'finishTypeLabel'>) {
+  const t = finish.finishTypeLabel.trim().toLowerCase();
+  return Object.entries(SURFACE_MATERIAL_TYPES).find(([label]) => label.toLowerCase() === t)?.[1];
+}
+
+// Whether a finish is offered for this surface by default.
+export function suitsSurface(finish: Pick<SurfaceFinish, 'finishTypeLabel'>, surface: RoomSurface): boolean {
+  return surfaceType(finish)?.uses.includes(surface) ?? false;
+}
+
+// The picker chip a finish sits under; anything else is a cabinet-type
+// finish (laminate, acrylic…), listed only under "Show all finishes".
+export function surfaceGroupOf(finish: Pick<SurfaceFinish, 'finishTypeLabel'>): string | null {
+  return surfaceType(finish)?.group ?? null;
+}
+
 // ---- Countertop slab materials (§119) ----
 //
 // A slab is a finish like any other (photo, price per m²), told apart by
@@ -182,7 +225,8 @@ export const SLAB_MATERIAL_LABELS = [
 
 export function isSlabMaterial(finish: Pick<SurfaceFinish, 'finishTypeLabel'>): boolean {
   const t = finish.finishTypeLabel.trim().toLowerCase();
-  return SLAB_MATERIAL_LABELS.some((l) => l.toLowerCase() === t);
+  // "Stone": the older starter rows (Black Granite, White Quartz) use it.
+  return t === 'stone' || SLAB_MATERIAL_LABELS.some((l) => l.toLowerCase() === t);
 }
 
 // How the stone's face is worked, as the 3D look it gives. Stored as the

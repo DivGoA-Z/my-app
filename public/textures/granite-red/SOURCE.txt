@@ -1,0 +1,4 @@
+assetId: Granite006A
+source: https://ambientcg.com/view?id=Granite006A
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG

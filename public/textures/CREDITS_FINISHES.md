@@ -6,43 +6,6 @@ required. These back individual `surface_finishes` catalogue rows
 (types/finish.ts) via seed_finishes_and_appliances.mjs, distinct from
 the older wood/quartz/tile procedural-fallback set in CREDITS.md.
 
-## Resolution choice: floor-distance vs. close-up (2026-09-05)
-
-A 1024x1024 JPG decodes to ~4MB of GPU VRAM regardless of on-disk size
-(uncompressed in the GPU no matter how the file was compressed on disk),
-and this project targets mid-range Android tablets on Delhi NCR mobile
-data. With 15 texture sets x 3 maps each, shipping everything at 1K would
-be on the order of 180MB of texture VRAM if all were resident at once.
-
-The maps are only worth their resolution where the surface is actually
-seen close up. A floor tile or worktop is seen from standing height,
-several metres away, across a whole room — a viewer never gets close
-enough for 1K detail to resolve on screen. A cabinet front or metal
-handle fills much more of the frame at normal camera distance and is
-genuinely viewed close, so it keeps its resolution.
-
-Downscaled 1024 -> 512 (all three of color/normal/roughness resized
-together so UVs stay matched; swatch_width_mm/swatch_height_mm in
-scripts/seed_finishes_and_appliances.sql describe real-world PHYSICAL
-size and are unaffected by a pixel-resolution change):
-
-- **stone-black-granite** — floor-plausible stone finish
-- **stone-white-quartz** — floor-plausible stone finish
-- **stone-concrete** — floor-plausible; kept its native 1024x512 (2:1)
-  ratio, resized to 512x256 rather than to a square
-- **tile-large-ceramic-floor** — floor tile by name
-- **tile-moroccan-geometric** — floor tile by name
-- **tile** (procedural-fallback default floor set, credited in
-  CREDITS.md) — this is literally the texture `RoomFloor` uses by
-  default in Room3DCanvas.tsx
-
-Kept at 1K (genuinely viewed close): all wood sets (cabinet fronts —
-wood-dark-walnut, wood-plywood-edge, wood-reclaimed, and the procedural
-`wood` default in CREDITS.md), `quartz` (countertop — closer viewing
-distance than a floor), and all four metal sets (hardware/handles —
-metal-brushed-steel, metal-polished-chrome, metal-matte-black,
-metal-brushed-brass).
-
 ## wood-dark-walnut
 
 ```
@@ -79,7 +42,7 @@ note: closest CC0 rough-sawn plain wood
 assetId: Granite002A
 source: https://ambientcg.com/view?id=Granite002A
 license: CC0 1.0 Universal (public domain)
-resolution: 512-JPG (downscaled from 1K, 2026-09-05 — floor-distance surface, see resolution-choice note above)
+resolution: 1K-JPG
 ```
 
 ## stone-white-quartz
@@ -88,7 +51,7 @@ resolution: 512-JPG (downscaled from 1K, 2026-09-05 — floor-distance surface, 
 assetId: Marble021
 source: https://ambientcg.com/view?id=Marble021
 license: CC0 1.0 Universal (public domain)
-resolution: 512-JPG (downscaled from 1K, 2026-09-05 — floor-distance surface, see resolution-choice note above)
+resolution: 1K-JPG
 note: ambientCG has no true quartz scan; closest bright veined polished stone
 ```
 
@@ -98,7 +61,7 @@ note: ambientCG has no true quartz scan; closest bright veined polished stone
 assetId: Concrete034
 source: https://ambientcg.com/view?id=Concrete034
 license: CC0 1.0 Universal (public domain)
-resolution: 512x256-JPG (downscaled from 1024x512, 2026-09-05, 2:1 ratio preserved — floor-distance surface, see resolution-choice note above)
+resolution: 1K-JPG
 ```
 
 ## metal-brushed-steel
@@ -144,7 +107,7 @@ resolution: 1K-JPG
 assetId: Tiles141
 source: https://ambientcg.com/view?id=Tiles141
 license: CC0 1.0 Universal (public domain)
-resolution: 512-JPG (downscaled from 1K, 2026-09-05 — floor-distance surface, see resolution-choice note above)
+resolution: 1K-JPG
 ```
 
 ## tile-moroccan-geometric
@@ -153,6 +116,494 @@ resolution: 512-JPG (downscaled from 1K, 2026-09-05 — floor-distance surface, 
 assetId: Tiles138
 source: https://ambientcg.com/view?id=Tiles138
 license: CC0 1.0 Universal (public domain)
-resolution: 512-JPG (downscaled from 1K, 2026-09-05 — floor-distance surface, see resolution-choice note above)
+resolution: 1K-JPG
 note: ambientCG has no ornate Moroccan pattern; closest geometric stone/tile scan
+```
+
+## tile-plain-white
+
+```
+assetId: Tiles107
+source: https://ambientcg.com/view?id=Tiles107
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+note: plain white grid; tinted to any vitrified shade
+```
+
+## tile-glossy-black
+
+```
+assetId: Tiles108
+source: https://ambientcg.com/view?id=Tiles108
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## tile-beige-stone-rect
+
+```
+assetId: Tiles143
+source: https://ambientcg.com/view?id=Tiles143
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+note: limestone-look rectangular
+```
+
+## tile-cream-matt
+
+```
+assetId: Tiles139
+source: https://ambientcg.com/view?id=Tiles139
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## tile-checker-marble
+
+```
+assetId: Tiles074
+source: https://ambientcg.com/view?id=Tiles074
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## tile-black-marble
+
+```
+assetId: Tiles075
+source: https://ambientcg.com/view?id=Tiles075
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## tile-botticino-marble
+
+```
+assetId: Tiles078
+source: https://ambientcg.com/view?id=Tiles078
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## tile-bw-pattern-marble
+
+```
+assetId: Tiles081
+source: https://ambientcg.com/view?id=Tiles081
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## tile-dark-grey-stone
+
+```
+assetId: Tiles140
+source: https://ambientcg.com/view?id=Tiles140
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## tile-white-square-wall
+
+```
+assetId: Tiles036
+source: https://ambientcg.com/view?id=Tiles036
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## tile-white-small-square
+
+```
+assetId: Tiles133A
+source: https://ambientcg.com/view?id=Tiles133A
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## tile-white-subway
+
+```
+assetId: Tiles136A
+source: https://ambientcg.com/view?id=Tiles136A
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## tile-white-hexagon
+
+```
+assetId: Tiles071
+source: https://ambientcg.com/view?id=Tiles071
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## tile-black-penny
+
+```
+assetId: Tiles129B
+source: https://ambientcg.com/view?id=Tiles129B
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## tile-encaustic
+
+```
+assetId: Tiles131
+source: https://ambientcg.com/view?id=Tiles131
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## tile-blue-white-painted
+
+```
+assetId: Tiles101
+source: https://ambientcg.com/view?id=Tiles101
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## tile-white-large-matt
+
+```
+assetId: Tiles040
+source: https://ambientcg.com/view?id=Tiles040
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## tile-terrazzo-white
+
+```
+assetId: Tiles043
+source: https://ambientcg.com/view?id=Tiles043
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## tile-charcoal-large
+
+```
+assetId: Tiles052
+source: https://ambientcg.com/view?id=Tiles052
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## tile-green-subway
+
+```
+assetId: Tiles032
+source: https://ambientcg.com/view?id=Tiles032
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## marble-grey-veined
+
+```
+assetId: Marble012
+source: https://ambientcg.com/view?id=Marble012
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## marble-black-white-vein
+
+```
+assetId: Marble016
+source: https://ambientcg.com/view?id=Marble016
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## marble-cream
+
+```
+assetId: Marble014
+source: https://ambientcg.com/view?id=Marble014
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## marble-rose-beige
+
+```
+assetId: Marble020
+source: https://ambientcg.com/view?id=Marble020
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## marble-yellow-cream
+
+```
+assetId: Marble026
+source: https://ambientcg.com/view?id=Marble026
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## marble-dark-green
+
+```
+assetId: Marble009
+source: https://ambientcg.com/view?id=Marble009
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## marble-taupe
+
+```
+assetId: Marble024
+source: https://ambientcg.com/view?id=Marble024
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## marble-white
+
+```
+assetId: Marble001
+source: https://ambientcg.com/view?id=Marble001
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## marble-golden-brown
+
+```
+assetId: Marble008
+source: https://ambientcg.com/view?id=Marble008
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## marble-blue-grey
+
+```
+assetId: Marble003
+source: https://ambientcg.com/view?id=Marble003
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## granite-rosy-pink
+
+```
+assetId: Granite001A
+source: https://ambientcg.com/view?id=Granite001A
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## granite-grey-speckled
+
+```
+assetId: Granite003A
+source: https://ambientcg.com/view?id=Granite003A
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## granite-brown
+
+```
+assetId: Granite004A
+source: https://ambientcg.com/view?id=Granite004A
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## granite-light-grey
+
+```
+assetId: Granite005A
+source: https://ambientcg.com/view?id=Granite005A
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## granite-red
+
+```
+assetId: Granite006A
+source: https://ambientcg.com/view?id=Granite006A
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## granite-black-gold
+
+```
+assetId: Granite007A
+source: https://ambientcg.com/view?id=Granite007A
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## terrazzo-multicolour
+
+```
+assetId: Terrazzo013
+source: https://ambientcg.com/view?id=Terrazzo013
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## terrazzo-beige
+
+```
+assetId: Terrazzo019M
+source: https://ambientcg.com/view?id=Terrazzo019M
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## terrazzo-black-chips
+
+```
+assetId: Terrazzo005
+source: https://ambientcg.com/view?id=Terrazzo005
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## terrazzo-deep-green
+
+```
+assetId: Terrazzo016
+source: https://ambientcg.com/view?id=Terrazzo016
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## travertine-cream
+
+```
+assetId: Travertine009
+source: https://ambientcg.com/view?id=Travertine009
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## travertine-silver
+
+```
+assetId: Travertine004
+source: https://ambientcg.com/view?id=Travertine004
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## onyx-honey
+
+```
+assetId: Onyx007
+source: https://ambientcg.com/view?id=Onyx007
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## woodfloor-oak-natural
+
+```
+assetId: WoodFloor051
+source: https://ambientcg.com/view?id=WoodFloor051
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## woodfloor-walnut-parquet
+
+```
+assetId: WoodFloor070
+source: https://ambientcg.com/view?id=WoodFloor070
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## woodfloor-oak-herringbone
+
+```
+assetId: WoodFloor034
+source: https://ambientcg.com/view?id=WoodFloor034
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## woodfloor-dark-walnut
+
+```
+assetId: WoodFloor046
+source: https://ambientcg.com/view?id=WoodFloor046
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## woodfloor-pale-ash
+
+```
+assetId: WoodFloor066A
+source: https://ambientcg.com/view?id=WoodFloor066A
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## woodfloor-teak-tone
+
+```
+assetId: WoodFloor064
+source: https://ambientcg.com/view?id=WoodFloor064
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## microcement-ivory
+
+```
+assetId: Concrete046
+source: https://ambientcg.com/view?id=Concrete046
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## microcement-grey
+
+```
+assetId: Concrete016
+source: https://ambientcg.com/view?id=Concrete016
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## plaster-white-textured
+
+```
+assetId: Plaster001
+source: https://ambientcg.com/view?id=Plaster001
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## brick-white-painted
+
+```
+assetId: Bricks060
+source: https://ambientcg.com/view?id=Bricks060
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
+```
+
+## brick-red-exposed
+
+```
+assetId: Bricks092
+source: https://ambientcg.com/view?id=Bricks092
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
 ```

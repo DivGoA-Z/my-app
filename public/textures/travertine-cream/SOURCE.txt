@@ -1,0 +1,4 @@
+assetId: Travertine009
+source: https://ambientcg.com/view?id=Travertine009
+license: CC0 1.0 Universal (public domain)
+resolution: 1K-JPG
