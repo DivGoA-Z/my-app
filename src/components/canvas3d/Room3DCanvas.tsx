@@ -101,7 +101,7 @@ import { lightingEnvironmentFor, clampExposure, DEFAULT_EXPOSURE, FIXTURE_LUMEN_
 import { capturePanorama, DEFAULT_CAPTURE_ORIENTATION } from '../../lib/panoramaCapture';
 import type { CapturePanoramaOptions } from '../../lib/panoramaCapture';
 import { PanoramaViewerModal } from '../panorama/PanoramaViewerModal';
-import { buildRenderBrief, renderBriefFileStem, viewFromWorldCamera, withoutRefs } from '../../lib/renderBrief';
+import { buildRenderBrief, renderBriefFileStem, viewFromWorldCamera, withoutRefs, type BriefStyling } from '../../lib/renderBrief';
 import type { ReferenceImage } from '../../lib/renderBrief';
 import { elevationSheetSvg } from '../../lib/elevationSheet';
 import { svgToPng } from '../../lib/svgToPng';
@@ -412,6 +412,9 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
   const viewFnsRef = useRef<ViewFns | null>(null);
   const briefInput = useRenderBriefInput();
 
+  // The brief's styling (§127): a session choice, Bare by default.
+  const [briefStyling, setBriefStyling] = useState<BriefStyling>('bare');
+
   async function handleRenderBrief() {
     const fns = viewFnsRef.current;
     if (!currentLayout || !briefInput || !fns) return;
@@ -446,7 +449,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
         ];
         // No codes in this route (§114): the images carry no labels, and a
         // model given "C3" in the text painted it onto the cabinet.
-        const brief = buildRenderBrief({ ...base, referenceImages: images, refs: false });
+        const brief = buildRenderBrief({ ...base, referenceImages: images, refs: false, styling: briefStyling });
         downloadBlob(await (await fetch(line)).blob(), images[0].file);
         downloadBlob(await (await fetch(colour)).blob(), images[1].file);
         json(withoutRefs(brief), `${stem}-render-brief.json`);
@@ -459,7 +462,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
         const images: ReferenceImage[] = [
           { kind: 'elevations', file: `${stem}-elevations.png`, widthPx: sheet.widthPx * sheetScale, heightPx: sheet.heightPx * sheetScale },
         ];
-        const brief = buildRenderBrief({ ...base, referenceImages: images });
+        const brief = buildRenderBrief({ ...base, referenceImages: images, styling: briefStyling });
         downloadBlob(await svgToPng(sheet.svg, sheet.widthPx, sheet.heightPx, sheetScale), images[0].file);
         json(brief, `${stem}-render-brief.json`);
         toast.success('Image brief downloaded: plan and walls, and the brief (JSON). Stand at a camera for a picture of that view instead.');
@@ -521,6 +524,17 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
             <Save /> Save this view
           </Button>
         )}
+        {/* §127: Bare = only what's designed; Styled = a few neutral counter
+            props and a soft view outside, for a showroom-style photo. */}
+        <select
+          aria-label="Image brief styling"
+          value={briefStyling}
+          onChange={(e) => setBriefStyling(e.target.value as BriefStyling)}
+          className="h-11 rounded-[10px] border border-input bg-card px-3 text-[15px]"
+        >
+          <option value="bare">Bare (only what&rsquo;s designed)</option>
+          <option value="styled">Styled (a few counter props)</option>
+        </select>
         <Button variant="outline" size="touch" onClick={handleRenderBrief} disabled={!currentLayout}>
           <Download /> Image brief
         </Button>

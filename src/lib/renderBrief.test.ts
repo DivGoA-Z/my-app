@@ -363,3 +363,44 @@ describe('add nothing, spelled out for this design (§114)', () => {
     expect(p.negativePromptShort).toMatch(/^text or labels, decor or utensils on the counters, backsplash tiles/);
   });
 });
+
+describe('re-photograph, and bare vs styled (§127)', () => {
+  const withColour = (extra: Partial<RenderBriefInput> = {}) =>
+    buildRenderBrief(
+      input({
+        referenceImages: [
+          { kind: 'line-render', file: 'g.png', widthPx: 1024, heightPx: 576 },
+          { kind: 'colour-render', file: 'c.png', widthPx: 1024, heightPx: 576 },
+        ],
+        ...extra,
+      })
+    );
+
+  it('tells the model the colour preview is a draft to re-photograph, only when there is one', () => {
+    const b = withColour();
+    expect(b.prompt.instructions).toMatch(/RE-PHOTOGRAPH, not an image to edit/);
+    expect(b.prompt.imagePrompt).toMatch(/must not look like a 3D render/);
+    expect(b.prompt.imagePromptCondensed).toMatch(/real photograph, not a 3D render/);
+    expect(buildRenderBrief(input()).prompt.instructions).not.toMatch(/RE-PHOTOGRAPH/);
+  });
+
+  it('is bare by default: nothing on the counters, plants and utensils forbidden', () => {
+    const b = withColour();
+    expect(b.styling).toBe('bare');
+    expect(b.prompt.instructions).toMatch(/ADD NOTHING\. Counters bare/);
+    expect(b.prompt.negativePrompt.split(', ')).toContain('potted plants');
+  });
+
+  it('styled allows only a few named props and a soft view outside', () => {
+    const b = withColour({ styling: 'styled' });
+    expect(b.styling).toBe('styled');
+    expect(b.prompt.instructions).toMatch(/LIGHTLY STYLED, NOTHING ELSE ADDED\. .*at most four small neutral props/);
+    expect(b.prompt.instructions).toMatch(/soft, out-of-focus greenery/);
+    const neg = b.prompt.negativePrompt.split(', ');
+    expect(neg).not.toContain('potted plants');
+    expect(neg).not.toContain('scenery outside the window');
+    // Still never a kettle or dispensers.
+    expect(neg).toContain('kettle');
+    expect(b.prompt.negativePromptShort).toMatch(/^text or labels, clutter on the counters/);
+  });
+});

@@ -7695,3 +7695,54 @@ as a black basin in the counter with an upright tap.
 
 For a hole in the slab, the sink's catalogue cut-out (Catalogue →
 Appliances → "Countertop cutout width/depth") still has to be filled.
+
+## 127. Image brief: the colour preview is a draft to re-photograph; Bare or Styled
+
+Third round of model results, from the same eye-level camera on Priya
+Kapoor's kitchen:
+- **Gemini Flash Lite** was the best: photographic and true to the
+  design (sage gloss, black marble, hex mosaic, black sink). Small slips
+  only.
+- **Nano Banana** copied our 3D render almost pixel for pixel: perfect
+  colours, but still a render (flat white hood, soft blur). It took the
+  colour preview as a photo to EDIT.
+- **OpenAI's image plugin**, given only the JSON and the line drawing
+  (no colour preview), got the geometry exactly but invented every
+  material (wood and cream cabinets, beige stone) and added plants and
+  utensils. Text alone didn't hold the finishes, and the plugin very
+  likely rewrote the prompt.
+
+So the colour preview is what carries the materials, and must stay. The
+fix is to say what it is.
+
+**Re-photograph** (`REPHOTOGRAPH_RULE`), whenever a colour preview is
+attached, in the instructions, the full prompt and (shortly) the
+condensed prompt. The preview is a rough 3D draft to re-photograph, not
+an image to edit, retouch or upscale. Keep its layout, colours and
+materials exactly, but produce a real photograph:
+- daylight from the window and the listed lights;
+- reflections on gloss and stone;
+- crisp veining, grain and tile joints;
+- soft shadows and straight verticals.
+
+The image's own `whatItIs` already said "do NOT copy its look", but deep
+in the file; models read the prompt.
+
+**Bare or Styled** (`RenderBrief.styling`, a choice next to the Image
+brief button; Bare by default):
+- **Bare** is the §114 "add nothing".
+- **Styled** replaces it with "LIGHTLY STYLED, NOTHING ELSE ADDED". At
+  most four named neutral props (`STYLED_PROPS`: utensil holder, small
+  potted herb, cutting board, tea towel), and soft out-of-focus greenery
+  through the window. Still no other objects, kettles or dispensers.
+- The negatives drop "potted plants", "utensil holder" and "scenery
+  outside the window", and the short negative says "clutter on the
+  counters" instead of forbidding props.
+
+That's the Pinterest-style look on request, without the model inventing
+its own.
+
+Also fixed: "2700 K cove light lighting" in the short prompt.
+
+Checked with a real Styled download from Priya Kapoor's kitchen at
+Camera 1.

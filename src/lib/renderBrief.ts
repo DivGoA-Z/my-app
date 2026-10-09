@@ -241,6 +241,10 @@ export interface RenderBrief {
   schema: typeof RENDER_BRIEF_SCHEMA;
   generatedAt: string;
   designName: string;
+  // §127: 'bare' = only what's designed (the default); 'styled' = a few
+  // neutral counter props and a soft view outside, for a showroom-style
+  // photo. Nothing else is ever added either way.
+  styling: BriefStyling;
   referenceImages: (ReferenceImage & { whatItIs: string })[];
   coordinateSystem: Record<string, string>;
   room: {
@@ -339,7 +343,19 @@ export interface RenderBriefInput {
   // paint "C3" onto a cabinet (a lighter one did, twice). The plan/walls
   // route keeps codes: that sheet's labels need them. Default true.
   refs?: boolean;
+  // §127: see RenderBrief.styling. Default 'bare'.
+  styling?: BriefStyling;
 }
+
+export type BriefStyling = 'bare' | 'styled';
+
+// What "styled" allows, and only this (§127).
+export const STYLED_PROPS = 'a utensil holder with wooden spoons, a small potted herb, a wooden cutting board, a folded tea towel';
+
+// The colour preview is a DRAFT to re-photograph (§127): Nano Banana took
+// it as a photo to edit and returned our 3D render, upscaled.
+export const REPHOTOGRAPH_RULE =
+  'The colour preview is a rough 3D draft to RE-PHOTOGRAPH, not an image to edit, retouch or upscale: keep its layout, colours and materials exactly, but produce a real photograph: natural daylight from the window plus the listed lights, real reflections on gloss and stone, crisp material texture (veining, wood grain, tile joints), soft realistic shadows, straight verticals. It must not look like a 3D render.';
 
 // ---- Small, tested helpers ----
 
@@ -886,6 +902,7 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
     schema: RENDER_BRIEF_SCHEMA,
     generatedAt: input.generatedAt,
     designName: layout.name,
+    styling: input.styling ?? 'bare',
     referenceImages: input.referenceImages.map((img) => ({ ...img, whatItIs: REFERENCE_IMAGE_MEANING[img.kind] })),
     coordinateSystem: {
       units: 'millimetres',
@@ -1105,7 +1122,10 @@ function buildPrompt(b: Omit<RenderBrief, 'prompt'>, useRefs = true): RenderBrie
     .join('; ');
   lines.push(`Exact counts — ${inv}. Nothing else.`);
   lines.push(`Not in this room: ${b.notInThisRoom.join(', ')}.`);
-  lines.push('Style: natural, true-to-colour architectural interior photography, clean and uncluttered, sharp, realistic materials and soft shadows. No text, letters, numbers, labels or reference codes anywhere in the image, and no watermark.');
+  lines.push(
+    `Style: natural, true-to-colour architectural interior photography, ${b.styling === 'styled' ? `lightly styled (only ${STYLED_PROPS} on the counters, and a soft, out-of-focus view of greenery outside)` : 'clean and uncluttered'}, sharp, realistic materials and soft shadows. No text, letters, numbers, labels or reference codes anywhere in the image, and no watermark.`
+  );
+  if (b.referenceImages.some((i) => i.kind === 'colour-render')) lines.push(REPHOTOGRAPH_RULE);
 
   const instructions = [
     'You are producing ONE photorealistic image of a real kitchen that has already been designed and measured. It is a specification, not inspiration: the customer will compare the photo with what gets built.',
@@ -1119,6 +1139,7 @@ function buildPrompt(b: Omit<RenderBrief, 'prompt'>, useRefs = true): RenderBrie
     // a leafy view; the rule was there but spread across the file. One
     // blunt list, built from THIS design, near the top.
     addNothingRule(b),
+    ...(b.referenceImages.some((i) => i.kind === 'colour-render') ? [REPHOTOGRAPH_RULE] : []),
     geometryInstruction(b.referenceImages),
     useRefs
       ? '2. USE THE JSON AS THE SOURCE OF TRUTH for what each shape is: cabinet fronts (doors vs drawers, counts, handle positions), finishes, handles, appliances, openings and lights. Refs (C1, A2, O1…) tie the data to the attached drawings; they are never drawn.'
@@ -1362,11 +1383,18 @@ export function condensedPrompt(b: Omit<RenderBrief, 'prompt'>, maxWords = CONDE
     const k = `${f.colourTempK} K ${f.kind.toLowerCase()}`;
     fixturesOn.set(k, (fixturesOn.get(k) ?? 0) + f.quantity);
   }
-  for (const [k] of fixturesOn) light.push(`${k} lighting`);
+  // "2700 K cove light", not "cove light lighting".
+  for (const [k] of fixturesOn) light.push(/light$/i.test(k) ? k : `${k} lighting`);
   add(light.length ? `Lit by ${joinAnd(light)}.` : 'Soft, even neutral daylight.', 1);
 
   // 5. Style.
-  add('Uncluttered architectural photograph, true-to-colour, realistic materials and soft shadows, sharp focus.');
+  add(
+    b.styling === 'styled'
+      ? 'Lightly styled architectural photograph (a few neutral counter props, soft greenery outside), true-to-colour, realistic materials and soft shadows, sharp focus.'
+      : 'Uncluttered architectural photograph, true-to-colour, realistic materials and soft shadows, sharp focus.'
+  );
+  // §127: the colour preview is a draft, not the look.
+  if (b.referenceImages.some((i) => i.kind === 'colour-render')) add('A real photograph, not a 3D render.', 2);
 
   // Drop optional sentences, highest rank first, until within the cap.
   let kept = parts;
@@ -1429,7 +1457,7 @@ export function shortPrompt(b: Omit<RenderBrief, 'prompt'>, maxChars = SHORT_PRO
     ...[...new Set(b.lighting.fixtures.filter((f) => f.on).map((f) => `${f.colourTempK <= 3500 ? 'warm ' : ''}${f.colourTempK} K ${f.kind.toLowerCase()}`))].slice(0, 1),
   ].filter(Boolean);
   if (light.length) optional.push(sentence(light.join(' and ')));
-  const style = 'True-to-colour, uncluttered, sharp.';
+  const style = b.styling === 'styled' ? 'True-to-colour, lightly styled, sharp.' : 'True-to-colour, uncluttered, sharp.';
 
   const lookSentence = sentence(look.join(', '));
   for (let keep = optional.length; keep >= 0; keep--) {
@@ -1444,7 +1472,8 @@ export function shortPrompt(b: Omit<RenderBrief, 'prompt'>, maxChars = SHORT_PRO
 // the generic guards, then what's absent.
 export function shortNegative(b: Omit<RenderBrief, 'prompt'>, maxChars = SHORT_NEGATIVE_MAX_CHARS): string {
   const extras = inventedExtras(b).filter((t) => ['backsplash tiles', 'LED strip lights', 'scenery outside the window'].includes(t));
-  const terms = [...new Set(['text or labels', 'decor or utensils on the counters', ...extras, 'clutter', 'extra cabinets', 'extra appliances', 'people', 'watermark', 'CGI look', 'distorted perspective', ...b.notInThisRoom])];
+  const counters = b.styling === 'styled' ? 'clutter on the counters' : 'decor or utensils on the counters';
+  const terms = [...new Set(['text or labels', counters, ...extras, 'clutter', 'extra cabinets', 'extra appliances', 'people', 'watermark', 'CGI look', 'distorted perspective', ...b.notInThisRoom])];
   const out: string[] = [];
   for (const t of terms) {
     if ([...out, t].join(', ').length > maxChars) break;
@@ -1456,10 +1485,12 @@ export function shortNegative(b: Omit<RenderBrief, 'prompt'>, maxChars = SHORT_N
 // What the "stylist" models add on their own (§114), as plain things to
 // leave out — only those this design really doesn't have.
 function inventedExtras(b: Omit<RenderBrief, 'prompt'>): string[] {
-  const out = ['potted plants', 'utensil holder', 'soap dispenser', 'kettle', 'wall sockets or switches'];
+  // Styled (§127) allows a plant and a utensil holder, and a view outside.
+  const styled = b.styling === 'styled';
+  const out = [...(styled ? [] : ['potted plants', 'utensil holder']), 'soap dispenser', 'kettle', 'wall sockets or switches'];
   if (b.room.walls.every((w) => !w.finish)) out.push('backsplash tiles');
   if (!b.lighting.fixtures.some((f) => f.kind === FIXTURE_KIND_LABELS.strip)) out.push('LED strip lights');
-  if (b.openings.some((o) => o.kind === OPENING_KIND_LABELS.window && !o.outsideImageUrl)) out.push('scenery outside the window');
+  if (!styled && b.openings.some((o) => o.kind === OPENING_KIND_LABELS.window && !o.outsideImageUrl)) out.push('scenery outside the window');
   return out;
 }
 
@@ -1474,13 +1505,18 @@ function addNothingRule(b: Omit<RenderBrief, 'prompt'>): string {
     ? `only the ${joinAnd(on)} listed${strips ? '' : '; no LED strips under the wall cabinets'}`
     : 'no visible light fittings';
   const windows = b.openings.filter((o) => o.kind === OPENING_KIND_LABELS.window);
+  const styled = b.styling === 'styled';
   const view = !windows.length
     ? ''
     : windows.every((o) => o.outsideImageUrl)
       ? ' Through the window: the supplied photo.'
-      : ' Through the window: soft, bright daylight only; no trees, buildings or scenery.';
+      : styled
+        ? ' Through the window: soft, out-of-focus greenery and daylight.'
+        : ' Through the window: soft, bright daylight only; no trees, buildings or scenery.';
   return (
-    'ADD NOTHING. Counters bare: no plants, fruit, utensils, utensil holders, dispensers, kettles or anything not listed. ' +
+    (styled
+      ? `LIGHTLY STYLED, NOTHING ELSE ADDED. On the counters, at most four small neutral props: ${STYLED_PROPS}. No other objects, fruit, dispensers or kettles. `
+      : 'ADD NOTHING. Counters bare: no plants, fruit, utensils, utensil holders, dispensers, kettles or anything not listed. ') +
     `Walls: ${walls}. Lights: ${lights}. No wall sockets or switches.${view} ` +
     'No extra cabinets, appliances, windows, shelves, decor, people or clutter; everything in `notInThisRoom` is absent.'
   );
