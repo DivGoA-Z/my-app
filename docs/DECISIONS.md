@@ -7756,8 +7756,10 @@ understand the whole kitchen. The series code was replaced, not kept.
 
 **"Brief + other views (N)"** (next to Image brief, with two or more
 cameras):
-- The **main camera** is the one you're standing at, else the first. It
-  gets the usual line drawing and colour view.
+- The **main camera** is always the FIRST camera (Camera 1), wherever
+  you're standing when you press the button. The user chose one fixed
+  rule over "the camera you're at". It gets the line drawing and colour
+  view.
 - Every **other camera's colour view** is attached as a `context-view`
   (`cameraLabel` says which). They're rendered off-screen
   (`ViewFns.fromCamera`, the same pose the walkthrough gives that node),

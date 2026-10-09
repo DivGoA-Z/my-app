@@ -415,14 +415,15 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
   // The brief's styling (§127): a session choice, Bare by default.
   const [briefStyling, setBriefStyling] = useState<BriefStyling>('bare');
 
-  // §128: ONE image from the main camera (the one you're standing at,
-  // else the first), with every other camera's colour view attached as
-  // context, so the model understands parts this shot sees edge-on.
+  // §128: ONE image from the main camera — always the FIRST camera
+  // (Camera 1), wherever you're standing when you press the button (the
+  // user's call: one fixed rule, no surprises) — with every other
+  // camera's colour view attached as context.
   async function handleContextBrief() {
     const fns = viewFnsRef.current;
     if (!currentLayout || !briefInput || !fns || cameras.length < 2) return;
     try {
-      const main = lockedCamera ?? cameras[0];
+      const main = cameras[0];
       const others = cameras.filter((c) => c.id !== main.id);
       const stem = renderBriefFileStem(currentLayout.name);
       const { widthPx, heightPx } = GUIDE_IMAGE_SIZE;
