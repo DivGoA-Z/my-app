@@ -245,6 +245,8 @@ export interface RenderBrief {
   // neutral counter props and a soft view outside, for a showroom-style
   // photo. Nothing else is ever added either way.
   styling: BriefStyling;
+  // §128: present when this is one view of a set.
+  series?: BriefSeries;
   referenceImages: (ReferenceImage & { whatItIs: string })[];
   coordinateSystem: Record<string, string>;
   room: {
@@ -304,10 +306,14 @@ export interface RenderBrief {
 // image-to-image model got; §113 brings it back as a second reference,
 // explained, beside the line render.
 export interface ReferenceImage {
-  kind: 'elevations' | 'line-render' | 'colour-render';
+  // 'hero-photo' (§128): the photo YOU generated and picked for view 1 of
+  // a series, attached to every later view so they look like one kitchen.
+  // The app doesn't make it; `file` is the name to save it under.
+  kind: 'elevations' | 'line-render' | 'colour-render' | 'hero-photo';
   file: string;
   widthPx: number;
   heightPx: number;
+  suppliedBy?: 'you';
 }
 
 const REFERENCE_IMAGE_MEANING: Record<ReferenceImage['kind'], string> = {
@@ -315,6 +321,8 @@ const REFERENCE_IMAGE_MEANING: Record<ReferenceImage['kind'], string> = {
     'Line drawing of all four walls, each seen straight on from inside the room, to one common scale. It shows exactly what stands against each wall: every cabinet split into its real doors and drawers with handle marks, the countertop, sink, hob and chimney, windows, doors and pillars. Labels (C1, A1, O1, P1) match this file. Grey blocks at a wall\'s ends are the sides of units on the neighbouring wall. It is a diagram of geometry only; colours and materials come from this file.',
   'colour-render':
     'The app\'s 3D preview from the SAME camera and at the same size as the line render, so the two line up exactly. Use it to see which finish and colour goes on which surface (e.g. a dark wood ceiling, a ridged roll-up tambour shutter, white gloss fronts). Its lighting and materials are a simplified computer render: do NOT copy its look, colours as lit, or flatness; produce a real photograph.',
+  'hero-photo':
+    'A photograph of THIS SAME KITCHEN from another camera (view 1 of this series), generated earlier and chosen by the designer. Match its materials, colours, finishes, textures and lighting exactly — it is the same room at the same time of day; only the camera is different. Take geometry ONLY from this view\'s line drawing, never from this photo.',
   'line-render':
     'Hidden-line drawing of this design from the camera in `view`: every surface white, every edge black. It fixes the camera, the composition and every edge (cabinet outlines, door and drawer seams, handles, the countertop). It has no materials or light of its own.',
 };
@@ -345,6 +353,18 @@ export interface RenderBriefInput {
   refs?: boolean;
   // §127: see RenderBrief.styling. Default 'bare'.
   styling?: BriefStyling;
+  // §128: this brief's place in a set of views of one kitchen.
+  series?: BriefSeries;
+}
+
+// One kitchen photographed from several cameras (§128). View 1 is the
+// hero; every later view gets the hero photo as a reference.
+export interface BriefSeries {
+  view: number;
+  of: number;
+  heroCamera: string;
+  // A short id for the set, so files from one run sort together.
+  setId: string;
 }
 
 export type BriefStyling = 'bare' | 'styled';
@@ -903,6 +923,7 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
     generatedAt: input.generatedAt,
     designName: layout.name,
     styling: input.styling ?? 'bare',
+    ...(input.series ? { series: input.series } : {}),
     referenceImages: input.referenceImages.map((img) => ({ ...img, whatItIs: REFERENCE_IMAGE_MEANING[img.kind] })),
     coordinateSystem: {
       units: 'millimetres',
@@ -1126,6 +1147,7 @@ function buildPrompt(b: Omit<RenderBrief, 'prompt'>, useRefs = true): RenderBrie
     `Style: natural, true-to-colour architectural interior photography, ${b.styling === 'styled' ? `lightly styled (only ${STYLED_PROPS} on the counters, and a soft, out-of-focus view of greenery outside)` : 'clean and uncluttered'}, sharp, realistic materials and soft shadows. No text, letters, numbers, labels or reference codes anywhere in the image, and no watermark.`
   );
   if (b.referenceImages.some((i) => i.kind === 'colour-render')) lines.push(REPHOTOGRAPH_RULE);
+  if (sameKitchenRule(b)) lines.push(sameKitchenRule(b)!);
 
   const instructions = [
     'You are producing ONE photorealistic image of a real kitchen that has already been designed and measured. It is a specification, not inspiration: the customer will compare the photo with what gets built.',
@@ -1140,6 +1162,7 @@ function buildPrompt(b: Omit<RenderBrief, 'prompt'>, useRefs = true): RenderBrie
     // blunt list, built from THIS design, near the top.
     addNothingRule(b),
     ...(b.referenceImages.some((i) => i.kind === 'colour-render') ? [REPHOTOGRAPH_RULE] : []),
+    ...(sameKitchenRule(b) ? [sameKitchenRule(b)!] : []),
     geometryInstruction(b.referenceImages),
     useRefs
       ? '2. USE THE JSON AS THE SOURCE OF TRUTH for what each shape is: cabinet fronts (doors vs drawers, counts, handle positions), finishes, handles, appliances, openings and lights. Refs (C1, A2, O1…) tie the data to the attached drawings; they are never drawn.'
@@ -1395,6 +1418,8 @@ export function condensedPrompt(b: Omit<RenderBrief, 'prompt'>, maxWords = CONDE
   );
   // §127: the colour preview is a draft, not the look.
   if (b.referenceImages.some((i) => i.kind === 'colour-render')) add('A real photograph, not a 3D render.', 2);
+  // §128: never dropped — it's what makes a series one kitchen.
+  if (b.referenceImages.some((i) => i.kind === 'hero-photo')) add('Same kitchen as the attached photo: identical materials, colours and lighting.');
 
   // Drop optional sentences, highest rank first, until within the cap.
   let kept = parts;
@@ -1520,6 +1545,14 @@ function addNothingRule(b: Omit<RenderBrief, 'prompt'>): string {
     `Walls: ${walls}. Lights: ${lights}. No wall sockets or switches.${view} ` +
     'No extra cabinets, appliances, windows, shelves, decor, people or clutter; everything in `notInThisRoom` is absent.'
   );
+}
+
+// For view 2+ of a series (§128): one kitchen, so the hero photo sets the
+// materials and light; this view's line drawing sets the geometry.
+function sameKitchenRule(b: Omit<RenderBrief, 'prompt'>): string | null {
+  const hero = b.referenceImages.find((i) => i.kind === 'hero-photo');
+  if (!hero || !b.series) return null;
+  return `SAME KITCHEN AS PHOTO 1. This is view ${b.series.view} of ${b.series.of} of one kitchen; the attached photo (${hero.file}) is view 1, from ${b.series.heroCamera}. Match its materials, colours, finishes, textures and lighting exactly, so the photos read as one shoot. Take this view's geometry ONLY from its own line drawing.`;
 }
 
 function geometryInstruction(images: RenderBrief['referenceImages']): string {

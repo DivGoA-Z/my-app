@@ -415,6 +415,61 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
   // The brief's styling (§127): a session choice, Bare by default.
   const [briefStyling, setBriefStyling] = useState<BriefStyling>('bare');
 
+  // §128: one kitchen, several cameras. Every camera's line drawing,
+  // colour view and brief, in order — view 1 (the hero) is the camera
+  // you're standing at, else the first. Views 2+ ask for the photo you
+  // generate and pick for view 1, so the set reads as one shoot.
+  async function handleSeriesBrief() {
+    const fns = viewFnsRef.current;
+    if (!currentLayout || !briefInput || !fns || cameras.length < 2) return;
+    try {
+      const ordered = lockedCamera ? [lockedCamera, ...cameras.filter((c) => c.id !== lockedCamera.id)] : cameras;
+      const stem = renderBriefFileStem(currentLayout.name);
+      const setId = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
+      const heroPhoto = `${stem}-v1-photo.png`;
+      const { widthPx, heightPx } = GUIDE_IMAGE_SIZE;
+      for (const [i, node] of ordered.entries()) {
+        const n = i + 1;
+        const prefix = `${stem}-v${n}-${renderBriefFileStem(node.label)}`;
+        const { line, colour, pose } = fns.fromCamera(node, { widthPx, heightPx });
+        const images: ReferenceImage[] = [
+          { kind: 'line-render', file: `${prefix}-guide.png`, widthPx, heightPx },
+          { kind: 'colour-render', file: `${prefix}-colour.png`, widthPx, heightPx },
+          ...(n > 1 ? [{ kind: 'hero-photo' as const, file: heroPhoto, widthPx, heightPx, suppliedBy: 'you' as const }] : []),
+        ];
+        const brief = buildRenderBrief({
+          ...briefInput,
+          view: viewFromWorldCamera({
+            mode: 'walkthrough',
+            cameraLabel: node.label,
+            position: pose.position,
+            direction: pose.direction,
+            verticalFovDeg: pose.verticalFovDeg,
+            imageWidthPx: widthPx,
+            imageHeightPx: heightPx,
+          }),
+          assetOrigin: window.location.origin,
+          generatedAt: new Date().toISOString(),
+          referenceImages: images,
+          refs: false,
+          styling: briefStyling,
+          series: { view: n, of: ordered.length, heroCamera: ordered[0].label, setId },
+        });
+        downloadBlob(await (await fetch(line)).blob(), images[0].file);
+        downloadBlob(await (await fetch(colour)).blob(), images[1].file);
+        downloadBlob(new Blob([JSON.stringify(withoutRefs(brief), null, 2)], { type: 'application/json' }), `${prefix}-render-brief.json`);
+        // Browsers drop rapid-fire downloads; a short gap keeps them.
+        await new Promise((r) => setTimeout(r, 400));
+      }
+      toast.success(`Downloaded ${ordered.length} views (${ordered.map((c) => c.label).join(', ')}).`, {
+        description: `Generate view 1 first. Save the photo you pick as ${heroPhoto} and attach it to every other view, so they look like one kitchen.`,
+        duration: 12000,
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? `Image briefs failed: ${err.message}` : 'Image briefs failed.');
+    }
+  }
+
   async function handleRenderBrief() {
     const fns = viewFnsRef.current;
     if (!currentLayout || !briefInput || !fns) return;
@@ -538,6 +593,11 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
         <Button variant="outline" size="touch" onClick={handleRenderBrief} disabled={!currentLayout}>
           <Download /> Image brief
         </Button>
+        {cameras.length >= 2 && (
+          <Button variant="outline" size="touch" onClick={handleSeriesBrief} disabled={!currentLayout}>
+            <Download /> All cameras ({cameras.length})
+          </Button>
+        )}
       </div>
       <p className="text-[13px] text-muted-foreground">
         {lockedCamera
@@ -1079,6 +1139,9 @@ interface ViewFns {
   structure: (opts: StructureOptions) => string;
   // The 3D view itself at the same size (§113).
   colour: (opts: StructureOptions) => string;
+  // §128: what a camera node sees, without moving the live view: the
+  // same pose the walkthrough would give it, rendered off-screen.
+  fromCamera: (node: CameraNode, opts: StructureOptions) => { line: string; colour: string; pose: CameraPose };
 }
 
 function ViewSnapshotBridge({ viewFnsRef }: { viewFnsRef: { current: ViewFns | null } }) {
@@ -1102,6 +1165,22 @@ function ViewSnapshotBridge({ viewFnsRef }: { viewFnsRef: { current: ViewFns | n
       colour: (opts) => {
         const { gl, scene, camera } = get();
         return renderColour(gl, scene, camera, opts);
+      },
+      fromCamera: (node, opts) => {
+        const { gl, scene, invalidate } = get();
+        const cam = new THREE.PerspectiveCamera(node.fovDeg ?? DEFAULT_FIRST_PERSON_FOV_DEG, opts.widthPx / opts.heightPx, 0.05, 100);
+        const [x, z] = groundPosition(node.x, node.y);
+        cam.position.set(x, mmToWorld(node.heightMm || DEFAULT_CAMERA_HEIGHT_MM), z);
+        // Same 'YXZ' heading-then-tilt as AnimatedFirstPersonCamera.
+        cam.quaternion.setFromEuler(
+          new THREE.Euler(THREE.MathUtils.degToRad(node.pitchDeg ?? 0), clockwiseDegToThreeY(node.viewAngleDeg), 0, 'YXZ')
+        );
+        cam.updateMatrixWorld(true);
+        const line = renderStructure(gl, scene, cam, opts);
+        const colour = renderColour(gl, scene, cam, opts);
+        // The on-screen view is redrawn from the real camera afterwards.
+        invalidate();
+        return { line, colour, pose: { ...cameraPose(gl, cam), widthPx: opts.widthPx, heightPx: opts.heightPx } };
       },
     };
     return () => {

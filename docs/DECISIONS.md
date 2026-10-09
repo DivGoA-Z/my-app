@@ -7746,3 +7746,44 @@ Also fixed: "2700 K cove light lighting" in the short prompt.
 
 Checked with a real Styled download from Priya Kapoor's kitchen at
 Camera 1.
+
+## 128. One kitchen, several cameras: a series of briefs tied to the hero photo
+
+A kitchen too big for one frame is shot the way an interior
+photographer would: 2–4 cameras. That includes a corner camera, which
+sees two walls at once and so covers most L- and U-shapes. Lenses wider
+than about 18 mm distort the edges, and models exaggerate it; 360° photos
+don't turn into convincing photographs.
+
+The real problem with several images is **consistency**: generated
+separately, the marble, the green and the light drift, and the photos
+stop looking like one kitchen.
+
+**"All cameras (N)"** (next to Image brief, with two or more cameras)
+downloads, for every camera, its line drawing, colour view and brief,
+named in order (`<design>-v1-<camera>-…`).
+- View 1, the hero, is the camera you're standing at, else the first.
+- Each camera is rendered **off-screen** (`ViewFns.fromCamera`), with the
+  same pose the walkthrough gives that node (position, heading, tilt,
+  saved lens) and the same snapshot code. The live view doesn't move.
+
+**The chain.** Generate view 1 first and save the photo you pick as
+`<design>-v1-photo.png`. Every later brief lists it as a `hero-photo`
+reference (`suppliedBy: 'you'`), with a **SAME KITCHEN AS PHOTO 1** rule
+in the instructions and the full prompt, and an undroppable line in the
+condensed prompt:
+- match the hero photo's materials, colours, finishes, textures and
+  lighting exactly;
+- take this view's geometry ONLY from its own line drawing.
+
+`RenderBrief.series` = {view, of, heroCamera, setId}.
+
+Rejected:
+- one ultra-wide frame (distortion);
+- feeding the 360° panorama (warped results);
+- the app generating images itself (no model chosen yet, §105).
+
+Checked with a real run on Neha Verma's kitchen (2 cameras): six files
+in order; each brief carried its own camera (1600 mm and 984 mm, as in
+her Cameras panel); view 2 asked for the hero photo; the on-screen view
+was unchanged.
