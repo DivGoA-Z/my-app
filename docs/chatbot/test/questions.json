@@ -1,0 +1,22 @@
+[
+  {"q": "how do i shift the hob 2 cm to the left", "mustMention": ["arrow"], "mustNot": ["drag handle"]},
+  {"q": "base cabinet ka colour sabka ek saath kaise badle", "mustMention": ["Style"]},
+  {"q": "i accidentally deleted a cabinet, get it back", "mustMention": ["Undo"]},
+  {"q": "where do i put the tall unit for fridge housing", "mustMention": ["Cabinets"]},
+  {"q": "how to see the kitchen from where the customer will stand", "mustMention": ["camera", "Look from"]},
+  {"q": "I want the quote without my margin showing", "mustMention": ["Your pricing"], "mustNot": ["hide margin"]},
+  {"q": "how to send quote pdf on email", "mustMention": ["Download PDF"]},
+  {"q": "can two people work on same kitchen at the same time", "mustMention": []},
+  {"q": "customer number change karna hai", "mustMention": ["Notes"], "mustNot": ["Edit customer"]},
+  {"q": "where are drawer channels priced", "mustMention": ["Rate card", "Hardware"]},
+  {"q": "the window is in the wrong place", "mustMention": ["Along wall"]},
+  {"q": "how do I make the countertop marble", "mustMention": ["Surfaces", "Countertop"]},
+  {"q": "what does freeze mean", "mustMention": ["version"]},
+  {"q": "workshop page is locked I can't change anything", "mustMention": ["Change settings"]},
+  {"q": "how to add a pillar of 450 by 300", "mustMention": ["Pillars"]},
+  {"q": "where is the button to go to 3d", "mustMention": ["3D"]},
+  {"q": "how to print labels for the pieces", "mustMention": ["Part labels PDF"]},
+  {"q": "how do I make the room 12x10 ft", "mustMention": ["Room", "3660"]},
+  {"q": "can I give a discount on the quote", "mustMention": []},
+  {"q": "kitchen ka 360 dikhana hai customer ko", "mustMention": ["360"]}
+]
