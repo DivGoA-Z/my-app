@@ -117,11 +117,14 @@ Give the workshop the cutting list for the quote version the customer approved.
 
 ### 16. how do I delete a customer
 
-Customers can't be deleted. To take one off the board, move them to **Lost**: card **…** → **Move to** → **Lost**, and give a reason. They stay under the **Lost (n)** filter for your records.
+Customers can't be deleted. To take one off the board, move them to **Lost**: card **…** → **Move to** → **Lost**, and give a reason. They stay under the **Lost (n)** filter for your records. To correct their details instead, use **…** → **Edit details**.
 
 ### 17. I typed the wrong phone number for a customer, how to edit
 
-A customer's name, phone and address can't be edited after they're added. As a workaround, open the card's **…** menu → **Notes** and write the correct number there. If the record itself must be fixed, contact your admin.
+1. Go to **Customers**.
+2. Open the customer's card menu **…** → **Edit details**.
+3. Correct the **Name**, **Phone**, **Address** or **Locality**.
+4. Press **Save details**.
 
 ### 18. where do I write notes about the customer like budget
 
@@ -228,15 +231,11 @@ Select the cabinet and press **Duplicate** at the top of its settings. Or press 
 
 Look at the **right edge** of the screen: a slim tab with the item type (e.g. "Cabinet"). Move your mouse onto it, or tap it, and the full settings slide out. If the Quote panel is open, the settings show in that column instead.
 
-### 37. the settings panel keeps closing when I move my mouse away
-
-That's the slim side tab tucking itself away so the plan stays visible. Hover over or tap the tab to open it again. While you're typing in a field inside it, it stays open.
-
-### 38. chnage width of cabinet
+### 37. chnage width of cabinet
 
 Select the cabinet, open its settings from the right edge, and under **Size** change **Width** (also Depth and Height). Then press **Apply new size**.
 
-### 39. how to change the colour of one cabinet
+### 38. how to change the colour of one cabinet
 
 1. Select the cabinet and open its settings from the right edge.
 2. Tap the **Finish** row.
@@ -244,7 +243,7 @@ Select the cabinet, open its settings from the right edge, and under **Size** ch
 
 To change all cabinets at once, use **Style** in the top bar instead.
 
-### 40. i want all base cabinets in walnut and wall cabinets white
+### 39. i want all base cabinets in walnut and wall cabinets white
 
 Use **Style** in the top bar:
 
@@ -253,23 +252,23 @@ Use **Style** in the top bar:
 
 Every cabinet still on the old default changes. If some were set by hand, a message offers **Change them too**. New cabinets take these defaults automatically.
 
-### 41. how to make a cabinet drawers instead of doors
+### 40. how to make a cabinet drawers instead of doors
 
 Select the cabinet, open its settings, and under **Front** choose **Drawers**. Then set **Number of drawers**.
 
-### 42. I want 1 drawer on top and doors below in same cabinet
+### 41. I want 1 drawer on top and doors below in same cabinet
 
 Select the cabinet. Under **Front**, choose **Mixed (stacked rows)**. Set the top row to **Drawers** (1) and the next row to **Double door** or **Single door**. Use **Height share** to set each row's height, and **+ Add row** to add more rows.
 
-### 43. change handle of cabinet
+### 42. change handle of cabinet
 
 Select the cabinet. In its settings under **Front**, change **Handle**. To change handles for the whole kitchen, use **Style** → **Handle** (per base, wall and tall cabinets).
 
-### 44. wall cabinet is too low how to raise it
+### 43. wall cabinet is too low how to raise it
 
 Select it and change **Height off the floor** in its settings (in mm, measured to the bottom of the cabinet). 0 means it stands on the floor.
 
-### 45. corner cabinet showing overlap error with the next cabinet
+### 44. corner cabinet showing overlap error with the next cabinet
 
 For a blind or magic corner unit:
 
@@ -280,7 +279,7 @@ The part hidden behind the other wall's cabinets becomes a fixed panel, the door
 
 If the two cabinets' boxes actually overlap on the plan, drag them apart; the fixed panel only fixes the door clash.
 
-### 46. the cabinet I want isn't in the list
+### 45. the cabinet I want isn't in the list
 
 Add it to your catalogue:
 
@@ -290,29 +289,29 @@ Add it to your catalogue:
 
 Or place a similar cabinet and change its size.
 
-### 47. add extra shelf inside cabinet
+### 46. add extra shelf inside cabinet
 
 Select the cabinet → **Panels & boards…** → set **Extra shelves** → **Save** → **← Back**. The shelves appear on the cutting list and are priced.
 
-### 48. it's showing a warning but I want the cabinet there on purpose
+### 47. it's showing a warning but I want the cabinet there on purpose
 
 Select the cabinet. At the bottom of its settings, open **More: design checks for this item** and tick **Ignore overlap alerts** or **Ignore door/drawer clearance alerts**. It only silences that one cabinet.
 
 ## E. Appliances and the sink
 
-### 49. where are hob chimney sink
+### 48. where are hob chimney sink
 
 Click **Appliances** on the left tool rail. Drag the hob, chimney, sink, fridge and so on onto the plan. Each one is placed at the height set for it in your catalogue (e.g. a hob on the counter, a chimney above it). To adjust, select it and change **Off floor (mm)**.
 
-### 50. chimney is at wrong height
+### 49. chimney is at wrong height
 
 Select the chimney and change **Off floor (mm)**: the height of its bottom edge from the floor. About 850 is counter level; a chimney usually goes around 1500–1650, about 650–750 above the hob.
 
-### 51. how to copy the same hob again
+### 50. how to copy the same hob again
 
 Appliances have no Duplicate button. Select it and press **Ctrl+C** then **Ctrl+V** (Cmd on Mac); the copy appears next to it. Or drag the hob from **Appliances** again.
 
-### 52. how do I make a hole in the countertop for the sink
+### 51. how do I make a hole in the countertop for the sink
 
 The hole is set on the sink in the catalogue, not on the cabinet:
 
@@ -322,48 +321,44 @@ The hole is set on the sink in the catalogue, not on the cabinet:
 
 Every kitchen where that sink sits on a counter gets the hole.
 
-### 53. sink is showing as white box in 3d
+### 52. sink is showing as white box in 3d
 
 That sink has no working 3D model. Check **Catalogue** → **Appliances** → the sink → **Model file**: it must end in **.glb** or **.gltf** and must not start with "public/". If you're not sure which file to use, pick a sink that already shows correctly, or ask your admin.
 
-### 54. appliance price is coming in quote but customer is buying it himself
+### 53. appliance price is coming in quote but customer is buying it himself
 
 Set the price of that appliance to 0 in **Catalogue** → **Appliances** → open it → **Price** → **Save**. Appliances already placed keep the price they were added with, so delete it from this kitchen and add it again.
 
 ## F. Style, surfaces, tiles, slab and lights
 
-### 55. floor pe tiles kaise lagaye
+### 54. floor pe tiles kaise lagaye
 
 1. Click **Surfaces** on the left tool rail.
 2. Tap the **Floor** row.
 3. Pick a tile (tabs Tiles, Stone, Wood…).
 4. To show tile joints, tick **Lay as tiles**, then choose the size (e.g. 600×1200). For marble, stone or a plain colour you also choose **Straight** or **Offset (brick)** and the grout width and colour; a tile photo already has its grout, so only the size changes.
 
-### 56. backsplash tiles only behind the counter
+### 55. backsplash tiles only behind the counter
 
 Use **Surfaces** → the wall's row (e.g. **North wall**) → pick the tile. The area hidden behind cabinets has its own **Behind units:** choice; leave it as **not finished** and that area isn't charged. Only the visible wall is priced.
 
-### 57. how to change countertop granite
+### 56. how to change countertop granite
 
 **Surfaces** → **Countertop / slab** row → pick the slab (tabs Granite, Marble, Quartz…). For a different shade, choose **Custom shade** under **Colour**. Tick **Charge for it on the quote** only if you're supplying the slab.
 
-### 58. homeowner will buy granite himself, don't add in quote
+### 57. homeowner will buy granite himself, don't add in quote
 
 In **Surfaces**, leave **Charge for it on the quote** unticked under **Countertop / slab**. The slab still shows in the design and prints on the quote as "by homeowner" at ₹0.
 
-### 59. tiling is done by civil contractor, remove floor and wall cost from quote
+### 58. tiling is done by civil contractor, remove floor and wall cost from quote
 
 In **Surfaces**, untick **Charge floor, walls and ceiling on the quote** at the top. The finishes still show in the design; the quote shows them as not charged.
 
-### 60. added a new tile photo in catalogue but it's not showing in floor options
+### 59. added a new tile photo in catalogue but it's not showing in floor options
 
 The floor list shows finishes whose **Finish type** suits floors (e.g. Vitrified tile, Ceramic tile, Marble, Granite, Wooden flooring). Check **Catalogue** → **Finishes** → your tile → **Finish type**, and **Save**. Or tick **Show all finishes** in the floor picker.
 
-### 61. Lay as tiles is greyed out
-
-That finish is a photo of tiles whose tile size isn't recorded. Go to **Catalogue** → **Finishes** → open it → fill **Tile size in this photo** (one tile's width × height in mm) → **Save**. Then **Lay as tiles** works.
-
-### 62. how to add lights under the cabinets
+### 60. how to add lights under the cabinets
 
 1. Click **Lights** on the left tool rail.
 2. Press **Add** next to a strip light in your list.
@@ -371,25 +366,25 @@ That finish is a photo of tiles whose tile size isn't recorded. Go to **Catalogu
 
 Lights are shown but not charged unless you tick **Charge electrical work**.
 
-### 63. where do I set the default finish for all new kitchens
+### 61. where do I set the default finish for all new kitchens
 
 **Catalogue** → **Default kitchen style**: set the finish, colour, handle and board for base, wall and tall cabinets. Kitchens without their own **Style** use these, and each kitchen can change its own with **Style**.
 
-### 64. Style changed the cabinets but one cabinet did not change
+### 62. Style changed the cabinets but one cabinet did not change
 
 That cabinet was set by hand, so it keeps its own finish. When you change the style, the message offers **Change it too**. Or select that cabinet and change its **Finish** row directly.
 
 ## G. 3D, elevation, cameras and present
 
-### 65. how to see 3d
+### 63. how to see 3d
 
 Click **3D** at the top of the design screen. In **Free orbit**, drag to turn the room and scroll or pinch to zoom. To stand inside the room, choose a camera under **Look from**.
 
-### 66. how to see one wall straight with measurements
+### 64. how to see one wall straight with measurements
 
 Click **Elevation** at the top, choose **Drawing**, then pick the wall: **North**, **East**, **South** or **West**. **Top view** shows the plan from above.
 
-### 67. how to add a camera
+### 65. how to add a camera
 
 1. Click **Cameras** on the left tool rail.
 2. Press **+ Add**; a camera appears in the middle of the room.
@@ -397,19 +392,19 @@ Click **Elevation** at the top, choose **Drawing**, then pick the wall: **North*
 4. Set **Height** (about 1500 mm is eye level) and **Tilt**.
 5. In **3D**, choose it under **Look from**.
 
-### 68. how to save the 3d angle I like
+### 66. how to save the 3d angle I like
 
 In **3D**, choose a camera under **Look from**, drag to look around until it looks right, then press **Save this view**. That camera will open at this view next time.
 
-### 69. how to take 360 photo
+### 67. how to take 360 photo
 
 In **3D**, open **360° photos**, choose the camera under **360° photo for**, and press **Capture 360°**. Then press **View 360°** to look around. **Capture again** replaces it.
 
-### 70. how to show the design to customer without them seeing my cost
+### 68. how to show the design to customer without them seeing my cost
 
 Press **Present** in the top bar (on a phone: **…** → **Present to customer**). It shows **3D walkthrough** and **Floor plan** only. Nothing can be moved, and the price stays hidden until you press **Reveal price**. **Back to design** returns.
 
-### 71. image brief what is this
+### 69. image brief what is this
 
 **Image brief** (in **3D**) downloads a picture of the view and a description of the design, to give an AI image tool (e.g. Gemini) for a photo-realistic image. The app doesn't make the photo itself.
 
@@ -417,11 +412,26 @@ Press **Present** in the top bar (on a phone: **…** → **Present to customer*
 - Choose **Bare** (only what's designed) or **Styled** (a few counter props).
 - Give the tool all the downloaded files.
 
-### 72. can I move or edit cabinets in 3D
+### 70. can I move or edit cabinets in 3D
 
 You can click a cabinet in 3D to select it; its settings open from the right edge. To move items, use the **Plan** tab; that's where dragging works.
 
 ## H. Quote
+
+### 71. I don't want the customer to see my margin on the quote
+
+They never see it. Your margin is built into each line's price, so the quote, the PDF and Present show only selling prices; no margin line appears anywhere. Nothing needs to be hidden or changed.
+
+**Your pricing** in the quote panel (with its **Cost** view) is visible only to you.
+
+### 72. give 5% discount on the quote
+
+1. Open the quote (**Quote** in the top bar, or **Finalise quote**).
+2. Under **Discount**, choose **%** and type **5**. For a fixed amount instead, choose **₹ amount**.
+3. The quote now shows **Subtotal**, **Discount (5%)** and the lower **Grand Total**.
+4. **Freeze** a new version and send it.
+
+The discount comes out of your margin; the **Cost** view shows what you still make.
 
 ### 73. how do I make the quote
 

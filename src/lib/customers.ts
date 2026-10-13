@@ -120,3 +120,30 @@ export async function updateCustomerNotes(id: string, notes: string): Promise<vo
   if (error) throw new Error(`Failed to save notes: ${error.message}`);
   if (!data || data.length === 0) throw new Error('Notes not saved: this customer may belong to another business.');
 }
+
+// A customer's details, corrected after they were added (§130): name,
+// phone, address, locality. Only these columns are written, so the stage,
+// notes and quote total are untouched. A refused update (RLS) comes back
+// as zero rows, so that's checked.
+export interface CustomerDetails {
+  clientName: string;
+  phone: string;
+  address: string;
+  locality: string;
+}
+
+export async function updateCustomerDetails(id: string, d: CustomerDetails): Promise<void> {
+  const { data, error } = await supabase
+    .from('projects')
+    .update({
+      client_name: d.clientName.trim(),
+      phone: d.phone.trim(),
+      address: d.address.trim(),
+      locality: d.locality.trim(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select('id');
+  if (error) throw new Error(`Failed to save the details: ${error.message}`);
+  if (!data || data.length === 0) throw new Error('Not saved: this customer may belong to another business.');
+}

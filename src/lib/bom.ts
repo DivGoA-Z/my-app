@@ -17,6 +17,7 @@
 // and no hardware, so forcing it into BOMLineItem's shape would mean
 // several fields that never apply.
 
+import type { QuoteDiscount } from '../types/layout';
 import type { PlacedCabinetItem } from '../types/cabinet';
 import { defaultFrontLayout, FRONT_KIND_LABELS, GLASS_TINT_LABELS, resolveHandle } from '../types/front';
 import type { FrontLayout, FrontRowLayout, HandleSpec } from '../types/front';
@@ -312,11 +313,26 @@ export interface BOMSummary {
   // number rather than implicit in a guessed catalogue price. Excludes
   // project charges (see above). 0 if marginPercent is 0.
   marginAmount: number;
-  // What the customer is charged — costGrandTotal + marginAmount. This
-  // is what has ALWAYS flowed into the sidebar, the frozen quote and
-  // the PDF; that didn't change, only how it's built did (see
-  // docs/DECISIONS.md §14).
+  // What the customer is charged — costGrandTotal + marginAmount, less
+  // any discount (§130). This is what has ALWAYS flowed into the sidebar,
+  // the frozen quote, the PDF and the customer card; that didn't change,
+  // only how it's built did (see docs/DECISIONS.md §14).
   grandTotal: number;
+  // §130: the quote before the discount (the displayed lines add up to
+  // this), the discount in rupees, and how it was set. Absent on a quote
+  // frozen before §130: treat as no discount (subtotal = grandTotal).
+  subtotalBeforeDiscount?: number;
+  discountAmount?: number;
+  discount?: QuoteDiscount | null;
+}
+
+// The discount in rupees off a quote of `subtotal` (§130): a percentage
+// (0–100) or a fixed amount, never more than the quote itself, rounded to
+// whole rupees. Nothing, or a bad value, is no discount.
+export function discountRupees(subtotal: number, discount: QuoteDiscount | null | undefined): number {
+  if (!discount || !(discount.value > 0) || !(subtotal > 0)) return 0;
+  const raw = discount.kind === 'percent' ? (subtotal * Math.min(discount.value, 100)) / 100 : discount.value;
+  return Math.round(Math.min(raw, subtotal));
 }
 
 // Everything needed to put a price on a layout, in one object.
@@ -684,6 +700,9 @@ export function calculateBOM(
   const costGrandTotal = allCost;
   const marginPercent = layout?.marginPercent ?? DEFAULT_MARGIN_PERCENT;
   const marginAmount = (allCost - unmarkedTotal) * (marginPercent / 100);
+  // §130: a discount comes off the selling price, after everything else.
+  const subtotalBeforeDiscount = allCost + marginAmount;
+  const discountAmount = discountRupees(subtotalBeforeDiscount, layout?.discount);
 
   return {
     lineItems,
@@ -716,7 +735,10 @@ export function calculateBOM(
     wasteMode: boardWaste ? 'calculated' : 'approx',
     boardWasteFactors: boardWaste ? [...boardWaste.values()] : [],
     marginAmount,
-    grandTotal: costGrandTotal + marginAmount,
+    subtotalBeforeDiscount,
+    discountAmount,
+    discount: layout?.discount ?? null,
+    grandTotal: subtotalBeforeDiscount - discountAmount,
   };
 }
 

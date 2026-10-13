@@ -1342,6 +1342,9 @@ alter table public.layouts add column if not exists floor_tiling jsonb;
 -- Whether floor/wall/ceiling finishes are charged on the quote (§123).
 -- NULL = charged, as every kitchen was before this column existed.
 alter table public.layouts add column if not exists price_surfaces boolean;
+-- A discount off the whole quote (§130): {"kind":"percent"|"amount","value":n}.
+-- NULL = none.
+alter table public.layouts add column if not exists discount jsonb;
 
 -- Starter set, at plausible Delhi NCR retail. `on conflict do nothing`
 -- so re-running never overwrites a business's own rates — same as the

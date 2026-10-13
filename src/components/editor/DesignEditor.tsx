@@ -16,7 +16,8 @@
 // phone the tool panel and right panel become slide-overs (stage 4
 // refines touch).
 
-import { useState, type ReactNode } from 'react';
+import { useHelpStore } from '../../store/helpStore';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -222,6 +223,14 @@ export function DesignEditor({
     surfaces: <RoomSurfacesPanel />,
   };
 
+  // Where in the editor the person is, for the help assistant (§129).
+  useEffect(() => {
+    const tab = view === 'plan' ? 'Plan' : view === '3d' ? '3D' : 'Elevation';
+    const panel = tool ? TOOLS.find((t) => t.id === tool)?.label : null;
+    useHelpStore.getState().setEditorDetail(`${tab} tab${panel ? `, ${panel} panel open` : ''}`);
+  }, [view, tool]);
+  useEffect(() => () => useHelpStore.getState().setEditorDetail(null), []);
+
   const inspector =
     selection?.type === 'cabinet' ? (
       <CabinetInspector onOpenDesigner={onOpenDesigner} />
@@ -248,6 +257,12 @@ export function DesignEditor({
     setPeekWasShown(peek);
     if (!peek) setPeekOpen(false);
   }
+  // How wide the right-hand panel is, so the Help button sits beside it.
+  const rightPx = !rightOpen ? 0 : peek && !peekOpen ? 56 : 400;
+  useEffect(() => {
+    useHelpStore.getState().setEditorRightPx(rightPx);
+  }, [rightPx]);
+  useEffect(() => () => useHelpStore.getState().setEditorRightPx(0), []);
 
   const saved = isSaving ? 'Saving…' : saveError ? 'Not saved' : lastAutosaveAt ? `Saved ${new Date(lastAutosaveAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'Saved';
 
@@ -594,7 +609,8 @@ export function DesignEditor({
             </Button>
             </div>
           </div>
-          <div className="flex flex-col gap-4 p-4 [&>*]:w-full [&>aside]:border-0 [&>aside]:p-0 [&>div]:w-full">
+          {/* pb-24: room to scroll the last settings clear of the Help button. */}
+          <div className="flex flex-col gap-4 p-4 pb-24 [&>*]:w-full [&>aside]:border-0 [&>aside]:p-0 [&>div]:w-full">
             {inspector ?? <QuoteSidebar onOpenCutList={(quoteId) => onOpenCutList(quoteId)} />}
           </div>
           </>

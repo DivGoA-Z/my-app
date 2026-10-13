@@ -390,7 +390,7 @@ export function RateCardManager() {
       <div
         className={
           dirty
-            ? 'sticky bottom-20 z-30 flex flex-wrap items-center gap-3 rounded-2xl bg-sidebar px-4 py-3 text-sidebar-foreground shadow-float md:bottom-4'
+            ? 'sticky bottom-20 z-30 mr-16 flex flex-wrap items-center gap-3 rounded-2xl bg-sidebar px-4 py-3 text-sidebar-foreground shadow-float md:bottom-4 md:mr-20'
             : 'flex flex-wrap items-center gap-3'
         }
       >

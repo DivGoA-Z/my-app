@@ -211,6 +211,14 @@ Obligations, not suggestions:
   `docs/ISSUES-FIXED.md` with the date. Never delete it.
 - **Found a document wrong →** correct it and say what was wrong. Don't
   silently overwrite.
+- **Before every commit → check the help assistant's docs.** If the
+  commit changes anything a user sees or does (a button, a label, a
+  screen, a feature, a limit), update `docs/chatbot/APP_GUIDE_FOR_ASSISTANT.md`
+  (exact on-screen labels; "Facts you must get right" for anything a
+  model could guess wrong) and the Q&A in `docs/chatbot/build_qna.py`
+  (keep exactly 100; then `python3 docs/chatbot/build_qna.py docs/chatbot`).
+  Not needed on every edit, only at commit time. The chatbot answers
+  real customers from these.
 - **End of session →** update `docs/STATUS.md` (a snapshot: built, not
   built, unverified, blocked, next), then remind the user to commit and
   push.

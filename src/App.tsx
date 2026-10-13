@@ -1,5 +1,8 @@
 // src/App.tsx
 
+import { HelpLauncher } from './components/help/HelpLauncher';
+import { useHelpStore } from './store/helpStore';
+import { HelpPanel } from './components/help/HelpPanel';
 import { ArrowLeft } from 'lucide-react';
 import { useEffect, useState, useRef } from 'react';
 import { InventoryManager, type InventorySection } from './components/inventory/InventoryManager';
@@ -48,8 +51,27 @@ type View =
   | 'present'
   | 'cutlist';
 
+// The screen names the help assistant is given (match the guide's wording).
+const SCREEN_NAMES: Record<View, string> = {
+  home: 'Home',
+  customers: 'Customers',
+  production: 'Production',
+  catalogue: 'Catalogue',
+  rates: 'Rate card',
+  workshop: 'Workshop',
+  settings: 'Settings',
+  canvas: 'Design editor',
+  designer: 'Cabinet Designer',
+  present: 'Present',
+  cutlist: 'Cutting list',
+};
+
 function App() {
   const [view, setView] = useState<View>('home');
+  // Tells the help assistant which screen the question comes from (§129).
+  useEffect(() => {
+    useHelpStore.getState().setScreen(SCREEN_NAMES[view]);
+  }, [view]);
   // Where the catalogue's "Back to design" and the Workshop page's Back
   // return to — set when they're opened from inside a design.
   const [previousView, setPreviousView] = useState<View>('home');
@@ -261,7 +283,7 @@ function App() {
             {previousView === 'canvas' && (
               <Button
                 size="touch"
-                className="fixed right-4 bottom-[92px] z-30 shadow-float md:right-8 md:bottom-6"
+                className="fixed right-[84px] bottom-[92px] z-30 shadow-float md:right-[96px] md:bottom-6"
                 onClick={() => setView('canvas')}
               >
                 <ArrowLeft /> Back to {currentProjectName ? `${currentProjectName}\u2019s kitchen` : 'the design'}
@@ -300,6 +322,8 @@ function App() {
     <>
       {content}
       <Toaster />
+      <HelpPanel />
+      {view !== 'present' && <HelpLauncher inEditor={view === 'canvas'} />}
       <ConfirmDialog />
     </>
   );

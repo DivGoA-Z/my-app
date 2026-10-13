@@ -12,7 +12,7 @@ import { Label } from '../ui/label';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { LOST_REASON_LABELS, type CustomerProject, type LostReason } from '../../types/customer';
-import { createCustomer, type NewLeadInput } from '../../lib/customers';
+import { createCustomer, type NewLeadInput, updateCustomerDetails } from '../../lib/customers';
 import { useAuthStore } from '../../store/authStore';
 import { cn } from '@/lib/utils';
 
@@ -22,13 +22,25 @@ export function NewCustomerDialog({
   open,
   onOpenChange,
   onCreated,
+  editing,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (customer: CustomerProject) => void;
+  // §130: correct an existing customer's details instead of adding one.
+  // Notes are edited from their own dialog, so they're not shown here.
+  editing?: CustomerProject | null;
 }) {
   const businessId = useAuthStore((s) => s.businessId);
   const [form, setForm] = useState<NewLeadInput>(EMPTY);
+  // Load the customer into the form when the edit opens (during render,
+  // not in an effect).
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  if (open && editing && loadedFor !== editing.id) {
+    setLoadedFor(editing.id);
+    setForm({ ...EMPTY, clientName: editing.clientName, phone: editing.phone, address: editing.address ?? '', locality: editing.locality ?? '' });
+  }
+  if (!open && loadedFor !== null) setLoadedFor(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (k: keyof NewLeadInput) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -45,6 +57,19 @@ export function NewCustomerDialog({
     }
     setSaving(true);
     setError(null);
+    if (editing) {
+      try {
+        const details = { clientName: form.clientName.trim(), phone: form.phone.trim(), address: (form.address ?? '').trim(), locality: (form.locality ?? '').trim() };
+        await updateCustomerDetails(editing.id, details);
+        onCreated({ ...editing, ...details });
+        onOpenChange(false);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not save the details.');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
     try {
       const created = await createCustomer(
         { ...form, clientName: form.clientName.trim(), phone: form.phone.trim(), notes: form.notes?.trim() || undefined },
@@ -64,8 +89,10 @@ export function NewCustomerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New customer</DialogTitle>
-          <DialogDescription>They start as a Lead. You can add the design straight after.</DialogDescription>
+          <DialogTitle>{editing ? 'Edit customer details' : 'New customer'}</DialogTitle>
+          <DialogDescription>
+            {editing ? 'Correct the name, phone, address or locality.' : 'They start as a Lead. You can add the design straight after.'}
+          </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Label className="flex flex-col items-stretch gap-1.5 text-[13px]">
@@ -85,7 +112,7 @@ export function NewCustomerDialog({
             <Input value={form.locality} onChange={set('locality')} placeholder="e.g. Dwarka, Delhi" className="h-11 text-[15px]" />
           </Label>
           {/* Anything at all (§96); editable later from the card's menu. */}
-          <Label className="flex flex-col items-stretch gap-1.5 text-[13px] sm:col-span-2">
+          {!editing && <Label className="flex flex-col items-stretch gap-1.5 text-[13px] sm:col-span-2">
             <span>
               Notes <span className="font-normal text-muted-foreground">(optional)</span>
             </span>
@@ -95,7 +122,7 @@ export function NewCustomerDialog({
               placeholder="Anything worth remembering: budget, timing, who decides, site access…"
               className="min-h-28 w-full rounded-[10px] border border-input bg-card px-3 py-2.5 text-[15px] leading-relaxed outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
             />
-          </Label>
+          </Label>}
         </div>
         {error && (
           <Alert variant="destructive">
@@ -107,7 +134,7 @@ export function NewCustomerDialog({
             Cancel
           </Button>
           <Button size="touch" onClick={create} disabled={saving}>
-            {saving ? 'Adding…' : 'Add customer'}
+            {editing ? (saving ? 'Saving…' : 'Save details') : saving ? 'Adding…' : 'Add customer'}
           </Button>
         </DialogFooter>
       </DialogContent>

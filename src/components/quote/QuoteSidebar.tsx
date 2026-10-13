@@ -32,6 +32,7 @@ import type { ApplianceType } from '../../types/appliance';
 import { QuoteFreezePanel } from './QuoteFreezePanel';
 import { ChargeRatesList } from '../common/ChargeRatesList';
 import { boardLabel } from '../../types/rates';
+import type { QuoteDiscount } from '../../types/layout';
 
 const INR_FORMATTER = new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -53,6 +54,53 @@ function formatModuleType(moduleType: string): string {
 
 function formatApplianceType(applianceType: ApplianceType): string {
   return APPLIANCE_TYPE_LABELS[applianceType];
+}
+
+function discountLabel(d: QuoteDiscount | null | undefined): string {
+  return d?.kind === 'percent' ? `Discount (${d.value}%)` : 'Discount';
+}
+
+// A discount off the whole quote (§130): none, a percentage, or a fixed
+// rupee amount. Shown to the customer as its own line; your cost and
+// margin don't change, so it comes out of what you make.
+function DiscountControl() {
+  const discount = useLayoutStore((s) => s.currentLayout?.discount ?? null);
+  const updateRoomSurfaces = useLayoutStore((s) => s.updateRoomSurfaces);
+  const kind = discount?.kind ?? 'none';
+  const set = (d: QuoteDiscount | null) => updateRoomSurfaces({ discount: d });
+  return (
+    <div className="mt-2 flex flex-col gap-1.5 rounded-xl border border-border p-2.5">
+      <span className="text-xs font-semibold text-foreground">Discount</span>
+      <div role="radiogroup" aria-label="Discount" className="flex items-center gap-1.5">
+        {(['none', 'percent', 'amount'] as const).map((k) => (
+          <Button
+            key={k}
+            type="button"
+            role="radio"
+            aria-checked={kind === k}
+            size="sm"
+            variant={kind === k ? 'default' : 'outline'}
+            onClick={() => set(k === 'none' ? null : { kind: k, value: discount?.kind === k ? discount.value : 0 })}
+          >
+            {k === 'none' ? 'None' : k === 'percent' ? '%' : '₹ amount'}
+          </Button>
+        ))}
+        {discount && (
+          <Input
+            type="number"
+            min={0}
+            max={discount.kind === 'percent' ? 100 : undefined}
+            step={discount.kind === 'percent' ? 0.5 : 500}
+            value={discount.value || ''}
+            placeholder={discount.kind === 'percent' ? 'e.g. 5' : 'e.g. 5000'}
+            aria-label={discount.kind === 'percent' ? 'Discount percent' : 'Discount in rupees'}
+            onChange={(e) => set({ kind: discount.kind, value: Math.max(0, Number(e.target.value) || 0) })}
+            className="h-9 w-28 text-sm"
+          />
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function QuoteSidebar({ onOpenCutList }: { onOpenCutList?: (quoteId: string) => void } = {}) {
@@ -515,6 +563,19 @@ export function QuoteSidebar({ onOpenCutList }: { onOpenCutList?: (quoteId: stri
           <span>{formatINR(markup(bom.applianceSubtotal))}</span>
         </div>
 
+        {/* §130: the lines add up to the subtotal; the discount comes off it. */}
+        {view === 'selling' && (bom.discountAmount ?? 0) > 0 && (
+          <>
+            <div className="mt-1 flex justify-between border-t border-border pt-2">
+              <span>Subtotal</span>
+              <span>{formatINR(bom.subtotalBeforeDiscount ?? bom.grandTotal)}</span>
+            </div>
+            <div className="flex justify-between text-primary">
+              <span>{discountLabel(bom.discount)}</span>
+              <span>− {formatINR(bom.discountAmount ?? 0)}</span>
+            </div>
+          </>
+        )}
         <div className="mt-1 flex justify-between border-t border-border pt-2 text-sm font-semibold text-foreground">
           <span>{view === 'cost' ? 'Total Cost' : 'Grand Total'}</span>
           <span>{formatINR(view === 'cost' ? bom.costGrandTotal : bom.grandTotal)}</span>
@@ -524,9 +585,16 @@ export function QuoteSidebar({ onOpenCutList }: { onOpenCutList?: (quoteId: stri
         {view === 'cost' && (
           <span className="text-xs text-muted-foreground">
             The customer pays {formatINR(bom.grandTotal)}: your cost plus {bom.marginPercent}% margin
-            {bom.unmarkedTotal > 0 ? ', except on fixed-price charges.' : '.'}
+            {bom.unmarkedTotal > 0 ? ', except on fixed-price charges' : ''}
+            {(bom.discountAmount ?? 0) > 0 ? `, less a ${formatINR(bom.discountAmount ?? 0)} discount. You make ${formatINR(bom.grandTotal - bom.costGrandTotal)}.` : '.'}
           </span>
         )}
+        {(bom.discountAmount ?? 0) > 0 && bom.grandTotal < bom.costGrandTotal && (
+          <span role="alert" className="rounded-lg bg-destructive/10 px-2.5 py-1.5 text-xs font-medium text-destructive">
+            This discount puts the quote {formatINR(bom.costGrandTotal - bom.grandTotal)} below your cost.
+          </span>
+        )}
+        <DiscountControl />
       </div>
 
       {/* Kept as its OWN component (QuoteFreezePanel's own header

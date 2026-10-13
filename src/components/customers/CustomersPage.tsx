@@ -88,11 +88,12 @@ interface CardMenuProps {
   moveTo: (c: CustomerProject, s: LeadStatus) => void;
   onSetDate: (c: CustomerProject) => void;
   onNotes: (c: CustomerProject) => void;
+  onEdit: (c: CustomerProject) => void;
   onPanorama: (cam: CameraNode) => void;
 }
 
 // Every card action in one menu, so nothing needs drag or hover.
-function CardMenu({ c, history, views, onOpenDesign, onOpenCutList, moveTo, onSetDate, onNotes, onPanorama }: CardMenuProps) {
+function CardMenu({ c, history, views, onOpenDesign, onOpenCutList, moveTo, onSetDate, onNotes, onEdit, onPanorama }: CardMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -103,6 +104,9 @@ function CardMenu({ c, history, views, onOpenDesign, onOpenCutList, moveTo, onSe
       <DropdownMenuContent align="end" className="w-60" onClick={(e) => e.stopPropagation()}>
         <DropdownMenuItem className="h-10" onSelect={() => onOpenDesign(c.id)}>
           Open design
+        </DropdownMenuItem>
+        <DropdownMenuItem className="h-10" onSelect={() => onEdit(c)}>
+          Edit details
         </DropdownMenuItem>
         <DropdownMenuItem className="h-10" onSelect={() => onNotes(c)}>
           {c.notes ? 'Notes' : 'Add notes'}
@@ -187,6 +191,7 @@ export function CustomersPage({
   const [losing, setLosing] = useState<CustomerProject | null>(null);
   const [dating, setDating] = useState<CustomerProject | null>(null);
   const [noting, setNoting] = useState<CustomerProject | null>(null);
+  const [editingDetails, setEditingDetails] = useState<CustomerProject | null>(null);
   const [panorama, setPanorama] = useState<CameraNode | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
   const now = new Date();
@@ -346,7 +351,7 @@ export function CustomersPage({
                               <span className="block truncate text-[15px] font-semibold">{c.clientName}</span>
                               <span className="block truncate text-[13px] text-muted-foreground">{c.locality || '—'}</span>
                             </button>
-                            <CardMenu c={c} history={quoteHistories[c.id] ?? []} views={panoramas[c.id] ?? []} onOpenDesign={onOpenDesign} onOpenCutList={onOpenCutList} moveTo={moveTo} onSetDate={setDating} onNotes={setNoting} onPanorama={setPanorama} />
+                            <CardMenu c={c} history={quoteHistories[c.id] ?? []} views={panoramas[c.id] ?? []} onOpenDesign={onOpenDesign} onOpenCutList={onOpenCutList} moveTo={moveTo} onSetDate={setDating} onNotes={setNoting} onEdit={setEditingDetails} onPanorama={setPanorama} />
                           </div>
                           <NotesPreview c={c} onOpen={() => setNoting(c)} />
                           <div className="flex items-center justify-between gap-2 pt-1">
@@ -399,7 +404,7 @@ export function CustomersPage({
                     <StagePill status={c.status} />
                     {c.quoteTotal != null && <span className="shrink-0 text-sm font-bold">{INR.format(c.quoteTotal)}</span>}
                   </div>
-                  <CardMenu c={c} history={quoteHistories[c.id] ?? []} views={panoramas[c.id] ?? []} onOpenDesign={onOpenDesign} onOpenCutList={onOpenCutList} moveTo={moveTo} onSetDate={setDating} onNotes={setNoting} onPanorama={setPanorama} />
+                  <CardMenu c={c} history={quoteHistories[c.id] ?? []} views={panoramas[c.id] ?? []} onOpenDesign={onOpenDesign} onOpenCutList={onOpenCutList} moveTo={moveTo} onSetDate={setDating} onNotes={setNoting} onEdit={setEditingDetails} onPanorama={setPanorama} />
                 </article>
               );
             })}
@@ -413,6 +418,12 @@ export function CustomersPage({
       )}
 
       <NewCustomerDialog open={adding} onOpenChange={setAdding} onCreated={(c) => setCustomers((prev) => [c, ...prev])} />
+      <NewCustomerDialog
+        open={editingDetails !== null}
+        editing={editingDetails}
+        onOpenChange={(o) => !o && setEditingDetails(null)}
+        onCreated={(updated) => setCustomers((prev) => prev.map((x) => (x.id === updated.id ? updated : x)))}
+      />
       <LostReasonDialog
         customer={losing}
         onCancel={() => setLosing(null)}

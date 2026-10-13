@@ -7783,3 +7783,141 @@ Round 4 note: Gemini's "image" with Pro produced the best render yet
 from the single-camera brief, faithful and photographic. What's left
 comes from the design (the hood's colour) and the 60° lens (stretched
 edges).
+
+## 129. The help assistant: an in-app chat panel and a relay that holds the model key
+
+A chatbot that answers "how do I…" while people use the app. The model
+(Qwen3-4B-Instruct, to be fine-tuned on `docs/chatbot/qna.jsonl`) runs on
+RunPod.
+
+**The key never reaches the browser.** Everything in the app bundle,
+VITE_* included, is readable by any visitor, and a leaked RunPod key is
+a running bill. So the browser talks to `/api/help`, a Cloudflare
+Worker (`worker/index.ts`), which:
+- checks the person is signed in (their Supabase token against
+  `/auth/v1/user`);
+- puts the guide in front as the system prompt, plus where the person is
+  ("Design editor · Plan tab, Cabinets panel open · a Cabinet is
+  selected");
+- keeps the last 8 turns, each clipped to 1,500 characters;
+- calls any OpenAI-compatible endpoint (RunPod's vLLM worker; Ollama
+  locally) with streaming;
+- returns plain text.
+
+`wrangler.jsonc` routes only `/api/*` to the Worker
+(`run_worker_first`); the app's files are served as before. The guide is
+bundled into the Worker as text. A dry-run deploy checked the bundle
+(30 KB).
+
+The logic is one pure function (`worker/helpHandler.ts`), shared with the
+Vite dev server, which answers `/api/help` on a laptop against a local
+Ollama, with no sign-in check because it only listens locally. Rejected:
+- calling RunPod from the browser (the key leaks);
+- a Supabase Edge Function (a second deployment to keep in step, when
+  the app is already a Worker).
+
+**The panel** (`HelpPanel`, `helpStore`):
+- opens from a round **Help** button at the bottom right (`HelpLauncher`), the
+  common pattern, on every page except Present (customer-facing). It
+  floats on most pages (above the phone's tab bar; the Catalogue's "Back
+  to … kitchen" and the Rate card/Workshop save bars make room for it).
+  In the design editor it sits in the bottom bar left of **Total**, since
+  floating there covered the 3D move pad and the total. It replaced the
+  first version's sidebar/More/top-bar entries: the user found Help only
+  on Home;
+- slides in from the right over any page;
+- offers starter questions for the current screen;
+- streams the answer, rendering bold and lists without HTML injection;
+- says "Waking up the assistant…" after 6 s, since a serverless endpoint
+  sleeps;
+- shows the relay's message when something's wrong;
+- Escape closes it, and editor shortcuts don't fire inside it (it's a
+  dialog);
+- keeps the conversation for the session only;
+- notes "Answers come from an AI assistant and can be wrong".
+
+**First real test: a 404, then long, wrong answers.** The 404 was a
+question asked before the model finished downloading; the relay now
+says so in words. The wrong answers came from Ollama's
+OpenAI-compatible API, which can't be told a context size: its default
+cut the ~7,000-token guide off, so the model never saw the rules. The
+same question with the full context gave a short, correct answer. So
+the laptop relay uses Ollama's own API (`HELP_LLM_PROVIDER: 'ollama'`,
+`num_ctx` 12,288); RunPod stays OpenAI-compatible (vLLM's max model
+length is set on the endpoint).
+
+Checked end to end in a browser on a laptop (the panel, dev relay,
+Ollama and a streamed answer) using phi3 as a stand-in, since the Qwen
+download wasn't finished. phi3's answer was wrong: a different model,
+and Ollama's default context cuts the guide off. Hence
+`OLLAMA_CONTEXT_LENGTH=12288` in the setup.
+
+Not built yet:
+- logging questions and answers (to find gaps in the guide);
+- thumbs up/down on answers;
+- per-user rate limits.
+
+Setup: DEPLOY.md "Help assistant".
+
+## 130. Customer details editable; a discount off the whole quote
+
+**Customer details:** **Customers** → card **…** → **Edit details**. The
+New customer dialog is reused in edit mode: Name, Phone, Address,
+Locality → **Save details**. `updateCustomerDetails` writes only those
+four columns, so stage, notes and quote total are untouched, and checks
+the update really happened (RLS returns zero rows rather than an
+error).
+
+Known gap: the design editor's autosave upserts the whole `projects` row
+from the copy it loaded. An editor left open in another tab can write
+the old name back. Reopening a design always loads the current details.
+
+**Discount** (`RoomLayout.discount = {kind: 'percent'|'amount', value}`,
+new `layouts.discount` column, so re-run schema.sql). The user wanted
+"a flat discount after everything, as a percentage or a lump sum".
+- **It comes off the selling price, after margin.**
+  `subtotalBeforeDiscount = cost + margin`, then
+  `discountAmount = discountRupees(subtotal, discount)`:
+  - a percentage (clamped 0–100) or a fixed amount;
+  - never more than the quote;
+  - rounded to whole rupees;
+  - nonsense values (negative, NaN) give no discount.
+- `grandTotal` keeps its meaning, **what the customer pays**, so the
+  frozen quote, PDF total, customer card and Present stay correct
+  unchanged.
+- The displayed lines still add up to the subtotal; **Subtotal**,
+  **Discount (n%)** and **Grand Total** follow, in the quote panel, in
+  Present and on the PDF.
+- Cost and margin are unchanged, so the discount comes out of what the
+  business makes. The **Cost** view says how much is left, and a warning
+  shows if the discount takes the quote below cost.
+- The control is **Discount** in the quote panel: **None / % / ₹
+  amount** plus a number.
+- It lives on the layout, which is in the pricing context, so changing
+  it marks a frozen quote as out of date, which is right: a new version
+  is needed to send it.
+- Older frozen quotes lack the new fields and read as no discount.
+
+Tested: percentage, fixed amount, clamping and nonsense
+(`bom.test.ts`). In a browser on Neha Verma's kitchen: 10% of
+₹5,75,406 → ₹5,17,865; ₹5,000 → ₹5,70,406.
+
+**Help button in the editor** (follow-up to §129): the user couldn't
+find it there. It was a small circle inside the bottom bar. It now
+floats like everywhere else:
+- just above the bottom bar;
+- moved left of the right-hand panel whenever that's open
+  (`helpStore.editorRightPx`), since it covered **Share on WhatsApp** in
+  the quote panel;
+- the 3D move pad shifted left to clear it.
+
+**Guide fixes from testing the base model on 20 unseen questions:**
+- It invented position fields for cabinets, said there's no undo,
+  suggested "unticking" the margin, put 3D in the phone menu, put 360°
+  photos in Present, and offered "Behind units" for the countertop.
+- When the guide doesn't say something DOESN'T exist, a 4B model borrows
+  it from elsewhere (X/Y exist for pillars). So the guide now opens with
+  **"Facts you must get right"**, stated as rules.
+- The test's keyword checks were too weak to catch these: answers
+  saying "no undo" passed because they contained "undo". They now also
+  check for wrong phrases.

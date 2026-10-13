@@ -180,3 +180,46 @@ The screenshot test login's password lives in `.env.e2e.local`
   press Restore in its dashboard if the app stops connecting.
 - Every push to `main` updates the live site. Other branches get their
   own preview address when Preview builds are on.
+
+## Help assistant (chatbot): one-time setup
+
+The **Help** panel in the app sends questions to `/api/help`, a small
+Cloudflare Worker (`worker/`) on the same deployment as the app. It
+checks the person is signed in, adds the assistant's guide
+(`docs/chatbot/APP_GUIDE_FOR_ASSISTANT.md`) and calls the model on RunPod.
+The RunPod key stays in Cloudflare; it never reaches the browser.
+
+Until it's set up, the panel answers "The help assistant isn't set up
+yet." Nothing else in the app is affected.
+
+1. **RunPod**: create a **Serverless** endpoint with the **vLLM** worker,
+   model = your Hugging Face repo (the fine-tuned Qwen3-4B, or
+   `Qwen/Qwen3-4B-Instruct-2507` to start). Set the max model length to
+   at least **12288** (the guide alone is about 6,000 tokens). Note the
+   endpoint ID, and create an API key (RunPod → Settings → API Keys).
+2. **Cloudflare** → Workers & Pages → `my-app` → **Settings → Variables
+   and secrets**, add:
+   - `HELP_LLM_BASE_URL` = `https://api.runpod.ai/v2/<endpoint-id>/openai/v1`
+   - `HELP_LLM_MODEL` = the model name exactly as RunPod serves it (the
+     Hugging Face repo name)
+   - `HELP_LLM_API_KEY` = the RunPod API key, as a **Secret**
+   - `SUPABASE_URL` and `SUPABASE_ANON_KEY` = the same values as the
+     app's `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`
+3. Redeploy (or push any commit). Open **Help** in the app and ask
+   something.
+
+A serverless endpoint sleeps when idle: the first question after a quiet
+spell can take 30–60 s while it wakes (the panel says so). Set "active
+workers" to 1 on RunPod if that's too slow, at the cost of paying for it
+all the time.
+
+**On your laptop**, `npm run dev` answers `/api/help` with the same code,
+pointed at a local Ollama (no sign-in check, since it only listens
+locally), and asks it for a context long enough for the guide:
+
+```
+ollama serve
+ollama pull qwen3:4b-instruct-2507-q4_K_M
+```
+
+To use RunPod from your laptop instead: `HELP_LLM_BASE_URL=… HELP_LLM_MODEL=… HELP_LLM_API_KEY=… npm run dev`.

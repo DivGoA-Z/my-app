@@ -233,6 +233,19 @@ export function PresentMode({ widthMm, depthMm, onExit }: PresentModeProps) {
                 <span>{INR_FORMATTER.format(sell(bom.applianceSubtotal))}</span>
               </div>
 
+              {/* §130: the lines add up to the subtotal; the discount comes off it. */}
+              {(bom.discountAmount ?? 0) > 0 && (
+                <>
+                  <div className="mt-1 flex justify-between border-t border-border pt-2">
+                    <span>Subtotal</span>
+                    <span>{INR_FORMATTER.format(bom.subtotalBeforeDiscount ?? bom.grandTotal)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>{bom.discount?.kind === 'percent' ? `Discount (${bom.discount.value}%)` : 'Discount'}</span>
+                    <span>− {INR_FORMATTER.format(bom.discountAmount ?? 0)}</span>
+                  </div>
+                </>
+              )}
               <div className="mt-1 flex justify-between border-t border-border pt-2 text-[15px] font-semibold text-foreground">
                 <span>Grand Total</span>
                 <span>{INR_FORMATTER.format(bom.grandTotal)}</span>

@@ -7,6 +7,7 @@
 // inline. Makes this swappable later (different backend, offline mode,
 // etc.) without touching the store's public API.
 
+import type { QuoteDiscount } from '../types/layout';
 import type { SurfaceTiling } from './tiling';
 import type { StyleDefaults } from './styleDefaults';
 import { sanitizeOtherRates, type OtherRate } from '../types/rates';
@@ -85,6 +86,8 @@ interface LayoutRow {
   floor_tiling?: SurfaceTiling | null;
   // §123 — NULL = charged (as before this existed).
   price_surfaces?: boolean | null;
+  // §130 — {kind, value}; NULL = no discount.
+  discount?: QuoteDiscount | null;
   price_countertop: boolean | null;
   margin_percent: number | null;
   sheet_waste_factor: number | null;
@@ -188,6 +191,7 @@ function layoutToRow(
     ...(layout.ceilingColorOverride !== undefined ? { ceiling_color_override: layout.ceilingColorOverride } : {}),
     ...(layout.floorTiling !== undefined ? { floor_tiling: layout.floorTiling } : {}),
     ...(layout.priceSurfaces !== undefined ? { price_surfaces: layout.priceSurfaces } : {}),
+    ...(layout.discount !== undefined ? { discount: layout.discount } : {}),
     price_countertop: layout.priceCountertop ?? null,
     margin_percent: layout.marginPercent ?? null,
     sheet_waste_factor: layout.sheetWasteFactor ?? null,
@@ -235,6 +239,7 @@ function rowToLayout(row: LayoutRow): RoomLayout {
     ceilingColorOverride: row.ceiling_color_override ?? undefined,
     floorTiling: row.floor_tiling ?? undefined,
     priceSurfaces: row.price_surfaces ?? undefined,
+    discount: row.discount ?? undefined,
     // Same reasoning as priceElectrical — "is the countertop charged?"
     // has a real answer for every project, and it's usually no.
     priceCountertop: row.price_countertop ?? false,

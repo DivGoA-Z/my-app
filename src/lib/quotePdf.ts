@@ -310,6 +310,20 @@ export function generateQuotePdfBlob(quote: FrozenQuote, project: CustomerProjec
     y += 16;
   }
 
+  // §130: a discount (absent on quotes frozen before it existed).
+  if ((s.discountAmount ?? 0) > 0) {
+    y = ensureSpace(doc, y, 60) + 2;
+    doc.setDrawColor(200);
+    doc.line(MARGIN, y, pageWidth - MARGIN, y);
+    y += 16;
+    doc.text('Subtotal', MARGIN, y);
+    doc.text(formatAmount(doc, s.subtotalBeforeDiscount ?? s.grandTotal), pageWidth - MARGIN, y, { align: 'right' });
+    y += 16;
+    doc.text(s.discount?.kind === 'percent' ? `Discount (${s.discount.value}%)` : 'Discount', MARGIN, y);
+    doc.text(`- ${formatAmount(doc, s.discountAmount ?? 0)}`, pageWidth - MARGIN, y, { align: 'right' });
+    y += 16;
+  }
+
   y = ensureSpace(doc, y, 60) + 4;
   doc.setDrawColor(0);
   doc.line(MARGIN, y, pageWidth - MARGIN, y);

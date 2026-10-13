@@ -8,8 +8,15 @@
   // Serve at <name>.<account>.workers.dev. The first deploy came up with
   // that address disabled; with this set, every deploy keeps it on.
   "workers_dev": true,
+  // The help assistant's relay (§129, worker/index.ts). Only /api/* runs it;
+  // everything else is served from ./dist as before.
+  "main": "./worker/index.ts",
+  // The assistant's guide is bundled into the Worker as text.
+  "rules": [{ "type": "Text", "globs": ["**/*.md"], "fallthrough": true }],
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"],
     // The app has no URL routes today, but if one is ever opened
     // directly, serve the app rather than a 404.
     "not_found_handling": "single-page-application"

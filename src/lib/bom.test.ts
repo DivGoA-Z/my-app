@@ -198,3 +198,36 @@ describe('charging floor, walls and ceiling is optional (§123)', () => {
     expect(off.grandTotal).toBeLessThan(on.grandTotal);
   });
 });
+
+describe('a discount off the whole quote (§130)', async () => {
+  const { discountRupees } = await import('./bom');
+  const total = (discount?: { kind: 'percent' | 'amount'; value: number } | null) =>
+    calculateBOM([baseUnit()], [], pricing({ layout: layout({ discount }) }));
+
+  it('takes a percentage off after margin, rounded to the rupee', () => {
+    const none = total();
+    const ten = total({ kind: 'percent', value: 10 });
+    expect(none.discountAmount).toBe(0);
+    expect(ten.subtotalBeforeDiscount).toBeCloseTo(none.grandTotal, 6);
+    expect(ten.discountAmount).toBe(Math.round(none.grandTotal * 0.1));
+    expect(ten.grandTotal).toBeCloseTo(none.grandTotal - Math.round(none.grandTotal * 0.1), 6);
+    // Cost and margin are unchanged: the discount comes out of the selling price.
+    expect(ten.costGrandTotal).toBe(none.costGrandTotal);
+    expect(ten.marginAmount).toBe(none.marginAmount);
+  });
+
+  it('takes a fixed amount off', () => {
+    const none = total();
+    const off = total({ kind: 'amount', value: 2000 });
+    expect(off.discountAmount).toBe(2000);
+    expect(off.grandTotal).toBeCloseTo(none.grandTotal - 2000, 6);
+  });
+
+  it('never takes off more than the quote, and ignores nonsense', () => {
+    expect(discountRupees(10000, { kind: 'amount', value: 50000 })).toBe(10000);
+    expect(discountRupees(10000, { kind: 'percent', value: 150 })).toBe(10000);
+    expect(discountRupees(10000, { kind: 'percent', value: -5 })).toBe(0);
+    expect(discountRupees(10000, { kind: 'amount', value: Number.NaN })).toBe(0);
+    expect(discountRupees(10000, null)).toBe(0);
+  });
+});

@@ -289,6 +289,7 @@ interface LayoutStore {
         | 'ceilingColorOverride'
         | 'floorTiling'
         | 'priceSurfaces'
+        | 'discount'
         | 'priceCountertop'
       >
     >

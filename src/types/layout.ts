@@ -214,6 +214,9 @@ export interface RoomLayout {
   floorColorOverride?: string | null;
   // The floor laid as tiles (§122); null = as the finish is.
   floorTiling?: SurfaceTiling | null;
+  // A discount off the whole quote, after everything else (§130): a
+  // percentage or a fixed rupee amount. Unset/null = none.
+  discount?: QuoteDiscount | null;
   ceilingColorOverride?: string | null;
   // Whether the countertop appears as a CHARGE on the quote.
   //
@@ -323,3 +326,9 @@ Example JSON:
   "updatedAt": "2026-08-15T11:20:00.000Z"
 }
 */
+
+// §130. 'percent' = value% of the quote before discount; 'amount' = ₹value.
+export interface QuoteDiscount {
+  kind: 'percent' | 'amount';
+  value: number;
+}

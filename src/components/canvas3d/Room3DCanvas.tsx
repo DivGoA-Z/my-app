@@ -1040,9 +1040,10 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
 
         {/* Hold-to-move pad on the view itself (§110): standing at a camera
             it moves that camera (as the Cameras panel's pad does); in free
-            orbit it glides the view. Bottom-right, clear of the inspector. */}
+            orbit it glides the view. Bottom-right, clear of the inspector; in
+            the editor, left of the Help button (§129). Present has none. */}
         {!drawingView && (
-          <div className="absolute bottom-3 right-3 rounded-xl border border-border bg-card/90 p-1.5 shadow-card backdrop-blur-sm">
+          <div className={cn('absolute bottom-3 rounded-xl border border-border bg-card/90 p-1.5 shadow-card backdrop-blur-sm', inspectorOverlay ? 'right-3' : 'right-24')}>
             {lockedCamera ? (
               <CameraMovePad compact cameraId={lockedCamera.id} />
             ) : (
