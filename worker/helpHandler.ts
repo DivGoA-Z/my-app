@@ -184,25 +184,53 @@ export async function handleHelp(
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
   let buffer = '';
-  const stream = new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      const { value, done } = await reader.read();
-      if (done) {
-        controller.close();
-        return;
-      }
-      buffer += decoder.decode(value, { stream: true });
-      const parsed = ollama ? parseNdjsonChunk(buffer) : parseSseChunk(buffer);
-      buffer = parsed.rest;
-      for (const t of parsed.texts) controller.enqueue(encoder.encode(t));
-      if (parsed.done) {
-        controller.close();
-        await reader.cancel();
-      }
-    },
-    cancel() {
-      return reader.cancel();
-    },
-  });
-  return new Response(stream, { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
-}
+const stream = new ReadableStream<Uint8Array>({
+  async pull(controller) {
+    const { value, done } = await reader.read();
+
+    if (done) {
+      controller.close();
+      return;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+
+    const parsed = ollama
+      ? parseNdjsonChunk(buffer)
+      : parseSseChunk(buffer);
+
+    buffer = parsed.rest;
+
+    // Temporary debugging logs
+    console.log(
+      'Help upstream content-type:',
+      upstream.headers.get('content-type')
+    );
+
+    console.log('Help parsed chunk:', {
+      textCount: parsed.texts.length,
+      done: parsed.done,
+      remainingBufferLength: buffer.length,
+    });
+
+    for (const t of parsed.texts) {
+      controller.enqueue(encoder.encode(t));
+    }
+
+    if (parsed.done) {
+      controller.close();
+      await reader.cancel();
+    }
+  },
+
+  cancel() {
+    return reader.cancel();
+  },
+});
+
+return new Response(stream, {
+  headers: {
+    'content-type': 'text/plain; charset=utf-8',
+    'cache-control': 'no-store',
+  },
+});
