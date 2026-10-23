@@ -234,3 +234,4 @@ return new Response(stream, {
     'cache-control': 'no-store',
   },
 });
+}
