@@ -12,7 +12,7 @@
 // Pure fetch/streams code, no Cloudflare or Node specifics, so the same
 // function runs in the deployed Worker (worker/index.ts) and in the Vite
 // dev server against a local Ollama (vite.config.ts).
-///
+//
 // The upstream is any OpenAI-compatible chat endpoint: RunPod's vLLM
 // worker (https://api.runpod.ai/v2/<endpoint-id>/openai/v1) or Ollama
 // (http://localhost:11434/v1).
