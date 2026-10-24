@@ -37,5 +37,16 @@
 		// The app has no URL routes today, but if one is ever opened
 		// directly, serve the app rather than a 404.
 		"not_found_handling": "single-page-application"
+	},
+	// Preview builds need this block (without it the branch build fails),
+	// and its vars REPLACE the branch's dashboard variables (§131). Secrets
+	// (HELP_LLM_API_KEY, and the two SUPABASE_* — public, but kept out of
+	// the repo) are set as Secrets for the preview in the dashboard.
+	"previews": {
+		"vars": {
+			"HELP_LLM_BASE_URL": "https://api.runpod.ai/v2/e8h850u1vu7a4g/openai/v1",
+			"HELP_LLM_MODEL": "Qwen/Qwen3-4B-Instruct-2507",
+			"HELP_LLM_PROVIDER": "openai"
+		}
 	}
 }
