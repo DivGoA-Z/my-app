@@ -92,7 +92,11 @@ export function parseSseChunk(buffer: string): { texts: string[]; rest: string; 
       continue;
     }
     try {
-      const text = JSON.parse(data)?.choices?.[0]?.delta?.content;
+      let obj = JSON.parse(data);
+      // Some proxies send each event as a JSON string holding the JSON.
+      if (typeof obj === 'string') obj = JSON.parse(obj);
+      const choice = obj?.choices?.[0];
+      const text = choice?.delta?.content ?? choice?.message?.content ?? choice?.text;
       if (typeof text === 'string' && text) texts.push(text);
     } catch {
       // A keep-alive or malformed line: skip it.
@@ -180,58 +184,97 @@ export async function handleHelp(
   if (!upstream.ok || !upstream.body) return json(502, `The assistant isn’t available right now (${upstream.status}).`);
 
   // Upstream SSE → plain text, so the browser just appends what arrives.
+  //
+  // The first real RunPod test (24 Oct 2026) streamed back 200 with no text
+  // at all, while the same code streamed fine from Ollama and from a fake
+  // vLLM in workerd. So: keep the start of the raw reply, and if no text
+  // came out of it, read it as one whole reply (a non-streamed answer, or an
+  // error sent with a 200) — and failing that, say what arrived instead of
+  // an empty answer.
   const reader = upstream.body.getReader();
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
+  const contentType = upstream.headers.get('content-type') ?? '';
   let buffer = '';
-const stream = new ReadableStream<Uint8Array>({
-  async pull(controller) {
-    const { value, done } = await reader.read();
-
-    if (done) {
-      controller.close();
-      return;
+  let raw = '';
+  let sentAny = false;
+  const emit = (controller: ReadableStreamDefaultController<Uint8Array>, texts: string[]) => {
+    for (const t of texts) controller.enqueue(encoder.encode(t));
+    if (texts.length) sentAny = true;
+  };
+  const parse = (text: string) => (ollama ? parseNdjsonChunk(text) : parseSseChunk(text));
+  const finish = (controller: ReadableStreamDefaultController<Uint8Array>) => {
+    // A last line without a newline after it.
+    if (buffer.trim()) emit(controller, parse(buffer + '\n').texts);
+    buffer = '';
+    if (!sentAny) {
+      const whole = textFromWholeReply(raw);
+      if (whole) emit(controller, [whole]);
+      else {
+        console.error('Help: no text in the model reply', { status: upstream.status, contentType, start: raw.slice(0, 500) });
+        emit(controller, [`The assistant replied, but with no answer text. (${contentType || 'no content type'}: ${raw.slice(0, 160) || 'empty'})`]);
+      }
     }
+    controller.close();
+  };
+  const stream = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      // Read until there's something to send: a chunk can carry no text
+      // (vLLM's first event is an empty "role" delta), and a pull that
+      // enqueues nothing isn't always called again.
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) return finish(controller);
+        const chunk = decoder.decode(value, { stream: true });
+        if (raw.length < RAW_KEEP) raw += chunk.slice(0, RAW_KEEP - raw.length);
+        buffer += chunk;
+        const parsed = parse(buffer);
+        buffer = parsed.rest;
+        emit(controller, parsed.texts);
+        if (parsed.done) {
+          await reader.cancel();
+          return finish(controller);
+        }
+        if (parsed.texts.length) return;
+      }
+    },
+    cancel() {
+      return reader.cancel();
+    },
+  });
+  return new Response(stream, { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
+}
 
-    buffer += decoder.decode(value, { stream: true });
+// How much of the raw reply to keep for the fallback below.
+const RAW_KEEP = 4000;
 
-    const parsed = ollama
-      ? parseNdjsonChunk(buffer)
-      : parseSseChunk(buffer);
-
-    buffer = parsed.rest;
-
-    // Temporary debugging logs
-    console.log(
-      'Help upstream content-type:',
-      upstream.headers.get('content-type')
-    );
-
-    console.log('Help parsed chunk:', {
-      textCount: parsed.texts.length,
-      done: parsed.done,
-      remainingBufferLength: buffer.length,
-    });
-
-    for (const t of parsed.texts) {
-      controller.enqueue(encoder.encode(t));
+// The answer in a reply that wasn't streamed as expected: one OpenAI-style
+// JSON object (choices[0].message.content or .text), RunPod's own job
+// wrapper ({output: ...}), or an error. '' if none of these.
+export function textFromWholeReply(raw: string): string {
+  const body = raw.trim();
+  if (!body) return '';
+  let obj: unknown;
+  try {
+    obj = JSON.parse(body);
+  } catch {
+    return '';
+  }
+  const pick = (o: unknown): string => {
+    if (typeof o === 'string') return o;
+    if (Array.isArray(o)) return o.map(pick).join('');
+    if (!o || typeof o !== 'object') return '';
+    const r = o as Record<string, unknown>;
+    const choice = Array.isArray(r.choices) ? (r.choices[0] as Record<string, unknown> | undefined) : undefined;
+    if (choice) {
+      const msg = choice.message as { content?: unknown } | undefined;
+      const delta = choice.delta as { content?: unknown } | undefined;
+      const t = msg?.content ?? delta?.content ?? choice.text ?? choice.tokens;
+      return pick(t);
     }
-
-    if (parsed.done) {
-      controller.close();
-      await reader.cancel();
-    }
-  },
-
-  cancel() {
-    return reader.cancel();
-  },
-});
-
-return new Response(stream, {
-  headers: {
-    'content-type': 'text/plain; charset=utf-8',
-    'cache-control': 'no-store',
-  },
-});
+    if ('output' in r) return pick(r.output);
+    if (r.error) return `The assistant’s model returned an error: ${typeof r.error === 'string' ? r.error : JSON.stringify(r.error).slice(0, 200)}`;
+    return '';
+  };
+  return pick(obj);
 }

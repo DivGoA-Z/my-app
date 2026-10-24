@@ -7921,3 +7921,34 @@ floats like everywhere else:
 - The test's keyword checks were too weak to catch these: answers
   saying "no undo" passed because they contained "undo". They now also
   check for wrong phrases.
+
+## 131. First RunPod test: a 200 with no answer; dashboard variables
+
+**What happened (24 Oct 2026).** On the `test/help-assistant-preview`
+preview, a signed-in question to `/api/help` got 200 and an empty
+answer, after about 40 s cold and 3 s warm. The panel showed "No answer
+came back".
+- The same relay streamed fine from Ollama, and in workerd (`wrangler
+  dev`) from a fake vLLM-style stream. So whatever RunPod sends isn't a
+  standard OpenAI stream.
+- We couldn't see it: the RunPod key lives only in Cloudflare, and
+  `wrangler tail` doesn't reach previews.
+
+**Change.**
+- The relay keeps the start of the raw reply, and the stream is read
+  until there's text.
+- With no text, it reads the reply as a whole: an OpenAI JSON answer,
+  RunPod's `{output: …}` job wrapper, or an error.
+- Failing that, it answers with what arrived ("replied, but with no
+  answer text (content type: start of body)") and logs it, instead of a
+  blank. The next test shows the cause instead of hiding it.
+- Also tolerated: events as JSON strings, `message.content` / `text`,
+  and a last line without a newline.
+
+**Config.**
+- `keep_vars: true`: a deploy replaces dashboard-set variables with the
+  file's (none), so production would lose the `HELP_LLM_*` values on
+  every push.
+- `observability.enabled`: logs, previews included, in the dashboard.
+- The production version deployed on 13 Oct has no variables or secrets
+  at all, so the live site still answers "isn't set up yet".

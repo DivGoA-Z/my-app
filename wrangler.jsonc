@@ -3,22 +3,46 @@
 // server code. Supabase settings are BUILD variables in the Cloudflare
 // dashboard (VITE_* values are baked in at build time), not set here.
 {
-  "name": "my-app",
-  "compatibility_date": "2025-09-01",
-  // Serve at <name>.<account>.workers.dev. The first deploy came up with
-  // that address disabled; with this set, every deploy keeps it on.
-  "workers_dev": true,
-  // The help assistant's relay (§129, worker/index.ts). Only /api/* runs it;
-  // everything else is served from ./dist as before.
-  "main": "./worker/index.ts",
-  // The assistant's guide is bundled into the Worker as text.
-  "rules": [{ "type": "Text", "globs": ["**/*.md"], "fallthrough": true }],
-  "assets": {
-    "directory": "./dist",
-    "binding": "ASSETS",
-    "run_worker_first": ["/api/*"],
-    // The app has no URL routes today, but if one is ever opened
-    // directly, serve the app rather than a 404.
-    "not_found_handling": "single-page-application"
-  }
+	"name": "my-app",
+	"compatibility_date": "2025-09-01",
+	// Serve at <name>.<account>.workers.dev. The first deploy came up with
+	// that address disabled; with this set, every deploy keeps it on.
+	"workers_dev": true,
+	// Keep the variables set in the Cloudflare dashboard (HELP_LLM_*,
+	// SUPABASE_*): without this, every deploy replaces them with the ones in
+	// this file, i.e. none (§131).
+	"keep_vars": true,
+	// Keep the Worker's logs in the dashboard (Workers → my-app → Logs),
+	// previews included; `wrangler tail` doesn't reach previews.
+	"observability": { "enabled": true },
+	// The help assistant's relay (§129, worker/index.ts). Only /api/* runs it;
+	// everything else is served from ./dist as before.
+	"main": "./worker/index.ts",
+	// The assistant's guide is bundled into the Worker as text.
+	"rules": [
+		{
+			"type": "Text",
+			"globs": [
+				"**/*.md"
+			],
+			"fallthrough": true
+		}
+	],
+	"assets": {
+		"directory": "./dist",
+		"binding": "ASSETS",
+		"run_worker_first": [
+			"/api/*"
+		],
+		// The app has no URL routes today, but if one is ever opened
+		// directly, serve the app rather than a 404.
+		"not_found_handling": "single-page-application"
+	},
+	"previews": {
+		"vars": {
+			"HELP_LLM_BASE_URL": "https://api.runpod.ai/v2/e8h850u1vu7a4g/openai/v1",
+			"HELP_LLM_MODEL": "Qwen/Qwen3-4B-Instruct-2507",
+			"HELP_LLM_PROVIDER": "openai"
+		}
+	}
 }
