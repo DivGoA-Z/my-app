@@ -7952,3 +7952,15 @@ came back".
 - `observability.enabled`: logs, previews included, in the dashboard.
 - The production version deployed on 13 Oct has no variables or secrets
   at all, so the live site still answers "isn't set up yet".
+
+**Follow-up, same day.** With sign-in fixed, the new message showed the
+reply exactly: `text/event-stream`, **zero bytes**. RunPod accepted the
+request, then closed the stream with nothing in it. That's typical of the
+model failing inside RunPod's worker, where the streaming wrapper drops
+the error. The relay now asks once more **without streaming** whenever a
+stream is empty: that call returns the whole answer, or the real error
+(status and message), which is shown instead.
+
+Config lesson: the `previews` block is required for branch builds, and
+its `vars` replace the branch's dashboard variables. Dashboard
+**Secrets** survive, so `SUPABASE_*` and the API key are Secrets there.

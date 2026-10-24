@@ -157,6 +157,26 @@ describe('replies that don’t stream as expected (first RunPod test, §131)', (
     expect(await run(sse(`data: ${JSON.stringify(JSON.stringify({ choices: [{ delta: { content: 'Hi' } }] }))}\n\n`))).toBe('Hi');
   });
 
+  it('asks again without streaming when the stream comes back empty (RunPod)', async () => {
+    const f = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(sse())
+      .mockResolvedValueOnce(new Response('{"choices":[{"message":{"content":"Press **Quote**."}}]}'));
+    const res = await handleHelp(ask({ messages: [{ role: 'user', content: 'hi' }] }), env, 'G', { skipAuth: true });
+    expect(await res.text()).toBe('Press **Quote**.');
+    expect(JSON.parse(f.mock.calls[0][1]!.body as string).stream).toBe(true);
+    expect(JSON.parse(f.mock.calls[1][1]!.body as string).stream).toBe(false);
+  });
+
+  it('shows the real error the empty stream hid', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(sse())
+      .mockResolvedValueOnce(new Response('{"error":"prompt is longer than max_model_len 4096"}', { status: 400 }));
+    const res = await handleHelp(ask({ messages: [{ role: 'user', content: 'hi' }] }), env, 'G', { skipAuth: true });
+    expect(await res.text()).toMatch(/error \(400\).*max_model_len 4096/);
+  });
+
   it('says what arrived instead of answering with nothing', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const text = await run(new Response('{"status":"IN_QUEUE"}', { headers: { 'content-type': 'application/json' } }));

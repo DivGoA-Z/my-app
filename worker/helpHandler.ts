@@ -158,9 +158,8 @@ export async function handleHelp(
   const ollama = env.HELP_LLM_PROVIDER === 'ollama';
   const base = env.HELP_LLM_BASE_URL.replace(/\/$/, '');
   const messages = buildMessages(guide, body);
-  let upstream: Response;
-  try {
-    upstream = await fetch(ollama ? `${base}/api/chat` : `${base}/chat/completions`, {
+  const callModel = (stream: boolean) =>
+    fetch(ollama ? `${base}/api/chat` : `${base}/chat/completions`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -171,12 +170,15 @@ export async function handleHelp(
           ? {
               model: env.HELP_LLM_MODEL,
               messages,
-              stream: true,
+              stream,
               options: { temperature: 0.2, num_predict: MAX_ANSWER_TOKENS, num_ctx: CONTEXT_TOKENS },
             }
-          : { model: env.HELP_LLM_MODEL, messages, stream: true, temperature: 0.2, max_tokens: MAX_ANSWER_TOKENS }
+          : { model: env.HELP_LLM_MODEL, messages, stream, temperature: 0.2, max_tokens: MAX_ANSWER_TOKENS }
       ),
     });
+  let upstream: Response;
+  try {
+    upstream = await callModel(true);
   } catch {
     return json(502, 'The assistant can’t be reached right now.');
   }
@@ -203,10 +205,25 @@ export async function handleHelp(
     if (texts.length) sentAny = true;
   };
   const parse = (text: string) => (ollama ? parseNdjsonChunk(text) : parseSseChunk(text));
-  const finish = (controller: ReadableStreamDefaultController<Uint8Array>) => {
+  const finish = async (controller: ReadableStreamDefaultController<Uint8Array>) => {
     // A last line without a newline after it.
     if (buffer.trim()) emit(controller, parse(buffer + '\n').texts);
     buffer = '';
+    // An EMPTY stream (RunPod, 24 Oct 2026: 200, text/event-stream, no
+    // bytes): ask once more without streaming, which returns the whole
+    // answer — or the real error, which the stream swallowed.
+    if (!sentAny && !raw.trim()) {
+      try {
+        const again = await callModel(false);
+        raw = (await again.text()).slice(0, RAW_KEEP);
+        if (!again.ok) {
+          console.error('Help: non-streamed retry failed', { status: again.status, start: raw.slice(0, 500) });
+          emit(controller, [`The assistant’s model returned an error (${again.status}): ${raw.slice(0, 240) || 'empty'}`]);
+        }
+      } catch {
+        // Fall through to the message below.
+      }
+    }
     if (!sentAny) {
       const whole = textFromWholeReply(raw);
       if (whole) emit(controller, [whole]);
