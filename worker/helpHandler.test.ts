@@ -130,3 +130,57 @@ describe('a local Ollama (its own API)', () => {
     expect((await res.json()).error).toMatch(/isn’t available yet \(not found\)/);
   });
 });
+
+describe('replies that don’t stream as expected (first RunPod test, §131)', () => {
+  const run = async (upstream: Response) => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(upstream);
+    const res = await handleHelp(ask({ messages: [{ role: 'user', content: 'hi' }] }), env, 'G', { skipAuth: true });
+    return res.text();
+  };
+
+  it('skips vLLM’s empty first event and keeps reading', async () => {
+    expect(
+      await run(sse('data: {"choices":[{"delta":{"role":"assistant","content":""}}]}\n\n', 'data: {"choices":[{"delta":{"content":"Open **Quote**."}}]}\n\ndata: [DONE]\n\n'))
+    ).toBe('Open **Quote**.');
+  });
+
+  it('reads a last line with no newline after it', async () => {
+    expect(await run(sse('data: {"choices":[{"delta":{"content":"Yes."}}]}'))).toBe('Yes.');
+  });
+
+  it('reads an answer that came back whole, not streamed', async () => {
+    expect(await run(sse('{"choices":[{"message":{"role":"assistant","content":"Press **Undo**."}}]}'))).toBe('Press **Undo**.');
+    expect(await run(sse('{"id":"j1","status":"COMPLETED","output":[{"choices":[{"tokens":["Press ","**Undo**."]}]}]}'))).toBe('Press **Undo**.');
+  });
+
+  it('reads events sent as JSON strings', async () => {
+    expect(await run(sse(`data: ${JSON.stringify(JSON.stringify({ choices: [{ delta: { content: 'Hi' } }] }))}\n\n`))).toBe('Hi');
+  });
+
+  it('asks again without streaming when the stream comes back empty (RunPod)', async () => {
+    const f = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(sse())
+      .mockResolvedValueOnce(new Response('{"choices":[{"message":{"content":"Press **Quote**."}}]}'));
+    const res = await handleHelp(ask({ messages: [{ role: 'user', content: 'hi' }] }), env, 'G', { skipAuth: true });
+    expect(await res.text()).toBe('Press **Quote**.');
+    expect(JSON.parse(f.mock.calls[0][1]!.body as string).stream).toBe(true);
+    expect(JSON.parse(f.mock.calls[1][1]!.body as string).stream).toBe(false);
+  });
+
+  it('shows the real error the empty stream hid', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(sse())
+      .mockResolvedValueOnce(new Response('{"error":"prompt is longer than max_model_len 4096"}', { status: 400 }));
+    const res = await handleHelp(ask({ messages: [{ role: 'user', content: 'hi' }] }), env, 'G', { skipAuth: true });
+    expect(await res.text()).toMatch(/error \(400\).*max_model_len 4096/);
+  });
+
+  it('says what arrived instead of answering with nothing', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const text = await run(new Response('{"status":"IN_QUEUE"}', { headers: { 'content-type': 'application/json' } }));
+    expect(text).toMatch(/no answer text.*IN_QUEUE/);
+    expect(await run(sse('{"error":"model overloaded"}'))).toMatch(/returned an error: model overloaded/);
+  });
+});

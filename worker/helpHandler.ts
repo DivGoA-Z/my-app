@@ -92,7 +92,11 @@ export function parseSseChunk(buffer: string): { texts: string[]; rest: string; 
       continue;
     }
     try {
-      const text = JSON.parse(data)?.choices?.[0]?.delta?.content;
+      let obj = JSON.parse(data);
+      // Some proxies send each event as a JSON string holding the JSON.
+      if (typeof obj === 'string') obj = JSON.parse(obj);
+      const choice = obj?.choices?.[0];
+      const text = choice?.delta?.content ?? choice?.message?.content ?? choice?.text;
       if (typeof text === 'string' && text) texts.push(text);
     } catch {
       // A keep-alive or malformed line: skip it.
@@ -154,9 +158,8 @@ export async function handleHelp(
   const ollama = env.HELP_LLM_PROVIDER === 'ollama';
   const base = env.HELP_LLM_BASE_URL.replace(/\/$/, '');
   const messages = buildMessages(guide, body);
-  let upstream: Response;
-  try {
-    upstream = await fetch(ollama ? `${base}/api/chat` : `${base}/chat/completions`, {
+  const callModel = (stream: boolean) =>
+    fetch(ollama ? `${base}/api/chat` : `${base}/chat/completions`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -167,12 +170,15 @@ export async function handleHelp(
           ? {
               model: env.HELP_LLM_MODEL,
               messages,
-              stream: true,
+              stream,
               options: { temperature: 0.2, num_predict: MAX_ANSWER_TOKENS, num_ctx: CONTEXT_TOKENS },
             }
-          : { model: env.HELP_LLM_MODEL, messages, stream: true, temperature: 0.2, max_tokens: MAX_ANSWER_TOKENS }
+          : { model: env.HELP_LLM_MODEL, messages, stream, temperature: 0.2, max_tokens: MAX_ANSWER_TOKENS }
       ),
     });
+  let upstream: Response;
+  try {
+    upstream = await callModel(true);
   } catch {
     return json(502, 'The assistant can’t be reached right now.');
   }
@@ -180,24 +186,73 @@ export async function handleHelp(
   if (!upstream.ok || !upstream.body) return json(502, `The assistant isn’t available right now (${upstream.status}).`);
 
   // Upstream SSE → plain text, so the browser just appends what arrives.
+  //
+  // The first real RunPod test (24 Oct 2026) streamed back 200 with no text
+  // at all, while the same code streamed fine from Ollama and from a fake
+  // vLLM in workerd. So: keep the start of the raw reply, and if no text
+  // came out of it, read it as one whole reply (a non-streamed answer, or an
+  // error sent with a 200) — and failing that, say what arrived instead of
+  // an empty answer.
   const reader = upstream.body.getReader();
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
+  const contentType = upstream.headers.get('content-type') ?? '';
   let buffer = '';
+  let raw = '';
+  let sentAny = false;
+  const emit = (controller: ReadableStreamDefaultController<Uint8Array>, texts: string[]) => {
+    for (const t of texts) controller.enqueue(encoder.encode(t));
+    if (texts.length) sentAny = true;
+  };
+  const parse = (text: string) => (ollama ? parseNdjsonChunk(text) : parseSseChunk(text));
+  const finish = async (controller: ReadableStreamDefaultController<Uint8Array>) => {
+    // A last line without a newline after it.
+    if (buffer.trim()) emit(controller, parse(buffer + '\n').texts);
+    buffer = '';
+    // An EMPTY stream (RunPod, 24 Oct 2026: 200, text/event-stream, no
+    // bytes): ask once more without streaming, which returns the whole
+    // answer — or the real error, which the stream swallowed.
+    if (!sentAny && !raw.trim()) {
+      try {
+        const again = await callModel(false);
+        raw = (await again.text()).slice(0, RAW_KEEP);
+        if (!again.ok) {
+          console.error('Help: non-streamed retry failed', { status: again.status, start: raw.slice(0, 500) });
+          emit(controller, [`The assistant’s model returned an error (${again.status}): ${raw.slice(0, 240) || 'empty'}`]);
+        }
+      } catch {
+        // Fall through to the message below.
+      }
+    }
+    if (!sentAny) {
+      const whole = textFromWholeReply(raw);
+      if (whole) emit(controller, [whole]);
+      else {
+        console.error('Help: no text in the model reply', { status: upstream.status, contentType, start: raw.slice(0, 500) });
+        emit(controller, [`The assistant replied, but with no answer text. (${contentType || 'no content type'}: ${raw.slice(0, 160) || 'empty'})`]);
+      }
+    }
+    controller.close();
+  };
   const stream = new ReadableStream<Uint8Array>({
     async pull(controller) {
-      const { value, done } = await reader.read();
-      if (done) {
-        controller.close();
-        return;
-      }
-      buffer += decoder.decode(value, { stream: true });
-      const parsed = ollama ? parseNdjsonChunk(buffer) : parseSseChunk(buffer);
-      buffer = parsed.rest;
-      for (const t of parsed.texts) controller.enqueue(encoder.encode(t));
-      if (parsed.done) {
-        controller.close();
-        await reader.cancel();
+      // Read until there's something to send: a chunk can carry no text
+      // (vLLM's first event is an empty "role" delta), and a pull that
+      // enqueues nothing isn't always called again.
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) return finish(controller);
+        const chunk = decoder.decode(value, { stream: true });
+        if (raw.length < RAW_KEEP) raw += chunk.slice(0, RAW_KEEP - raw.length);
+        buffer += chunk;
+        const parsed = parse(buffer);
+        buffer = parsed.rest;
+        emit(controller, parsed.texts);
+        if (parsed.done) {
+          await reader.cancel();
+          return finish(controller);
+        }
+        if (parsed.texts.length) return;
       }
     },
     cancel() {
@@ -205,4 +260,38 @@ export async function handleHelp(
     },
   });
   return new Response(stream, { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
+}
+
+// How much of the raw reply to keep for the fallback below.
+const RAW_KEEP = 4000;
+
+// The answer in a reply that wasn't streamed as expected: one OpenAI-style
+// JSON object (choices[0].message.content or .text), RunPod's own job
+// wrapper ({output: ...}), or an error. '' if none of these.
+export function textFromWholeReply(raw: string): string {
+  const body = raw.trim();
+  if (!body) return '';
+  let obj: unknown;
+  try {
+    obj = JSON.parse(body);
+  } catch {
+    return '';
+  }
+  const pick = (o: unknown): string => {
+    if (typeof o === 'string') return o;
+    if (Array.isArray(o)) return o.map(pick).join('');
+    if (!o || typeof o !== 'object') return '';
+    const r = o as Record<string, unknown>;
+    const choice = Array.isArray(r.choices) ? (r.choices[0] as Record<string, unknown> | undefined) : undefined;
+    if (choice) {
+      const msg = choice.message as { content?: unknown } | undefined;
+      const delta = choice.delta as { content?: unknown } | undefined;
+      const t = msg?.content ?? delta?.content ?? choice.text ?? choice.tokens;
+      return pick(t);
+    }
+    if ('output' in r) return pick(r.output);
+    if (r.error) return `The assistant’s model returned an error: ${typeof r.error === 'string' ? r.error : JSON.stringify(r.error).slice(0, 200)}`;
+    return '';
+  };
+  return pick(obj);
 }
