@@ -17,7 +17,9 @@
 // worker (https://api.runpod.ai/v2/<endpoint-id>/openai/v1) or Ollama
 // (http://localhost:11434/v1).
 
-export interface HelpEnv {
+import { checkUsage, estimateTokens, recordUsage, signedInToken, type SupabaseEnv } from './usage.ts';
+
+export interface HelpEnv extends SupabaseEnv {
   // OpenAI-compatible base URL, ending in /v1.
   HELP_LLM_BASE_URL?: string;
   HELP_LLM_MODEL?: string;
@@ -28,9 +30,6 @@ export interface HelpEnv {
   // guide. Otherwise Ollama's default context silently cut the guide off
   // and the answers came out long and wrong (§129). Default: OpenAI-compatible.
   HELP_LLM_PROVIDER?: 'openai' | 'ollama';
-  // To check the caller's sign-in. Public values (the browser has them).
-  SUPABASE_URL?: string;
-  SUPABASE_ANON_KEY?: string;
 }
 
 export interface HelpTurn {
@@ -78,11 +77,12 @@ export function validateBody(body: unknown): body is HelpRequestBody {
 // Text from an OpenAI-style streaming response ("data: {...}" lines, then
 // "data: [DONE]"). Lines can arrive split across chunks, so the caller
 // keeps the unfinished tail and passes it back in.
-export function parseSseChunk(buffer: string): { texts: string[]; rest: string; done: boolean } {
+export function parseSseChunk(buffer: string): { texts: string[]; rest: string; done: boolean; tokens?: number } {
   const lines = buffer.split('\n');
   const rest = lines.pop() ?? '';
   const texts: string[] = [];
   let done = false;
+  let tokens: number | undefined;
   for (const raw of lines) {
     const line = raw.trim();
     if (!line.startsWith('data:')) continue;
@@ -98,43 +98,38 @@ export function parseSseChunk(buffer: string): { texts: string[]; rest: string; 
       const choice = obj?.choices?.[0];
       const text = choice?.delta?.content ?? choice?.message?.content ?? choice?.text;
       if (typeof text === 'string' && text) texts.push(text);
+      // The last event, with stream_options.include_usage (§132).
+      if (typeof obj?.usage?.total_tokens === 'number') tokens = obj.usage.total_tokens;
     } catch {
       // A keep-alive or malformed line: skip it.
     }
   }
-  return { texts, rest, done };
+  return { texts, rest, done, tokens };
 }
 
 // The same for Ollama's own API: one JSON object per line.
-export function parseNdjsonChunk(buffer: string): { texts: string[]; rest: string; done: boolean } {
+export function parseNdjsonChunk(buffer: string): { texts: string[]; rest: string; done: boolean; tokens?: number } {
   const lines = buffer.split('\n');
   const rest = lines.pop() ?? '';
   const texts: string[] = [];
   let done = false;
+  let tokens: number | undefined;
   for (const line of lines) {
     if (!line.trim()) continue;
     try {
       const obj = JSON.parse(line);
       if (typeof obj?.message?.content === 'string' && obj.message.content) texts.push(obj.message.content);
       if (obj?.done) done = true;
+      if (typeof obj?.eval_count === 'number') tokens = (obj.prompt_eval_count ?? 0) + obj.eval_count;
     } catch {
       // skip
     }
   }
-  return { texts, rest, done };
+  return { texts, rest, done, tokens };
 }
 
 const json = (status: number, message: string) =>
   new Response(JSON.stringify({ error: message }), { status, headers: { 'content-type': 'application/json' } });
-
-async function signedIn(request: Request, env: HelpEnv): Promise<boolean> {
-  const token = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
-  if (!token || !env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) return false;
-  const res = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
-    headers: { authorization: `Bearer ${token}`, apikey: env.SUPABASE_ANON_KEY },
-  });
-  return res.ok;
-}
 
 export async function handleHelp(
   request: Request,
@@ -145,7 +140,9 @@ export async function handleHelp(
 ): Promise<Response> {
   if (request.method !== 'POST') return json(405, 'Use POST.');
   if (!env.HELP_LLM_BASE_URL || !env.HELP_LLM_MODEL) return json(503, 'The help assistant isn’t set up yet.');
-  if (!skipAuth && !(await signedIn(request, env))) return json(401, 'Please sign in again.');
+  // skipAuth (the dev server, this machine only) also skips the limits.
+  const token = skipAuth ? null : await signedInToken(request, env);
+  if (!skipAuth && !token) return json(401, 'Please sign in again.');
 
   let body: unknown;
   try {
@@ -154,6 +151,10 @@ export async function handleHelp(
     return json(400, 'Bad request.');
   }
   if (!validateBody(body)) return json(400, 'Ask a question first.');
+  if (token) {
+    const allowance = await checkUsage(env, token, 'help');
+    if (!allowance.allowed) return json(429, allowance.reason ?? 'Your business has reached its AI limit.');
+  }
 
   const ollama = env.HELP_LLM_PROVIDER === 'ollama';
   const base = env.HELP_LLM_BASE_URL.replace(/\/$/, '');
@@ -173,7 +174,15 @@ export async function handleHelp(
               stream,
               options: { temperature: 0.2, num_predict: MAX_ANSWER_TOKENS, num_ctx: CONTEXT_TOKENS },
             }
-          : { model: env.HELP_LLM_MODEL, messages, stream, temperature: 0.2, max_tokens: MAX_ANSWER_TOKENS }
+          : {
+              model: env.HELP_LLM_MODEL,
+              messages,
+              stream,
+              temperature: 0.2,
+              max_tokens: MAX_ANSWER_TOKENS,
+              // The token count arrives in the last event (§132).
+              ...(stream ? { stream_options: { include_usage: true } } : {}),
+            }
       ),
     });
   let upstream: Response;
@@ -200,11 +209,20 @@ export async function handleHelp(
   let buffer = '';
   let raw = '';
   let sentAny = false;
+  let answerChars = 0;
+  let reportedTokens: number | undefined;
   const emit = (controller: ReadableStreamDefaultController<Uint8Array>, texts: string[]) => {
-    for (const t of texts) controller.enqueue(encoder.encode(t));
+    for (const t of texts) {
+      controller.enqueue(encoder.encode(t));
+      answerChars += t.length;
+    }
     if (texts.length) sentAny = true;
   };
-  const parse = (text: string) => (ollama ? parseNdjsonChunk(text) : parseSseChunk(text));
+  const parse = (text: string) => {
+    const parsed = ollama ? parseNdjsonChunk(text) : parseSseChunk(text);
+    if (parsed.tokens !== undefined) reportedTokens = parsed.tokens;
+    return parsed;
+  };
   const finish = async (controller: ReadableStreamDefaultController<Uint8Array>) => {
     // A last line without a newline after it.
     if (buffer.trim()) emit(controller, parse(buffer + '\n').texts);
@@ -224,6 +242,7 @@ export async function handleHelp(
         // Fall through to the message below.
       }
     }
+    if (reportedTokens === undefined) reportedTokens = tokensFromWholeReply(raw);
     if (!sentAny) {
       const whole = textFromWholeReply(raw);
       if (whole) emit(controller, [whole]);
@@ -231,6 +250,15 @@ export async function handleHelp(
         console.error('Help: no text in the model reply', { status: upstream.status, contentType, start: raw.slice(0, 500) });
         emit(controller, [`The assistant replied, but with no answer text. (${contentType || 'no content type'}: ${raw.slice(0, 160) || 'empty'})`]);
       }
+    }
+    // Usage (§132): what the model reported, else an estimate.
+    if (token) {
+      await recordUsage(env, token, {
+        kind: 'help',
+        images: 0,
+        tokens: reportedTokens ?? estimateTokens(...messages.map((m) => m.content)) + Math.ceil(answerChars / 4),
+        model: env.HELP_LLM_MODEL ?? '',
+      });
     }
     controller.close();
   };
@@ -260,6 +288,17 @@ export async function handleHelp(
     },
   });
   return new Response(stream, { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
+}
+
+// The token count in a whole (non-streamed) OpenAI-style reply.
+export function tokensFromWholeReply(raw: string): number | undefined {
+  try {
+    const obj = JSON.parse(raw.trim());
+    const t = obj?.usage?.total_tokens ?? obj?.output?.[0]?.usage?.total_tokens;
+    return typeof t === 'number' ? t : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 // How much of the raw reply to keep for the fallback below.

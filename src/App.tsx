@@ -18,11 +18,13 @@ import { AppShell, PageHeader, type ShellPage } from './components/shell/AppShel
 import { HomePage } from './components/home/HomePage';
 import { CustomersPage } from './components/customers/CustomersPage';
 import { ProductionPage } from './components/production/ProductionPage';
+import { UsagePage } from './components/admin/UsagePage';
 import { SettingsPage } from './components/settings/SettingsPage';
 import { useLayoutStore } from './store/layoutStore';
 import { useAuthStore } from './store/authStore';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { AwaitingAccessScreen } from './components/auth/AwaitingAccessScreen';
+import { SetNewPasswordScreen } from './components/auth/SetNewPasswordScreen';
 import { useUndoRedoShortcuts } from './hooks/useUndoRedoShortcuts';
 import { useSelectionShortcuts } from './hooks/useSelectionShortcuts';
 import { Toaster } from './components/ui/sonner';
@@ -46,6 +48,7 @@ type View =
   | 'rates'
   | 'workshop'
   | 'settings'
+  | 'usage'
   | 'canvas'
   | 'designer'
   | 'present'
@@ -60,6 +63,7 @@ const SCREEN_NAMES: Record<View, string> = {
   rates: 'Rate card',
   workshop: 'Workshop',
   settings: 'Settings',
+  usage: 'Usage',
   canvas: 'Design editor',
   designer: 'Cabinet Designer',
   present: 'Present',
@@ -97,6 +101,7 @@ function App() {
   const loadInventory = useLayoutStore((s) => s.loadInventory);
 
   const session = useAuthStore((s) => s.session);
+  const passwordRecovery = useAuthStore((s) => s.passwordRecovery);
   // Keyed on the USER, not the session object. Supabase hands back a new
   // session object on every auth event — including when the browser tab
   // regains focus and on the hourly token refresh — and keying the
@@ -141,6 +146,11 @@ function App() {
 
   if (!session) {
     return <LoginScreen />;
+  }
+
+  // Opened a password-reset link (§133): a new password before anything else.
+  if (passwordRecovery) {
+    return <SetNewPasswordScreen />;
   }
 
   // Signed in but in no business: a new sign-up awaiting approval (§106).
@@ -244,7 +254,8 @@ function App() {
     view === 'production' ||
     view === 'rates' ||
     view === 'workshop' ||
-    view === 'settings'
+    view === 'settings' ||
+    view === 'usage'
   ) {
     content = (
       <AppShell page={view} onNavigate={navigate}>
@@ -273,6 +284,7 @@ function App() {
           </div>
         )}
         {view === 'settings' && <SettingsPage />}
+        {view === 'usage' && <UsagePage />}
         {view === 'catalogue' && (
           <div className="flex flex-col gap-5 px-4 py-6 md:px-8 lg:px-10 lg:py-8">
             {/* Opened from inside a design: one tap back, and it floats, so

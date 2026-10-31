@@ -7,6 +7,10 @@
 // owner links it to a business by hand (docs/DEPLOY.md). Self-serve
 // business creation is still not built. The name and business name are
 // asked for so the owner knows who they're approving.
+//
+// "Forgot password?" (§133) emails a reset link; opening it lands on
+// SetNewPasswordScreen. It always says "if an account exists…", so the
+// form can't be used to find out who has an account.
 
 import { useState } from 'react';
 import { useAuthStore } from '../../store/authStore';
@@ -22,10 +26,15 @@ const MIN_PASSWORD_LENGTH = 8;
 export function LoginScreen() {
   const signIn = useAuthStore((s) => s.signIn);
   const signUp = useAuthStore((s) => s.signUp);
+  const sendPasswordReset = useAuthStore((s) => s.sendPasswordReset);
+  const recoveryLinkError = useAuthStore((s) => s.recoveryLinkError);
   const isLoading = useAuthStore((s) => s.isLoading);
   const signInError = useAuthStore((s) => s.error);
 
-  const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in');
+  const [mode, setMode] = useState<'sign-in' | 'sign-up' | 'forgot'>(recoveryLinkError ? 'forgot' : 'sign-in');
+  const [resetSentTo, setResetSentTo] = useState<string | null>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [isSendingReset, setIsSendingReset] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -37,6 +46,20 @@ export function LoginScreen() {
 
   const signingUp = mode === 'sign-up';
   const error = signingUp ? signUpError : signInError;
+
+  async function handleForgot(e: React.FormEvent) {
+    e.preventDefault();
+    setResetError(null);
+    setIsSendingReset(true);
+    try {
+      await sendPasswordReset(email);
+      setResetSentTo(email.trim());
+    } catch (err) {
+      setResetError(err instanceof Error ? err.message : 'Couldn’t send the email. Please try again.');
+    } finally {
+      setIsSendingReset(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -62,10 +85,12 @@ export function LoginScreen() {
     }
   }
 
-  function switchMode(next: 'sign-in' | 'sign-up') {
+  function switchMode(next: 'sign-in' | 'sign-up' | 'forgot') {
     setMode(next);
     setSignUpError(null);
     setCheckEmailFor(null);
+    setResetSentTo(null);
+    setResetError(null);
   }
 
   // Premium A (§73-74): a material panel beside the form on tablet and
@@ -88,7 +113,55 @@ export function LoginScreen() {
       </div>
 
       <div className="flex flex-1 items-center justify-center p-6">
-        {checkEmailFor ? (
+        {mode === 'forgot' ? (
+          resetSentTo ? (
+            <div className="flex w-full max-w-[380px] flex-col gap-4" role="status">
+              <h1 className="text-[30px] font-extrabold tracking-[-0.03em]">Check your email</h1>
+              <p className="text-[15px] text-muted-foreground">
+                If an account exists for <span className="font-semibold text-foreground">{resetSentTo}</span>, we’ve sent it a link
+                to set a new password. It can take a few minutes; check spam too. The link works once.
+              </p>
+              <Button variant="outline" size="touch-lg" onClick={() => switchMode('sign-in')}>
+                Back to sign in
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleForgot} className="flex w-full max-w-[380px] flex-col gap-5">
+              <div className="flex flex-col gap-2">
+                <h1 className="text-[30px] font-extrabold tracking-[-0.03em]">Reset your password</h1>
+                <p className="text-[15px] text-muted-foreground">Enter the email you sign in with. We’ll send a link to set a new password.</p>
+              </div>
+              {recoveryLinkError && !resetError && (
+                <Alert variant="destructive">
+                  <AlertDescription>That reset link didn’t work ({recoveryLinkError}). Send a new one below.</AlertDescription>
+                </Alert>
+              )}
+              <Label className="flex flex-col items-stretch gap-1.5 text-[13px] font-semibold">
+                Email
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoFocus
+                  autoComplete="email"
+                  className="h-12 rounded-xl bg-card text-base"
+                />
+              </Label>
+              {resetError && (
+                <Alert variant="destructive">
+                  <AlertDescription>{resetError}</AlertDescription>
+                </Alert>
+              )}
+              <Button type="submit" size="touch-lg" className="mt-1 w-full shadow-cta" disabled={isSendingReset}>
+                {isSendingReset ? 'Sending…' : 'Send reset link'}
+              </Button>
+              <button type="button" onClick={() => switchMode('sign-in')} className="self-start text-[13px] font-semibold underline underline-offset-2">
+                Back to sign in
+              </button>
+            </form>
+          )
+        ) : checkEmailFor ? (
           <div className="flex w-full max-w-[380px] flex-col gap-4" role="status">
             <h1 className="text-[30px] font-extrabold tracking-[-0.03em]">Check your email</h1>
             <p className="text-[15px] text-muted-foreground">
@@ -164,6 +237,15 @@ export function LoginScreen() {
               className="h-12 rounded-xl bg-card text-base"
             />
           </Label>
+          {!signingUp && (
+            <button
+              type="button"
+              onClick={() => switchMode('forgot')}
+              className="-mt-3 self-end text-[13px] font-semibold text-muted-foreground underline underline-offset-2 hover:text-foreground"
+            >
+              Forgot password?
+            </button>
+          )}
 
           {error && (
             <Alert variant="destructive">

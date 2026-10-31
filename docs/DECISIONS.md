@@ -7964,3 +7964,124 @@ stream is empty: that call returns the whole answer, or the real error
 Config lesson: the `previews` block is required for branch builds, and
 its `vars` replace the branch's dashboard variables. Dashboard
 **Secrets** survive, so `SUPABASE_*` and the API key are Secrets there.
+
+## 132. Make image (Gemini), AI usage limits, the Usage page
+
+**What the user asked for (31 Oct 2026).**
+- The image brief's download buttons should show only for the admin
+  account, which means the software owner (`super_admins`).
+- Everyone gets a button that sends the brief to AI Studio's model,
+  previews the image, and keeps it for review.
+- A dashboard to set daily, weekly and monthly limits on images and
+  tokens for every business, with defaults.
+- The model is configurable, starting with Pro.
+
+**Make image** (3D tab).
+- It sends exactly what "Brief + other views" downloads (§128): Camera 1's
+  line drawing (PNG) and colour view (JPEG), every other camera's colour
+  view (JPEG), and the brief JSON.
+- Each picture is labelled with the file name the brief's
+  `referenceImages` gives it. So the model gets the same files and
+  wording that were tested by hand, with no new prompt to drift.
+- Colour views go as JPEG: a tenth of the PNG, which keeps the Worker's
+  request small. That's about 130 KB for three images in the browser
+  check.
+- `/api/render` (Worker) does four things:
+  - checks sign-in and the image limit;
+  - calls Gemini `generateContent` with
+    `responseModalities: ['TEXT','IMAGE']` and the nearest aspect ratio;
+  - records usage;
+  - passes Gemini's reply through as TEXT.
+- Parsing a few MB of base64 is CPU a Worker is short of, so only the
+  `usageMetadata` block at the end is read (`usageFromGeminiReply`).
+- The app picks the LAST non-`thought` image, because the Pro model can
+  return draft images while it thinks.
+- Saved to the `renders` bucket under `<business_id>/<layout_id>/` and a
+  `design_renders` row. **Images** in the 3D tab shows them all for that
+  design, with Download and Delete.
+- Model: `GEMINI_IMAGE_MODEL`, defaulting to
+  `gemini-3-pro-image-preview`. The key, `GEMINI_API_KEY`, lives only in
+  Worker secrets.
+
+**Limits.**
+- Per business: images and tokens, per day, week (from Monday) and month,
+  in India time.
+- A business's own number wins; a blank one uses the default; a blank
+  default means no limit.
+- Tokens are Help and images together. A Help question is about 7,500
+  tokens, because the guide is sent each time.
+- Help now asks vLLM for `stream_options.include_usage`. If no count
+  comes back, it estimates at 4 characters per token.
+- **Enforced in the database, called by the Worker as the user.**
+  - `usage_check` / `usage_record` are security-definer functions acting
+    on the caller's own business.
+  - The tables have no write policies, so a browser can neither erase
+    usage nor change limits. Calling `usage_record` directly only adds
+    usage to your own business.
+  - The Worker needs no Supabase key of its own.
+  - The user can't skip the record: the model keys are only in the
+    Worker.
+- **Fails closed**: if the limits can't be read (schema not re-run,
+  Supabase down), neither paid feature runs.
+- Rejected: a service-role key in the Worker. It would bypass RLS for
+  everything, a much bigger key to hold for one counter.
+
+**The Usage page and §107.**
+- §107 keeps the app strictly per-business, with no super-admin bypass.
+  The Usage page is the one deliberate exception, and a narrow one:
+  `admin_usage_overview` and the `admin_set_*` functions check
+  `is_super_admin()` themselves.
+- They return only business names and usage numbers, never customers,
+  designs or prices.
+- The page and the image-brief downloads show only when
+  `is_super_admin()` is true. That's convenience; the database checks
+  are the guard.
+
+**Tested.**
+- The SQL ran twice on a scratch Postgres 14 with stand-ins for
+  Supabase's auth and storage.
+- Behaviour:
+  - the 21st image of 20 is refused;
+  - a business override lets it through;
+  - the token limit blocks Help;
+  - businesses are isolated;
+  - insert, delete and limit-edit attacks fail;
+  - non-admins get "Not allowed".
+- Worker: 10 new tests (limits, Gemini request and reply, errors never
+  leak the key).
+- App: request building, picking the image, parsing limits.
+- Browser, with mocked Gemini, storage and usage data:
+  - the Usage page and its editors;
+  - Make image → progress → preview → saved list, with the right files
+    and labels.
+- **Not yet seen against the real Gemini or the re-run schema.**
+
+## 133. Password recovery
+
+**Sign-in page → Forgot password?** It runs `resetPasswordForEmail`,
+with `redirectTo` = this site's origin.
+- It always says "if an account exists for…", so the form can't be used
+  to find out who has an account.
+- Opening the link signs the person in for that purpose. The app shows
+  **Set a new password** (8+ characters, typed twice → `updateUser`)
+  before anything else, then carries on, signed in. **Sign out instead**
+  leaves without changing the password.
+- The recovery flag is read **from the address at load**, before the
+  Supabase client clears it, because the `PASSWORD_RECOVERY` event can
+  fire before the store subscribes. A failed link (`error_description`
+  in the address) opens the reset form with the reason.
+
+**Supabase settings it depends on** (Authentication):
+- **URL Configuration**: Site URL = the live site, and Redirect URLs list
+  every address the app is opened from (live, preview, localhost).
+  Otherwise the link goes to the Site URL.
+- **Emails**: Supabase's built-in sender only delivers to the project
+  team's own addresses, a few an hour. Real customers need custom SMTP
+  (Authentication → Emails → SMTP settings).
+
+**Tested:**
+- screen tests (send, error, failed link, length and repeat check, sign
+  out);
+- in a browser with the email send and the password change intercepted:
+  forgot → "check your email"; a recovery link → Set a new password →
+  save → Home; an expired link → explained.

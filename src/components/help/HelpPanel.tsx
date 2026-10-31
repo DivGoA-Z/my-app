@@ -106,9 +106,11 @@ export function HelpPanel() {
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // At the latest message: as answers stream in, and when the panel is
+  // reopened on an earlier chat.
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' });
-  }, [messages]);
+  }, [messages, open]);
   useEffect(() => {
     if (open) inputRef.current?.focus();
   }, [open]);

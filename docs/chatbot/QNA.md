@@ -404,13 +404,14 @@ In **3D**, open **360° photos**, choose the camera under **360° photo for**, a
 
 Press **Present** in the top bar (on a phone: **…** → **Present to customer**). It shows **3D walkthrough** and **Floor plan** only. Nothing can be moved, and the price stays hidden until you press **Reveal price**. **Back to design** returns.
 
-### 69. image brief what is this
+### 69. how do I get a realistic photo of the kitchen for the customer
 
-**Image brief** (in **3D**) downloads a picture of the view and a description of the design, to give an AI image tool (e.g. Gemini) for a photo-realistic image. The app doesn't make the photo itself.
+1. Add a camera if there isn't one: **Cameras** in the left tools, then place it where you'd stand.
+2. Open the **3D** tab. Stand at **Camera 1**, look where you want, and press **Save this view**.
+3. Choose **Bare** or **Styled**, then press **Make image**.
+4. Wait 20–60 seconds; the picture opens when it's ready.
 
-- Stand at a camera first.
-- Choose **Bare** (only what's designed) or **Styled** (a few counter props).
-- Give the tool all the downloaded files.
+Every picture is kept under **Images** in the 3D tab, with **Download**.
 
 ### 70. can I move or edit cabinets in 3D
 
@@ -529,7 +530,12 @@ Yes, if you saved a default earlier: **Catalogue** → **Your default catalogue*
 
 ### 94. forgot password
 
-There's no password reset in the app. Please contact your admin to reset it.
+1. On the sign-in page, press **Forgot password?** (under the password box).
+2. Type the email you sign in with → **Send reset link**.
+3. Open the link in the email (check spam; it works once).
+4. On **Set a new password**, type the new password twice → **Save new password**.
+
+If the link has expired, the sign-in page tells you; send a new one.
 
 ### 95. my colleague wants to use the app
 

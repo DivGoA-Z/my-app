@@ -204,9 +204,18 @@ yet." Nothing else in the app is affected.
      Hugging Face repo name)
    - `HELP_LLM_API_KEY` = the RunPod API key, as a **Secret**
    - `SUPABASE_URL` and `SUPABASE_ANON_KEY` = the same values as the
-     app's `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`
+     app's `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`, as **Secrets**.
+     `SUPABASE_URL` is the bare project address,
+     `https://<ref>.supabase.co`, with no `/rest/v1` and no trailing slash.
+   - Leave `HF_TOKEN` empty on RunPod for a public model: an invalid
+     token makes Hugging Face refuse even public downloads (§131).
 3. Redeploy (or push any commit). Open **Help** in the app and ask
    something.
+
+**Branch previews** (§131): a preview build needs the `previews` block
+in `wrangler.jsonc`, and that block's `vars` REPLACE the branch's
+dashboard variables. Set everything else for the preview as **Secrets**
+in the dashboard, which a build can't overwrite.
 
 A serverless endpoint sleeps when idle: the first question after a quiet
 spell can take 30–60 s while it wakes (the panel says so). Set "active
@@ -223,3 +232,40 @@ ollama pull qwen3:4b-instruct-2507-q4_K_M
 ```
 
 To use RunPod from your laptop instead: `HELP_LLM_BASE_URL=… HELP_LLM_MODEL=… HELP_LLM_API_KEY=… npm run dev`.
+
+
+## Make image (Gemini) and AI usage limits: one-time setup (§132)
+
+**Make image** in the 3D tab sends the image brief to Google's Gemini
+image model (the API behind AI Studio) through the same Worker
+(`/api/render`), shows the result, and keeps every image under
+**Images**. Every Help question and every image counts against the
+business's limits, which you set on the **Usage** page.
+
+1. **Supabase**: re-run `supabase/schema.sql`. It adds the usage tables,
+   the limit functions, `design_renders` and the `renders` bucket. Until
+   then, Help and Make image both refuse, because the limits can't be
+   checked (they fail closed).
+2. **Make yourself the super admin** (SQL editor, once):
+   ```sql
+   insert into public.super_admins (user_id)
+   select id from auth.users where email = '<your login email>'
+   on conflict do nothing;
+   ```
+   Sign out and in again: **Usage** appears in the menu, and the image
+   brief downloads appear in the 3D tab. Nobody else sees either.
+3. **Google AI Studio** (aistudio.google.com) → **Get API key** → create a
+   key in a project with billing on (image models aren't on the free
+   tier). Set a budget alert on that Google Cloud project.
+4. **Cloudflare** → `my-app` → **Settings → Variables and secrets**:
+   - `GEMINI_API_KEY` = that key, as a **Secret**
+   - optional `GEMINI_IMAGE_MODEL`: the model name. Default
+     `gemini-3-pro-image-preview` ("Nano Banana Pro"). For the cheaper
+     Flash model, `gemini-2.5-flash-image`. Check AI Studio for current
+     names.
+   - For a branch preview, add `GEMINI_API_KEY` as a preview **Secret**
+     too.
+5. On **Usage**, set the defaults, and any business's own limits.
+
+**On your laptop**: `GEMINI_API_KEY=… npm run dev` (it uses the real
+Supabase limits, so step 1 must be done).

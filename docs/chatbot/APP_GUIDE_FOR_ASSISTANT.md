@@ -29,6 +29,7 @@ These are the mistakes most often made about this app. Follow them exactly.
 - **Behind units** is a choice for walls and the floor only, never the countertop.
 - **Adding a pillar:** drag one from **Your presets**, or fill **Custom size** and press **+ Add …**. Set its exact position afterwards with **X (mm)** / **Y (mm)**.
 - **Help** is the round **?** button at the bottom right of every screen (except Present).
+- **AI pictures are made inside the app:** 3D tab → **Make image**; saved under **Images**. There's no "Image brief" download for normal accounts.
 
 ## 2. Words used in the app
 
@@ -151,7 +152,9 @@ Lists problems: items overlapping, a door or drawer swinging into another cabine
 - **Save this view** (when at a camera): saves where it's looking and the lens.
 - Move pad on the 3D view: hold the arrows to glide; the double arrows change height.
 - **360° photos**: **360° photo for** (choose camera) → **Capture 360°** → **View 360°** (or **Capture again**).
-- **Image brief**: downloads files to give an AI image tool for a photo-realistic picture. **Bare (only what's designed)** or **Styled (a few counter props)**. **Brief + other views (N)** (with 2+ cameras): one picture from Camera 1, with the other cameras' views attached as context.
+- **Make image**: makes a photo-realistic AI picture of the kitchen from **Camera 1**'s view (the other cameras help the AI understand the kitchen). Needs at least one camera (add one from **Cameras** in the left tools). Choose **Bare (only what's designed)** or **Styled (a few counter props)** first. It takes about 20–60 seconds; the picture opens when ready, and you can close the window meanwhile.
+- **Images**: every AI picture made for this design, newest first, with **Download** and **Delete**. They're saved automatically.
+- To get a different angle, make that view **Camera 1** (cameras are numbered in the order added), or move Camera 1 and use **Save this view**.
 - You can click a cabinet in 3D to select it; its settings open from the right edge as on the plan.
 
 **Elevation tab:** **Drawing** (measured line drawing with dimensions) or **3D**, and **North / East / South / West wall** or **Top view**.
@@ -225,6 +228,8 @@ Open it from the editor's **Cutting list** button, a customer card's menu (**…
 
 **Signing in:** email and password → **Sign in**. A new person can use **Create an account** (name, business name, email, password). They confirm their email, then wait on **Waiting for access** until the admin adds them to the business (or approves a new business); **Check again** refreshes.
 
+**Forgot password:** on the sign-in page, **Forgot password?** (under the password box) → type your sign-in email → **Send reset link**. Open the emailed link (it works once; check spam), then on **Set a new password** type it twice → **Save new password**. You stay signed in. If the link has expired, the sign-in page says so: send a new one.
+
 ## 11. Keyboard, mouse and phone
 
 | Action | How |
@@ -246,13 +251,12 @@ On a phone: the tools are a strip at the bottom of the editor and their panels s
 - **Delete a customer:** not available. Use **Move to → Lost** to take them off the board. (Their details can be corrected with **Edit details**.)
 - **Copy a whole kitchen to another customer:** not available. Rebuild the design; **Style** and the default catalogue make it quick.
 - **Select several items at once (multi-select):** not available. Use **Style** to change finishes for many cabinets at once, or **Copy these panels to every \<type\>** in the Cabinet Designer.
-- **Forgot password / reset password:** not in the app. Contact the admin.
 - **Add GST to the quote automatically:** not built in.
 - **Two people editing the same kitchen at the same time:** not supported; the last change saved wins. Take turns.
 - **Send a quote by email from the app:** not built in. **Download PDF** and attach it to an email.
 - **Edit a frozen quote:** never possible by design. Change the design and **Freeze** the next version.
 - **L-shaped / bi-fold corner wall units, appliance cut-outs in cabinets, CNC machine files:** not built yet.
-- **Generate the AI photo inside the app:** the app prepares an **Image brief**; you use an external AI image tool.
+- **Unlimited AI pictures or Help questions:** each business has a limit per day, week and month set by the software owner. When it's reached, the app says so; it resets the next day, week or month. Ask the software owner (the person who set up your account) to raise it.
 - **Undo on a phone:** no buttons; use a laptop or reverse the change by hand.
 - **Rename a design, or change the app's language:** not available (the app is in English; a design is always shown under its customer's name).
 

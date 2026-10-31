@@ -28,6 +28,7 @@ import {
   LogOut,
   MoreHorizontal,
   X,
+  Gauge,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import {
@@ -37,7 +38,7 @@ import {
 } from '../inventory/catalogueSections';
 import { cn } from '@/lib/utils';
 
-export type ShellPage = 'home' | 'customers' | 'production' | 'catalogue' | 'rates' | 'workshop' | 'settings';
+export type ShellPage = 'home' | 'customers' | 'production' | 'catalogue' | 'rates' | 'workshop' | 'settings' | 'usage';
 
 const NAV: { page: ShellPage; label: string; Icon: typeof Home }[] = [
   { page: 'home', label: 'Home', Icon: Home },
@@ -47,7 +48,10 @@ const NAV: { page: ShellPage; label: string; Icon: typeof Home }[] = [
   { page: 'rates', label: 'Rate card', Icon: IndianRupee },
   { page: 'workshop', label: 'Workshop', Icon: Ruler },
   { page: 'settings', label: 'Settings', Icon: Settings },
+  // §132: the software owner's only (filtered out for everyone else below).
+  { page: 'usage', label: 'Usage', Icon: Gauge },
 ];
+const ADMIN_PAGES: ShellPage[] = ['usage'];
 
 // The phone's four tabs; the rest live under "More".
 const PHONE_TABS: ShellPage[] = ['home', 'customers', 'production', 'catalogue'];
@@ -84,6 +88,8 @@ export function AppShell({
 }) {
   const businessName = useAuthStore((s) => s.businessName) ?? 'Your business';
   const logoUrl = useAuthStore((s) => s.businessProfile?.logoUrl ?? null);
+  const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin);
+  const nav = isSuperAdmin ? NAV : NAV.filter((n) => !ADMIN_PAGES.includes(n.page));
   const email = useAuthStore((s) => s.session?.user.email) ?? '';
   const signOut = useAuthStore((s) => s.signOut);
   const activeSection = useActiveCatalogueSection(page === 'catalogue');
@@ -99,7 +105,7 @@ export function AppShell({
           <BusinessMark name={businessName} logoUrl={logoUrl} />
           <span className="hidden truncate text-[15px] font-bold text-white lg:block">{businessName}</span>
         </div>
-        {NAV.map(({ page: p, label, Icon }) => (
+        {nav.map(({ page: p, label, Icon }) => (
           <div key={p} className="flex flex-col">
             <button
               type="button"
@@ -204,7 +210,7 @@ export function AppShell({
                 <X className="size-5" />
               </button>
             </div>
-            {NAV.filter((n) => !PHONE_TABS.includes(n.page)).map(({ page: p, label, Icon }) => (
+            {nav.filter((n) => !PHONE_TABS.includes(n.page)).map(({ page: p, label, Icon }) => (
               <button
                 key={p}
                 type="button"

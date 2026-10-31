@@ -1,8 +1,9 @@
 /// <reference types="vitest/config" />
 import fs from 'node:fs'
 import path from 'node:path'
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import { handleHelp } from './worker/helpHandler.ts'
+import { handleRender } from './worker/renderHandler.ts'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -44,6 +45,29 @@ function helpDevRelay(): Plugin {
           res.write(value)
         }
         res.end()
+      })
+      // "Make image" (§132), against the real Gemini and the real Supabase
+      // limits: only when GEMINI_API_KEY is set in the shell
+      // (GEMINI_API_KEY=… npm run dev). Unlike Help it keeps the sign-in
+      // and the limits, since every image costs money.
+      server.middlewares.use('/api/render', async (req, res) => {
+        const chunks: Buffer[] = []
+        for await (const c of req) chunks.push(c as Buffer)
+        const fileEnv = loadEnv('development', import.meta.dirname, '')
+        const request = new Request('http://localhost/api/render', {
+          method: req.method,
+          headers: { 'content-type': 'application/json', authorization: String(req.headers.authorization ?? '') },
+          body: req.method === 'POST' ? Buffer.concat(chunks) : undefined,
+        })
+        const response = await handleRender(request, {
+          GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+          GEMINI_IMAGE_MODEL: process.env.GEMINI_IMAGE_MODEL,
+          SUPABASE_URL: fileEnv.VITE_SUPABASE_URL,
+          SUPABASE_ANON_KEY: fileEnv.VITE_SUPABASE_ANON_KEY,
+        })
+        res.statusCode = response.status
+        response.headers.forEach((v: string, k: string) => res.setHeader(k, v))
+        res.end(Buffer.from(await response.arrayBuffer()))
       })
     },
   }

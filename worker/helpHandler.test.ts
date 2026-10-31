@@ -76,21 +76,58 @@ describe('the relay', () => {
     expect(res.status).toBe(503);
   });
 
+  // Supabase (sign-in, usage_check, usage_record) and the model, by URL.
+  const world = (model: () => Response, allowed = true) => {
+    const recorded: unknown[] = [];
+    const f = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
+      const u = String(url);
+      if (u.endsWith('/auth/v1/user')) return new Response('{}', { status: 200 });
+      if (u.endsWith('/rpc/usage_check')) return new Response(JSON.stringify(allowed ? { allowed: true } : { allowed: false, reason: 'Limit reached today.' }));
+      if (u.endsWith('/rpc/usage_record')) {
+        recorded.push(JSON.parse(init!.body as string));
+        return new Response('', { status: 204 });
+      }
+      return model();
+    });
+    return { f, recorded };
+  };
+
   it('calls the model with the key and the guide, and streams plain text back', async () => {
-    const f = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) =>
-      String(url).endsWith('/auth/v1/user')
-        ? new Response('{}', { status: 200 })
-        : sse('data: {"choices":[{"delta":{"content":"Press "}}]}\n', 'data: {"choices":[{"delta":{"content":"**Cutting list**."}}]}\ndata: [DONE]\n')
+    const { f, recorded } = world(() =>
+      sse(
+        'data: {"choices":[{"delta":{"content":"Press "}}]}\n',
+        'data: {"choices":[{"delta":{"content":"**Cutting list**."}}]}\ndata: {"choices":[],"usage":{"total_tokens":7321}}\ndata: [DONE]\n'
+      )
     );
     const res = await handleHelp(ask({ messages: [{ role: 'user', content: 'cutting list?' }], screen: 'Design editor' }), env, 'GUIDE');
     expect(res.status).toBe(200);
     expect(await res.text()).toBe('Press **Cutting list**.');
-    const [url, init] = f.mock.calls[1];
-    expect(url).toBe('https://llm.example/v1/chat/completions');
-    expect((init!.headers as Record<string, string>).authorization).toBe('Bearer secret-key');
-    const sent = JSON.parse(init!.body as string);
-    expect(sent).toMatchObject({ model: 'qwen', stream: true });
+    const call = f.mock.calls.find(([u]) => String(u) === 'https://llm.example/v1/chat/completions')!;
+    const init = call[1]!;
+    expect((init.headers as Record<string, string>).authorization).toBe('Bearer secret-key');
+    const sent = JSON.parse(init.body as string);
+    expect(sent).toMatchObject({ model: 'qwen', stream: true, stream_options: { include_usage: true } });
     expect(sent.messages[0].content).toMatch(/^GUIDE/);
+    // §132: the tokens the model reported, recorded as Help usage.
+    expect(recorded).toEqual([{ p_kind: 'help', p_images: 0, p_tokens: 7321, p_model: 'qwen' }]);
+  });
+
+  it('refuses when the business is over its limit, without calling the model (§132)', async () => {
+    const { f, recorded } = world(() => {
+      throw new Error('model must not be called');
+    }, false);
+    const res = await handleHelp(ask({ messages: [{ role: 'user', content: 'hi' }] }), env, 'G');
+    expect(res.status).toBe(429);
+    expect((await res.json()).error).toBe('Limit reached today.');
+    expect(f.mock.calls.some(([u]) => String(u).includes('llm.example'))).toBe(false);
+    expect(recorded).toEqual([]);
+  });
+
+  it('estimates the tokens when the model doesn’t report them', async () => {
+    const { recorded } = world(() => sse('data: {"choices":[{"delta":{"content":"abcd"}}]}\ndata: [DONE]\n'));
+    const res = await handleHelp(ask({ messages: [{ role: 'user', content: 'x'.repeat(40) }] }), env, 'G'.repeat(400));
+    await res.text();
+    expect((recorded[0] as { p_tokens: number }).p_tokens).toBe(Math.ceil((400 + 40) / 4) + 1);
   });
 
   it('reports the model being down as a plain message, never the key', async () => {

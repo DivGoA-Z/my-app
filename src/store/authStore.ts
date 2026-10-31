@@ -48,6 +48,10 @@ interface AuthStore {
   // confirmed there isn't one) completes — this is what lets App.tsx
   // show a brief loading state instead of flashing the login screen
   // for a session that's actually about to restore from localStorage.
+  // The software owner (super_admins, §132): sees the Usage page and the
+  // image-brief downloads. Only decides what's SHOWN; the database's own
+  // checks (is_super_admin() inside every admin function) are the guard.
+  isSuperAdmin: boolean;
   isLoading: boolean;
   error: string | null;
   // Idempotent — safe to call every time App.tsx mounts, including
@@ -63,6 +67,15 @@ interface AuthStore {
   // again" button on the waiting screen, after the owner has approved.
   recheckAccess: () => Promise<void>;
   signOut: () => Promise<void>;
+  // Password recovery (§133). sendPasswordReset emails a link back to this
+  // site; opening it signs the person in with `passwordRecovery` set, and
+  // App shows "Set a new password" until setNewPassword succeeds. Both
+  // throw with Supabase's message.
+  passwordRecovery: boolean;
+  // The reset link's own error (expired, already used), from the address.
+  recoveryLinkError: string | null;
+  sendPasswordReset: (email: string) => Promise<void>;
+  setNewPassword: (password: string) => Promise<void>;
   // Settings → Business (§78, §94). Each throws on failure so the form
   // can say so.
   saveBusinessDetails: (patch: { name: string; phone: string; gstin: string; showGstin: boolean }) => Promise<void>;
@@ -84,15 +97,27 @@ async function fetchBusinessId(userId: string): Promise<string | null> {
 
 let subscribed = false;
 
+// Read from the address at load, before the Supabase client clears it:
+// the PASSWORD_RECOVERY event can fire before init() subscribes, so the
+// link itself is the reliable sign. "#…type=recovery" (implicit flow);
+// a failed link carries "#error=…&error_description=…".
+const urlAuth = typeof window === 'undefined' ? '' : `${window.location.hash.slice(1)}&${window.location.search.slice(1)}`;
+const urlParams = new URLSearchParams(urlAuth);
+const OPENED_RECOVERY_LINK = urlParams.get('type') === 'recovery';
+const LINK_ERROR = urlParams.get('error_description')?.replace(/\+/g, ' ') ?? null;
+
 export const useAuthStore = create<AuthStore>((set) => {
   async function resolveSession(session: Session | null) {
     if (!session) {
-      set({ session: null, businessId: null, businessName: null, businessProfile: null, isLoading: false, error: null });
+      set({ session: null, businessId: null, businessName: null, businessProfile: null, isSuperAdmin: false, isLoading: false, error: null });
       return;
     }
     try {
       const businessId = await fetchBusinessId(session.user.id);
       set({ session, businessId, isLoading: false, error: null });
+      supabase
+        .rpc('is_super_admin')
+        .then(({ data }) => set({ isSuperAdmin: data === true }), () => set({ isSuperAdmin: false }));
       if (businessId) {
         fetchBusinessProfile(businessId)
           .then((businessProfile) => set({ businessProfile, businessName: businessProfile?.name ?? null }))
@@ -113,6 +138,9 @@ export const useAuthStore = create<AuthStore>((set) => {
     businessId: null,
     businessName: null,
     businessProfile: null,
+    isSuperAdmin: false,
+    passwordRecovery: OPENED_RECOVERY_LINK,
+    recoveryLinkError: LINK_ERROR,
     isLoading: true,
     error: null,
 
@@ -130,7 +158,10 @@ export const useAuthStore = create<AuthStore>((set) => {
       // That reloaded the whole inventory on every tab switch until
       // App.tsx keyed its load on the user id instead. Key on
       // session.user.id, never on `session`.
-      supabase.auth.onAuthStateChange((_event, session) => resolveSession(session));
+      supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'PASSWORD_RECOVERY') set({ passwordRecovery: true });
+        void resolveSession(session);
+      });
     },
 
     saveBusinessDetails: async (patch) => {
@@ -202,9 +233,24 @@ export const useAuthStore = create<AuthStore>((set) => {
       await resolveSession(data.session);
     },
 
+    sendPasswordReset: async (email) => {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        // Back to this site, whichever address it's served from. It must be
+        // in Supabase's Redirect URLs, or Supabase uses its Site URL.
+        redirectTo: window.location.origin,
+      });
+      if (error) throw new Error(error.message);
+    },
+
+    setNewPassword: async (password) => {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw new Error(error.message);
+      set({ passwordRecovery: false, recoveryLinkError: null });
+    },
+
     signOut: async () => {
       await supabase.auth.signOut();
-      set({ session: null, businessId: null, businessName: null, error: null });
+      set({ session: null, businessId: null, businessName: null, error: null, passwordRecovery: false });
     },
   };
 });

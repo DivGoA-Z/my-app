@@ -2084,3 +2084,288 @@ revoke execute on function public.restore_my_catalog_default() from public, anon
 grant execute on function public.save_catalog_default(text) to authenticated;
 grant execute on function public.save_my_catalog_default() to authenticated;
 grant execute on function public.restore_my_catalog_default() to authenticated;
+
+-- ============================================================
+-- AI USAGE LIMITS AND GENERATED IMAGES (§132)
+-- ============================================================
+-- Two paid AI features, the Help assistant (RunPod) and "Make image"
+-- (Gemini), each called through the Worker with the user's own sign-in.
+-- Limits per business: images and tokens, per day / week / month
+-- (India time; weeks start Monday). A business's own number wins; a
+-- blank one falls back to the default; a blank default means no limit.
+--
+-- The tables have RLS on and NO write policies: nothing in the browser
+-- can change a limit or erase usage. Everything goes through the
+-- functions below:
+--   usage_check / usage_record: called by the Worker with the user's
+--     token, for the caller's own business only. Calling usage_record
+--     directly can only ADD usage to your own business.
+--   admin_*: the super admin's Usage page. These are the one place the
+--     app sees across businesses (§107 keeps the app per-business), so
+--     they return only business names and usage numbers, never customer
+--     data, and refuse anyone who isn't in super_admins.
+
+create table if not exists public.usage_limit_defaults (
+  id int primary key default 1 check (id = 1),
+  images_per_day int,
+  images_per_week int,
+  images_per_month int,
+  tokens_per_day bigint,
+  tokens_per_week bigint,
+  tokens_per_month bigint,
+  updated_at timestamptz not null default now()
+);
+-- Starting defaults: placeholders, set on the Usage page. A Help
+-- question costs ~7,500 tokens (the guide is sent each time), an image
+-- a few thousand.
+insert into public.usage_limit_defaults (id, images_per_day, images_per_week, images_per_month, tokens_per_day, tokens_per_week, tokens_per_month)
+values (1, 20, 100, 300, 500000, 2500000, 8000000)
+on conflict (id) do nothing;
+alter table public.usage_limit_defaults enable row level security;
+
+create table if not exists public.business_usage_limits (
+  business_id text primary key references public.businesses(id) on delete cascade,
+  images_per_day int,
+  images_per_week int,
+  images_per_month int,
+  tokens_per_day bigint,
+  tokens_per_week bigint,
+  tokens_per_month bigint,
+  updated_at timestamptz not null default now()
+);
+alter table public.business_usage_limits enable row level security;
+
+create table if not exists public.ai_usage_events (
+  id text primary key default gen_random_uuid()::text,
+  business_id text not null references public.businesses(id) on delete cascade,
+  user_id uuid,
+  kind text not null check (kind in ('image', 'help')),
+  images int not null default 0,
+  tokens bigint not null default 0,
+  model text,
+  created_at timestamptz not null default now()
+);
+create index if not exists ai_usage_events_business_time on public.ai_usage_events (business_id, created_at);
+alter table public.ai_usage_events enable row level security;
+drop policy if exists "Business can read own ai_usage_events" on public.ai_usage_events;
+create policy "Business can read own ai_usage_events" on public.ai_usage_events
+  for select using (business_id = public.current_business_id());
+
+-- Effective limits and usage for one business. Internal: not callable
+-- from the app (revoked below), or any member could read any business.
+create or replace function public.usage_status_for(p_business text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with t as (
+    select
+      (date_trunc('day', now() at time zone 'Asia/Kolkata') at time zone 'Asia/Kolkata') as day_start,
+      (date_trunc('week', now() at time zone 'Asia/Kolkata') at time zone 'Asia/Kolkata') as week_start,
+      (date_trunc('month', now() at time zone 'Asia/Kolkata') at time zone 'Asia/Kolkata') as month_start
+  ),
+  d as (select * from public.usage_limit_defaults where id = 1),
+  o as (select * from public.business_usage_limits where business_id = p_business),
+  u as (
+    select
+      coalesce(sum(e.images) filter (where e.created_at >= t.day_start), 0) as images_day,
+      coalesce(sum(e.images) filter (where e.created_at >= t.week_start), 0) as images_week,
+      coalesce(sum(e.images) filter (where e.created_at >= t.month_start), 0) as images_month,
+      coalesce(sum(e.tokens) filter (where e.created_at >= t.day_start), 0) as tokens_day,
+      coalesce(sum(e.tokens) filter (where e.created_at >= t.week_start), 0) as tokens_week,
+      coalesce(sum(e.tokens) filter (where e.created_at >= t.month_start), 0) as tokens_month
+    from t
+    left join public.ai_usage_events e
+      on e.business_id = p_business and e.created_at >= least(t.week_start, t.month_start)
+    group by t.day_start, t.week_start, t.month_start
+  )
+  select jsonb_build_object(
+    'limits', jsonb_build_object(
+      'images_per_day', coalesce((select images_per_day from o), (select images_per_day from d)),
+      'images_per_week', coalesce((select images_per_week from o), (select images_per_week from d)),
+      'images_per_month', coalesce((select images_per_month from o), (select images_per_month from d)),
+      'tokens_per_day', coalesce((select tokens_per_day from o), (select tokens_per_day from d)),
+      'tokens_per_week', coalesce((select tokens_per_week from o), (select tokens_per_week from d)),
+      'tokens_per_month', coalesce((select tokens_per_month from o), (select tokens_per_month from d))
+    ),
+    'used', (select to_jsonb(u) from u)
+  );
+$$;
+
+-- May the caller's business use this feature now? {allowed, reason}.
+create or replace function public.usage_check(p_kind text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  b text := public.current_business_id();
+  s jsonb;
+  w text;
+  label text;
+begin
+  if b is null then
+    return jsonb_build_object('allowed', false, 'reason', 'Your account isn’t linked to a business yet.');
+  end if;
+  s := public.usage_status_for(b);
+  foreach w in array array['day', 'week', 'month'] loop
+    label := case w when 'day' then 'today' when 'week' then 'this week' else 'this month' end;
+    if p_kind = 'image'
+       and (s->'limits'->>('images_per_' || w)) is not null
+       and (s->'used'->>('images_' || w))::bigint >= (s->'limits'->>('images_per_' || w))::bigint then
+      return jsonb_build_object('allowed', false, 'reason',
+        format('Your business has made all %s images allowed %s. Ask the software owner to raise the limit.', s->'limits'->>('images_per_' || w), label));
+    end if;
+    if (s->'limits'->>('tokens_per_' || w)) is not null
+       and (s->'used'->>('tokens_' || w))::bigint >= (s->'limits'->>('tokens_per_' || w))::bigint then
+      return jsonb_build_object('allowed', false, 'reason',
+        format('Your business has used its AI allowance for %s. Ask the software owner to raise the limit.', label));
+    end if;
+  end loop;
+  return jsonb_build_object('allowed', true);
+end $$;
+
+create or replace function public.usage_record(p_kind text, p_images int, p_tokens bigint, p_model text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  b text := public.current_business_id();
+begin
+  if b is null then raise exception 'No business for this account'; end if;
+  if p_kind not in ('image', 'help') then raise exception 'Unknown kind %', p_kind; end if;
+  if p_images < 0 or p_images > 20 or p_tokens < 0 or p_tokens > 5000000 then
+    raise exception 'Usage out of range';
+  end if;
+  insert into public.ai_usage_events (business_id, user_id, kind, images, tokens, model)
+  values (b, auth.uid(), p_kind, p_images, p_tokens, left(p_model, 120));
+end $$;
+
+-- The Usage page: defaults, and every business with its own numbers
+-- (blank = default), effective limits and usage.
+create or replace function public.admin_usage_overview()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_super_admin() then raise exception 'Not allowed'; end if;
+  return jsonb_build_object(
+    'defaults', (select to_jsonb(d) - 'id' from public.usage_limit_defaults d where d.id = 1),
+    'businesses', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', b.id,
+        'name', b.name,
+        'own', (select to_jsonb(o) - 'business_id' from public.business_usage_limits o where o.business_id = b.id),
+        'status', public.usage_status_for(b.id)
+      ) order by b.name)
+      from public.businesses b
+    ), '[]'::jsonb)
+  );
+end $$;
+
+-- p_limits: {images_per_day, …, tokens_per_month}; null = no limit
+-- (defaults) or "use the default" (a business).
+create or replace function public.admin_set_default_usage_limits(p_limits jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_super_admin() then raise exception 'Not allowed'; end if;
+  update public.usage_limit_defaults set
+    images_per_day = (p_limits->>'images_per_day')::int,
+    images_per_week = (p_limits->>'images_per_week')::int,
+    images_per_month = (p_limits->>'images_per_month')::int,
+    tokens_per_day = (p_limits->>'tokens_per_day')::bigint,
+    tokens_per_week = (p_limits->>'tokens_per_week')::bigint,
+    tokens_per_month = (p_limits->>'tokens_per_month')::bigint,
+    updated_at = now()
+  where id = 1;
+end $$;
+
+create or replace function public.admin_set_business_usage_limits(p_business text, p_limits jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_super_admin() then raise exception 'Not allowed'; end if;
+  insert into public.business_usage_limits as l (business_id, images_per_day, images_per_week, images_per_month, tokens_per_day, tokens_per_week, tokens_per_month, updated_at)
+  values (
+    p_business,
+    (p_limits->>'images_per_day')::int, (p_limits->>'images_per_week')::int, (p_limits->>'images_per_month')::int,
+    (p_limits->>'tokens_per_day')::bigint, (p_limits->>'tokens_per_week')::bigint, (p_limits->>'tokens_per_month')::bigint,
+    now()
+  )
+  on conflict (business_id) do update set
+    images_per_day = excluded.images_per_day, images_per_week = excluded.images_per_week, images_per_month = excluded.images_per_month,
+    tokens_per_day = excluded.tokens_per_day, tokens_per_week = excluded.tokens_per_week, tokens_per_month = excluded.tokens_per_month,
+    updated_at = now();
+end $$;
+
+revoke execute on function public.usage_status_for(text) from public, anon, authenticated;
+revoke execute on function public.usage_check(text) from public, anon;
+revoke execute on function public.usage_record(text, int, bigint, text) from public, anon;
+revoke execute on function public.admin_usage_overview() from public, anon;
+revoke execute on function public.admin_set_default_usage_limits(jsonb) from public, anon;
+revoke execute on function public.admin_set_business_usage_limits(text, jsonb) from public, anon;
+grant execute on function public.usage_check(text) to authenticated;
+grant execute on function public.usage_record(text, int, bigint, text) to authenticated;
+grant execute on function public.admin_usage_overview() to authenticated;
+grant execute on function public.admin_set_default_usage_limits(jsonb) to authenticated;
+grant execute on function public.admin_set_business_usage_limits(text, jsonb) to authenticated;
+grant execute on function public.is_super_admin() to authenticated;
+
+-- Images made with "Make image", kept for review: one row per image, the
+-- file in the public `renders` bucket under the business's own folder.
+create table if not exists public.design_renders (
+  id text primary key,
+  business_id text not null references public.businesses(id) on delete cascade,
+  project_id text,
+  layout_id text not null,
+  camera_label text,
+  styling text,
+  model text,
+  image_path text not null,
+  image_url text not null,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now()
+);
+create index if not exists design_renders_layout on public.design_renders (layout_id, created_at desc);
+alter table public.design_renders enable row level security;
+drop policy if exists "Business can read own design_renders" on public.design_renders;
+create policy "Business can read own design_renders" on public.design_renders
+  for select using (business_id = public.current_business_id());
+drop policy if exists "Business can insert own design_renders" on public.design_renders;
+create policy "Business can insert own design_renders" on public.design_renders
+  for insert with check (business_id = public.current_business_id());
+drop policy if exists "Business can delete own design_renders" on public.design_renders;
+create policy "Business can delete own design_renders" on public.design_renders
+  for delete using (business_id = public.current_business_id());
+
+insert into storage.buckets (id, name, public)
+values ('renders', 'renders', true)
+on conflict (id) do nothing;
+drop policy if exists "Public read access to renders" on storage.objects;
+create policy "Public read access to renders"
+on storage.objects for select
+using (bucket_id = 'renders');
+drop policy if exists "Members upload renders" on storage.objects;
+create policy "Members upload renders"
+on storage.objects for insert
+with check (bucket_id = 'renders' and (storage.foldername(name))[1] = public.current_business_id());
+drop policy if exists "Members delete renders" on storage.objects;
+create policy "Members delete renders"
+on storage.objects for delete
+using (bucket_id = 'renders' and (storage.foldername(name))[1] = public.current_business_id());

@@ -58,7 +58,7 @@
 
 import { BACKDROP_LIGHT, contrastingBackdrop, surfaceLightness } from '../../lib/backdrop';
 import { cn } from '@/lib/utils';
-import { Camera as CameraIcon, ChevronDown, Download, Eye, Save, Trash2 } from 'lucide-react';
+import { Camera as CameraIcon, ChevronDown, Download, Eye, Images, Save, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePhysicalCabinets } from '../../hooks/usePhysicalCabinets';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
@@ -109,6 +109,9 @@ import { HIDE_IN_SNAPSHOT, HIDE_IN_STRUCTURE, GUIDE_IMAGE_SIZE, cameraPose, rend
 import type { CameraPose, StructureOptions } from '../../lib/viewSnapshot';
 import { downloadBlob } from '../../lib/downloadBlob';
 import { useRenderBriefInput } from '../../hooks/useRenderBriefInput';
+import { useAuthStore } from '../../store/authStore';
+import { makeRender, nearestAspect, renderParts, saveRender, snapshotBase64, type RenderImageInput } from '../../lib/renders';
+import { RenderDialog, type RenderJob } from './RenderDialog';
 import { CameraMovePad } from '../toolbar/CameraMovePad';
 import { applyOrbitStep, type CameraMove } from '../../lib/cameraMove';
 import { Cabinet3DInspector } from './Cabinet3DInspector';
@@ -415,6 +418,85 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
   // The brief's styling (§127): a session choice, Bare by default.
   const [briefStyling, setBriefStyling] = useState<BriefStyling>('bare');
 
+  // §132: the brief downloads are the software owner's (for testing image
+  // models by hand); everyone gets "Make image", which sends the same
+  // files to Gemini through the Worker and keeps the result.
+  const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin);
+  const businessId = useAuthStore((s) => s.businessId);
+  const currentProjectId = useLayoutStore((state) => state.currentProject?.id ?? null);
+  const [renderOpen, setRenderOpen] = useState(false);
+  const [renderJob, setRenderJob] = useState<RenderJob | null>(null);
+
+  // The same files as "Brief + other views" (§128): ONE image from Camera 1,
+  // the other cameras' colour views as context.
+  async function handleMakeImage() {
+    const fns = viewFnsRef.current;
+    if (!currentLayout || !briefInput || !fns || !businessId || cameras.length === 0) return;
+    const main = cameras[0];
+    setRenderJob({ state: 'working', cameraLabel: main.label });
+    setRenderOpen(true);
+    try {
+      const others = cameras.filter((c) => c.id !== main.id);
+      const stem = renderBriefFileStem(currentLayout.name);
+      const { widthPx, heightPx } = GUIDE_IMAGE_SIZE;
+      const shot = fns.fromCamera(main, { widthPx, heightPx });
+      const ctx = others.map((c) => ({ node: c, img: fns.fromCamera(c, { widthPx, heightPx }) }));
+      const refs: ReferenceImage[] = [
+        { kind: 'line-render', file: `${stem}-guide.png`, widthPx, heightPx },
+        { kind: 'colour-render', file: `${stem}-colour.jpg`, widthPx, heightPx },
+        ...ctx.map(({ node }) => ({
+          kind: 'context-view' as const,
+          file: `${stem}-context-${renderBriefFileStem(node.label)}.jpg`,
+          widthPx,
+          heightPx,
+          cameraLabel: node.label,
+        })),
+      ];
+      const brief = buildRenderBrief({
+        ...briefInput,
+        view: viewFromWorldCamera({
+          mode: 'walkthrough',
+          cameraLabel: main.label,
+          position: shot.pose.position,
+          direction: shot.pose.direction,
+          verticalFovDeg: shot.pose.verticalFovDeg,
+          imageWidthPx: widthPx,
+          imageHeightPx: heightPx,
+        }),
+        assetOrigin: window.location.origin,
+        generatedAt: new Date().toISOString(),
+        referenceImages: refs,
+        refs: false,
+        styling: briefStyling,
+      });
+      const images: RenderImageInput[] = [
+        { file: refs[0].file, mimeType: 'image/png', data: await snapshotBase64(shot.line, 'image/png') },
+        { file: refs[1].file, mimeType: 'image/jpeg', data: await snapshotBase64(shot.colour, 'image/jpeg') },
+        ...(await Promise.all(
+          ctx.map(async ({ img }, k): Promise<RenderImageInput> => ({
+            file: refs[2 + k].file,
+            mimeType: 'image/jpeg',
+            data: await snapshotBase64(img.colour, 'image/jpeg'),
+          }))
+        )),
+      ];
+      const made = await makeRender(renderParts(brief, images), nearestAspect(widthPx, heightPx));
+      const render = await saveRender({
+        businessId,
+        layoutId: currentLayout.id,
+        projectId: currentProjectId,
+        cameraLabel: main.label,
+        styling: briefStyling,
+        made,
+      });
+      setRenderJob({ state: 'done', render });
+      toast.success('Image ready and saved.', { action: { label: 'View', onClick: () => setRenderOpen(true) } });
+    } catch (err) {
+      setRenderJob({ state: 'error', message: err instanceof Error ? err.message : 'The image couldn’t be made.' });
+      toast.error(err instanceof Error ? err.message : 'The image couldn’t be made.');
+    }
+  }
+
   // §128: ONE image from the main camera — always the FIRST camera
   // (Camera 1), wherever you're standing when you press the button (the
   // user's call: one fixed rule, no surprises) — with every other
@@ -597,15 +679,38 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
           <option value="bare">Bare (only what&rsquo;s designed)</option>
           <option value="styled">Styled (a few counter props)</option>
         </select>
-        <Button variant="outline" size="touch" onClick={handleRenderBrief} disabled={!currentLayout}>
-          <Download /> Image brief
+        <Button
+          size="touch"
+          onClick={handleMakeImage}
+          disabled={!currentLayout || cameras.length === 0 || renderJob?.state === 'working'}
+          title={cameras.length === 0 ? 'Add a camera first (Cameras, in the left tools)' : `A photo-realistic image from ${cameras[0].label}`}
+        >
+          <Sparkles /> {renderJob?.state === 'working' ? 'Making image…' : 'Make image'}
         </Button>
-        {cameras.length >= 2 && (
-          <Button variant="outline" size="touch" onClick={handleContextBrief} disabled={!currentLayout}>
-            <Download /> Brief + other views ({cameras.length - 1})
-          </Button>
+        <Button variant="outline" size="touch" onClick={() => setRenderOpen(true)} disabled={!currentLayout}>
+          <Images /> Images
+        </Button>
+        {/* §132: the software owner's, for testing image models by hand. */}
+        {isSuperAdmin && (
+          <>
+            <Button variant="outline" size="touch" onClick={handleRenderBrief} disabled={!currentLayout}>
+              <Download /> Image brief
+            </Button>
+            {cameras.length >= 2 && (
+              <Button variant="outline" size="touch" onClick={handleContextBrief} disabled={!currentLayout}>
+                <Download /> Brief + other views ({cameras.length - 1})
+              </Button>
+            )}
+          </>
         )}
       </div>
+      <RenderDialog
+        open={renderOpen}
+        onOpenChange={setRenderOpen}
+        layoutId={currentLayout?.id ?? null}
+        job={renderJob}
+        designName={currentLayout?.name ?? 'this design'}
+      />
       <p className="text-[13px] text-muted-foreground">
         {lockedCamera
           ? `Standing at ${lockedCamera.label}: drag to look around, then "Save this view" to keep it as this camera's view. Tap another glowing floor marker to step there.`
@@ -615,7 +720,10 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
         {selectedCamera?.panoramaCapturedAt &&
           !captureError &&
           ` 360° photo taken ${new Date(selectedCamera.panoramaCapturedAt).toLocaleString()}.`}
-        {' '}Image brief saves what this camera sees as a line drawing and in colour, plus a description of everything in it, for a photo-realistic render; without a camera it saves the plan and all four walls instead.
+        {cameras.length === 0
+          ? ' Make image needs a camera: add one from Cameras in the left tools.'
+          : ` Make image turns ${cameras[0].label}'s view into a photo-realistic image (the other cameras help it understand the kitchen); every image is kept under Images.`}
+        {isSuperAdmin && ' Image brief saves what this camera sees as a line drawing and in colour, plus a description of everything in it, for a photo-realistic render; without a camera it saves the plan and all four walls instead.'}
       </p>
       {captureError && <p className="text-[13px] font-medium text-destructive">Capture failed: {captureError}</p>}
 
