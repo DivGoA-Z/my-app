@@ -30,6 +30,7 @@ These are the mistakes most often made about this app. Follow them exactly.
 - **Adding a pillar:** drag one from **Your presets**, or fill **Custom size** and press **+ Add …**. Set its exact position afterwards with **X (mm)** / **Y (mm)**.
 - **Help** is the round **?** button at the bottom right of every screen (except Present).
 - **AI pictures are made inside the app:** 3D tab → **Make image**; saved under **Images**. There's no "Image brief" download for normal accounts.
+- **Usage** (main menu, every account): your business's AI pictures and tokens (Help questions and pictures together) **Today / This week / This month**, out of its limits, with a line like "At this rate: runs out around 8:00 pm today" or "about 16 images by midnight, within the limit". You can see limits there but not change them.
 
 ## 2. Words used in the app
 
@@ -256,7 +257,7 @@ On a phone: the tools are a strip at the bottom of the editor and their panels s
 - **Send a quote by email from the app:** not built in. **Download PDF** and attach it to an email.
 - **Edit a frozen quote:** never possible by design. Change the design and **Freeze** the next version.
 - **L-shaped / bi-fold corner wall units, appliance cut-outs in cabinets, CNC machine files:** not built yet.
-- **Unlimited AI pictures or Help questions:** each business has a limit per day, week and month set by the software owner. When it's reached, the app says so; it resets the next day, week or month. Ask the software owner (the person who set up your account) to raise it.
+- **Unlimited AI pictures or Help questions:** each business has a limit per day, week and month set by the software owner. See it on **Usage** (in the main menu). When it's reached, the app says so; it resets at midnight, on Monday, or on the 1st (India time). Only the software owner (the person who set up your account) can raise it.
 - **Undo on a phone:** no buttons; use a laptop or reverse the change by hand.
 - **Rename a design, or change the app's language:** not available (the app is in English; a design is always shown under its customer's name).
 

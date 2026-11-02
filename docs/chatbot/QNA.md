@@ -307,11 +307,7 @@ Click **Appliances** on the left tool rail. Drag the hob, chimney, sink, fridge 
 
 Select the chimney and change **Off floor (mm)**: the height of its bottom edge from the floor. About 850 is counter level; a chimney usually goes around 1500–1650, about 650–750 above the hob.
 
-### 50. how to copy the same hob again
-
-Appliances have no Duplicate button. Select it and press **Ctrl+C** then **Ctrl+V** (Cmd on Mac); the copy appears next to it. Or drag the hob from **Appliances** again.
-
-### 51. how do I make a hole in the countertop for the sink
+### 50. how do I make a hole in the countertop for the sink
 
 The hole is set on the sink in the catalogue, not on the cabinet:
 
@@ -321,44 +317,44 @@ The hole is set on the sink in the catalogue, not on the cabinet:
 
 Every kitchen where that sink sits on a counter gets the hole.
 
-### 52. sink is showing as white box in 3d
+### 51. sink is showing as white box in 3d
 
 That sink has no working 3D model. Check **Catalogue** → **Appliances** → the sink → **Model file**: it must end in **.glb** or **.gltf** and must not start with "public/". If you're not sure which file to use, pick a sink that already shows correctly, or ask your admin.
 
-### 53. appliance price is coming in quote but customer is buying it himself
+### 52. appliance price is coming in quote but customer is buying it himself
 
 Set the price of that appliance to 0 in **Catalogue** → **Appliances** → open it → **Price** → **Save**. Appliances already placed keep the price they were added with, so delete it from this kitchen and add it again.
 
 ## F. Style, surfaces, tiles, slab and lights
 
-### 54. floor pe tiles kaise lagaye
+### 53. floor pe tiles kaise lagaye
 
 1. Click **Surfaces** on the left tool rail.
 2. Tap the **Floor** row.
 3. Pick a tile (tabs Tiles, Stone, Wood…).
 4. To show tile joints, tick **Lay as tiles**, then choose the size (e.g. 600×1200). For marble, stone or a plain colour you also choose **Straight** or **Offset (brick)** and the grout width and colour; a tile photo already has its grout, so only the size changes.
 
-### 55. backsplash tiles only behind the counter
+### 54. backsplash tiles only behind the counter
 
 Use **Surfaces** → the wall's row (e.g. **North wall**) → pick the tile. The area hidden behind cabinets has its own **Behind units:** choice; leave it as **not finished** and that area isn't charged. Only the visible wall is priced.
 
-### 56. how to change countertop granite
+### 55. how to change countertop granite
 
 **Surfaces** → **Countertop / slab** row → pick the slab (tabs Granite, Marble, Quartz…). For a different shade, choose **Custom shade** under **Colour**. Tick **Charge for it on the quote** only if you're supplying the slab.
 
-### 57. homeowner will buy granite himself, don't add in quote
+### 56. homeowner will buy granite himself, don't add in quote
 
 In **Surfaces**, leave **Charge for it on the quote** unticked under **Countertop / slab**. The slab still shows in the design and prints on the quote as "by homeowner" at ₹0.
 
-### 58. tiling is done by civil contractor, remove floor and wall cost from quote
+### 57. tiling is done by civil contractor, remove floor and wall cost from quote
 
 In **Surfaces**, untick **Charge floor, walls and ceiling on the quote** at the top. The finishes still show in the design; the quote shows them as not charged.
 
-### 59. added a new tile photo in catalogue but it's not showing in floor options
+### 58. added a new tile photo in catalogue but it's not showing in floor options
 
 The floor list shows finishes whose **Finish type** suits floors (e.g. Vitrified tile, Ceramic tile, Marble, Granite, Wooden flooring). Check **Catalogue** → **Finishes** → your tile → **Finish type**, and **Save**. Or tick **Show all finishes** in the floor picker.
 
-### 60. how to add lights under the cabinets
+### 59. how to add lights under the cabinets
 
 1. Click **Lights** on the left tool rail.
 2. Press **Add** next to a strip light in your list.
@@ -366,25 +362,25 @@ The floor list shows finishes whose **Finish type** suits floors (e.g. Vitrified
 
 Lights are shown but not charged unless you tick **Charge electrical work**.
 
-### 61. where do I set the default finish for all new kitchens
+### 60. where do I set the default finish for all new kitchens
 
 **Catalogue** → **Default kitchen style**: set the finish, colour, handle and board for base, wall and tall cabinets. Kitchens without their own **Style** use these, and each kitchen can change its own with **Style**.
 
-### 62. Style changed the cabinets but one cabinet did not change
+### 61. Style changed the cabinets but one cabinet did not change
 
 That cabinet was set by hand, so it keeps its own finish. When you change the style, the message offers **Change it too**. Or select that cabinet and change its **Finish** row directly.
 
 ## G. 3D, elevation, cameras and present
 
-### 63. how to see 3d
+### 62. how to see 3d
 
 Click **3D** at the top of the design screen. In **Free orbit**, drag to turn the room and scroll or pinch to zoom. To stand inside the room, choose a camera under **Look from**.
 
-### 64. how to see one wall straight with measurements
+### 63. how to see one wall straight with measurements
 
 Click **Elevation** at the top, choose **Drawing**, then pick the wall: **North**, **East**, **South** or **West**. **Top view** shows the plan from above.
 
-### 65. how to add a camera
+### 64. how to add a camera
 
 1. Click **Cameras** on the left tool rail.
 2. Press **+ Add**; a camera appears in the middle of the room.
@@ -392,19 +388,19 @@ Click **Elevation** at the top, choose **Drawing**, then pick the wall: **North*
 4. Set **Height** (about 1500 mm is eye level) and **Tilt**.
 5. In **3D**, choose it under **Look from**.
 
-### 66. how to save the 3d angle I like
+### 65. how to save the 3d angle I like
 
 In **3D**, choose a camera under **Look from**, drag to look around until it looks right, then press **Save this view**. That camera will open at this view next time.
 
-### 67. how to take 360 photo
+### 66. how to take 360 photo
 
 In **3D**, open **360° photos**, choose the camera under **360° photo for**, and press **Capture 360°**. Then press **View 360°** to look around. **Capture again** replaces it.
 
-### 68. how to show the design to customer without them seeing my cost
+### 67. how to show the design to customer without them seeing my cost
 
 Press **Present** in the top bar (on a phone: **…** → **Present to customer**). It shows **3D walkthrough** and **Floor plan** only. Nothing can be moved, and the price stays hidden until you press **Reveal price**. **Back to design** returns.
 
-### 69. how do I get a realistic photo of the kitchen for the customer
+### 68. how do I get a realistic photo of the kitchen for the customer
 
 1. Add a camera if there isn't one: **Cameras** in the left tools, then place it where you'd stand.
 2. Open the **3D** tab. Stand at **Camera 1**, look where you want, and press **Save this view**.
@@ -413,19 +409,19 @@ Press **Present** in the top bar (on a phone: **…** → **Present to customer*
 
 Every picture is kept under **Images** in the 3D tab, with **Download**.
 
-### 70. can I move or edit cabinets in 3D
+### 69. can I move or edit cabinets in 3D
 
 You can click a cabinet in 3D to select it; its settings open from the right edge. To move items, use the **Plan** tab; that's where dragging works.
 
 ## H. Quote
 
-### 71. I don't want the customer to see my margin on the quote
+### 70. I don't want the customer to see my margin on the quote
 
 They never see it. Your margin is built into each line's price, so the quote, the PDF and Present show only selling prices; no margin line appears anywhere. Nothing needs to be hidden or changed.
 
 **Your pricing** in the quote panel (with its **Cost** view) is visible only to you.
 
-### 72. give 5% discount on the quote
+### 71. give 5% discount on the quote
 
 1. Open the quote (**Quote** in the top bar, or **Finalise quote**).
 2. Under **Discount**, choose **%** and type **5**. For a fixed amount instead, choose **₹ amount**.
@@ -434,7 +430,7 @@ They never see it. Your margin is built into each line's price, so the quote, th
 
 The discount comes out of your margin; the **Cost** view shows what you still make.
 
-### 73. how do I make the quote
+### 72. how do I make the quote
 
 1. Press **Finalise quote** at the bottom right of the design screen.
 2. Check the lines and set your margin under **Your pricing**.
@@ -443,66 +439,72 @@ The discount comes out of your margin; the **Cost** view shows what you still ma
 
 Then move the customer to **Quote sent** on the Customers page.
 
-### 74. quotation bhejna hai whatsapp pe
+### 73. quotation bhejna hai whatsapp pe
 
 Design screen par **Finalise quote** dabayiye, phir **Freeze quote**. Uske baad **Share on WhatsApp** dabayiye. Customer ka number pehle se aa jayega; kisi aur number par bhejna ho to **A different number, just this once** chuniye.
 
-### 75. margin kahan change hota hai
+### 74. margin kahan change hota hai
 
 Open the quote (**Quote** in the top bar, or click the **Total**). Expand **Your pricing (not shown to the customer)** and change **Margin for this project (%)**. It applies to this kitchen only.
 
-### 76. I changed the design after sending quote, now what
+### 75. I changed the design after sending quote, now what
 
 That's normal. The quote card now says the customer is holding the old version. Press **Freeze v2** (or the next number) to make a new version, then send it. Old versions stay under **All frozen versions**.
 
-### 77. where to find the quote I sent last week
+### 76. where to find the quote I sent last week
 
 Open that customer's design and open the quote panel (**Quote** in the top bar). Under **All frozen versions**, **Choose a version…**, then **Download PDF (vN)**.
 
-### 78. add transport charges in quote
+### 77. add transport charges in quote
 
 - **For every job:** **Rate card** → **Labour and other charges** → **+ Add a charge** → name it, enter the amount, choose **lump sum** → **Save rates**.
 - **For this kitchen only:** open the quote → **Your pricing** → **Labour and other charges** → **Customise for this project**.
 
-### 79. does the quote include GST
+### 78. does the quote include GST
 
 No. The app doesn't add GST automatically. You can print your GSTIN on the PDF: **Settings** → **GSTIN (optional)** → tick **Print the GSTIN on quotes** → **Save**.
 
-### 80. price showing ₹0 for some cabinet
+### 79. price showing ₹0 for some cabinet
 
 Usually its board isn't on your Rate card. Open **Cutting list**; a message names the cabinet and board. Then add that board in **Rate card** → **Boards** → **+ Add board** → **Save rates**, or select the cabinet and choose another **Board**.
 
 ## I. Cutting list, Cabinet Designer and production
 
-### 81. cutting list kahan milegi
+### 80. cutting list kahan milegi
 
 On the design screen, press **Cutting list** in the top bar (on a phone: **…** → **Cutting list**). You can also open it from **Production** → **Cutting list**, or a customer card's **…** menu → **Cutting list**.
 
-### 82. carpenter wants the cutting list in excel
+### 81. carpenter wants the cutting list in excel
 
 Open the **Cutting list** and press **Excel sheet** at the top. **Cutting list PDF** prints it with sheet layouts, and **Part labels PDF** prints stickers for every piece.
 
-### 83. cutting list for the approved quote not current design
+### 82. cutting list for the approved quote not current design
 
 Open the **Cutting list** and, at the top, change **Current design** to the frozen quote version the customer approved.
 
-### 84. cutting list says built on assumed construction
+### 83. cutting list says built on assumed construction
 
 Your Workshop settings aren't confirmed yet. Press **Workshop settings** (or go to **Workshop**), check each setting with your carpenter, tick **My carpenter has confirmed these settings**, and press **Save**.
 
-### 85. how to add filler or skirting to cutting list
+### 84. how to add filler or skirting to cutting list
 
 Open the **Cutting list**, go to **Loose parts**, and press **Add part**. Enter **Name**, **Length**, **Width**, **Qty** and **Board** (in mm). It's cut and priced like any panel.
 
-### 86. job is ready to start in workshop how to mark
+### 85. job is ready to start in workshop how to mark
 
 Go to **Production** and press **Start production** on that job. It moves to **In production**. After fitting, press **Mark installed**.
 
-### 87. change board of all cabinets to plywood
+### 86. change board of all cabinets to plywood
 
 Quickest: **Style** in the top bar → set **Carcass board** for base, wall and tall cabinets. Or select any cabinet → **Panels & boards…** → choose the board → **Use this carcass board for every cabinet**. That applies it straight away (Undo reverses it in one step).
 
 ## J. Setup: catalogue, rates, workshop, settings, account
+
+### 87. how many AI images can we still make today
+
+Open **Usage** in the main menu. Under **Your usage**, the **Images** row shows **Today**, **This week** and **This month**: how many you've made out of the limit, and a line like "At this rate: runs out around 8:00 pm today".
+
+When a limit is reached it resets at midnight, on Monday, or on the 1st. Only the software owner can raise it.
 
 ### 88. how to put my company logo on quote
 

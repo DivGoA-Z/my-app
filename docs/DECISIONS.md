@@ -8085,3 +8085,50 @@ with `redirectTo` = this site's origin.
 - in a browser with the email send and the password change intercepted:
   forgot → "check your email"; a recovery link → Set a new password →
   save → Home; an expired link → explained.
+
+## 134. Everyone sees their own usage, with a projection
+
+**What the user asked for (2 Nov 2026).** Every business and login, not
+just the admin, should see the Usage section: current usage out of the
+total available, and when it will run out at the current rate, as a
+simple straight line.
+
+**Built.**
+- **Usage** is in everyone's menu. "Your usage" sits at the top: Images
+  and Tokens × Today / This week / This month. Each shows used of limit
+  (or "no limit"), a thin bar (amber when on course to run out, red at
+  the limit), and one line in words:
+  - "At this rate: runs out around 8:00 pm today" (or "around Thu, 5 Nov");
+  - "At this rate: about 16 images by midnight, within the limit";
+  - "Limit reached: resets at midnight / on Monday / on 1 Dec";
+  - "Nothing used yet"; "No limit".
+- Read-only. The software owner still sets limits, below on the same page
+  (§132, super admin only).
+- `my_usage_status()` (security definer) returns
+  `usage_status_for(current_business_id())` and the database's `now`, so
+  only ever the caller's own business. Re-run schema.sql.
+- The projection (`lib/usageProjection.ts`) draws a straight line from
+  the start of the period:
+  - rate = used ÷ time elapsed;
+  - projected = used + rate × time left;
+  - runs out at now + (limit − used) ÷ rate, if that's before the
+    period ends.
+- Periods are India time (fixed +5:30, no daylight saving), matching the
+  database: days from midnight, weeks from Monday, months from the 1st.
+- Under an hour into a period counts as an hour, so one image at
+  00:05 doesn't read as "runs out in a minute".
+- It uses the database's clock, not the device's, so a phone with the
+  wrong time doesn't move the projection.
+
+**Rejected.** A smarter projection (recent-hours rate, weekday shape):
+the user asked for a straight line. It's also easier to read and to
+check by hand.
+
+**Tested:**
+- 11 projection tests: India-time periods including the Sunday→Monday
+  week edge and the year end; within, runs out, reached, unused and no
+  limit; the wording;
+- a screen test: a normal login sees only "Your usage"; the super admin
+  also sees Default limits and Businesses;
+- the SQL on the scratch Postgres: own business only, and no business
+  is refused.

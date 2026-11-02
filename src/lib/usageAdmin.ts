@@ -58,6 +58,28 @@ export async function fetchUsageOverview(): Promise<UsageOverview> {
   };
 }
 
+// Your own business's limits and usage (§134), for everyone's Usage page.
+// `now` is the database's clock, so the projection and the limits agree
+// on which day it is even if this device's clock is off.
+export interface MyUsage {
+  limits: Limits;
+  used: UsedNumbers;
+  now: Date;
+}
+
+export async function fetchMyUsage(): Promise<MyUsage> {
+  const { data, error } = await supabase.rpc('my_usage_status');
+  if (error) {
+    // PostgREST's "function not found" (PGRST202) or Postgres's 42883.
+    if (error.code === 'PGRST202' || error.code === '42883' || /could not find the function|does not exist/i.test(error.message)) {
+      throw new Error('Usage isn’t set up yet: re-run supabase/schema.sql.');
+    }
+    throw new Error(`Couldn’t load your usage: ${error.message}`);
+  }
+  const d = data as { limits: Partial<Limits>; used: UsedNumbers; now?: string };
+  return { limits: pickLimits(d.limits), used: d.used, now: d.now ? new Date(d.now) : new Date() };
+}
+
 export async function saveDefaultLimits(limits: Limits): Promise<void> {
   const { error } = await supabase.rpc('admin_set_default_usage_limits', { p_limits: limits });
   if (error) throw new Error(`Couldn’t save the defaults: ${error.message}`);

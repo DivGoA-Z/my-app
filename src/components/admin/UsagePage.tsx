@@ -1,10 +1,13 @@
 // src/components/admin/UsagePage.tsx
 //
-// The software owner's Usage page (§132): AI limits for every business —
+// The Usage page. Everyone sees "Your usage" (§134): their own business's
+// use, its limits, and when it will run out at the current rate.
+// The software owner also sees the limits for every business (§132) —
 // images and tokens, per day / week / month — and what each has used.
 // Defaults apply to every business; a business's own number wins. Blank
 // means "no limit" for a default and "use the default" for a business.
-// Only shown to a super admin; the database refuses anyone else anyway.
+// Those two sections show only to a super admin; the database refuses
+// anyone else anyway.
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -13,6 +16,8 @@ import { PageHeader } from '../shell/AppShell';
 import { SectionCard } from '../common/SectionCard';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { YourUsage } from './YourUsage';
+import { useAuthStore } from '../../store/authStore';
 import {
   fetchUsageOverview,
   LIMIT_KEYS,
@@ -171,6 +176,19 @@ function BusinessRow({ b, defaults, onSaved }: { b: BusinessUsage; defaults: Lim
 }
 
 export function UsagePage() {
+  const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin);
+  return (
+    // pb-24: room below the last row for the floating Help button.
+    <div className="flex flex-col gap-5 px-4 pt-6 pb-24 md:px-8 lg:px-10 lg:pt-8">
+      <PageHeader title="Usage" subtitle={isSuperAdmin ? 'AI limits for every business' : 'Your AI usage and limits'} />
+      <YourUsage />
+      {isSuperAdmin && <AllBusinesses />}
+    </div>
+  );
+}
+
+// The software owner's sections (§132).
+function AllBusinesses() {
   const [data, setData] = useState<UsageOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -211,9 +229,7 @@ export function UsagePage() {
   }
 
   return (
-    // pb-24: room below the last row for the floating Help button.
-    <div className="flex flex-col gap-5 px-4 pt-6 pb-24 md:px-8 lg:px-10 lg:pt-8">
-      <PageHeader title="Usage" subtitle="AI limits for every business" />
+    <>
       {error && (
         <p role="alert" className="rounded-xl bg-destructive/10 px-3.5 py-3 text-[14px] text-destructive">
           {error}
@@ -249,6 +265,6 @@ export function UsagePage() {
           </SectionCard>
         </>
       )}
-    </div>
+    </>
   );
 }

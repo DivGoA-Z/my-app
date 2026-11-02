@@ -267,5 +267,10 @@ business's limits, which you set on the **Usage** page.
      too.
 5. On **Usage**, set the defaults, and any business's own limits.
 
+**Usage for everyone** (§134): every login sees its own business's usage
+and projection on **Usage**. That needs `my_usage_status()`, so re-run
+`schema.sql` after pulling §134; until then the section says "Usage isn't
+set up yet". Help and Make image don't depend on it.
+
 **On your laptop**: `GEMINI_API_KEY=… npm run dev` (it uses the real
 Supabase limits, so step 1 must be done).

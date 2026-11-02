@@ -2314,7 +2314,25 @@ begin
     updated_at = now();
 end $$;
 
+-- Your own business's limits and usage, for everyone's Usage page
+-- (§134). Only ever the caller's business.
+create or replace function public.my_usage_status()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  b text := public.current_business_id();
+begin
+  if b is null then raise exception 'No business for this account'; end if;
+  return public.usage_status_for(b) || jsonb_build_object('business_id', b, 'now', now());
+end $$;
+
 revoke execute on function public.usage_status_for(text) from public, anon, authenticated;
+revoke execute on function public.my_usage_status() from public, anon;
+grant execute on function public.my_usage_status() to authenticated;
 revoke execute on function public.usage_check(text) from public, anon;
 revoke execute on function public.usage_record(text, int, bigint, text) from public, anon;
 revoke execute on function public.admin_usage_overview() from public, anon;
