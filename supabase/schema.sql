@@ -2330,7 +2330,37 @@ begin
   return public.usage_status_for(b) || jsonb_build_object('business_id', b, 'now', now());
 end $$;
 
+-- One business's AI images, newest first, for the super admin's Usage
+-- page (§136): with the customer and design names, so they can be
+-- reviewed without opening each design. Same narrow exception as the
+-- other admin_* functions; refuses anyone else.
+create or replace function public.admin_business_renders(p_business text, p_limit int default 120)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_super_admin() then raise exception 'Not allowed'; end if;
+  return coalesce((
+    select jsonb_agg(to_jsonb(x) order by x.created_at desc)
+    from (
+      select r.id, r.created_at, r.camera_label, r.styling, r.model, r.image_url,
+             p.client_name, l.name as design_name
+      from public.design_renders r
+      left join public.projects p on p.id = r.project_id
+      left join public.layouts l on l.id = r.layout_id
+      where r.business_id = p_business
+      order by r.created_at desc
+      limit least(greatest(p_limit, 1), 500)
+    ) x
+  ), '[]'::jsonb);
+end $$;
+
 revoke execute on function public.usage_status_for(text) from public, anon, authenticated;
+revoke execute on function public.admin_business_renders(text, int) from public, anon;
+grant execute on function public.admin_business_renders(text, int) to authenticated;
 revoke execute on function public.my_usage_status() from public, anon;
 grant execute on function public.my_usage_status() to authenticated;
 revoke execute on function public.usage_check(text) from public, anon;
@@ -2387,3 +2417,101 @@ drop policy if exists "Members delete renders" on storage.objects;
 create policy "Members delete renders"
 on storage.objects for delete
 using (bucket_id = 'renders' and (storage.foldername(name))[1] = public.current_business_id());
+
+-- ============================================================
+-- IMAGE PROMPTS (§137)
+-- ============================================================
+-- The software owner's prompt lab: up to five named prompts for Make
+-- image (opening and closing instructions, whether to send the design
+-- brief, up to three reference photos), one of which can be marked as
+-- the production prompt every business uses. None marked = the app's
+-- built-in prompt.
+--
+-- A PLATFORM table, like super_admins: no business_id, because the
+-- prompt belongs to the software, not to a business. Anyone signed in
+-- may read the production prompt (their Make image sends it); only a
+-- super admin may read the others or write.
+
+create table if not exists public.render_prompts (
+  id text primary key,
+  name text not null check (length(trim(name)) between 1 and 60),
+  intro text not null default '',
+  closing text not null default '',
+  include_brief boolean not null default true,
+  -- [{"url": "...", "path": "prompts/<id>/<file>", "label": "..."}], at most 3.
+  reference_images jsonb not null default '[]'::jsonb check (jsonb_typeof(reference_images) = 'array' and jsonb_array_length(reference_images) <= 3),
+  is_production boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create unique index if not exists render_prompts_one_production on public.render_prompts (is_production) where is_production;
+alter table public.render_prompts enable row level security;
+
+drop policy if exists "Read the production prompt, or all as super admin" on public.render_prompts;
+create policy "Read the production prompt, or all as super admin" on public.render_prompts
+  for select using (is_production or public.is_super_admin());
+drop policy if exists "Super admin inserts prompts" on public.render_prompts;
+create policy "Super admin inserts prompts" on public.render_prompts
+  for insert with check (public.is_super_admin());
+drop policy if exists "Super admin updates prompts" on public.render_prompts;
+create policy "Super admin updates prompts" on public.render_prompts
+  for update using (public.is_super_admin()) with check (public.is_super_admin());
+drop policy if exists "Super admin deletes prompts" on public.render_prompts;
+create policy "Super admin deletes prompts" on public.render_prompts
+  for delete using (public.is_super_admin());
+
+-- At most five.
+create or replace function public.render_prompts_max_five()
+returns trigger
+language plpgsql
+as $$
+begin
+  if (select count(*) from public.render_prompts) >= 5 then
+    raise exception 'At most 5 prompts: delete one first.';
+  end if;
+  return new;
+end $$;
+drop trigger if exists render_prompts_max_five on public.render_prompts;
+create trigger render_prompts_max_five before insert on public.render_prompts
+  for each row execute function public.render_prompts_max_five();
+
+-- Mark one prompt as production, or none (null) for the built-in prompt.
+-- One statement, so the one-production index never sees two.
+create or replace function public.admin_set_production_prompt(p_id text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_super_admin() then raise exception 'Not allowed'; end if;
+  update public.render_prompts set is_production = false, updated_at = now() where is_production and id is distinct from p_id;
+  if p_id is not null then
+    update public.render_prompts set is_production = true, updated_at = now() where id = p_id;
+  end if;
+end $$;
+revoke execute on function public.admin_set_production_prompt(text) from public, anon;
+grant execute on function public.admin_set_production_prompt(text) to authenticated;
+
+-- Which prompt made each image, for comparing (kept as a name too, so it
+-- still reads after the prompt is renamed or deleted).
+alter table public.design_renders add column if not exists prompt_id text;
+alter table public.design_renders add column if not exists prompt_name text;
+
+-- Reference photos: public read (they're sent with every image), written
+-- only by the super admin.
+insert into storage.buckets (id, name, public)
+values ('prompt-refs', 'prompt-refs', true)
+on conflict (id) do nothing;
+drop policy if exists "Public read access to prompt-refs" on storage.objects;
+create policy "Public read access to prompt-refs"
+on storage.objects for select
+using (bucket_id = 'prompt-refs');
+drop policy if exists "Super admin uploads prompt-refs" on storage.objects;
+create policy "Super admin uploads prompt-refs"
+on storage.objects for insert
+with check (bucket_id = 'prompt-refs' and public.is_super_admin());
+drop policy if exists "Super admin deletes prompt-refs" on storage.objects;
+create policy "Super admin deletes prompt-refs"
+on storage.objects for delete
+using (bucket_id = 'prompt-refs' and public.is_super_admin());

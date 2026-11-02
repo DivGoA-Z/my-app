@@ -8166,3 +8166,88 @@ refused. Dropped.
 **Deploying.** A Durable Object class needs a migration (`migrations` in
 wrangler.jsonc), which only `wrangler deploy` applies, not
 `versions upload`. So it can only be verified after a push to main.
+
+## 136. The super admin reviews each business's AI images on Usage
+
+Usage → Businesses → **Images** on a business opens that business's
+images, newest first. Each card shows customer · design, date, camera
+and Bare/Styled; click for a large view with Download and "Open in a new
+tab". The user asked for it per business, not all businesses together.
+
+`admin_business_renders(p_business)` is security definer and checks
+`is_super_admin()`, like the other admin functions (the §132 exception
+to §107). It joins `projects` and `layouts` only for the customer's name
+and the design's name, and returns at most 500 rows. The image files
+were already public; the list is the guarded part.
+
+Tested:
+- on the scratch Postgres: newest first, names joined, another business
+  separate, refused for a non-admin;
+- a screen test;
+- a browser check with simulated data.
+
+Re-run schema.sql.
+
+## 137. Prompt lab: named prompts, reference photos, Compare, production
+
+**What the user asked for (2 Nov 2026).** As super admin:
+- see the current prompt, edit it, and keep up to 5 named prompts;
+- compare two images side by side;
+- mark one prompt as production, used by every business;
+- upload kitchen reference photos to send with a prompt.
+
+**What a "prompt" is here.** The words around the design, not the
+design itself.
+- The brief (JSON) and the camera pictures always come from the design.
+- A prompt sets the opening words, the closing words, whether the brief
+  is sent, and up to 3 reference photos.
+- Sent in order: opening → brief → camera pictures (each under its file
+  name) → "Reference photo N (a real kitchen, for look and finish only):"
+  + photo → closing. Empty openings and closings are left out.
+- The built-in prompt (`BUILT_IN_PROMPT`) is exactly what Make image
+  sent before, and stays the production one until another is chosen.
+
+**Storage.**
+- `render_prompts` is a PLATFORM table: no `business_id`, like
+  `super_admins`, because a prompt belongs to the software, not to a
+  business.
+- RLS: anyone signed in may read the production row (their Make image
+  sends it). Only a super admin may read the rest or write.
+- A trigger caps it at 5 rows; a check caps photos at 3; a partial
+  unique index allows only one production row.
+- `admin_set_production_prompt(id | null)` switches it in one function.
+- Reference photos go in the public `prompt-refs` bucket, which only the
+  super admin can write to. They're resized to 1280 px JPEG on upload.
+- `design_renders` gains `prompt_id` and `prompt_name`. The name is kept
+  so it still reads after a rename or delete.
+
+**Where.**
+- **Prompts** (menu, super admin only): "Used by businesses" radio, the
+  Built-in prompt read-only with "Copy into a new prompt", each saved
+  prompt editable, and "New blank prompt".
+- **3D tab (super admin):** a **Prompt** picker next to Make image
+  (production by default) and **See prompt**, which shows the exact text
+  that would be sent, with "[picture]" where each image goes.
+- **Images:** each image shows its prompt. **Compare** (super admin):
+  pick two thumbnails to see them side by side with prompt, styling and
+  model.
+- Businesses always get the production prompt. If it can't be read, they
+  get the built-in one rather than a failure.
+
+The Worker's image cap went from 10 to 14 (Gemini Pro's maximum), to fit
+cameras plus reference photos.
+
+**Tested.**
+- SQL on the scratch Postgres:
+  - the 5-prompt cap and the 3-photo cap;
+  - one production prompt;
+  - a non-admin sees only production and can't write or switch it;
+  - null switches to the built-in prompt.
+- Unit tests for building the request with a prompt.
+- Screen tests for the Prompts page.
+- Browser check with simulated data: the picker; See prompt (the
+  opening, the brief, 4 pictures including the reference); Make image
+  sent the chosen prompt with the reference photo; Compare showed
+  Strict vs Loose.
+
+Re-run schema.sql.

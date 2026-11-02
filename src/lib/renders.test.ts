@@ -1,6 +1,6 @@
 // "Make image" (§132): what's sent, and reading what comes back.
 import { describe, expect, it } from 'vitest';
-import { nearestAspect, pickRenderImage, renderParts } from './renders';
+import { BUILT_IN_PROMPT, nearestAspect, pickRenderImage, promptAsText, renderParts } from './renders';
 import type { RenderBrief } from './renderBrief';
 
 describe('the request', () => {
@@ -52,5 +52,33 @@ describe('the reply', () => {
       error: 'No image came back (SAFETY). The model said: “I can’t make that.”',
     });
     expect(pickRenderImage({ promptFeedback: { blockReason: 'OTHER' } })).toEqual({ error: 'No image came back (OTHER).' });
+  });
+});
+
+describe('prompts (§137)', () => {
+  const brief = { prompt: { imagePrompt: 'A kitchen.' } } as unknown as RenderBrief;
+  const cam = [{ file: 'k-guide.png', mimeType: 'image/png' as const, data: 'L' }];
+
+  it('the built-in prompt is what Make image always sent', () => {
+    const parts = renderParts(brief, cam);
+    expect(parts[0]).toEqual({ text: BUILT_IN_PROMPT.intro });
+    expect(parts.at(-1)).toEqual({ text: BUILT_IN_PROMPT.closing });
+  });
+
+  it('a saved prompt: its words, the brief only if on, reference photos after the cameras', () => {
+    const prompt = { id: 'p1', name: 'Loose', intro: '  Make it warm.  ', closing: '', includeBrief: false };
+    const parts = renderParts(brief, cam, prompt, [{ mimeType: 'image/jpeg', data: 'R1' }]);
+    expect(parts).toEqual([
+      { text: 'Make it warm.' },
+      { text: 'File "k-guide.png":' },
+      { image: { mimeType: 'image/png', data: 'L' } },
+      { text: 'Reference photo 1 (a real kitchen, for look and finish only):' },
+      { image: { mimeType: 'image/jpeg', data: 'R1' } },
+    ]);
+  });
+
+  it('See prompt shows every text, and where each picture goes', () => {
+    const text = promptAsText(renderParts(brief, cam, { ...BUILT_IN_PROMPT, includeBrief: false }));
+    expect(text).toBe(`${BUILT_IN_PROMPT.intro}\n\nFile "k-guide.png":\n\n[picture: image/png]\n\n${BUILT_IN_PROMPT.closing}`);
   });
 });

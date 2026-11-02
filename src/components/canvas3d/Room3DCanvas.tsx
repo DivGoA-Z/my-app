@@ -58,7 +58,7 @@
 
 import { BACKDROP_LIGHT, contrastingBackdrop, surfaceLightness } from '../../lib/backdrop';
 import { cn } from '@/lib/utils';
-import { Camera as CameraIcon, ChevronDown, Download, Eye, Images, Save, Sparkles, Trash2 } from 'lucide-react';
+import { Camera as CameraIcon, ChevronDown, Download, Eye, FileText, Images, Save, Sparkles, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePhysicalCabinets } from '../../hooks/usePhysicalCabinets';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
@@ -110,8 +110,10 @@ import type { CameraPose, StructureOptions } from '../../lib/viewSnapshot';
 import { downloadBlob } from '../../lib/downloadBlob';
 import { useRenderBriefInput } from '../../hooks/useRenderBriefInput';
 import { useAuthStore } from '../../store/authStore';
-import { makeRender, nearestAspect, renderParts, saveRender, snapshotBase64, type RenderImageInput } from '../../lib/renders';
+import { BUILT_IN_PROMPT, makeRender, nearestAspect, promptAsText, renderParts, saveRender, snapshotBase64, type ImagePrompt, type RenderImageInput } from '../../lib/renders';
+import { listPrompts, productionPrompt, referencePhotoParts, type SavedPrompt } from '../../lib/renderPrompts';
 import { RenderDialog, type RenderJob } from './RenderDialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { CameraMovePad } from '../toolbar/CameraMovePad';
 import { applyOrbitStep, type CameraMove } from '../../lib/cameraMove';
 import { Cabinet3DInspector } from './Cabinet3DInspector';
@@ -427,67 +429,116 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
   const [renderOpen, setRenderOpen] = useState(false);
   const [renderJob, setRenderJob] = useState<RenderJob | null>(null);
 
+  // §137: the super admin picks which prompt Make image uses ('production'
+  // = whatever businesses get); everyone else always gets production.
+  const [promptChoice, setPromptChoice] = useState<string>('production');
+  const [savedPrompts, setSavedPrompts] = useState<SavedPrompt[]>([]);
+  const [promptPreview, setPromptPreview] = useState<{ name: string; text: string } | null>(null);
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    let live = true;
+    listPrompts().then(
+      (rows) => live && setSavedPrompts(rows),
+      () => {}
+    );
+    return () => {
+      live = false;
+    };
+  }, [isSuperAdmin]);
+
+  async function chosenPrompt(): Promise<ImagePrompt> {
+    if (isSuperAdmin && promptChoice === 'built-in') return BUILT_IN_PROMPT;
+    if (isSuperAdmin && promptChoice !== 'production') {
+      const p = savedPrompts.find((x) => x.id === promptChoice);
+      if (p) return p;
+    }
+    return productionPrompt();
+  }
+
   // The same files as "Brief + other views" (§128): ONE image from Camera 1,
   // the other cameras' colour views as context.
-  async function handleMakeImage() {
+  async function renderInputs() {
     const fns = viewFnsRef.current;
-    if (!currentLayout || !briefInput || !fns || !businessId || cameras.length === 0) return;
+    if (!currentLayout || !briefInput || !fns || cameras.length === 0) return null;
     const main = cameras[0];
-    setRenderJob({ state: 'working', cameraLabel: main.label });
+    const others = cameras.filter((c) => c.id !== main.id);
+    const stem = renderBriefFileStem(currentLayout.name);
+    const { widthPx, heightPx } = GUIDE_IMAGE_SIZE;
+    const shot = fns.fromCamera(main, { widthPx, heightPx });
+    const ctx = others.map((c) => ({ node: c, img: fns.fromCamera(c, { widthPx, heightPx }) }));
+    const refs: ReferenceImage[] = [
+      { kind: 'line-render', file: `${stem}-guide.png`, widthPx, heightPx },
+      { kind: 'colour-render', file: `${stem}-colour.jpg`, widthPx, heightPx },
+      ...ctx.map(({ node }) => ({
+        kind: 'context-view' as const,
+        file: `${stem}-context-${renderBriefFileStem(node.label)}.jpg`,
+        widthPx,
+        heightPx,
+        cameraLabel: node.label,
+      })),
+    ];
+    const brief = buildRenderBrief({
+      ...briefInput,
+      view: viewFromWorldCamera({
+        mode: 'walkthrough',
+        cameraLabel: main.label,
+        position: shot.pose.position,
+        direction: shot.pose.direction,
+        verticalFovDeg: shot.pose.verticalFovDeg,
+        imageWidthPx: widthPx,
+        imageHeightPx: heightPx,
+      }),
+      assetOrigin: window.location.origin,
+      generatedAt: new Date().toISOString(),
+      referenceImages: refs,
+      refs: false,
+      styling: briefStyling,
+    });
+    const images: RenderImageInput[] = [
+      { file: refs[0].file, mimeType: 'image/png', data: await snapshotBase64(shot.line, 'image/png') },
+      { file: refs[1].file, mimeType: 'image/jpeg', data: await snapshotBase64(shot.colour, 'image/jpeg') },
+      ...(await Promise.all(
+        ctx.map(async ({ img }, k): Promise<RenderImageInput> => ({
+          file: refs[2 + k].file,
+          mimeType: 'image/jpeg',
+          data: await snapshotBase64(img.colour, 'image/jpeg'),
+        }))
+      )),
+    ];
+    return { main, brief, images, aspect: nearestAspect(widthPx, heightPx) };
+  }
+
+  // "See prompt" (§137): exactly what Make image would send, as text.
+  async function handleSeePrompt() {
+    try {
+      const inputs = await renderInputs();
+      if (!inputs) return;
+      const prompt = await chosenPrompt();
+      const refs = 'referenceImages' in prompt ? (prompt as SavedPrompt).referenceImages.map(() => ({ mimeType: 'image/jpeg' as const, data: '' })) : [];
+      setPromptPreview({ name: prompt.name, text: promptAsText(renderParts(inputs.brief, inputs.images, prompt, refs)) });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Couldn’t build the prompt.');
+    }
+  }
+
+  async function handleMakeImage() {
+    if (!currentLayout || !businessId || cameras.length === 0) return;
+    setRenderJob({ state: 'working', cameraLabel: cameras[0].label });
     setRenderOpen(true);
     try {
-      const others = cameras.filter((c) => c.id !== main.id);
-      const stem = renderBriefFileStem(currentLayout.name);
-      const { widthPx, heightPx } = GUIDE_IMAGE_SIZE;
-      const shot = fns.fromCamera(main, { widthPx, heightPx });
-      const ctx = others.map((c) => ({ node: c, img: fns.fromCamera(c, { widthPx, heightPx }) }));
-      const refs: ReferenceImage[] = [
-        { kind: 'line-render', file: `${stem}-guide.png`, widthPx, heightPx },
-        { kind: 'colour-render', file: `${stem}-colour.jpg`, widthPx, heightPx },
-        ...ctx.map(({ node }) => ({
-          kind: 'context-view' as const,
-          file: `${stem}-context-${renderBriefFileStem(node.label)}.jpg`,
-          widthPx,
-          heightPx,
-          cameraLabel: node.label,
-        })),
-      ];
-      const brief = buildRenderBrief({
-        ...briefInput,
-        view: viewFromWorldCamera({
-          mode: 'walkthrough',
-          cameraLabel: main.label,
-          position: shot.pose.position,
-          direction: shot.pose.direction,
-          verticalFovDeg: shot.pose.verticalFovDeg,
-          imageWidthPx: widthPx,
-          imageHeightPx: heightPx,
-        }),
-        assetOrigin: window.location.origin,
-        generatedAt: new Date().toISOString(),
-        referenceImages: refs,
-        refs: false,
-        styling: briefStyling,
-      });
-      const images: RenderImageInput[] = [
-        { file: refs[0].file, mimeType: 'image/png', data: await snapshotBase64(shot.line, 'image/png') },
-        { file: refs[1].file, mimeType: 'image/jpeg', data: await snapshotBase64(shot.colour, 'image/jpeg') },
-        ...(await Promise.all(
-          ctx.map(async ({ img }, k): Promise<RenderImageInput> => ({
-            file: refs[2 + k].file,
-            mimeType: 'image/jpeg',
-            data: await snapshotBase64(img.colour, 'image/jpeg'),
-          }))
-        )),
-      ];
-      const made = await makeRender(renderParts(brief, images), nearestAspect(widthPx, heightPx));
+      const inputs = await renderInputs();
+      if (!inputs) throw new Error('The 3D view isn’t ready yet. Try again in a moment.');
+      const prompt = await chosenPrompt();
+      const references = await referencePhotoParts(prompt);
+      const made = await makeRender(renderParts(inputs.brief, inputs.images, prompt, references), inputs.aspect);
       const render = await saveRender({
         businessId,
         layoutId: currentLayout.id,
         projectId: currentProjectId,
-        cameraLabel: main.label,
+        cameraLabel: inputs.main.label,
         styling: briefStyling,
         made,
+        prompt,
       });
       setRenderJob({ state: 'done', render });
       toast.success('Image ready and saved.', { action: { label: 'View', onClick: () => setRenderOpen(true) } });
@@ -693,6 +744,26 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
         {/* §132: the software owner's, for testing image models by hand. */}
         {isSuperAdmin && (
           <>
+            {/* §137: which prompt Make image uses; See prompt shows it in full. */}
+            <select
+              aria-label="Prompt for Make image"
+              value={promptChoice}
+              onChange={(e) => setPromptChoice(e.target.value)}
+              className="h-11 rounded-[10px] border border-input bg-card px-3 text-[15px]"
+            >
+              <option value="production">
+                Prompt: production ({savedPrompts.find((p) => p.isProduction)?.name ?? 'Built-in'})
+              </option>
+              <option value="built-in">Prompt: Built-in</option>
+              {savedPrompts.map((p) => (
+                <option key={p.id} value={p.id}>
+                  Prompt: {p.name}
+                </option>
+              ))}
+            </select>
+            <Button variant="outline" size="touch" onClick={handleSeePrompt} disabled={!currentLayout || cameras.length === 0}>
+              <FileText /> See prompt
+            </Button>
             <Button variant="outline" size="touch" onClick={handleRenderBrief} disabled={!currentLayout}>
               <Download /> Image brief
             </Button>
@@ -704,6 +775,15 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
           </>
         )}
       </div>
+      <Dialog open={promptPreview !== null} onOpenChange={(o) => !o && setPromptPreview(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Prompt: {promptPreview?.name}</DialogTitle>
+            <DialogDescription>Exactly what Make image sends for this design, in order. [picture] marks where each image goes.</DialogDescription>
+          </DialogHeader>
+          <pre className="whitespace-pre-wrap break-words rounded-xl bg-secondary p-3 text-[12px] leading-relaxed">{promptPreview?.text}</pre>
+        </DialogContent>
+      </Dialog>
       <RenderDialog
         open={renderOpen}
         onOpenChange={setRenderOpen}

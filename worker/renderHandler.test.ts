@@ -35,7 +35,7 @@ describe('the request', () => {
     expect(validateRenderBody({ parts: [{ image: { mimeType: 'image/png', data: 'x' } }] })).toBe(false); // no text
     expect(validateRenderBody({ parts: [{ text: 'a' }, { image: { mimeType: 'image/gif', data: 'x' } }] })).toBe(false);
     expect(validateRenderBody({ ...body, aspectRatio: '7:3' })).toBe(false);
-    expect(validateRenderBody({ parts: [{ text: 'a' }, ...Array.from({ length: 11 }, () => ({ image: { mimeType: 'image/png', data: 'x' } }))] })).toBe(false);
+    expect(validateRenderBody({ parts: [{ text: 'a' }, ...Array.from({ length: 15 }, () => ({ image: { mimeType: 'image/png', data: 'x' } }))] })).toBe(false);
   });
 
   it('becomes a Gemini request asking for an image, in order', () => {

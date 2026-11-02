@@ -104,3 +104,48 @@ export function shortCount(n: number): string {
   if (n >= 1_000) return `${+(n / 1_000).toFixed(1)}k`;
   return String(n);
 }
+
+// One business's AI images, newest first (§136), for the super admin to
+// review on the Usage page. The files are public; the LIST is the guarded
+// part (admin_business_renders checks is_super_admin()).
+export interface AdminRender {
+  id: string;
+  createdAt: string;
+  cameraLabel: string | null;
+  styling: string | null;
+  model: string | null;
+  imageUrl: string;
+  clientName: string | null;
+  designName: string | null;
+}
+
+export async function fetchBusinessRenders(businessId: string): Promise<AdminRender[]> {
+  const { data, error } = await supabase.rpc('admin_business_renders', { p_business: businessId });
+  if (error) {
+    if (error.code === 'PGRST202' || /could not find the function/i.test(error.message)) {
+      throw new Error('Not set up yet: re-run supabase/schema.sql.');
+    }
+    throw new Error(`Couldn’t load the images: ${error.message}`);
+  }
+  return (
+    data as {
+      id: string;
+      created_at: string;
+      camera_label: string | null;
+      styling: string | null;
+      model: string | null;
+      image_url: string;
+      client_name: string | null;
+      design_name: string | null;
+    }[]
+  ).map((r) => ({
+    id: r.id,
+    createdAt: r.created_at,
+    cameraLabel: r.camera_label,
+    styling: r.styling,
+    model: r.model,
+    imageUrl: r.image_url,
+    clientName: r.client_name,
+    designName: r.design_name,
+  }));
+}

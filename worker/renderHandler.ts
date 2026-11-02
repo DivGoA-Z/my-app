@@ -38,7 +38,9 @@ export interface RenderRequestBody {
   aspectRatio?: string;
 }
 
-const MAX_IMAGES = 10;
+// Gemini's Pro image model takes up to 14: the camera pictures plus up to
+// 3 reference photos (§137).
+const MAX_IMAGES = 14;
 const MAX_TOTAL_CHARS = 25_000_000;
 const ASPECT_RATIOS = new Set(['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9']);
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);

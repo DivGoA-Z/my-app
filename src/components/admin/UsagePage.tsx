@@ -11,12 +11,13 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Building2, Gauge, RotateCcw } from 'lucide-react';
+import { Building2, Gauge, Images, RotateCcw } from 'lucide-react';
 import { PageHeader } from '../shell/AppShell';
 import { SectionCard } from '../common/SectionCard';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { YourUsage } from './YourUsage';
+import { BusinessImages } from './BusinessImages';
 import { useAuthStore } from '../../store/authStore';
 import {
   fetchUsageOverview,
@@ -100,6 +101,8 @@ function UsedCell({ b, k }: { b: BusinessUsage; k: LimitKey }) {
 
 function BusinessRow({ b, defaults, onSaved }: { b: BusinessUsage; defaults: Limits; onSaved: () => void }) {
   const [editing, setEditing] = useState(false);
+  // §136: this business's AI images, loaded when opened.
+  const [showImages, setShowImages] = useState(false);
   const [draft, setDraft] = useState<Draft>(() => toDraft(b.own));
   const [saving, setSaving] = useState(false);
   const placeholders = Object.fromEntries(
@@ -156,6 +159,9 @@ function BusinessRow({ b, defaults, onSaved }: { b: BusinessUsage; defaults: Lim
         >
           {editing ? 'Cancel' : 'Edit limits'}
         </Button>
+        <Button variant={showImages ? 'secondary' : 'outline'} size="sm" aria-expanded={showImages} onClick={() => setShowImages((v) => !v)}>
+          <Images /> {showImages ? 'Hide images' : 'Images'}
+        </Button>
       </div>
       {editing && (
         <div className="flex flex-col gap-3 rounded-xl bg-secondary/60 p-3">
@@ -171,6 +177,7 @@ function BusinessRow({ b, defaults, onSaved }: { b: BusinessUsage; defaults: Lim
           </div>
         </div>
       )}
+      {showImages && <BusinessImages businessId={b.id} businessName={b.name} />}
     </div>
   );
 }

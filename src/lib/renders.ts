@@ -24,17 +24,61 @@ export interface RenderImageInput {
   data: string;
 }
 
-export function renderParts(brief: RenderBrief, images: RenderImageInput[]): RenderPart[] {
-  return [
-    {
-      text:
-        'Make ONE photorealistic photograph of the kitchen described below. The JSON is the brief: follow its `prompt.instructions` and `prompt.imagePrompt` exactly. ' +
-        'The pictures after it are the files listed in its `referenceImages`, each introduced by its file name.',
-    },
-    { text: JSON.stringify(withoutRefs(brief)) },
-    ...images.flatMap((img): RenderPart[] => [{ text: `File "${img.file}":` }, { image: { mimeType: img.mimeType, data: img.data } }]),
-    { text: 'Now make the one photograph from the main camera, as described. Return the image.' },
-  ];
+// What a prompt is (§137): the words around the design. The design brief
+// (JSON) and the camera pictures always come from the design; a prompt
+// decides what's said before and after them, whether the brief is sent,
+// and any reference photos sent with it.
+export interface ImagePrompt {
+  // null = the built-in prompt.
+  id: string | null;
+  name: string;
+  intro: string;
+  closing: string;
+  includeBrief: boolean;
+}
+
+// The prompt Make image used from the start (§132), and still uses when no
+// saved prompt is marked for businesses.
+export const BUILT_IN_PROMPT: ImagePrompt = {
+  id: null,
+  name: 'Built-in',
+  intro:
+    'Make ONE photorealistic photograph of the kitchen described below. The JSON is the brief: follow its `prompt.instructions` and `prompt.imagePrompt` exactly. ' +
+    'The pictures after it are the files listed in its `referenceImages`, each introduced by its file name.',
+  closing: 'Now make the one photograph from the main camera, as described. Return the image.',
+  includeBrief: true,
+};
+
+// A reference photo (§137): a real kitchen, for look and finish only.
+export interface ReferencePhotoInput {
+  mimeType: 'image/png' | 'image/jpeg';
+  data: string;
+}
+
+// In order: the opening words, the brief, each camera picture under its
+// file name, each reference photo, the closing words. Empty texts are left
+// out (a prompt may have no closing).
+export function renderParts(
+  brief: RenderBrief,
+  images: RenderImageInput[],
+  prompt: ImagePrompt = BUILT_IN_PROMPT,
+  references: ReferencePhotoInput[] = []
+): RenderPart[] {
+  const parts: RenderPart[] = [];
+  if (prompt.intro.trim()) parts.push({ text: prompt.intro.trim() });
+  if (prompt.includeBrief) parts.push({ text: JSON.stringify(withoutRefs(brief)) });
+  for (const img of images) parts.push({ text: `File "${img.file}":` }, { image: { mimeType: img.mimeType, data: img.data } });
+  references.forEach((ref, i) =>
+    parts.push({ text: `Reference photo ${i + 1} (a real kitchen, for look and finish only):` }, { image: { mimeType: ref.mimeType, data: ref.data } })
+  );
+  if (prompt.closing.trim()) parts.push({ text: prompt.closing.trim() });
+  return parts;
+}
+
+// The prompt as text, for "See prompt": every text part, with a line where
+// each picture goes.
+export function promptAsText(parts: RenderPart[]): string {
+  return parts.map((p) => ('text' in p ? p.text : `[picture: ${p.image.mimeType}]`)).join('\n\n');
 }
 
 const ASPECTS: [string, number][] = [
@@ -115,6 +159,9 @@ export function base64ToBlob(data: string, mimeType: string): Blob {
 // line drawings (crisp edges, and mostly white, so small anyway).
 export async function snapshotBase64(url: string, mimeType: 'image/png' | 'image/jpeg'): Promise<string> {
   const img = new Image();
+  // For a reference photo on Supabase storage (§137): without it the canvas
+  // is "tainted" and can't be read back. Harmless for data:/blob: URLs.
+  img.crossOrigin = 'anonymous';
   img.src = url;
   await img.decode();
   const canvas = document.createElement('canvas');
@@ -139,6 +186,8 @@ export interface DesignRender {
   imageUrl: string;
   imagePath: string;
   createdAt: string;
+  // Which prompt made it (§137); null on images made before prompts.
+  promptName: string | null;
 }
 
 const RENDER_BUCKET = 'renders';
@@ -152,6 +201,7 @@ interface DesignRenderRow {
   image_url: string;
   image_path: string;
   created_at: string;
+  prompt_name?: string | null;
 }
 
 const fromRow = (r: DesignRenderRow): DesignRender => ({
@@ -163,6 +213,7 @@ const fromRow = (r: DesignRenderRow): DesignRender => ({
   imageUrl: r.image_url,
   imagePath: r.image_path,
   createdAt: r.created_at,
+  promptName: r.prompt_name ?? null,
 });
 
 export async function saveRender(args: {
@@ -172,6 +223,7 @@ export async function saveRender(args: {
   cameraLabel: string;
   styling: string;
   made: MadeRender;
+  prompt: ImagePrompt;
 }): Promise<DesignRender> {
   const id = crypto.randomUUID();
   const ext = args.made.mimeType === 'image/jpeg' ? 'jpg' : 'png';
@@ -194,6 +246,8 @@ export async function saveRender(args: {
       model: args.made.model,
       image_path: path,
       image_url: url,
+      prompt_id: args.prompt.id,
+      prompt_name: args.prompt.name,
     })
     .select('*')
     .single();

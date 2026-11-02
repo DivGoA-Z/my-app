@@ -7,6 +7,8 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { fetchBusinessRenders } from '../../lib/usageAdmin';
 import { UsagePage } from '../admin/UsagePage';
 import { useAuthStore } from '../../store/authStore';
 
@@ -22,6 +24,18 @@ vi.mock('../../lib/usageAdmin', async (importOriginal) => {
       // Wednesday noon, India time.
       now: new Date('2026-11-04T12:00:00+05:30'),
     })),
+    fetchBusinessRenders: vi.fn(async () => [
+      {
+        id: 'r1',
+        createdAt: '2026-11-02T10:15:00+05:30',
+        cameraLabel: 'Camera 1',
+        styling: 'styled',
+        model: 'gemini-3-pro-image-preview',
+        imageUrl: 'https://img.example/r1.png',
+        clientName: 'Neha Verma',
+        designName: 'Kitchen',
+      },
+    ]),
     fetchUsageOverview: vi.fn(async () => ({
       defaults: limits,
       businesses: [
@@ -59,5 +73,18 @@ describe('Usage page', () => {
     expect(screen.getByText('Your usage')).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Default limits' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Businesses' })).toBeTruthy();
+  });
+
+  it('the software owner opens a business’s images, with customer and design (§136)', async () => {
+    const user = userEvent.setup();
+    useAuthStore.setState({ isSuperAdmin: true });
+    render(<UsagePage />);
+    await screen.findByText('Sharma Kitchens');
+    await user.click(screen.getByRole('button', { name: 'Images' }));
+    expect(await screen.findByText('Neha Verma · Kitchen')).toBeTruthy();
+    expect(fetchBusinessRenders).toHaveBeenCalledWith('b1');
+    await user.click(screen.getByRole('button', { name: /AI image for Neha Verma/ }));
+    expect(screen.getByRole('dialog').textContent).toMatch(/Sharma Kitchens · 2 Nov.*Camera 1 · Styled · gemini-3-pro-image-preview/);
+    expect(screen.getByRole('link', { name: /Download/ }).getAttribute('href')).toBe('https://img.example/r1.png');
   });
 });

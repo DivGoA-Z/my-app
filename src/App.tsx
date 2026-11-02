@@ -19,6 +19,7 @@ import { HomePage } from './components/home/HomePage';
 import { CustomersPage } from './components/customers/CustomersPage';
 import { ProductionPage } from './components/production/ProductionPage';
 import { UsagePage } from './components/admin/UsagePage';
+import { PromptsPage } from './components/admin/PromptsPage';
 import { SettingsPage } from './components/settings/SettingsPage';
 import { useLayoutStore } from './store/layoutStore';
 import { useAuthStore } from './store/authStore';
@@ -49,6 +50,7 @@ type View =
   | 'workshop'
   | 'settings'
   | 'usage'
+  | 'prompts'
   | 'canvas'
   | 'designer'
   | 'present'
@@ -64,6 +66,7 @@ const SCREEN_NAMES: Record<View, string> = {
   workshop: 'Workshop',
   settings: 'Settings',
   usage: 'Usage',
+  prompts: 'Prompts',
   canvas: 'Design editor',
   designer: 'Cabinet Designer',
   present: 'Present',
@@ -255,7 +258,8 @@ function App() {
     view === 'rates' ||
     view === 'workshop' ||
     view === 'settings' ||
-    view === 'usage'
+    view === 'usage' ||
+    view === 'prompts'
   ) {
     content = (
       <AppShell page={view} onNavigate={navigate}>
@@ -285,6 +289,7 @@ function App() {
         )}
         {view === 'settings' && <SettingsPage />}
         {view === 'usage' && <UsagePage />}
+        {view === 'prompts' && <PromptsPage />}
         {view === 'catalogue' && (
           <div className="flex flex-col gap-5 px-4 py-6 md:px-8 lg:px-10 lg:py-8">
             {/* Opened from inside a design: one tap back, and it floats, so
