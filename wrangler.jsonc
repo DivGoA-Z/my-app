@@ -15,6 +15,13 @@
 	// Keep the Worker's logs in the dashboard (Workers → my-app → Logs),
 	// previews included; `wrangler tail` doesn't reach previews.
 	"observability": { "enabled": true },
+	// Makes the Gemini call from the US (§135): Gemini refuses some
+	// countries by the caller's address, and from India the Worker ran in
+	// Singapore or Hong Kong at random; Hong Kong is refused. A Durable
+	// Object pinned to eastern North America (worker/geminiProxy.ts) makes
+	// the call instead. ("placement" was tried first and didn't apply.)
+	"durable_objects": { "bindings": [{ "name": "GEMINI_PROXY", "class_name": "GeminiProxy" }] },
+	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["GeminiProxy"] }],
 	// The help assistant's relay (§129, worker/index.ts). Only /api/* runs it;
 	// everything else is served from ./dist as before.
 	"main": "./worker/index.ts",

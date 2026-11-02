@@ -17,6 +17,9 @@ import guide from '../docs/chatbot/APP_GUIDE_FOR_ASSISTANT.md';
 import { handleHelp, type HelpEnv } from './helpHandler';
 import { handleRender, type RenderEnv } from './renderHandler';
 
+// The Durable Object class must be exported from the Worker's entry (§135).
+export { GeminiProxy } from './geminiProxy';
+
 interface Env extends HelpEnv, RenderEnv {
   ASSETS: { fetch(request: Request): Promise<Response> };
 }

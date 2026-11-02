@@ -15,12 +15,16 @@
 // Only the small usage block at its end is read (usageFromGeminiReply).
 
 import { checkUsage, recordUsage, signedInToken, type SupabaseEnv } from './usage.ts';
+import { geminiFetch, type GeminiProxyNamespace } from './geminiProxy.ts';
 
 export interface RenderEnv extends SupabaseEnv {
   GEMINI_API_KEY?: string;
   // Configurable so the model can change without a code change. Starts on
   // the Pro image model ("Nano Banana Pro"), the user's choice (§132).
   GEMINI_IMAGE_MODEL?: string;
+  // The US-pinned Durable Object that makes the call (§135); absent in
+  // tests and the dev server, which call Google directly.
+  GEMINI_PROXY?: GeminiProxyNamespace;
 }
 
 export const DEFAULT_IMAGE_MODEL = 'gemini-3-pro-image-preview';
@@ -122,7 +126,7 @@ export async function handleRender(request: Request, env: RenderEnv): Promise<Re
   const model = env.GEMINI_IMAGE_MODEL || DEFAULT_IMAGE_MODEL;
   let upstream: Response;
   try {
-    upstream = await fetch(`${GEMINI_BASE}/models/${encodeURIComponent(model)}:generateContent`, {
+    upstream = await geminiFetch(env.GEMINI_PROXY, `${GEMINI_BASE}/models/${encodeURIComponent(model)}:generateContent`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
       body: JSON.stringify(geminiRequest(body)),

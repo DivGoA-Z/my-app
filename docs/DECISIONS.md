@@ -8132,3 +8132,37 @@ check by hand.
   also sees Default limits and Businesses;
 - the SQL on the scratch Postgres: own business only, and no business
   is refused.
+
+## 135. Gemini from the US: a pinned Durable Object
+
+**Symptom (2 Nov 2026).** Make image failed with "User location is not
+supported for the API use" (Gemini, 400), on and off.
+
+**Measured.** A probe Worker reported where it ran and called Gemini's
+free model list. From India, requests landed at Cloudflare **Singapore
+or Hong Kong at random**, about half each:
+- Singapore: 200;
+- Hong Kong: refused. Gemini blocks some countries by the caller's
+  address.
+
+**Tried first: `placement: { region: "gcp:us-central1" }`** (targeted
+placement). Wrangler accepted it and the version recorded it, but the
+code still ran where the request landed, and Hong Kong was still
+refused. Dropped.
+
+**Fix.**
+- `worker/geminiProxy.ts` is a Durable Object, reached by name with
+  `locationHint: 'enam'`. It is created in eastern North America and
+  makes the Gemini call from there.
+- Only `/api/render` goes through it. Help, Supabase and the pages are
+  unchanged.
+- It forwards only to `generativelanguage.googleapis.com`, so it's not
+  an open proxy.
+- Classic DO shape (a class with `fetch`), with no `cloudflare:workers`
+  import, so `worker/` still type-checks and tests under Node.
+- Without the binding (tests, the dev server), Google is called
+  directly.
+
+**Deploying.** A Durable Object class needs a migration (`migrations` in
+wrangler.jsonc), which only `wrangler deploy` applies, not
+`versions upload`. So it can only be verified after a push to main.
