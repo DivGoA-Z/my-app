@@ -35,3 +35,6 @@ supabase/*.glb
 
 # Originals kept by `npm run optimize-models` (§111). Local only.
 models-originals/
+
+# Claude Code personal settings (per machine)
+.claude/settings.local.json
