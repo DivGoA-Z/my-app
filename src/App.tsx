@@ -26,6 +26,7 @@ import { useAuthStore } from './store/authStore';
 import { LoginScreen } from './components/auth/LoginScreen';
 import { AwaitingAccessScreen } from './components/auth/AwaitingAccessScreen';
 import { SetNewPasswordScreen } from './components/auth/SetNewPasswordScreen';
+import { DemoBanner } from './components/shell/DemoBanner';
 import { useUndoRedoShortcuts } from './hooks/useUndoRedoShortcuts';
 import { useSelectionShortcuts } from './hooks/useSelectionShortcuts';
 import { Toaster } from './components/ui/sonner';
@@ -340,6 +341,7 @@ function App() {
       {content}
       <Toaster />
       <HelpPanel />
+      <DemoBanner />
       {view !== 'present' && <HelpLauncher inEditor={view === 'canvas'} />}
       <ConfirmDialog />
     </>

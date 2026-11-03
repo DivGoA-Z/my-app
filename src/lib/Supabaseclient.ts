@@ -16,6 +16,7 @@
 // only variables read as import.meta.env.VITE_* — hence the prefix.
 
 import { createClient } from '@supabase/supabase-js';
+import { demoAwareFetch } from './demoMode';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -33,4 +34,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // hours), not "until the next reload".
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: { persistSession: true, autoRefreshToken: true },
+  // The public demo (§138): writes are answered locally (lib/demoMode.ts).
+  global: { fetch: demoAwareFetch },
 });

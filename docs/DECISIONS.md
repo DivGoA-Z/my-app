@@ -8251,3 +8251,61 @@ cameras plus reference photos.
   Strict vs Loose.
 
 Re-run schema.sql.
+
+## 138. A public demo account: read-only on the server, editable in the tab
+
+**What the user asked for (3 Nov 2026).** A demo for recruiters, linked
+from the README:
+- they can navigate everything;
+- no AI, because it costs money per use;
+- their changes are kept only for their visit, and a refresh or a new
+  visit starts from the original.
+
+**Server.**
+- `businesses.is_demo`.
+- Every insert, update and delete policy compares against
+  `current_business_id_for_write()`, which is null for a demo business:
+  25 policies across tables and storage.
+- Reads still use `current_business_id()`.
+- `usage_check` answers "AI features are turned off on this demo
+  account." Help and Make image show that, and never call a model.
+
+**App** (`lib/demoMode.ts`).
+- The Supabase client's `fetch` answers writes locally in demo mode, from
+  the request itself (rows sent, or the patch plus its `id=eq.` filter;
+  one object for `.single()`).
+- Reads, sign-in/refresh/sign-out and the read-only RPCs go through.
+- Changing the demo login's password or email (`PUT /auth/v1/user`) is
+  refused.
+- So autosave says Saved and edits stay in memory until a refresh.
+- A small dismissible banner says so.
+- `isDemo` is fetched before anything loads. A missing column (schema
+  not re-run) means "not demo", so sign-in never breaks.
+
+Rejected: a client-side read-only mode, which would mean visitors can't
+try anything; and a nightly reset of a writable demo, where visitors see
+each other's mess between resets.
+
+**Sample data:** `seed_demo_business(demo, source)` in the SQL editor.
+- It copies the source's customers, designs, quotes, AI images, rate
+  card and Workshop settings, and the catalogue under a `<demo>:` prefix.
+- Inside the copied JSON it renames every id-like string (6+ characters,
+  containing `_`, `:` or `-`, matched as a whole JSON string).
+- Running it again resets the demo.
+- Image files aren't copied; their public URLs stay valid.
+
+**Tested.**
+- The whole schema.sql, run twice, on a fresh Postgres with stand-ins for
+  Supabase's auth and storage.
+- A demo created with `approve_new_business` and seeded:
+  - the design's catalogue reference was renamed to the demo copy, while
+    `"standard"` and free text were left alone;
+  - the quote, image and customer link up;
+  - the source was untouched, and its owner can still write;
+  - every demo write was refused (insert, update, delete, rename,
+    upload), and the AI was off.
+- Unit tests for the local answers.
+- Browser, pretending the test login is the demo: rename a customer → on
+  screen and "Saved", 0 writes sent, gone after a refresh.
+
+Not yet seen: the real demo account on Supabase.

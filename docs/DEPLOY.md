@@ -274,3 +274,21 @@ set up yet". Help and Make image don't depend on it.
 
 **On your laptop**: `GEMINI_API_KEY=… npm run dev` (it uses the real
 Supabase limits, so step 1 must be done).
+
+## The public demo account (§138)
+
+1. Re-run `supabase/schema.sql`.
+2. Supabase → Authentication → Users → **Add user**: an email you can
+   publish (it needn't receive mail) and a password. Tick **Auto Confirm
+   User**.
+3. SQL editor:
+   ```sql
+   select public.approve_new_business(
+     (select id from auth.users where email = '<demo email>'), 'Demo Interiors');
+   -- returns the new business id, e.g. biz_1a2b3c4d5e
+   select public.seed_demo_business('<that business id>', 'biz_default');
+   ```
+4. Sign in as the demo: the banner shows, AI is off, nothing saves.
+
+To reset the sample later (e.g. after you've improved your own designs),
+run `seed_demo_business` again.

@@ -25,6 +25,7 @@
 import { create } from 'zustand';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/Supabaseclient';
+import { setDemoMode } from '../lib/demoMode';
 import {
   fetchBusinessProfile,
   gstinProblem,
@@ -52,6 +53,9 @@ interface AuthStore {
   // image-brief downloads. Only decides what's SHOWN; the database's own
   // checks (is_super_admin() inside every admin function) are the guard.
   isSuperAdmin: boolean;
+  // The public demo account (§138): read-only on the server; the app keeps
+  // changes in this tab only (lib/demoMode.ts) and shows a banner.
+  isDemo: boolean;
   isLoading: boolean;
   error: string | null;
   // Idempotent — safe to call every time App.tsx mounts, including
@@ -95,6 +99,13 @@ async function fetchBusinessId(userId: string): Promise<string | null> {
 }
 
 
+// §138. A missing column (schema.sql not re-run yet) or any error means
+// "not the demo", so signing in never fails on this.
+async function fetchIsDemo(businessId: string): Promise<boolean> {
+  const { data, error } = await supabase.from('businesses').select('is_demo').eq('id', businessId).maybeSingle();
+  return !error && (data as { is_demo?: boolean } | null)?.is_demo === true;
+}
+
 let subscribed = false;
 
 // Read from the address at load, before the Supabase client clears it:
@@ -109,12 +120,16 @@ const LINK_ERROR = urlParams.get('error_description')?.replace(/\+/g, ' ') ?? nu
 export const useAuthStore = create<AuthStore>((set) => {
   async function resolveSession(session: Session | null) {
     if (!session) {
-      set({ session: null, businessId: null, businessName: null, businessProfile: null, isSuperAdmin: false, isLoading: false, error: null });
+      setDemoMode(false);
+      set({ session: null, businessId: null, businessName: null, businessProfile: null, isSuperAdmin: false, isDemo: false, isLoading: false, error: null });
       return;
     }
     try {
       const businessId = await fetchBusinessId(session.user.id);
-      set({ session, businessId, isLoading: false, error: null });
+      // Before anything loads or saves: whether this is the demo.
+      const isDemo = businessId ? await fetchIsDemo(businessId) : false;
+      setDemoMode(isDemo);
+      set({ session, businessId, isDemo, isLoading: false, error: null });
       supabase
         .rpc('is_super_admin')
         .then(({ data }) => set({ isSuperAdmin: data === true }), () => set({ isSuperAdmin: false }));
@@ -139,6 +154,7 @@ export const useAuthStore = create<AuthStore>((set) => {
     businessName: null,
     businessProfile: null,
     isSuperAdmin: false,
+    isDemo: false,
     passwordRecovery: OPENED_RECOVERY_LINK,
     recoveryLinkError: LINK_ERROR,
     isLoading: true,
@@ -250,7 +266,8 @@ export const useAuthStore = create<AuthStore>((set) => {
 
     signOut: async () => {
       await supabase.auth.signOut();
-      set({ session: null, businessId: null, businessName: null, error: null, passwordRecovery: false });
+      setDemoMode(false);
+      set({ session: null, businessId: null, businessName: null, error: null, passwordRecovery: false, isDemo: false });
     },
   };
 });

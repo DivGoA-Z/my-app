@@ -43,6 +43,11 @@ create table if not exists public.businesses (
   name text not null,
   created_at timestamptz not null default now()
 );
+-- A public demo account (§138): everyone may look and change things in
+-- their own browser tab, but the database refuses every write, so the
+-- next visitor (or a refresh) sees the original sample. Set by
+-- seed_demo_business().
+alter table public.businesses add column if not exists is_demo boolean not null default false;
 
 -- Join table, not a single business_id column on auth.users — a user
 -- belonging to a business is a fact that can change (a second person
@@ -84,6 +89,18 @@ as $$
   select business_id from public.business_users where user_id = auth.uid() limit 1;
 $$;
 
+-- The business the caller may WRITE to: their own, unless it's the demo
+-- (§138), when it's null, so every insert/update/delete policy (which
+-- compare against this, not current_business_id()) refuses. Reads still
+-- use current_business_id().
+create or replace function public.current_business_id_for_write()
+returns text
+language sql
+stable
+as $$
+  select b.id from public.businesses b where b.id = public.current_business_id() and not b.is_demo;
+$$;
+
 insert into public.businesses (id, name) values ('biz_default', 'My Business')
 on conflict (id) do nothing;
 
@@ -116,7 +133,7 @@ create policy "Members read their own business" on public.businesses
 -- Settings → Business lets a member rename their own business (§78).
 drop policy if exists "Members rename their own business" on public.businesses;
 create policy "Members rename their own business" on public.businesses
-  for update using (id = public.current_business_id()) with check (id = public.current_business_id());
+  for update using (id = public.current_business_id_for_write()) with check (id = public.current_business_id_for_write());
 
 -- Business profile printed on the quote PDF (§94): phone, logo, GSTIN,
 -- and whether to print the GSTIN (not every business is registered, or
@@ -1009,19 +1026,19 @@ drop policy if exists "Authenticated upload access to panoramas" on storage.obje
 drop policy if exists "Members upload panoramas" on storage.objects;
 create policy "Members upload panoramas"
 on storage.objects for insert
-with check (bucket_id = 'panoramas' and (storage.foldername(name))[1] = public.current_business_id());
+with check (bucket_id = 'panoramas' and (storage.foldername(name))[1] = public.current_business_id_for_write());
 
 drop policy if exists "Public overwrite access to panoramas" on storage.objects;
 drop policy if exists "Authenticated overwrite access to panoramas" on storage.objects;
 drop policy if exists "Members overwrite panoramas" on storage.objects;
 create policy "Members overwrite panoramas"
 on storage.objects for update
-using (bucket_id = 'panoramas' and (storage.foldername(name))[1] = public.current_business_id());
+using (bucket_id = 'panoramas' and (storage.foldername(name))[1] = public.current_business_id_for_write());
 
 drop policy if exists "Members delete panoramas" on storage.objects;
 create policy "Members delete panoramas"
 on storage.objects for delete
-using (bucket_id = 'panoramas' and (storage.foldername(name))[1] = public.current_business_id());
+using (bucket_id = 'panoramas' and (storage.foldername(name))[1] = public.current_business_id_for_write());
 
 
 -- ============================================================
@@ -1047,19 +1064,19 @@ drop policy if exists "Authenticated upload access to material swatches" on stor
 drop policy if exists "Members upload material swatches" on storage.objects;
 create policy "Members upload material swatches"
 on storage.objects for insert
-with check (bucket_id = 'material-swatches' and (storage.foldername(name))[1] = public.current_business_id());
+with check (bucket_id = 'material-swatches' and (storage.foldername(name))[1] = public.current_business_id_for_write());
 
 drop policy if exists "Public overwrite access to material swatches" on storage.objects;
 drop policy if exists "Authenticated overwrite access to material swatches" on storage.objects;
 drop policy if exists "Members overwrite material swatches" on storage.objects;
 create policy "Members overwrite material swatches"
 on storage.objects for update
-using (bucket_id = 'material-swatches' and (storage.foldername(name))[1] = public.current_business_id());
+using (bucket_id = 'material-swatches' and (storage.foldername(name))[1] = public.current_business_id_for_write());
 
 drop policy if exists "Members delete material swatches" on storage.objects;
 create policy "Members delete material swatches"
 on storage.objects for delete
-using (bucket_id = 'material-swatches' and (storage.foldername(name))[1] = public.current_business_id());
+using (bucket_id = 'material-swatches' and (storage.foldername(name))[1] = public.current_business_id_for_write());
 
 -- ============================================================
 -- Business logos (§94) — drawn in the quote PDF header. Public read, like
@@ -1081,17 +1098,17 @@ using (bucket_id = 'business-logos');
 drop policy if exists "Members upload their own business logo" on storage.objects;
 create policy "Members upload their own business logo"
 on storage.objects for insert
-with check (bucket_id = 'business-logos' and (storage.foldername(name))[1] = public.current_business_id());
+with check (bucket_id = 'business-logos' and (storage.foldername(name))[1] = public.current_business_id_for_write());
 
 drop policy if exists "Members replace their own business logo" on storage.objects;
 create policy "Members replace their own business logo"
 on storage.objects for update
-using (bucket_id = 'business-logos' and (storage.foldername(name))[1] = public.current_business_id());
+using (bucket_id = 'business-logos' and (storage.foldername(name))[1] = public.current_business_id_for_write());
 
 drop policy if exists "Members delete their own business logo" on storage.objects;
 create policy "Members delete their own business logo"
 on storage.objects for delete
-using (bucket_id = 'business-logos' and (storage.foldername(name))[1] = public.current_business_id());
+using (bucket_id = 'business-logos' and (storage.foldername(name))[1] = public.current_business_id_for_write());
 
 -- ============================================================
 -- Quote PDF storage — generated client-side (src/lib/quotePdf.ts) from
@@ -1122,19 +1139,19 @@ drop policy if exists "Authenticated upload access to quote pdfs" on storage.obj
 drop policy if exists "Members upload quote pdfs" on storage.objects;
 create policy "Members upload quote pdfs"
 on storage.objects for insert
-with check (bucket_id = 'quote-pdfs' and (storage.foldername(name))[1] = public.current_business_id());
+with check (bucket_id = 'quote-pdfs' and (storage.foldername(name))[1] = public.current_business_id_for_write());
 
 drop policy if exists "Public overwrite access to quote pdfs" on storage.objects;
 drop policy if exists "Authenticated overwrite access to quote pdfs" on storage.objects;
 drop policy if exists "Members overwrite quote pdfs" on storage.objects;
 create policy "Members overwrite quote pdfs"
 on storage.objects for update
-using (bucket_id = 'quote-pdfs' and (storage.foldername(name))[1] = public.current_business_id());
+using (bucket_id = 'quote-pdfs' and (storage.foldername(name))[1] = public.current_business_id_for_write());
 
 drop policy if exists "Members delete quote pdfs" on storage.objects;
 create policy "Members delete quote pdfs"
 on storage.objects for delete
-using (bucket_id = 'quote-pdfs' and (storage.foldername(name))[1] = public.current_business_id());
+using (bucket_id = 'quote-pdfs' and (storage.foldername(name))[1] = public.current_business_id_for_write());
 
 -- ============================================================
 -- HANDLES
@@ -1808,19 +1825,19 @@ begin
 
     execute format('drop policy if exists %I on public.%I', 'Business can insert own ' || t, t);
     execute format(
-      'create policy %I on public.%I for insert with check (business_id = public.current_business_id())',
+      'create policy %I on public.%I for insert with check (business_id = public.current_business_id_for_write())',
       'Business can insert own ' || t, t
     );
 
     execute format('drop policy if exists %I on public.%I', 'Business can update own ' || t, t);
     execute format(
-      'create policy %I on public.%I for update using (business_id = public.current_business_id()) with check (business_id = public.current_business_id())',
+      'create policy %I on public.%I for update using (business_id = public.current_business_id_for_write()) with check (business_id = public.current_business_id_for_write())',
       'Business can update own ' || t, t
     );
 
     execute format('drop policy if exists %I on public.%I', 'Business can delete own ' || t, t);
     execute format(
-      'create policy %I on public.%I for delete using (business_id = public.current_business_id())',
+      'create policy %I on public.%I for delete using (business_id = public.current_business_id_for_write())',
       'Business can delete own ' || t, t
     );
   end loop;
@@ -1885,10 +1902,10 @@ create policy "Members read their own default" on public.catalog_defaults
   for select using (business_id = public.current_business_id());
 drop policy if exists "Members save their own default" on public.catalog_defaults;
 create policy "Members save their own default" on public.catalog_defaults
-  for insert with check (business_id = public.current_business_id());
+  for insert with check (business_id = public.current_business_id_for_write());
 drop policy if exists "Members replace their own default" on public.catalog_defaults;
 create policy "Members replace their own default" on public.catalog_defaults
-  for delete using (business_id = public.current_business_id());
+  for delete using (business_id = public.current_business_id_for_write());
 
 -- A copied row's id: drop `p_strip` from the front if it's there, then add
 -- `p_prefix`. 'starter:finish_x' → strip 'starter:', prefix 'biz_ab:' →
@@ -2211,6 +2228,10 @@ begin
   if b is null then
     return jsonb_build_object('allowed', false, 'reason', 'Your account isn’t linked to a business yet.');
   end if;
+  -- The public demo (§138): AI costs money per use, so it's off there.
+  if exists (select 1 from public.businesses where id = b and is_demo) then
+    return jsonb_build_object('allowed', false, 'reason', 'AI features are turned off on this demo account.');
+  end if;
   s := public.usage_status_for(b);
   foreach w in array array['day', 'week', 'month'] loop
     label := case w when 'day' then 'today' when 'week' then 'this week' else 'this month' end;
@@ -2397,10 +2418,10 @@ create policy "Business can read own design_renders" on public.design_renders
   for select using (business_id = public.current_business_id());
 drop policy if exists "Business can insert own design_renders" on public.design_renders;
 create policy "Business can insert own design_renders" on public.design_renders
-  for insert with check (business_id = public.current_business_id());
+  for insert with check (business_id = public.current_business_id_for_write());
 drop policy if exists "Business can delete own design_renders" on public.design_renders;
 create policy "Business can delete own design_renders" on public.design_renders
-  for delete using (business_id = public.current_business_id());
+  for delete using (business_id = public.current_business_id_for_write());
 
 insert into storage.buckets (id, name, public)
 values ('renders', 'renders', true)
@@ -2412,11 +2433,11 @@ using (bucket_id = 'renders');
 drop policy if exists "Members upload renders" on storage.objects;
 create policy "Members upload renders"
 on storage.objects for insert
-with check (bucket_id = 'renders' and (storage.foldername(name))[1] = public.current_business_id());
+with check (bucket_id = 'renders' and (storage.foldername(name))[1] = public.current_business_id_for_write());
 drop policy if exists "Members delete renders" on storage.objects;
 create policy "Members delete renders"
 on storage.objects for delete
-using (bucket_id = 'renders' and (storage.foldername(name))[1] = public.current_business_id());
+using (bucket_id = 'renders' and (storage.foldername(name))[1] = public.current_business_id_for_write());
 
 -- ============================================================
 -- IMAGE PROMPTS (§137)
@@ -2515,3 +2536,92 @@ drop policy if exists "Super admin deletes prompt-refs" on storage.objects;
 create policy "Super admin deletes prompt-refs"
 on storage.objects for delete
 using (bucket_id = 'prompt-refs' and public.is_super_admin());
+
+-- ============================================================
+-- THE PUBLIC DEMO (§138)
+-- ============================================================
+-- seed_demo_business(demo, source): makes `demo` the read-only demo
+-- business (is_demo) and fills it with a copy of `source`'s customers,
+-- designs, quotes, AI images, rate card and Workshop settings. Running
+-- it again RESETS the demo to a fresh copy. SQL editor only.
+--
+-- Catalogue items keep their ids under a `<demo>:` prefix (the same ids
+-- copy_catalog gives a new business), so every id the copied designs and
+-- quotes mention is renamed the same way. Only id-like strings are
+-- renamed (they contain _ : or - and are 6+ characters), never ordinary
+-- values. The image files themselves aren't copied: the public URLs keep
+-- pointing at the source's files.
+create or replace function public.demo_rename_ids(j jsonb)
+returns jsonb
+language plpgsql
+as $$
+declare
+  t text := j::text;
+  r record;
+begin
+  for r in select old, new from pg_temp.demo_ids loop
+    t := replace(t, '"' || r.old || '"', '"' || r.new || '"');
+  end loop;
+  return t::jsonb;
+end $$;
+
+create or replace function public.seed_demo_business(p_demo text, p_source text default 'biz_default')
+returns text
+language plpgsql
+as $$
+declare
+  pre text := p_demo || ':';
+  t text;
+  n_proj int;
+  n_lay int;
+  n_quote int;
+  n_img int;
+begin
+  if p_demo = p_source then raise exception 'The demo and the source must differ.'; end if;
+  if not exists (select 1 from public.businesses where id = p_demo) then raise exception 'No business %.', p_demo; end if;
+  if not exists (select 1 from public.businesses where id = p_source) then raise exception 'No business %.', p_source; end if;
+
+  update public.businesses set is_demo = true where id = p_demo;
+
+  -- Reset: the demo's own copies go first (catalogue items are kept).
+  delete from public.design_renders where business_id = p_demo;
+  delete from public.quotes where business_id = p_demo;
+  delete from public.layouts where business_id = p_demo;
+  delete from public.projects where business_id = p_demo;
+
+  perform public.copy_catalog(p_source, p_demo, '', pre);
+
+  drop table if exists pg_temp.demo_ids;
+  create temp table demo_ids (old text primary key, new text not null);
+  foreach t in array public.catalog_tables() || array['projects', 'layouts', 'quotes', 'design_renders', 'rate_cards', 'construction_settings'] loop
+    execute format(
+      'insert into pg_temp.demo_ids select id, %L || id from public.%I where business_id = %L and length(id) >= 6 and id ~ ''[_:-]'' on conflict do nothing',
+      pre, t, p_source
+    );
+  end loop;
+
+  foreach t in array array['projects', 'layouts', 'quotes', 'design_renders'] loop
+    execute format(
+      'insert into public.%1$I select (jsonb_populate_record(null::public.%1$I, public.demo_rename_ids(to_jsonb(s)) || jsonb_build_object(''id'', %2$L || s.id, ''business_id'', %3$L))).* from public.%1$I s where s.business_id = %4$L',
+      t, pre, p_demo, p_source
+    );
+  end loop;
+
+  -- One rate card and one Workshop settings row per business: the source's.
+  foreach t in array array['rate_cards', 'construction_settings'] loop
+    execute format('delete from public.%I where business_id = %L', t, p_demo);
+    execute format(
+      'insert into public.%1$I select (jsonb_populate_record(null::public.%1$I, public.demo_rename_ids(to_jsonb(s)) || jsonb_build_object(''id'', %2$L || s.id, ''business_id'', %3$L))).* from public.%1$I s where s.business_id = %4$L',
+      t, pre, p_demo, p_source
+    );
+  end loop;
+
+  select count(*) into n_proj from public.projects where business_id = p_demo;
+  select count(*) into n_lay from public.layouts where business_id = p_demo;
+  select count(*) into n_quote from public.quotes where business_id = p_demo;
+  select count(*) into n_img from public.design_renders where business_id = p_demo;
+  drop table if exists pg_temp.demo_ids;
+  return format('Demo %s reset: %s customers, %s designs, %s quotes, %s AI images.', p_demo, n_proj, n_lay, n_quote, n_img);
+end $$;
+revoke execute on function public.seed_demo_business(text, text) from public, anon, authenticated;
+revoke execute on function public.demo_rename_ids(jsonb) from public, anon, authenticated;
