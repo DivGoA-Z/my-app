@@ -291,4 +291,10 @@ Supabase limits, so step 1 must be done).
 4. Sign in as the demo: the banner shows, AI is off, nothing saves.
 
 To reset the sample later (e.g. after you've improved your own designs),
-run `seed_demo_business` again.
+run `seed_demo_business` again. Choose which customers to copy, and whose
+AI images to bring (so a weak image stays out):
+```sql
+select public.seed_demo_business('<demo business id>', 'biz_default',
+  array['Neha Verma', 'Priya Kapoor'],   -- customers to copy (null = all)
+  array['Neha Verma']);                  -- whose AI images (null = all copied)
+```

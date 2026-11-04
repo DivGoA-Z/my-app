@@ -521,7 +521,17 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
     }
   }
 
+  // The public demo (§138): AI is off there, so say so at once, the same
+  // words as the server, instead of first capturing views (which can stop
+  // earlier with an unrelated message while the 3D view is still loading).
+  const isDemo = useAuthStore((s) => s.isDemo);
+
   async function handleMakeImage() {
+    if (isDemo) {
+      setRenderJob({ state: 'error', message: 'AI features are turned off on this demo account.' });
+      setRenderOpen(true);
+      return;
+    }
     if (!currentLayout || !businessId || cameras.length === 0) return;
     setRenderJob({ state: 'working', cameraLabel: cameras[0].label });
     setRenderOpen(true);

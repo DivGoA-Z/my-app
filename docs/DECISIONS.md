@@ -8309,3 +8309,18 @@ each other's mess between resets.
   screen and "Saved", 0 writes sent, gone after a refresh.
 
 Not yet seen: the real demo account on Supabase.
+
+**Follow-up (4 Nov 2026).**
+- `seed_demo_business(demo, source, customers[], images_for[])` copies
+  only the named customers (with their designs and quotes), and AI
+  images only for `images_for`. The user wanted just Neha Verma and Priya
+  Kapoor, with Neha's good image and not Priya's weak one. The old
+  two-argument function is dropped, so calls aren't ambiguous.
+- Make image in the demo now answers "AI features are turned off on this
+  demo account" at once. Before, it first captured the camera views, and
+  while a heavy 3D view was still loading it stopped earlier with "The 3D
+  view isn't ready yet". That read like a different, broken feature.
+
+Tested on a fresh Postgres (the whole schema twice, then the filtered
+seed): 2 customers, their design and the renamed catalogue reference,
+only Neha's image.

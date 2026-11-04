@@ -2565,7 +2565,16 @@ begin
   return t::jsonb;
 end $$;
 
-create or replace function public.seed_demo_business(p_demo text, p_source text default 'biz_default')
+-- p_customers: which of the source's customers to copy, by name (null =
+-- all). p_images_for: whose AI images to bring (null = all copied ones),
+-- so a weak image can be left out of the demo.
+drop function if exists public.seed_demo_business(text, text);
+create or replace function public.seed_demo_business(
+  p_demo text,
+  p_source text default 'biz_default',
+  p_customers text[] default null,
+  p_images_for text[] default null
+)
 returns text
 language plpgsql
 as $$
@@ -2591,6 +2600,14 @@ begin
 
   perform public.copy_catalog(p_source, p_demo, '', pre);
 
+  -- Which customers, and whose images.
+  drop table if exists pg_temp.demo_projects;
+  create temp table demo_projects (id text primary key, with_images boolean not null);
+  insert into pg_temp.demo_projects
+    select id, (p_images_for is null or client_name = any (p_images_for))
+    from public.projects
+    where business_id = p_source and (p_customers is null or client_name = any (p_customers));
+
   drop table if exists pg_temp.demo_ids;
   create temp table demo_ids (old text primary key, new text not null);
   foreach t in array public.catalog_tables() || array['projects', 'layouts', 'quotes', 'design_renders', 'rate_cards', 'construction_settings'] loop
@@ -2602,8 +2619,13 @@ begin
 
   foreach t in array array['projects', 'layouts', 'quotes', 'design_renders'] loop
     execute format(
-      'insert into public.%1$I select (jsonb_populate_record(null::public.%1$I, public.demo_rename_ids(to_jsonb(s)) || jsonb_build_object(''id'', %2$L || s.id, ''business_id'', %3$L))).* from public.%1$I s where s.business_id = %4$L',
-      t, pre, p_demo, p_source
+      'insert into public.%1$I select (jsonb_populate_record(null::public.%1$I, public.demo_rename_ids(to_jsonb(s)) || jsonb_build_object(''id'', %2$L || s.id, ''business_id'', %3$L))).* from public.%1$I s where s.business_id = %4$L and %5$s',
+      t, pre, p_demo, p_source,
+      case t
+        when 'projects' then 's.id in (select id from pg_temp.demo_projects)'
+        when 'design_renders' then 's.project_id in (select id from pg_temp.demo_projects where with_images)'
+        else 's.project_id in (select id from pg_temp.demo_projects)'
+      end
     );
   end loop;
 
@@ -2621,7 +2643,8 @@ begin
   select count(*) into n_quote from public.quotes where business_id = p_demo;
   select count(*) into n_img from public.design_renders where business_id = p_demo;
   drop table if exists pg_temp.demo_ids;
+  drop table if exists pg_temp.demo_projects;
   return format('Demo %s reset: %s customers, %s designs, %s quotes, %s AI images.', p_demo, n_proj, n_lay, n_quote, n_img);
 end $$;
-revoke execute on function public.seed_demo_business(text, text) from public, anon, authenticated;
+revoke execute on function public.seed_demo_business(text, text, text[], text[]) from public, anon, authenticated;
 revoke execute on function public.demo_rename_ids(jsonb) from public, anon, authenticated;
