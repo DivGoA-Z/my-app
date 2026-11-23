@@ -631,7 +631,10 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
   // With a surface's tint where it has one (§119, §120).
   const optionalFinish = (id: string | undefined, tint?: string | null, tiling?: SurfaceTiling | null) => {
     const d = describeFinish(findFinish(finishes, id), origin, tint ?? undefined);
-    return d && tiling ? { ...d, laidAs: describeTiling(tiling) } : d;
+    // Laid at a chosen size, that IS the tile size (for the row count, §145).
+    return d && tiling
+      ? { ...d, laidAs: describeTiling(tiling), tileSizeMm: { width: tiling.tileWidthMm, height: tiling.tileHeightMm } }
+      : d;
   };
 
   // Sort key: wall order, then left to right, then bottom to top; the
@@ -1203,6 +1206,29 @@ export const BARE_WINDOW_VIEW =
   'bright daylight and a soft, blurred, slightly overexposed view outside (sky and indistinct shapes only); no sharp buildings, trees or other detail';
 const SHARP_VIEW_NEGATIVE = 'sharp detailed view outside the window';
 
+// ---- Tile scale as a count (§145) ----
+
+// "Small tiles about 35 mm across" plus the swatch photo still came out
+// about twice too big. A count is concrete: on each tiled wall with wall
+// cabinets, how many rows fill the backsplash between the counter and the
+// cabinets. Only where the count means something (2–60 rows).
+export function tileRowsLine(b: Omit<RenderBrief, 'prompt'>): string | null {
+  const counterTop = b.countertop?.topHeightsMm[0];
+  if (counterTop === undefined) return null;
+  const parts: string[] = [];
+  for (const w of b.room.walls) {
+    const tile = w.finish?.tileSizeMm;
+    if (!tile) continue;
+    const uppers = b.cabinets.filter((c) => c.against?.wall === w.wall && c.type === MODULE_LABELS['wall-cabinet']);
+    if (!uppers.length) continue;
+    const gap = Math.min(...uppers.map((c) => c.box.minZ)) - counterTop;
+    const rows = Math.round(gap / tile.height);
+    if (gap <= 0 || rows < 2 || rows > 60) continue;
+    parts.push(`${w.wall} wall: about ${rows} rows of tiles in the ${mm(gap)} between the counter and the wall cabinets`);
+  }
+  return parts.length ? `Tile scale (count them; this fixes the tile size): ${parts.join('; ')}.` : null;
+}
+
 // ---- Prompt text ----
 
 function mm(n: number) {
@@ -1317,6 +1343,8 @@ function buildPrompt(b: Omit<RenderBrief, 'prompt'>, useRefs = true): RenderBrie
     ws.length === 4 ? `all four ${phrase}` : `${ws.join(' and ')} ${phrase}`
   );
   lines.push(`Walls: ${wallClauses.join('; ')}. ${WALL_SURFACES}`);
+  const scale = tileRowsLine(b);
+  if (scale) lines.push(scale);
   lines.push(`Floor: ${finishPhrase(b.room.floor, UNSET.floor)}. Ceiling: ${finishPhrase(b.room.ceiling, UNSET.ceiling)}.`);
 
   const on = b.lighting.fixtures.filter((f) => f.on);

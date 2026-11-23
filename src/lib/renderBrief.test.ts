@@ -3,6 +3,7 @@ import {
   buildRenderBrief,
   CONDENSED_MAX_WORDS,
   edgeProfileWhere,
+  tileRowsLine,
   MAX_FINISH_SWATCHES,
   colourName,
   facingOf,
@@ -627,5 +628,45 @@ describe('appliances described by their look (§141)', () => {
     const hobRow = { ...sinkRow, id: 'cat-hob', label: '2-Burner Hob', applianceType: 'stove', appearance: 'black glass two-burner gas hob' } as ApplianceCatalogItem;
     const b = buildRenderBrief(input({ applianceCatalog: [hobRow], appliances: [appliance({ id: 'hob', catalogItemId: 'cat-hob', x: 600, y: 30, elevationMm: 800 })] }));
     expect(b.prompt.imagePromptCondensed).toMatch(/It has a black glass two-burner gas hob\./);
+  });
+});
+
+describe('tile scale as a count (§145)', () => {
+  const mosaic: SurfaceFinish = { ...walnut, id: 'f-hex', label: 'White Hexagon Mosaic', finishTypeLabel: 'Mosaic', patternCategory: 'solid', tileWidthMm: 35, tileHeightMm: 35 };
+  const withWall = (tiling?: SurfaceTiling) => {
+    const base = input();
+    return buildRenderBrief(
+      input({
+        finishes: [walnut, mosaic],
+        layout: { ...base.layout, walls: [{ id: 'w-n', orientation: 'north', lengthMm: ROOM_W, openings: [], finishId: 'f-hex', tiling }] },
+      })
+    );
+  };
+
+  it('counts rows between the counter and the lowest wall cabinet', () => {
+    // Base units 720 tall (one raised 40) → counter top 760 + 40 slab; upper at 1450.
+    const b = withWall();
+    const top = b.countertop!.topHeightsMm[0];
+    const gap = 1450 - top;
+    expect(b.prompt.imagePrompt).toContain(`north wall: about ${Math.round(gap / 35)} rows of tiles in the ${gap} mm between the counter and the wall cabinets`);
+  });
+
+  it('uses the laid size when the wall is laid at a chosen size', () => {
+    const b = withWall({ tileWidthMm: 300, tileHeightMm: 150, pattern: 'straight', groutMm: 2, groutColor: '#c9c7c2' });
+    const gap = 1450 - b.countertop!.topHeightsMm[0];
+    expect(tileRowsLine(b)).toContain(`about ${Math.round(gap / 150)} rows`);
+  });
+
+  it('says nothing for an untiled wall or a wall without wall cabinets', () => {
+    expect(tileRowsLine(buildRenderBrief(input()))).toBeNull();
+    const base = input();
+    const noUppers = buildRenderBrief(
+      input({
+        finishes: [walnut, mosaic],
+        cabinets: base.cabinets.filter((c) => c.moduleType !== 'wall-cabinet'),
+        layout: { ...base.layout, walls: [{ id: 'w-n', orientation: 'north', lengthMm: ROOM_W, openings: [], finishId: 'f-hex' }] },
+      })
+    );
+    expect(tileRowsLine(noUppers)).toBeNull();
   });
 });

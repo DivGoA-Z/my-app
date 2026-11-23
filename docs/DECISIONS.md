@@ -8608,3 +8608,26 @@ detail" (`BARE_WINDOW_VIEW`).
   backsplash height.
 
 **Tested:** unit tests (the window line and the negatives); full suite.
+
+## 145. Tile size as a row count on the backsplash
+
+**Why.** Photographic v2 drew the 35 mm hexagon mosaic at about 70 mm.
+That happened even with "small tiles about 35 mm across" in the text and
+the finish photo attached (§139, §144). A size in millimetres is
+abstract to an image model; a count it can check against the picture is
+not.
+
+**What.** `tileRowsLine` adds one line to the image prompt, after
+Walls. For each tiled wall with wall cabinets, it gives the rows that
+fill the gap between the counter top and the lowest wall cabinet. For
+example: "Tile scale (count them; this fixes the tile size): north wall:
+about 17 rows of tiles in the 610 mm between the counter and the wall
+cabinets."
+- The tile size is the photo's own (`tileWidthMm`), or the chosen size
+  when the wall is laid as tiles. `optionalFinish` now sets `tileSizeMm`
+  from the tiling too; `tileSizeWords` still says nothing when `laidAs`
+  says it.
+- Only 2–60 rows; no line for a wall without wall cabinets or tiles.
+
+**Tested:** unit tests (the count, the laid size, no line when it doesn't
+apply); full suite. Not yet seen in an image.
