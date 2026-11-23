@@ -617,6 +617,7 @@ const ROW_KIND_WORDS: Record<FrontRowKind, [string, string]> = {
   'false-front': ['fixed false front', 'fixed false fronts'],
   'appliance-housing': ['open appliance niche', 'open appliance niches'],
   tambour: ['roll-up tambour shutter', 'roll-up tambour shutters'],
+  'lift-up': ['lift-up flap door (hinged at the top)', 'lift-up flap doors (hinged at the top)'],
 };
 
 function plural(n: number, [one, many]: [string, string]) {

@@ -46,6 +46,10 @@ export type FrontKind =
   // Visually distinct in the 3D view (a ridged/slatted panel) so it
   // doesn't read as a plain flat door.
   | 'tambour'
+  // §149: a flap hinged at the TOP that lifts up, on a stay or gas
+  // strut: the usual wall-cabinet front. One panel, handle along the
+  // bottom edge, a lift-up mechanism instead of hinges.
+  | 'lift-up'
   // A vertical stack of independently-configured rows — a shelf
   // compartment over a drawer stack, a door over an appliance housing,
   // whatever the trade actually builds. See `rows` below.
@@ -260,6 +264,7 @@ export function frontCount(layout: FrontLayout): number {
     case 'single-door':
     case 'false-front':
     case 'tambour':
+    case 'lift-up':
       return 1;
     case 'double-door':
       return 2;
@@ -301,9 +306,11 @@ export const FRONT_KIND_LABELS: Record<FrontKind, string> = {
   drawers: 'Drawers',
   trolley: 'Trolley pull-out',
   'open-shelf': 'Open shelves',
-  'false-front': 'False front (sink)',
+  // §149: any cabinet, not just a sink: also covers an opening left open.
+  'false-front': 'False front (fixed panel)',
   'appliance-housing': 'Appliance housing (open)',
   tambour: 'Tambour (roll-up shutter)',
+  'lift-up': 'Lift-up flap',
   mixed: 'Mixed (stacked rows)',
 };
 

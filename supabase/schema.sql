@@ -970,6 +970,10 @@ values
   ('cat_drawer_450', 'Base', 'Drawer Unit (450mm)', 'drawer-unit', 450, 600, 850, 'MDF', 'finish_default_pu', 11200, 'biz_default'),
   ('cat_wall_600', 'Wall', 'Wall Cabinet (600mm)', 'wall-cabinet', 600, 300, 700, 'MDF', 'finish_default_laminate', 8200, 'biz_default'),
   ('cat_wall_900', 'Wall', 'Wall Cabinet (900mm)', 'wall-cabinet', 900, 300, 700, 'MDF', 'finish_default_pu', 12000, 'biz_default'),
+  -- §149: the wall corner unit is a wall cabinet whose fixed corner panel
+  -- is fitted on placement where two wall runs meet (§116, §118). Listed
+  -- so it can be found by name. Price a placeholder, like every seed.
+  ('cat_wall_corner_900', 'Wall', 'Wall Corner Unit (900mm)', 'wall-cabinet', 900, 300, 700, 'MDF', 'finish_default_pu', 12000, 'biz_default'),
   ('cat_tall_600', 'Tall', 'Tall Unit (600mm)', 'tall-unit', 600, 600, 2100, 'HDMR', 'finish_default_laminate', 24500, 'biz_default'),
   ('cat_tall_900', 'Tall', 'Tall Larder Unit (900mm)', 'tall-unit', 900, 600, 2100, 'HDMR', 'finish_default_pu', 32800, 'biz_default')
 on conflict (id) do nothing;

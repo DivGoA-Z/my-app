@@ -66,7 +66,7 @@ const APPLIANCE_TYPES: ApplianceType[] = [
   'sink', 'stove', 'chimney', 'oven', 'otg', 'toaster', 'fridge', 'microwave', 'dishwasher', 'water-purifier',
 ];
 const FRONT_KINDS: FrontKind[] = [
-  'single-door', 'double-door', 'drawers', 'trolley', 'open-shelf', 'false-front', 'appliance-housing', 'tambour',
+  'single-door', 'double-door', 'drawers', 'trolley', 'open-shelf', 'false-front', 'appliance-housing', 'tambour', 'lift-up',
 ];
 const AUTO_FRONT_VALUE = '__auto__';
 const DEFAULT_HANDLE_VALUE = '__default__';

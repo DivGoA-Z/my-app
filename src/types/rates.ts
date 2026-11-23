@@ -349,6 +349,9 @@ export const PLACEHOLDER_RATES: Omit<RateCard, 'createdAt' | 'updatedAt'> = {
     // real purchase invoices like every other rate here.
     cornerMagic: 12000,
     cornerCarousel: 6000,
+    // §149: one lift-up stay / gas-strut set per lift-up front, instead
+    // of hinges. A PLACEHOLDER like every rate here: set it from invoices.
+    liftUp: 3500,
   },
   // 18mm lines: real Delhi NCR market estimates (2026-09-25) for
   // HDMR/Plywood and BWP; MDF and Particle Board are MY OWN placeholder
@@ -406,6 +409,7 @@ export const HARDWARE_RATE_KEYS: CardPricedHardware[] = [
   'shelf',
   'cornerMagic',
   'cornerCarousel',
+  'liftUp',
 ];
 
 // Every MaterialType, in the order a board-line picker lists them.
@@ -456,7 +460,10 @@ export function isPlaceholderRateCard(card: RateCard): boolean {
 // which is why that constant is still exported below.
 export function defaultRateCard(): RateCard {
   const now = new Date().toISOString();
-  return { ...PLACEHOLDER_RATES, id: crypto.randomUUID(), createdAt: now, updatedAt: now };
+  // A deep copy (§149): a shallow spread shared PLACEHOLDER_RATES' nested
+  // `hardware`, `boards` and `glassRates` with every card made here, so
+  // editing one card's rate changed the placeholder for all of them.
+  return { ...structuredClone(PLACEHOLDER_RATES), id: crypto.randomUUID(), createdAt: now, updatedAt: now };
 }
 
 // Labels for the rate card editor. Separate from HARDWARE_LABELS in
@@ -470,6 +477,7 @@ export const RATE_LABELS: Record<CardPricedHardware, string> = {
   shelf: 'Shelf supports & fitting (each shelf — the board is priced under Boards)',
   cornerMagic: 'Magic corner pull-out mechanism (each)',
   cornerCarousel: 'Carousel / lazy susan mechanism (each)',
+  liftUp: 'Lift-up mechanism (each)',
 };
 
 // Same reasoning as RATE_LABELS above — names the RATE, not the
@@ -502,6 +510,10 @@ export function sanitizeRateCard(card: RateCard): RateCard {
       // went through.
       cornerMagic: nonNegative(card.hardware.cornerMagic),
       cornerCarousel: nonNegative(card.hardware.cornerCarousel),
+      // §149: unlike the two above, a card saved before this rate existed
+      // gets the placeholder, not ₹0: a lift-up front silently quoted
+      // without its mechanism is the §2 mistake again.
+      liftUp: nonNegative(card.hardware.liftUp ?? defaultRateCard().hardware.liftUp),
     },
     boards: sanitizeBoards(card.boards),
     // Must name a line that exists; a dangling id (the line was deleted)

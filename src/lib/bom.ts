@@ -781,6 +781,7 @@ const HARDWARE_LABELS: Record<string, string> = {
   shelf: 'Shelf supports & fitting',
   cornerMagic: 'Magic corner mechanism',
   cornerCarousel: 'Carousel / lazy susan mechanism',
+  liftUp: 'Lift-up mechanisms',
 };
 
 function describeFrontRow(

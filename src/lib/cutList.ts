@@ -184,6 +184,7 @@ const NO_RATES: HardwareRates = {
   shelf: 0,
   cornerMagic: 0,
   cornerCarousel: 0,
+  liftUp: 0,
 };
 
 export const MM2_PER_SQM = 1_000_000;

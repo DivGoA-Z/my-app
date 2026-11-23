@@ -56,7 +56,7 @@ export interface HardwareSpec {
   // component that exists regardless of which door front sits in
   // front of it, which is why it's keyed on moduleType rather than on
   // FrontKind like everything else here.
-  type: 'hinge' | 'channel' | 'handle' | 'basket' | 'shelf' | 'cornerMagic' | 'cornerCarousel';
+  type: 'hinge' | 'channel' | 'handle' | 'basket' | 'shelf' | 'cornerMagic' | 'cornerCarousel' | 'liftUp';
   // Quantity in THIS item's own unit: pieces for hinges, handles,
   // baskets and shelves; drawer channel PAIRS for 'channel'; and
   // running METRES for a gola or edge profile, which is sold by

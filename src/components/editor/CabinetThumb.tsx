@@ -20,7 +20,7 @@ interface Rect {
   w: number;
   h: number;
 }
-type Panel = Rect & { handle?: 'h' | 'left' | 'right' };
+type Panel = Rect & { handle?: 'h' | 'b' | 'left' | 'right' };
 
 export function CabinetThumb({
   moduleType,
@@ -101,6 +101,10 @@ export function CabinetThumb({
       case 'false-front':
         panels.push({ ...rect });
         break;
+      case 'lift-up':
+        // §149: one flap, gripped along its bottom edge.
+        panels.push({ ...rect, handle: 'b' });
+        break;
       default:
         panels.push({ ...rect, handle: row.hinge === 'right' ? 'left' : 'right' });
     }
@@ -137,6 +141,9 @@ export function CabinetThumb({
       {panels.map((p, i) => (
         <g key={i}>
           <rect x={p.x} y={p.y} width={p.w} height={p.h} rx={0.8} fill={fill} stroke={stroke} strokeWidth={0.6} />
+          {p.handle === 'b' && (
+            <line x1={p.x + p.w * 0.3} x2={p.x + p.w * 0.7} y1={p.y + p.h - Math.min(3, p.h / 3)} y2={p.y + p.h - Math.min(3, p.h / 3)} stroke="#2b2b2b" strokeWidth={1} strokeLinecap="round" />
+          )}
           {p.handle === 'h' && (
             <line x1={p.x + p.w * 0.38} x2={p.x + p.w * 0.62} y1={p.y + Math.min(3, p.h / 3)} y2={p.y + Math.min(3, p.h / 3)} stroke="#2b2b2b" strokeWidth={1} strokeLinecap="round" />
           )}
@@ -144,8 +151,9 @@ export function CabinetThumb({
             <line
               x1={p.handle === 'right' ? p.x + p.w - 3 : p.x + 3}
               x2={p.handle === 'right' ? p.x + p.w - 3 : p.x + 3}
-              y1={p.y + p.h * 0.4}
-              y2={p.y + p.h * 0.6}
+              // §149: a wall cabinet's door handle sits low, as built.
+              y1={moduleType === 'wall-cabinet' ? p.y + p.h * 0.72 : p.y + p.h * 0.4}
+              y2={moduleType === 'wall-cabinet' ? p.y + p.h * 0.9 : p.y + p.h * 0.6}
               stroke="#2b2b2b"
               strokeWidth={1}
               strokeLinecap="round"

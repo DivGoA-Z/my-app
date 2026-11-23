@@ -68,6 +68,7 @@ const FRONT_KINDS: FrontKind[] = [
   'false-front',
   'appliance-housing',
   'tambour',
+  'lift-up',
   'mixed',
 ];
 
@@ -148,6 +149,7 @@ const HARDWARE_LABELS: Record<string, string> = {
   shelf: 'Shelves',
   cornerMagic: 'Magic corner mechanism',
   cornerCarousel: 'Carousel / lazy susan mechanism',
+  liftUp: 'Lift-up mechanism',
 };
 
 // The corner mechanism is priced off moduleType (cornerMechanismHardware

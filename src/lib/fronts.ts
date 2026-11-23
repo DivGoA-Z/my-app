@@ -327,8 +327,27 @@ function placeHandle(
   handle: HandleSpec | undefined,
   side: 'left' | 'right' | 'center',
   kind: FrontRowKind,
-  handleOrientation: HandleOrientation | undefined
+  handleOrientation: HandleOrientation | undefined,
+  // §149: a WALL cabinet's door is reached from below, so its handle
+  // sits near the BOTTOM edge (a profile along the bottom), not centred.
+  low = false
 ): HandlePlacement | null {
+  const lowDoor = low && (kind === 'single-door' || kind === 'double-door');
+  const bottomEdge = rect.centerYMm - rect.heightMm / 2;
+  // §149: a lift-up flap is gripped at the middle of its BOTTOM edge,
+  // whatever cabinet it's on: a profile along it, a bar across it, or a
+  // knob centred above it.
+  if (kind === 'lift-up' && handle && handle.kind !== 'handleless') {
+    const profile = handle.kind === 'gola' || handle.kind === 'edge-profile';
+    const length = profile ? rect.widthMm : handle.kind === 'knob' ? handle.lengthMm : Math.min(handle.lengthMm, rect.widthMm * 0.8);
+    return {
+      centerXMm: rect.centerXMm,
+      centerYMm: bottomEdge + (profile ? PROFILE_EDGE_INSET_MM : HANDLE_EDGE_INSET_MM),
+      lengthMm: length,
+      orientation: 'horizontal',
+      handle,
+    };
+  }
   // No handle chosen, or the catalogue hasn't loaded yet — no geometry
   // and, downstream, no charge. See resolveHandle in types/front.ts for
   // why that's the honest reading rather than inventing a default price.
@@ -399,7 +418,7 @@ function placeHandle(
 
     return {
       centerXMm: rect.centerXMm,
-      centerYMm: rect.centerYMm + (rect.heightMm / 2 - PROFILE_EDGE_INSET_MM),
+      centerYMm: lowDoor ? bottomEdge + PROFILE_EDGE_INSET_MM : rect.centerYMm + (rect.heightMm / 2 - PROFILE_EDGE_INSET_MM),
       lengthMm: rect.widthMm,
       orientation: 'horizontal',
       handle,
@@ -416,7 +435,7 @@ function placeHandle(
           (side === 'right' ? 1 : -1) * (rect.widthMm / 2 - HANDLE_EDGE_INSET_MM);
     return {
       centerXMm: x,
-      centerYMm: side === 'center' ? rect.centerYMm : rect.centerYMm,
+      centerYMm: lowDoor ? bottomEdge + HANDLE_EDGE_INSET_MM + handle.lengthMm / 2 : rect.centerYMm,
       lengthMm: handle.lengthMm,
       orientation: 'horizontal',
       handle,
@@ -436,11 +455,12 @@ function placeHandle(
     };
   }
 
+  const barMm = Math.min(handle.lengthMm, rect.heightMm * 0.8);
   return {
     centerXMm:
       rect.centerXMm + (side === 'right' ? 1 : -1) * (rect.widthMm / 2 - HANDLE_EDGE_INSET_MM),
-    centerYMm: rect.centerYMm,
-    lengthMm: Math.min(handle.lengthMm, rect.heightMm * 0.8),
+    centerYMm: lowDoor ? bottomEdge + HANDLE_EDGE_INSET_MM + barMm / 2 : rect.centerYMm,
+    lengthMm: barMm,
     orientation: 'vertical',
     handle,
   };
@@ -472,7 +492,9 @@ export function computeFrontBreakdown(
   widthMm: number,
   heightMm: number,
   handle: HandleSpec | undefined,
-  rates: HardwareRates
+  rates: HardwareRates,
+  // §149: true for a wall cabinet: door handles near the bottom edge.
+  handlesLow = false
 ): FrontBreakdown {
   const hardware: HardwareSpec[] = [];
   let rects: { rect: Rect; side: 'left' | 'right' | 'center' }[] = [];
@@ -516,7 +538,7 @@ export function computeFrontBreakdown(
           glass: rowSpec.glass,
           handleOrientation: rowSpec.handleOrientation,
         };
-        const sub = computeFrontBreakdown(subLayout, band.widthMm, band.heightMm, handle, rates);
+        const sub = computeFrontBreakdown(subLayout, band.widthMm, band.heightMm, handle, rates, handlesLow);
 
         for (const panel of sub.panels) {
           panels.push({
@@ -637,6 +659,22 @@ export function computeFrontBreakdown(
       };
     }
 
+    case 'lift-up': {
+      // §149: one full-face flap, hinged at the top on a lift-up stay or
+      // gas strut: that mechanism replaces hinges. Handle on the bottom
+      // edge (placeHandle). Glass is not offered (the strut needs a frame).
+      const rect = columns(widthMm, heightMm, 1)[0];
+      const handlePlacement = placeHandle(rect, handle, 'center', 'lift-up', undefined, handlesLow);
+      const handleLine = handleHardware(handlePlacement ? [handlePlacement] : []);
+      return {
+        panels: [{ index: 0, ...rect, handle: handlePlacement, kind: 'lift-up' }],
+        shelves: [],
+        hardware: [{ type: 'liftUp', count: 1, unitCost: rates.liftUp }, ...(handleLine ? [handleLine] : [])],
+        panelAreaMm2: rect.widthMm * rect.heightMm,
+        glassAreaMm2: 0,
+      };
+    }
+
     case 'tambour': {
       // Same shape as false-front — one full-face panel, priced for
       // its material and finish — but no handle: a tambour rides on
@@ -734,7 +772,7 @@ export function computeFrontBreakdown(
   const panels: FrontPanel[] = rects.map(({ rect, side }, index) => ({
     index,
     ...rect,
-    handle: placeHandle(rect, handle, side, rectsKind, layout.handleOrientation),
+    handle: placeHandle(rect, handle, side, rectsKind, layout.handleOrientation, handlesLow),
     kind: rectsKind,
     glassTint: glass?.tint,
   }));
@@ -777,13 +815,14 @@ export function cabinetFrontBreakdown(
   rates: HardwareRates
 ): FrontBreakdown {
   const panelMm = cornerPanelWidthMm(item);
-  if (panelMm === 0) return computeFrontBreakdown(item.frontLayout ?? fallbackLayout, item.widthMm, item.heightMm, handle, rates);
+  const low = item.moduleType === 'wall-cabinet';
+  if (panelMm === 0) return computeFrontBreakdown(item.frontLayout ?? fallbackLayout, item.widthMm, item.heightMm, handle, rates, low);
 
   const doorsMm = item.widthMm - panelMm;
   // The callers' fallback is sized on the full width (a double door at
   // 900); the doors here only span what the panel leaves.
   const layout = item.frontLayout ?? defaultFrontLayout(item.moduleType, doorsMm);
-  const doors = computeFrontBreakdown(layout, doorsMm, item.heightMm, handle, rates);
+  const doors = computeFrontBreakdown(layout, doorsMm, item.heightMm, handle, rates, low);
   const left = item.cornerPanel!.side === 'left';
   // Door centres move away from the panel by half its width.
   const shift = left ? panelMm / 2 : -panelMm / 2;

@@ -8793,3 +8793,47 @@ selected, its inspector opened over the plan, and later clicks landed on
 its buttons. The test design's fridge appears to have been turned 180°
 and autosaved. Never click blindly on the editor: select items through
 the UI by name, or use a throwaway design.
+
+## 149. Wall-cabinet handles low; a lift-up flap; false front for any cabinet; a wall corner unit listed
+
+**Why.** The user (23 Nov 2026): "have the handle at the lower side for
+a door to open, as handles at centre for upper cabinets don't make
+sense"; a lift-up front "opened by pulling it up"; "false front in all
+cabinets (it can be sink or simply covering openings)"; wall corner
+units ("blind corner only", their choice).
+
+**What.**
+- **Handles low on wall cabinets.** `computeFrontBreakdown(…, handlesLow)`
+  → `placeHandle(…, low)`. `cabinetFrontBreakdown` sets it for
+  `wall-cabinet`, so the 3D view, quote, cutting list and brief all agree.
+  - On a wall cabinet's single or double door: a knob sits just above the
+    bottom edge, a vertical bar rises from it, and an edge or gola profile
+    runs along the bottom edge instead of the top.
+  - Drawers and base units are unchanged. The front pictures draw it too.
+- **Lift-up flap** (`FrontKind 'lift-up'`, label "Lift-up flap"):
+  - One full-face panel, hinged at the top. The handle is centred on the
+    bottom edge, on any cabinet.
+  - Hardware is one `liftUp` mechanism instead of hinges, plus the
+    handle. It adds no floor clearance (it swings up), and is offered in
+    both front lists.
+  - New rate **"Lift-up mechanism (each)"**: ₹3,500, a PLACEHOLDER like
+    every seeded rate. Unlike the corner mechanisms, a rate card saved
+    before this rate existed gets the placeholder, not ₹0: a lift-up
+    quoted without its mechanism is the §2 mistake. Tested.
+- **False front** was already offered on every cabinet; only its label
+  said "(sink)". It's now "False front (fixed panel)".
+- **Wall corner unit:** the behaviour existed (a wall cabinet gets a fixed
+  corner panel on placement where runs meet, §116/§118). "Wall Corner
+  Unit (900mm)" is seeded in the library (`biz_default`) so it can be
+  found by name. An existing business adds its own from Catalogue →
+  Cabinets.
+
+**Bug fixed on the way:** `defaultRateCard()` spread `PLACEHOLDER_RATES`
+shallowly, so every default card shared one `hardware`, `boards` and
+`glassRates` object. Editing one card's rate changed the placeholder for
+all of them: a test that deleted a rate from its own copy broke the
+default for later tests. It's now `structuredClone`.
+
+**Tested:** `fronts.test.ts` (handle height on wall vs base, lift-up
+panels, hardware and handle, the missing-rate fallback); full suite. Not
+seen in a browser.

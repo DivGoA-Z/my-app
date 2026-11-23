@@ -80,6 +80,9 @@ function reachMmForRow(item: PlacedCabinetItem, kind: FrontRowKind): number {
     case 'open-shelf':
     case 'tambour':
       return 0;
+    // §149: swings UP, over the counter, not out into the floor.
+    case 'lift-up':
+      return 0;
   }
 }
 
