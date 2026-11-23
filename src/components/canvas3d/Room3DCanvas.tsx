@@ -89,7 +89,7 @@ import { finishForTiling, tilingMode, type SurfaceTiling } from '../../lib/tilin
 import { GroutOverlay } from './GroutOverlay';
 import { sinkModelBaseMm } from '../../lib/sinkPlacement';
 import {
-  hasCountertop,
+  carriesCountertop,
   COUNTERTOP_THICKNESS_MM,
   COUNTERTOP_OVERHANG_MM,
 } from '../../lib/cabinetGeometry';
@@ -1182,7 +1182,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
               finish-selectable now, see hasCountertop in
               lib/cabinetGeometry.ts. */}
           {shownCabinets
-            .filter((item) => hasCountertop(item.moduleType) && item.elevationMm === 0)
+            .filter((item) => carriesCountertop(item))
             .map((item) => (
               <CountertopMesh
                 key={`counter-${item.id}`}

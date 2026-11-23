@@ -24,7 +24,7 @@ import type { ThrowDirection } from '../types/fixture';
 import { defaultFrontLayout, clampCount } from '../types/front';
 import type { FrontKind, FrontRowKind, FrontRowLayout } from '../types/front';
 import { currentFootprintRect } from './footprint';
-import { hasCountertop } from './cabinetGeometry';
+import { carriesCountertop } from './cabinetGeometry';
 
 const DEFAULT_CEILING_HEIGHT_MM = 2700;
 
@@ -282,7 +282,7 @@ function cabinetFacePlacement(
       return atFront(
         cabinet.elevationMm +
           cabinet.heightMm +
-          (hasCountertop(cabinet.moduleType)
+          (carriesCountertop(cabinet)
             ? COUNTERTOP_CLEARANCE_MM
             : SURFACE_CLEARANCE_MM)
       );

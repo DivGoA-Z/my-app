@@ -79,6 +79,17 @@ export function hasCountertop(moduleType: ModuleType): boolean {
   return COUNTERTOP_MODULE_TYPES.includes(moduleType);
 }
 
+// Whether THIS placed unit carries a slab (§152): a base-type module
+// standing on the floor. hasCountertop() alone is the module TYPE; a
+// blind corner hung at 1,450 mm as a wall corner was charged, and briefed,
+// a countertop up at 2,190 mm, though the 3D view (floor units only)
+// never drew one. Same 60 mm floor tolerance as touchesFloor
+// (surfaceAreas.ts), kept local to avoid an import cycle.
+const ON_FLOOR_TOLERANCE_MM = 60;
+export function carriesCountertop(item: Pick<PlacedCabinetItem, 'moduleType' | 'elevationMm'>): boolean {
+  return hasCountertop(item.moduleType) && item.elevationMm <= ON_FLOOR_TOLERANCE_MM;
+}
+
 // Countertop area, in m², across every cabinet that carries a slab.
 // Includes the same overhang CountertopMesh renders (Room3DCanvas.tsx)
 // — the finish is charged on the slab as it's actually cut, not the
@@ -93,7 +104,7 @@ export function hasCountertop(moduleType: ModuleType): boolean {
 export function countertopAreaSqM(cabinets: PlacedCabinetItem[]): number {
   const overhangM = COUNTERTOP_OVERHANG_MM / 1000;
   return cabinets
-    .filter((c) => hasCountertop(c.moduleType))
+    .filter((c) => carriesCountertop(c))
     .reduce(
       (total, c) =>
         total +

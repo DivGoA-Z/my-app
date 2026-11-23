@@ -8914,3 +8914,42 @@ separate, §116).
 
 **Tested:** `lightEdge.test.ts`: front vs back, the corner's leg and its
 1.8 m price, and the brief's words. Full suite. Not seen in a browser.
+
+## 152. No countertop on a base unit hung on the wall; colours named by what they look like
+
+**Found** in a Photographic v2 image of a new design (customer Ananya
+Sharma, 23 Nov 2026).
+
+**A base corner hung as a wall corner was charged a countertop.**
+- The designer used a blind corner *base* unit at 1,450 mm as the wall
+  corner (no wall corner unit was listed until §149).
+- `hasCountertop` is a property of the module TYPE. So
+  `countertopAreaSqM` (the quote and the Surfaces readout) counted about
+  0.57 m² of slab on it, and the brief said "top at 890 mm / 2190 mm".
+  The 3D view, filtering on `elevationMm === 0`, never drew it.
+- `carriesCountertop(item)` = a countertop type AND standing on the
+  floor (≤ 60 mm, like `touchesFloor`). It's now used by the countertop
+  area, the 3D slab, the brief, sink placement and the top-face light
+  clearance.
+- The brief calls such a unit "… hung as a wall unit".
+- The cutting list and Cabinet Designer still build it as a base carcass
+  (`hasCountertop`), which is what it physically is.
+
+**The red was drawn maroon.**
+- The shutters were White Gloss recoloured `#ba2a04`, a vivid gloss red.
+  `colourName` called it "dark red" (lightness 0.37 < 0.4), and the
+  phrase ended "(White Gloss)".
+- Now a strongly saturated colour (saturation ≥ 0.75, lightness 0.3–0.62)
+  is "vivid …", not "dark …". `#1e3a8a` is still "dark blue".
+- `finishPhrase` puts the exact hex beside the words, e.g. "vivid red
+  (#ba2a04)".
+- A recoloured solid finish (`FinishDescription.recoloured`) reads
+  "custom colour on White Gloss".
+
+**Also seen, not a bug:**
+- That brief predates §149, so its wall-cabinet handles were centred.
+- The utensil holder, herb pot and board were allowed: the design was set
+  to Styled.
+
+**Tested:** the vivid name, the recoloured phrase, a hung unit's brief
+entry and the countertop area; full suite.

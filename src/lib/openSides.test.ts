@@ -57,3 +57,13 @@ describe('open sides (§146)', () => {
     expect(checkBacksOnOpenSide(layout({ walls: walls([]) }), [cabinet('base-cabinet', 600, 600, 720, { x: 0, y: 0, elevationMm: 0 })])).toEqual([]);
   });
 });
+
+describe('countertop only on floor units (§152)', () => {
+  it('a base corner hung on the wall adds no slab area', async () => {
+    const { countertopAreaSqM } = await import('./cabinetGeometry');
+    const floor = cabinet('corner-blind', 850, 600, 850, { elevationMm: 0 });
+    const hung = cabinet('corner-blind', 850, 600, 700, { elevationMm: 1450 });
+    expect(countertopAreaSqM([floor, hung])).toBeCloseTo(countertopAreaSqM([floor]), 9);
+    expect(countertopAreaSqM([floor])).toBeGreaterThan(0.5);
+  });
+});

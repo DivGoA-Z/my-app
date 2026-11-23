@@ -52,7 +52,7 @@ import { frontDirection } from './physicalDepth';
 import { backWall } from './wallView';
 import { isAgainstWall } from './surfaceAreas';
 import { cabinetFrontBreakdown } from './fronts';
-import { hasCountertop, COUNTERTOP_THICKNESS_MM, COUNTERTOP_OVERHANG_MM } from './cabinetGeometry';
+import { carriesCountertop, hasCountertop, COUNTERTOP_THICKNESS_MM, COUNTERTOP_OVERHANG_MM } from './cabinetGeometry';
 import { resolveSinkCutout } from './applianceGeometry';
 import { lookAnglesFromDirection } from './scene3d';
 import { resolveAllFixtures } from './fixtures';
@@ -114,6 +114,10 @@ export interface FinishDescription {
   colourName?: string;
   // A per-item tint on top of the finish (PlacedCabinetItem.colorOverride).
   tintHex?: string;
+  // §152: the designer's own colour REPLACED the finish's (a solid finish
+  // recoloured): the name no longer describes the colour ("White Gloss"
+  // in red), so the prompt says "custom colour on White Gloss".
+  recoloured?: boolean;
   // The real swatch photo, when there is one — attach it to a multimodal
   // model as a material reference rather than describing wood in words.
   swatchImageUrl?: string;
@@ -502,7 +506,11 @@ export function colourName(hex: string | undefined): string | undefined {
     : 'pink';
   // Warm, desaturated light colours are what the trade calls beige/cream.
   if ((hue === 'orange' || hue === 'yellow') && s < 0.45 && l > 0.7) return l > 0.85 ? 'cream' : 'beige';
-  const tone = l > 0.8 ? 'pale ' : l > 0.62 ? 'light ' : l < 0.18 ? 'very dark ' : l < 0.4 ? 'dark ' : '';
+  // §152: a strongly saturated colour isn't "dark" just because its
+  // lightness is under 0.4. #ba2a04, a bright gloss red, was named
+  // "dark red" and drawn maroon.
+  const vivid = s >= 0.75 && l >= 0.3 && l <= 0.62;
+  const tone = l > 0.8 ? 'pale ' : l > 0.62 ? 'light ' : l < 0.18 ? 'very dark ' : l < 0.4 && !vivid ? 'dark ' : vivid ? 'vivid ' : '';
   const muted = s < 0.3 ? 'muted ' : '';
   return `${tone}${muted}${hue}`.trim();
 }
@@ -546,6 +554,7 @@ export function describeFinish(
     colourHex: finish.albedoUrl ? colourHex : (tintHex ?? colourHex),
     colourName: colourName(finish.albedoUrl ? colourHex : (tintHex ?? colourHex)),
     tintHex: finish.albedoUrl ? tintHex : undefined,
+    recoloured: !finish.albedoUrl && !!tintHex && tintHex.toLowerCase() !== (colourHex ?? '').toLowerCase() ? true : undefined,
     swatchImageUrl: absoluteUrl(finish.albedoUrl, origin),
     swatchRepeatMm: finish.albedoUrl ? { width: finish.swatchWidthMm, height: finish.swatchHeightMm } : undefined,
     tileSizeMm: finish.tileWidthMm && finish.tileHeightMm ? { width: finish.tileWidthMm, height: finish.tileHeightMm } : undefined,
@@ -574,13 +583,16 @@ const UNSET = {
 
 export function finishPhrase(f: FinishDescription | null, ifUnset: string = UNSET.wall): string {
   if (!f) return ifUnset;
-  const colour = f.colourName ? `${f.colourName} ` : '';
+  // The exact hex beside the words (§152): words alone drifted (a vivid
+  // red came out maroon).
+  const colour = f.colourName ? `${f.colourName}${f.colourHex ? ` (${f.colourHex})` : ''} ` : '';
   const pattern = f.pattern === PATTERN_CATEGORY_LABELS.solid ? '' : `${f.pattern.toLowerCase()} `;
   const brand = [f.brand, f.code].filter(Boolean).join(' ');
   const tint = f.tintHex ? `, tinted ${colourName(f.tintHex) ?? f.tintHex}` : '';
   const size = tileSizeWords(f);
   const laid = f.laidAs ? `, laid as ${f.laidAs}` : size ? `, ${size}` : '';
-  return `${colour}${pattern}${f.type.toLowerCase()} in ${f.sheen} (${f.name}${brand && !f.name.includes(brand) ? `, ${brand}` : ''}${tint})${laid}`;
+  const name = f.recoloured ? `custom colour on ${f.name}` : f.name;
+  return `${colour}${pattern}${f.type.toLowerCase()} in ${f.sheen} (${name}${brand && !f.name.includes(brand) ? `, ${brand}` : ''}${tint})${laid}`;
 }
 
 function boxOf(rect: FootprintRect, bottomMm: number, heightMm: number): BoxMm {
@@ -700,7 +712,8 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
     const handleOnFronts = breakdown.panels.some((p) => p.handle);
     return {
       ref: `C${i + 1}`,
-      type: MODULE_LABELS[c.moduleType],
+      // §152: a base-type unit hung on the wall is described as hung.
+      type: hasCountertop(c.moduleType) && !carriesCountertop(c) ? `${MODULE_LABELS[c.moduleType]} hung as a wall unit` : MODULE_LABELS[c.moduleType],
       sizeMm: { width: r(c.widthMm), depth: r(c.depthMm), height: r(c.heightMm) },
       box: boxOf(rect, c.elevationMm, c.heightMm),
       facing: facingOf(c.rotationDeg),
@@ -724,7 +737,7 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
           : handleSpec?.kind === 'handleless'
             ? { name: handleSpec.label, kind: 'handleless', colourHex: '', colourName: 'none', finish: 'push-to-open, nothing on the front' }
             : null,
-      countertop: hasCountertop(c.moduleType),
+      countertop: carriesCountertop(c),
     };
   });
   // What other items call a cabinet: its code, or (§114) its description.
@@ -937,7 +950,7 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
   // ---- Inventory and absences ----
   const count = <T,>(xs: T[], pred: (x: T) => boolean) => xs.filter(pred).length;
   const inventory: Record<string, number> = {
-    'base cabinets (incl. sink, drawer, corner, trolley units)': count(input.cabinets, (c) => hasCountertop(c.moduleType)),
+    'base cabinets (incl. sink, drawer, corner, trolley units)': count(input.cabinets, (c) => carriesCountertop(c)),
     'wall-hung upper cabinets': count(input.cabinets, (c) => c.moduleType === 'wall-cabinet'),
     'tall units (incl. pantry)': count(input.cabinets, (c) => c.moduleType === 'tall-unit' || c.moduleType === 'pantry-unit'),
     appliances: input.appliances.length,

@@ -21,7 +21,7 @@
 
 import type { PlacedApplianceItem } from '../types/appliance';
 import type { PlacedCabinetItem } from '../types/cabinet';
-import { COUNTERTOP_THICKNESS_MM, hasCountertop } from './cabinetGeometry';
+import { COUNTERTOP_THICKNESS_MM, carriesCountertop } from './cabinetGeometry';
 import { currentFootprintRect } from './footprint';
 import { applianceFootprint } from './applianceGeometry';
 
@@ -35,7 +35,7 @@ export function sinkHostCabinet(sink: PlacedApplianceItem, cabinets: PlacedCabin
   const cx = f.x + f.widthMm / 2;
   const cy = f.y + f.depthMm / 2;
   for (const c of cabinets) {
-    if (!hasCountertop(c.moduleType)) continue;
+    if (!carriesCountertop(c)) continue;
     const top = c.elevationMm + c.heightMm;
     if (Math.abs(sink.elevationMm - top) > RESTING_TOLERANCE_MM) continue;
     const r = currentFootprintRect(c);

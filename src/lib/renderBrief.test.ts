@@ -687,3 +687,27 @@ describe('an open side in the brief (§146)', () => {
     expect(b.prompt.imagePrompt).toMatch(/there is NO wall on the north side; the kitchen opens there into an adjoining room/);
   });
 });
+
+describe('colour words and hung units (§152)', () => {
+  it('a vivid colour is not called dark; a deep one still is', () => {
+    expect(colourName('#ba2a04')).toBe('vivid red');
+    expect(colourName('#1e3a8a')).toBe('dark blue');
+  });
+
+  it('a recoloured solid finish carries its hex and says it is a custom colour', () => {
+    const gloss: SurfaceFinish = { ...walnut, id: 'f-gloss', label: 'White Gloss', albedoUrl: undefined, solidColor: '#ffffff', finishTypeLabel: 'Acrylic', patternCategory: 'solid', roughness: 0.1, clearcoat: 1 };
+    const base = input();
+    const b = buildRenderBrief(input({ finishes: [gloss], cabinets: base.cabinets.map((c) => ({ ...c, finishId: 'f-gloss', colorOverride: '#ba2a04' })) }));
+    expect(b.prompt.imagePrompt).toMatch(/vivid red \(#ba2a04\) acrylic in high gloss \(custom colour on White Gloss[,)]/);
+  });
+
+  it('a base-type unit hung on the wall carries no countertop and is described as hung', () => {
+    const base = input();
+    const hung = cabinet('corner-blind', 850, 600, 700, { id: 'hung', x: 2000, y: 0, elevationMm: 1450, finishId: 'f-walnut' });
+    const b = buildRenderBrief(input({ cabinets: [...base.cabinets, hung] }));
+    const entry = b.cabinets.find((c) => c.box.minZ === 1450 && c.type.startsWith('blind'))!;
+    expect(entry.countertop).toBe(false);
+    expect(entry.type).toBe('blind corner base unit hung as a wall unit');
+    expect(b.countertop!.topHeightsMm.every((z) => z < 1000)).toBe(true);
+  });
+});
