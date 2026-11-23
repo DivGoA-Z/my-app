@@ -11,7 +11,7 @@ import { useAuthStore } from '../../store/authStore';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
-import { deleteRender, listRenders, type DesignRender } from '../../lib/renders';
+import { deleteRender, downloadRender, listRenders, renderFileName, type DesignRender } from '../../lib/renders';
 
 export type RenderJob = { state: 'working'; cameraLabel: string } | { state: 'done'; render: DesignRender } | { state: 'error'; message: string };
 
@@ -150,10 +150,8 @@ export function RenderDialog({
                 {when(shown.createdAt)} · {details(shown)}
               </span>
               <span className="flex-1" />
-              <Button asChild variant="outline" size="sm">
-                <a href={shown.imageUrl} download target="_blank" rel="noreferrer">
-                  <Download /> Download
-                </a>
+              <Button variant="outline" size="sm" onClick={() => downloadRender(shown.imageUrl, renderFileName(designName, shown))}>
+                <Download /> Download
               </Button>
               <Button variant="ghost" size="sm" onClick={() => remove(shown)} aria-label="Delete this image">
                 <Trash2 /> Delete

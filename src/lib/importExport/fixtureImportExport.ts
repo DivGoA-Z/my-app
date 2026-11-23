@@ -7,7 +7,7 @@
 // appliance module already has — see applianceImportExport.ts's
 // header comment for why those are on the sheet rather than deferred.
 
-import { modelUrlProblem } from '../modelUrl';
+import { modelUrlProblem, tidyModelUrl } from '../modelUrl';
 import type { FixtureCatalogItem, FixtureKind } from '../../types/fixture';
 import {
   buildWorkbookBlob,
@@ -15,7 +15,6 @@ import {
   requiredString,
   positiveNumber,
   nonNegativeNumber,
-  optionalString,
   optionalNumber,
   enumValue,
   resolveRowId,
@@ -56,7 +55,7 @@ export function exportFixtureCatalogXlsx(items: FixtureCatalogItem[]): Blob {
     lumens: item.lumens,
     pricing_mode: item.pricingMode,
     price: item.price,
-    model_url: item.modelUrl ?? '',
+    model_url: tidyModelUrl(item.modelUrl) ?? '',
     model_rotation_x_deg: item.modelRotationXDeg ?? '',
     model_rotation_y_deg: item.modelRotationYDeg ?? '',
     model_rotation_z_deg: item.modelRotationZDeg ?? '',
@@ -133,10 +132,10 @@ export function parseFixtureCatalogRows(
     const price = nonNegativeNumber(row.price ?? '', 'price');
     if (price.error) errors.push(price.error);
 
-    const modelUrl = optionalString(row.model_url ?? '');
+    const modelUrl = tidyModelUrl(row.model_url);
     // Same rule as the edit panel (lib/modelUrl.ts): a stray character after
     // .glb silently turns the model into a plain box.
-    { const problem = modelUrlProblem(row.model_url ?? ''); if (problem) errors.push(`model_url: ${problem}`); }
+    { const problem = modelUrlProblem(modelUrl); if (problem) errors.push(`model_url: ${problem}`); }
 
     const modelRotationXDeg = optionalNumber(row.model_rotation_x_deg ?? '', 'model_rotation_x_deg');
     if (modelRotationXDeg.error) errors.push(modelRotationXDeg.error);

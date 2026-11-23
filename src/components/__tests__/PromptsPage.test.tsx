@@ -19,6 +19,7 @@ const saved = {
   intro: 'Follow the brief exactly.',
   closing: 'One image.',
   includeBrief: true,
+  sendColourPreview: true,
   referenceImages: [],
   isProduction: false,
   updatedAt: '2026-11-02T10:00:00Z',

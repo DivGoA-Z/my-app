@@ -479,6 +479,18 @@ alter table public.appliance_catalog_items add column if not exists model_rotati
 alter table public.appliance_catalog_items add column if not exists sink_cutout_width_mm numeric;
 alter table public.appliance_catalog_items add column if not exists sink_cutout_depth_mm numeric;
 
+-- How an appliance LOOKS, in words, for AI images (§141). Nullable: no
+-- description means the image brief points at the colour preview. The
+-- library rows get a starting description matching their 3D model or
+-- box, only where still NULL, so an edited one is never overwritten.
+alter table public.appliance_catalog_items add column if not exists appearance text;
+update public.appliance_catalog_items set appearance = 'black toughened-glass gas hob with cast-iron pan supports' where id = 'app_cat_stove_600' and appearance is null;
+update public.appliance_catalog_items set appearance = 'slim stainless-steel chimney hood' where id = 'app_cat_chimney_600' and appearance is null;
+update public.appliance_catalog_items set appearance = 'black glass built-in oven with a stainless-steel handle' where id = 'app_cat_oven_600' and appearance is null;
+update public.appliance_catalog_items set appearance = 'black and stainless-steel countertop oven-toaster-griller' where id = 'app_cat_otg_450' and appearance is null;
+update public.appliance_catalog_items set appearance = 'stainless-steel two-slice toaster' where id = 'app_cat_toaster_300' and appearance is null;
+update public.appliance_catalog_items set appearance = 'black granite-composite single-bowl inset sink with a matte black tap' where id = 'app_cat_sink_single' and appearance is null;
+
 -- CORRECTED: this used to disable RLS on these six tables, back when
 -- there was no auth to write a policy against. That's no longer true —
 -- real auth exists now (see BUSINESSES + AUTH above) and these six
@@ -805,6 +817,18 @@ update public.surface_finishes set tile_width_mm = 300, tile_height_mm = 75 wher
 update public.surface_finishes set tile_width_mm = 300, tile_height_mm = 300 where id = 'surf_tile_white_large_matt' and tile_width_mm is null;
 update public.surface_finishes set tile_width_mm = 300, tile_height_mm = 300 where id = 'surf_tile_terrazzo_white' and tile_width_mm is null;
 update public.surface_finishes set tile_width_mm = 300, tile_height_mm = 300 where id = 'surf_tile_charcoal_large' and tile_width_mm is null;
+-- §139: measured off each photo (tiles across ÷ swatch size), because the
+-- image brief now says how big the tiles are. A 35 mm hexagon described
+-- only as "mosaic" came out about 180 mm. Blue & White Painted's joints
+-- are faint; 125 assumes each 250 mm motif is 2×2 tiles (a common
+-- painted-tile size), so the words match what the 3D view shows.
+update public.surface_finishes set tile_width_mm = 35, tile_height_mm = 35 where id = 'surf_tile_white_hexagon' and tile_width_mm is null;
+update public.surface_finishes set tile_width_mm = 33, tile_height_mm = 33 where id = 'surf_tile_black_penny' and tile_width_mm is null;
+update public.surface_finishes set tile_width_mm = 333, tile_height_mm = 333 where id = 'surf_tile_beige_stone_rect' and tile_width_mm is null;
+update public.surface_finishes set tile_width_mm = 333, tile_height_mm = 333 where id = 'surf_tile_dark_grey_stone' and tile_width_mm is null;
+update public.surface_finishes set tile_width_mm = 150, tile_height_mm = 150 where id = 'surf_tile_encaustic' and tile_width_mm is null;
+update public.surface_finishes set tile_width_mm = 225, tile_height_mm = 112 where id = 'surf_tile_black_marble' and tile_width_mm is null;
+update public.surface_finishes set tile_width_mm = 125, tile_height_mm = 125 where id = 'surf_tile_blue_white_painted' and tile_width_mm is null;
 
 -- ------------------------------------------------------------
 -- MIGRATION: cabinet_catalog_items.finish -> finish_id
@@ -2466,6 +2490,8 @@ create table if not exists public.render_prompts (
   updated_at timestamptz not null default now()
 );
 create unique index if not exists render_prompts_one_production on public.render_prompts (is_production) where is_production;
+-- §141: whether Make image sends the 3D colour preview with this prompt.
+alter table public.render_prompts add column if not exists send_colour_preview boolean not null default true;
 alter table public.render_prompts enable row level security;
 
 drop policy if exists "Read the production prompt, or all as super admin" on public.render_prompts;

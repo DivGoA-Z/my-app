@@ -10,6 +10,7 @@
 // COB strip at ₹340/m" and "6500K strip at ₹310/m" as distinct products
 // and prices them from its own invoices.
 
+import { tidyModelUrl } from './modelUrl';
 import { supabase } from './Supabaseclient';
 import type { FixtureCatalogItem, FixtureKind } from '../types/fixture';
 
@@ -42,7 +43,7 @@ function rowToItem(row: FixtureCatalogRow): FixtureCatalogItem {
     lumens: row.lumens,
     pricingMode: row.pricing_mode,
     price: row.price,
-    modelUrl: row.model_url ?? undefined,
+    modelUrl: tidyModelUrl(row.model_url),
     modelRotationXDeg: row.model_rotation_x_deg ?? undefined,
     modelRotationYDeg: row.model_rotation_y_deg ?? undefined,
     modelRotationZDeg: row.model_rotation_z_deg ?? undefined,
@@ -60,7 +61,7 @@ function itemToRow(item: FixtureCatalogItem, businessId: string): FixtureCatalog
     lumens: item.lumens,
     pricing_mode: item.pricingMode,
     price: item.price,
-    model_url: item.modelUrl ?? null,
+    model_url: tidyModelUrl(item.modelUrl) ?? null,
     model_rotation_x_deg: item.modelRotationXDeg ?? null,
     model_rotation_y_deg: item.modelRotationYDeg ?? null,
     model_rotation_z_deg: item.modelRotationZDeg ?? null,

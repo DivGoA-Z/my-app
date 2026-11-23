@@ -10,7 +10,7 @@
 // `frontLayout` was for cabinets; they're just fields that are blank
 // most of the time.
 
-import { modelUrlProblem } from '../modelUrl';
+import { modelUrlProblem, tidyModelUrl } from '../modelUrl';
 import type { ApplianceCatalogItem } from '../../types/Catalog';
 import type { ApplianceType } from '../../types/appliance';
 import {
@@ -19,7 +19,6 @@ import {
   requiredString,
   positiveNumber,
   nonNegativeNumber,
-  optionalString,
   optionalNumber,
   enumValue,
   resolveRowId,
@@ -59,6 +58,7 @@ const HEADERS = [
   'model_rotation_z_deg',
   'sink_cutout_width_mm',
   'sink_cutout_depth_mm',
+  'appearance',
   'unit_price',
   DELETE_MARKER_HEADER,
 ] as const;
@@ -72,12 +72,13 @@ export function exportApplianceCatalogXlsx(items: ApplianceCatalogItem[]): Blob 
     depth_mm: item.depthMm,
     height_mm: item.heightMm,
     default_elevation_mm: item.defaultElevationMm,
-    model_url: item.modelUrl ?? '',
+    model_url: tidyModelUrl(item.modelUrl) ?? '',
     model_rotation_x_deg: item.modelRotationXDeg ?? '',
     model_rotation_y_deg: item.modelRotationYDeg ?? '',
     model_rotation_z_deg: item.modelRotationZDeg ?? '',
     sink_cutout_width_mm: item.sinkCutoutWidthMm ?? '',
     sink_cutout_depth_mm: item.sinkCutoutDepthMm ?? '',
+    appearance: item.appearance ?? '',
     unit_price: item.unitPrice,
     delete: '',
   }));
@@ -96,7 +97,8 @@ export function exportApplianceCatalogXlsx(items: ApplianceCatalogItem[]): Blob 
     { column: 'model_rotation_z_deg', meaning: 'Optional — rarely needed.', unit: 'degrees', allowed_values: 'any number, or blank', example: '(blank)' },
     { column: 'sink_cutout_width_mm', meaning: 'Sink rows only — the hole cut into the countertop, smaller than the sink\'s own width_mm. Leave blank for no cutout.', unit: 'mm', allowed_values: 'positive number, or blank', example: 780 },
     { column: 'sink_cutout_depth_mm', meaning: 'Sink rows only — see sink_cutout_width_mm.', unit: 'mm', allowed_values: 'positive number, or blank', example: 430 },
-    { column: 'unit_price', meaning: 'Price per unit.', unit: '₹', allowed_values: 'positive number', example: 32000 },
+    { column: 'appearance', meaning: 'Optional — how it looks, in plain words, for AI images: colour, material, style. No brand names.', unit: 'text', allowed_values: 'any text, or blank', example: 'black granite single-bowl sink with a matte black tap' },
+    { column: 'unit_price', meaning: 'Price per unit (0 for one the customer supplies).', unit: '₹', allowed_values: '0 or more', example: 32000 },
     { column: 'delete', meaning: 'Type DELETE (any case) to remove this appliance when you commit. Leave blank to keep/update it. Has no effect on a blank-id (new) row.', unit: '—', allowed_values: 'DELETE, or blank', example: '(blank)' },
   ];
 
@@ -155,10 +157,10 @@ export function parseApplianceCatalogRows(
     const defaultElevationMm = nonNegativeNumber(row.default_elevation_mm ?? '', 'default_elevation_mm');
     if (defaultElevationMm.error) errors.push(defaultElevationMm.error);
 
-    const modelUrl = optionalString(row.model_url ?? '');
+    const modelUrl = tidyModelUrl(row.model_url);
     // Same rule as the edit panel (lib/modelUrl.ts): a stray character after
     // .glb silently turns the model into a plain box.
-    { const problem = modelUrlProblem(row.model_url ?? ''); if (problem) errors.push(`model_url: ${problem}`); }
+    { const problem = modelUrlProblem(modelUrl); if (problem) errors.push(`model_url: ${problem}`); }
 
     const modelRotationXDeg = optionalNumber(row.model_rotation_x_deg ?? '', 'model_rotation_x_deg');
     if (modelRotationXDeg.error) errors.push(modelRotationXDeg.error);
@@ -178,7 +180,9 @@ export function parseApplianceCatalogRows(
       errors.push(`sink_cutout_depth_mm must be a positive number if set, got "${row.sink_cutout_depth_mm}"`);
     }
 
-    const unitPrice = positiveNumber(row.unit_price ?? '', 'unit_price');
+    // 0 or more, like the edit form (§142): an appliance the customer
+    // supplies is priced at ₹0, and must survive download → upload.
+    const unitPrice = nonNegativeNumber(row.unit_price ?? '', 'unit_price');
     if (unitPrice.error) errors.push(unitPrice.error);
 
     const markedForDeletion = isMarkedForDeletion(row[DELETE_MARKER_HEADER] ?? '');
@@ -204,6 +208,9 @@ export function parseApplianceCatalogRows(
       modelRotationZDeg: modelRotationZDeg.value,
       sinkCutoutWidthMm: sinkCutoutWidthMm.value,
       sinkCutoutDepthMm: sinkCutoutDepthMm.value,
+      // A sheet exported before this column existed has no `appearance`:
+      // keep the stored one rather than blanking it (§54).
+      appearance: row.appearance === undefined ? (isNew ? undefined : existingById.get(id)?.appearance) : row.appearance.trim() || undefined,
       unitPrice: unitPrice.value,
       createdAt,
       updatedAt: now,

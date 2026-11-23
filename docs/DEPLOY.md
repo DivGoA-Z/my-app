@@ -272,8 +272,14 @@ and projection on **Usage**. That needs `my_usage_status()`, so re-run
 `schema.sql` after pulling §134; until then the section says "Usage isn't
 set up yet". Help and Make image don't depend on it.
 
-**On your laptop**: `GEMINI_API_KEY=… npm run dev` (it uses the real
-Supabase limits, so step 1 must be done).
+**On your laptop**: put `GEMINI_API_KEY=<your key>` in `.env` (see
+`.env.example`; `.env` is gitignored, and with no `VITE_` prefix the key
+never reaches the browser), then restart `npm run dev`. Setting it in
+the shell (`GEMINI_API_KEY=… npm run dev`) also works and wins over
+`.env`. It uses the real Supabase limits, so step 1 must be done.
+Corrected 22 Nov 2026 (§143): this used to say the shell was the only
+way, and without it Make image on localhost said only "Image making
+isn't set up yet".
 
 ## The public demo account (§138)
 

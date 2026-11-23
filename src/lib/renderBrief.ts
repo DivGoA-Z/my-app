@@ -42,7 +42,8 @@ import type { HandleSpec, FrontRowKind } from '../types/front';
 import { defaultFrontLayout, resolveHandle, GLASS_TINT_LABELS } from '../types/front';
 import type { ApplianceCatalogItem } from '../types/Catalog';
 import type { FixtureCatalogItem } from '../types/fixture';
-import { FIXTURE_KIND_LABELS, LIGHTING_MODE_LABELS } from '../types/fixture';
+import type { FixtureKind, FixtureMount, ThrowDirection } from '../types/fixture';
+import { FIXTURE_KIND_LABELS, LIGHTING_MODE_LABELS, LINEAR_FIXTURE_KINDS } from '../types/fixture';
 import { DOOR_STATE_LABELS, DOOR_SWING_LABELS, OPENING_KIND_LABELS, DAYLIGHT_MODE_LABELS } from '../types/opening';
 import type { HardwareRates } from '../types/rates';
 import { currentFootprintRect } from './footprint';
@@ -118,6 +119,11 @@ export interface FinishDescription {
   swatchRepeatMm?: { width: number; height: number };
   // A floor or wall laid as tiles (§122): "800×1600 mm tiles, 2 mm grey grout".
   laidAs?: string;
+  // One tile's size in a tile PHOTO (SurfaceFinish.tileWidthMm), said in
+  // words when the surface isn't laid at a chosen size (§139). The swatch
+  // photo never reaches the model as a picture of scale, so "mosaic"
+  // alone was a guess: a 35 mm hexagon came out about 180 mm.
+  tileSizeMm?: { width: number; height: number };
 }
 
 export interface FrontPanelDescription {
@@ -162,6 +168,8 @@ export interface ApplianceEntry {
   against: WallPlacement | null;
   relation?: string;
   sinkCutoutMm?: { width: number; depth: number };
+  // How it looks, from the catalogue (§141).
+  appearance?: string;
 }
 
 export interface ObstacleEntry {
@@ -210,6 +218,13 @@ export interface LightEntry {
   runLengthMm?: number;
   runAxis?: string;
   quantity: number;
+  // Where it is and what it lights, in words (§139): "along the underside
+  // of the wall-hung upper cabinet on the north wall, fourth from the
+  // left, shining down". Coordinates alone gave the model nothing to draw.
+  placement: string;
+  // The cabinet a light strip runs under, if it does: so the brief can say
+  // which wall cabinets glow underneath and that the others don't.
+  underCabinet?: string;
 }
 
 export interface WallElement {
@@ -307,12 +322,22 @@ export interface ReferenceImage {
   // 'context-view' (§128): another camera's colour view of the same
   // kitchen, attached ONLY so the model understands parts this shot shows
   // edge-on or not at all. Never a second output.
-  kind: 'elevations' | 'line-render' | 'colour-render' | 'context-view';
+  // 'finish-swatch' (§139): the photo of one finish the design uses. The
+  // brief always pointed at `swatchImageUrl`, but a model can't open a
+  // URL, so it never saw our real marble or mosaic and guessed their look
+  // and scale. Attached as pictures, the photos are real-material
+  // reference the 3D preview can't give.
+  kind: 'elevations' | 'line-render' | 'colour-render' | 'context-view' | 'finish-swatch';
   file: string;
   widthPx: number;
   heightPx: number;
   // For a context view: which camera it's from.
   cameraLabel?: string;
+  // For a finish swatch: which finish, where it's used, and where the
+  // caller fetches the photo from.
+  finishName?: string;
+  usedOn?: string;
+  sourceUrl?: string;
 }
 
 const REFERENCE_IMAGE_MEANING: Record<ReferenceImage['kind'], string> = {
@@ -322,6 +347,8 @@ const REFERENCE_IMAGE_MEANING: Record<ReferenceImage['kind'], string> = {
     'The app\'s 3D preview from the SAME camera and at the same size as the line render, so the two line up exactly. Use it to see which finish and colour goes on which surface (e.g. a dark wood ceiling, a ridged roll-up tambour shutter, white gloss fronts). Its lighting and materials are a simplified computer render: do NOT copy its look, colours as lit, or flatness; produce a real photograph.',
   'context-view':
     'The SAME kitchen seen from another camera, for understanding only: how the parts this shot shows edge-on or cut off actually look (a side run, a corner unit, the window wall). Do not output this view, do not combine views, and do not move anything into the frame because it appears here.',
+  'finish-swatch':
+    'A flat close-up photo of one finish this design uses (see `finishName` and `usedOn`): the real material, its colour, pattern, grain or veining, and its tile size (the photo covers `swatchRepeatMm` of the surface). Make that surface out of this material at that scale. It is not a view of the room; nothing in it is placed in the picture.',
   'line-render':
     'Hidden-line drawing of this design from the camera in `view`: every surface white, every edge black. It fixes the camera, the composition and every edge (cabinet outlines, door and drawer seams, handles, the countertop). It has no materials or light of its own.',
 };
@@ -352,7 +379,16 @@ export interface RenderBriefInput {
   refs?: boolean;
   // §127: see RenderBrief.styling. Default 'bare'.
   styling?: BriefStyling;
+  // §139: list the finish photos as `finish-swatch` reference images (at
+  // most MAX_FINISH_SWATCHES), for a caller that will attach them.
+  attachSwatches?: boolean;
+  // Fewer than MAX_FINISH_SWATCHES when the request's picture limit needs
+  // the room (the caller knows how many camera pictures it sends).
+  maxSwatches?: number;
 }
+
+export const MAX_FINISH_SWATCHES = 6;
+export const SWATCH_PX = 512;
 
 export type BriefStyling = 'bare' | 'styled';
 
@@ -509,7 +545,17 @@ export function describeFinish(
     tintHex: finish.albedoUrl ? tintHex : undefined,
     swatchImageUrl: absoluteUrl(finish.albedoUrl, origin),
     swatchRepeatMm: finish.albedoUrl ? { width: finish.swatchWidthMm, height: finish.swatchHeightMm } : undefined,
+    tileSizeMm: finish.tileWidthMm && finish.tileHeightMm ? { width: finish.tileWidthMm, height: finish.tileHeightMm } : undefined,
   };
+}
+
+// A mosaic is "about 35 mm across"; a bigger tile is "300×600 mm".
+// Nothing when the surface is laid at a chosen size (laidAs says it).
+export const SMALL_TILE_MM = 60;
+export function tileSizeWords(f: FinishDescription): string | undefined {
+  if (f.laidAs || !f.tileSizeMm) return undefined;
+  const { width: w, height: h } = f.tileSizeMm;
+  return Math.max(w, h) <= SMALL_TILE_MM ? `small tiles about ${w} mm across` : `${w}×${h} mm tiles`;
 }
 
 // What the 3D preview draws where nothing was chosen — said in those
@@ -529,7 +575,8 @@ export function finishPhrase(f: FinishDescription | null, ifUnset: string = UNSE
   const pattern = f.pattern === PATTERN_CATEGORY_LABELS.solid ? '' : `${f.pattern.toLowerCase()} `;
   const brand = [f.brand, f.code].filter(Boolean).join(' ');
   const tint = f.tintHex ? `, tinted ${colourName(f.tintHex) ?? f.tintHex}` : '';
-  const laid = f.laidAs ? `, laid as ${f.laidAs}` : '';
+  const size = tileSizeWords(f);
+  const laid = f.laidAs ? `, laid as ${f.laidAs}` : size ? `, ${size}` : '';
   return `${colour}${pattern}${f.type.toLowerCase()} in ${f.sheen} (${f.name}${brand && !f.name.includes(brand) ? `, ${brand}` : ''}${tint})${laid}`;
 }
 
@@ -702,6 +749,7 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
       against,
       relation: applianceRelation(a, rect, placedCabinets, cabinetLabelById, placedAppliances),
       sinkCutoutMm: cutout ? { width: cutout.widthMm, depth: cutout.depthMm } : undefined,
+      appearance: row?.appearance?.trim() || undefined,
     };
   });
 
@@ -770,7 +818,7 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
         : op.backdropUrl
           ? 'use the supplied outside photo (outsideImageUrl)'
           : op.kind === 'window'
-            ? 'not specified: soft, bright, slightly overexposed daylight; no invented scenery'
+            ? `not specified: ${BARE_WINDOW_VIEW}`
             : 'not specified: a plain, softly lit passage',
       outsideImageUrl: seeThrough ? absoluteUrl(op.backdropUrl, origin) : undefined,
       daylight: op.daylight?.enabled
@@ -857,6 +905,7 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
     const linear = p.item.kind === 'strip' || p.item.kind === 'cove' || p.item.kind === 'plinth';
     const host =
       p.fixture.mount.kind === 'cabinet' ? cabinetLabelById.get(p.fixture.mount.cabinetId) : undefined;
+    const throwDir = p.fixture.throwDirection ?? (p.dirZ < -0.5 ? 'down' : p.dirZ > 0.5 ? 'up' : 'wash');
     return {
       ref: `L${i + 1}`,
       kind: FIXTURE_KIND_LABELS[p.item.kind],
@@ -869,6 +918,8 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
       runLengthMm: linear ? r(p.runLengthMm) : undefined,
       runAxis: linear ? p.runAxis : undefined,
       quantity: p.fixture.quantity,
+      placement: lightPlacement(p.item.kind, p.fixture.mount, host, throwDir, { x: p.xMm, y: p.yMm, z: p.zMm }),
+      underCabinet: linear && host && p.fixture.mount.kind === 'cabinet' && p.fixture.mount.face === 'under' ? host : undefined,
     };
   });
 
@@ -905,12 +956,42 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
   // list, and a phrase with commas in it would split into fragments.
   notInThisRoom.push('dining furniture or stools', 'people or pets', 'decor or utensils on the counters');
 
+  // ---- Finish photos (§139) ----
+  // Biggest surfaces first, so the cap drops a floor before the fronts.
+  const roomFloor = optionalFinish(layout.floorFinishId, layout.floorColorOverride, layout.floorTiling);
+  const roomCeiling = optionalFinish(layout.ceilingFinishId, layout.ceilingColorOverride);
+  const swatches = new Map<string, { finish: FinishDescription; usedOn: string[] }>();
+  const addSwatch = (f: FinishDescription | null | undefined, where: string) => {
+    if (!f?.swatchImageUrl) return;
+    const s = swatches.get(f.swatchImageUrl) ?? { finish: f, usedOn: [] };
+    const tint = f.tintHex ? `${where} (tinted ${colourName(f.tintHex) ?? f.tintHex})` : where;
+    if (!s.usedOn.includes(tint)) s.usedOn.push(tint);
+    swatches.set(f.swatchImageUrl, s);
+  };
+  for (const c of cabinets) addSwatch(c.finish, c.type === MODULE_LABELS['wall-cabinet'] ? 'upper cabinet fronts' : c.countertop ? 'base cabinet fronts' : 'tall unit fronts');
+  addSwatch(countertop?.finish, 'countertop');
+  for (const w of walls) addSwatch(w.finish, `${w.wall} wall`);
+  addSwatch(roomFloor, 'floor');
+  addSwatch(roomCeiling, 'ceiling');
+  const swatchImages: ReferenceImage[] = input.attachSwatches
+    ? [...swatches.values()].slice(0, Math.max(0, Math.min(MAX_FINISH_SWATCHES, input.maxSwatches ?? MAX_FINISH_SWATCHES))).map(({ finish, usedOn }, i) => ({
+        kind: 'finish-swatch',
+        // Numbered: two finishes can share a name.
+        file: `swatch-${i + 1}-${renderBriefFileStem(finish.name)}.jpg`,
+        widthPx: SWATCH_PX,
+        heightPx: SWATCH_PX,
+        finishName: finish.name,
+        usedOn: joinAnd(usedOn),
+        sourceUrl: finish.swatchImageUrl,
+      }))
+    : [];
+
   const brief: Omit<RenderBrief, 'prompt'> = {
     schema: RENDER_BRIEF_SCHEMA,
     generatedAt: input.generatedAt,
     designName: layout.name,
     styling: input.styling ?? 'bare',
-    referenceImages: input.referenceImages.map((img) => ({ ...img, whatItIs: REFERENCE_IMAGE_MEANING[img.kind] })),
+    referenceImages: [...input.referenceImages, ...swatchImages].map((img) => ({ ...img, whatItIs: REFERENCE_IMAGE_MEANING[img.kind] })),
     coordinateSystem: {
       units: 'millimetres',
       origin: 'floor level at the north-west inside corner of the room',
@@ -926,8 +1007,8 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
       widthMm: roomW,
       depthMm: roomD,
       ceilingHeightMm: ceilingMm,
-      floor: optionalFinish(layout.floorFinishId, layout.floorColorOverride, layout.floorTiling),
-      ceiling: optionalFinish(layout.ceilingFinishId, layout.ceilingColorOverride),
+      floor: roomFloor,
+      ceiling: roomCeiling,
       walls,
       notSpecifiedMeans: `A finish of null means nothing has been chosen yet, and the surface stays as plain as the reference image shows it: walls matte off-white plaster (${PLAIN_PLASTER_HEX}), the floor plain light-grey tiles, the ceiling plain white, the countertop plain polished light-grey stone. Do not invent tiles, wallpaper, backsplashes, paint colours or patterns.`,
     },
@@ -1005,6 +1086,123 @@ function applianceRelation(
   return undefined;
 }
 
+// ---- Lights in words (§139) ----
+
+const THROW_WORDS: Record<ThrowDirection, string> = {
+  down: 'shining down',
+  up: 'shining up onto the ceiling',
+  wash: 'grazing along the surface it is fixed to',
+  diffuse: 'glowing evenly all round',
+};
+
+// Where a light is, as a person would say it. A light under a wall
+// cabinet is a strip there whatever the catalogue calls it (a "cove"
+// light mounted underneath is still a strip of light under that cabinet).
+export function lightPlacement(
+  kind: FixtureKind,
+  mount: FixtureMount,
+  host: string | undefined,
+  throwDir: ThrowDirection,
+  at: { x: number; y: number; z: number }
+): string {
+  const throws = THROW_WORDS[throwDir];
+  if (mount.kind === 'cabinet' && host) {
+    switch (mount.face) {
+      case 'under':
+        return `along the underside of ${host}, ${throws}${throwDir === 'down' ? ' onto the counter' : ''}`;
+      case 'top':
+        return `on top of ${host}, ${throws}`;
+      case 'left':
+      case 'right':
+        return `on the ${mount.face} side of ${host}, ${throws}`;
+      case 'plinth':
+        return `in the plinth (toe-kick) of ${host}, washing the floor`;
+      case 'drawer':
+        return `inside the drawers of ${host}, not visible with them closed`;
+    }
+  }
+  if (mount.kind === 'wall') return `on the ${mount.wallId} wall, ${mm(mount.heightMm)} up, ${throws}`;
+  const where = `at x ${mm(at.x)}, y ${mm(at.y)}`;
+  if (mount.kind === 'ceiling') {
+    if (kind === 'pendant') return `hanging from the ceiling ${where}, its shade at ${mm(at.z)}`;
+    if (kind === 'cove') return `hidden in a ceiling cove ${where}, its light bounced off the ceiling`;
+    return `recessed in the ceiling ${where}, ${throws}`;
+  }
+  return `${where}, ${mm(at.z)} up, ${throws}`;
+}
+
+export function lightTemperatureWords(k: number): string {
+  return k <= 3500 ? `warm-white (${k} K)` : k >= 5000 ? `cool daylight-white (${k} K)` : `neutral-white (${k} K)`;
+}
+
+const LINEAR_KIND_LABELS = LINEAR_FIXTURE_KINDS.map((k) => FIXTURE_KIND_LABELS[k]);
+const isLinearLight = (f: LightEntry) => LINEAR_KIND_LABELS.includes(f.kind);
+
+// What the light IS, by kind and where it went.
+function lightNoun(f: LightEntry): string {
+  if (f.underCabinet) return 'LED light strip';
+  if (f.kind === FIXTURE_KIND_LABELS.cove) return 'cove light (a hidden LED strip)';
+  if (f.kind === FIXTURE_KIND_LABELS.strip) return 'LED light strip';
+  if (f.kind === FIXTURE_KIND_LABELS.plinth) return 'plinth LED strip';
+  if (f.kind === FIXTURE_KIND_LABELS.spot) return 'ceiling downlight';
+  if (f.kind === FIXTURE_KIND_LABELS.pendant) return 'pendant light';
+  return f.kind.toLowerCase();
+}
+
+// ---- Handles in words (§139) ----
+
+// What each handle kind physically looks like. "Edge-profile handle along
+// the top edge" came back as a steel bar on a base unit; saying the
+// profile is flush and nothing sticks out is what stops that.
+//
+// Which edge an edge profile runs along comes from the fronts: the app
+// puts it on the TOP edge of a drawer or door but DOWN THE SIDE of a tall
+// narrow pull-out, so one fixed "top edge" was wrong for those.
+export function edgeProfileWhere(panels: FrontPanelDescription[]): string {
+  const kinds = (o: 'horizontal' | 'vertical') => [
+    ...new Set(panels.filter((p) => p.handle?.orientation === o).map((p) => ROW_KIND_WORDS[p.kind.replace(' (glass)', '') as FrontRowKind]?.[0] ?? 'front')),
+  ];
+  const top = kinds('horizontal');
+  const side = kinds('vertical');
+  const parts = [top.length ? `along the top edge of each ${joinAnd(top)}` : '', side.length ? `down the side edge of each ${joinAnd(side)}` : ''];
+  return parts.filter(Boolean).join(', and ') || 'along the top edge of each front';
+}
+
+export function handleLook(h: NonNullable<CabinetEntry['handle']>, panels: FrontPanelDescription[] = []): string {
+  switch (h.kind) {
+    case 'handleless':
+      return 'handleless push-to-open fronts, nothing on the shutters';
+    case 'gola':
+      return `a continuous recessed ${h.colourName} ${h.finish} gola aluminium channel between the fronts; no handles on the fronts themselves (${h.name})`;
+    case 'edge-profile':
+      return `a slim ${h.colourName} ${h.finish} aluminium profile fixed ${edgeProfileWhere(panels)}, flush with it; nothing sticks out from the face of the fronts (${h.name})`;
+    case 'knob':
+      return `${metalColour(h)} round knobs (${h.name})`;
+    default:
+      return `${metalColour(h)} ${h.kind} handles (${h.name})`;
+  }
+}
+
+// A photographer's eye level: anything else is a raised (or crouched)
+// camera, and calling it "eye-level" contradicted the line drawing.
+export const EYE_LEVEL_MM = { min: 1200, max: 1750 };
+const isEyeLevel = (v: RenderBriefView) => v.positionMm.z >= EYE_LEVEL_MM.min && v.positionMm.z <= EYE_LEVEL_MM.max;
+
+// Said positively (§139). §141: sockets are ALLOWED, at most two plain
+// ones on the backsplash. Every real Indian kitchen has them, so the
+// photographic prompt kept adding them however firmly it was told not to;
+// the user chose a believable photo over fighting the model.
+export const WALL_SURFACES = 'Every wall surface is one field of its finish; the only things on it are at most two plain white switch-socket plates on the backsplash, between the counter and the wall cabinets. No other plates, cables or fittings on the walls.';
+
+// What a bare brief shows through a window with no outside photo (§144).
+// It used to be daylight only, no scenery at all; Photographic v2 painted
+// a sharp city view anyway, and a blank white pane reads as a render. The
+// user chose a believable window: a soft, blurred outside, no detail that
+// could be mistaken for the customer's real view.
+export const BARE_WINDOW_VIEW =
+  'bright daylight and a soft, blurred, slightly overexposed view outside (sky and indistinct shapes only); no sharp buildings, trees or other detail';
+const SHARP_VIEW_NEGATIVE = 'sharp detailed view outside the window';
+
 // ---- Prompt text ----
 
 function mm(n: number) {
@@ -1033,7 +1231,7 @@ function buildPrompt(b: Omit<RenderBrief, 'prompt'>, useRefs = true): RenderBrie
   if (v) {
     lines.push(
       v.mode === 'walkthrough'
-        ? `Camera: eye-level photo taken standing at x ${mm(v.positionMm.x)}, y ${mm(v.positionMm.y)}, lens height ${mm(v.positionMm.z)}, looking ${compass(v.headingDeg)} toward the ${v.facingWall} wall${Math.abs(v.pitchDeg) >= 5 ? `, tilted ${v.pitchDeg > 0 ? 'up' : 'down'} ${Math.abs(Math.round(v.pitchDeg))}°` : ''}, ${Math.round(v.verticalFovDeg)}° vertical field of view. Match the framing of the reference image exactly.`
+        ? `Camera: ${isEyeLevel(v) ? 'eye-level photo taken standing' : 'photo taken from a raised position'} at x ${mm(v.positionMm.x)}, y ${mm(v.positionMm.y)}, lens height ${mm(v.positionMm.z)}, looking ${compass(v.headingDeg)} toward the ${v.facingWall} wall${Math.abs(v.pitchDeg) >= 5 ? `, tilted ${v.pitchDeg > 0 ? 'up' : 'down'} ${Math.abs(Math.round(v.pitchDeg))}°` : ''}, ${Math.round(v.verticalFovDeg)}° vertical field of view. Match the framing of the reference image exactly.`
         : `Camera: elevated three-quarter view looking ${compass(v.headingDeg)}, down ${Math.abs(Math.round(v.pitchDeg))}°, exactly as framed in the reference image (a cut-away view: walls nearest the camera are not shown).`
     );
   }
@@ -1080,13 +1278,21 @@ function buildPrompt(b: Omit<RenderBrief, 'prompt'>, useRefs = true): RenderBrie
   const handleGroups = new Map<string, string[]>();
   for (const c of b.cabinets) {
     if (!c.handle) continue;
-    const key =
-      c.handle.kind === 'handleless'
-        ? 'handleless push-to-open fronts, nothing on the shutters'
-        : `${c.handle.colourName} ${c.handle.finish} ${c.handle.kind === 'gola' ? 'continuous gola (recessed aluminium channel) profile' : c.handle.kind === 'edge-profile' ? 'edge-profile handle along the top edge' : `${c.handle.kind} handles`} (${c.handle.name})`;
+    const key = handleLook(c.handle, c.fronts.panels);
     handleGroups.set(key, [...(handleGroups.get(key) ?? []), c.ref]);
   }
   for (const [phrase, refs] of handleGroups) lines.push(`Handles on ${group(refs)}: ${phrase}.`);
+  if (handleGroups.size) lines.push('No other handles: every handle is one of these, and a front not listed has none.');
+
+  // §141: what each appliance looks like. Without it every image
+  // restyled them (steel sink for a black one, a branded French-door
+  // fridge for a double-door one).
+  if (b.appliances.length) {
+    const hasColour = b.referenceImages.some((i) => i.kind === 'colour-render');
+    const fallback = hasColour ? 'colour and material as in the colour preview' : 'not specified: plain and neutral';
+    const looks = b.appliances.map((a) => `${a.model ? `${a.model} (${a.type.toLowerCase()})` : a.type.toLowerCase()}: ${a.appearance ?? fallback}`);
+    lines.push(`Appliances look like this: ${looks.join('; ')}. Every appliance is unbranded: no logos, names or lettering on any of them.`);
+  }
 
   if (b.countertop) {
     lines.push(
@@ -1110,14 +1316,14 @@ function buildPrompt(b: Omit<RenderBrief, 'prompt'>, useRefs = true): RenderBrie
   const wallClauses = [...wallsByFinish].map(([phrase, ws]) =>
     ws.length === 4 ? `all four ${phrase}` : `${ws.join(' and ')} ${phrase}`
   );
-  lines.push(`Walls: ${wallClauses.join('; ')}.`);
+  lines.push(`Walls: ${wallClauses.join('; ')}. ${WALL_SURFACES}`);
   lines.push(`Floor: ${finishPhrase(b.room.floor, UNSET.floor)}. Ceiling: ${finishPhrase(b.room.ceiling, UNSET.ceiling)}.`);
 
   const on = b.lighting.fixtures.filter((f) => f.on);
   const daylit = b.openings.filter((o) => o.daylight);
   const light: string[] = [];
   if (daylit.length) light.push(daylit.map((o) => `${o.daylight!.mode.toLowerCase()} (${o.daylight!.colourTempK} K) through ${opening(o)}`).join(', '));
-  if (on.length) light.push(on.map((f) => `${f.quantity > 1 ? `${f.quantity}× ` : ''}${f.kind.toLowerCase()} ${f.colourTempK} K at (${f.positionMm.x}, ${f.positionMm.y}, ${f.positionMm.z}) throwing ${f.throws}`).join('; '));
+  if (on.length) light.push(on.map((f) => `${f.quantity > 1 ? `${f.quantity}× ` : 'a '}${lightTemperatureWords(f.colourTempK)} ${lightNoun(f)} ${f.placement}`).join('; '));
   lines.push(
     light.length
       ? `Lighting: ${light.join('; ')}. Keep colour temperatures as stated; they change how the finishes look.`
@@ -1154,7 +1360,9 @@ function buildPrompt(b: Omit<RenderBrief, 'prompt'>, useRefs = true): RenderBrie
       ? '2. USE THE JSON AS THE SOURCE OF TRUTH for what each shape is: cabinet fronts (doors vs drawers, counts, handle positions), finishes, handles, appliances, openings and lights. Refs (C1, A2, O1…) tie the data to the attached drawings; they are never drawn.'
       : '2. USE THE JSON AS THE SOURCE OF TRUTH for what each shape is: cabinet fronts (doors vs drawers, counts, handle positions), finishes, handles, appliances, openings and lights.',
     `3. "Not specified" is not permission to invent: ${b.room.notSpecifiedMeans}`,
-    '4. Finishes: when `swatchImageUrl` is given, match that photo (pattern, colour, scale from `swatchRepeatMm`); otherwise match `colourHex`/`colourName`, `pattern` and `sheen` exactly.',
+    b.referenceImages.some((i) => i.kind === 'finish-swatch')
+      ? '4. Finishes: the attached finish photos (`finish-swatch` in `referenceImages`, each named and with the surfaces it covers) are the real materials: match their colour, pattern, grain or veining and tile size (a photo covers `swatchRepeatMm`). Any other finish: match `colourHex`/`colourName`, `pattern` and `sheen` exactly.'
+      : '4. Finishes: when `swatchImageUrl` is given, match that photo (pattern, colour, scale from `swatchRepeatMm`); otherwise match `colourHex`/`colourName`, `pattern` and `sheen` exactly.',
     '5. Units are millimetres; `coordinateSystem` explains the axes. `fromLeftMm` is measured standing in the room facing that wall.',
     '6. If something cannot be honoured, leave it plain rather than guessing.',
     `Two prompts are generated from the same data: \`imagePrompt\` (complete, with ${useRefs ? 'refs and ' : ''}sizes; use it with this file and the attached images) and \`imagePromptCondensed\` (short and purely visual, for diffusion models), each with \`negativePrompt\`.`,
@@ -1268,7 +1476,9 @@ export function shortFinish(f: FinishDescription | null, ifUnset: string): strin
     .join(' ');
   const colour = f.colourName ?? (name ? proseCase(name) : '');
   const sheen = SHEEN_WORD[f.sheen] ?? f.sheen;
-  return [colour, sheen, pattern, type].filter(Boolean).join(' ');
+  // No millimetres here; a mosaic is just "small" (§139).
+  const small = f.tileSizeMm && !f.laidAs && Math.max(f.tileSizeMm.width, f.tileSizeMm.height) <= SMALL_TILE_MM ? 'small' : '';
+  return [colour, sheen, pattern, small, type].filter(Boolean).join(' ');
 }
 
 // Single-wall, L, parallel, U — from which walls carry a run of units.
@@ -1340,7 +1550,7 @@ export function condensedPrompt(b: Omit<RenderBrief, 'prompt'>, maxWords = CONDE
   const camera = !v
     ? 'Eye-level photograph'
     : v.mode === 'walkthrough'
-      ? `Eye-level photograph looking toward the ${v.facingWall} wall`
+      ? `${isEyeLevel(v) ? 'Eye-level photograph' : 'Photograph'} looking toward the ${v.facingWall} wall`
       : 'Elevated three-quarter view';
   const windows = b.openings.filter((o) => o.kind === 'Window').length;
   const doors = b.openings.filter((o) => o.kind === 'Door').length;
@@ -1372,11 +1582,13 @@ export function condensedPrompt(b: Omit<RenderBrief, 'prompt'>, maxWords = CONDE
   const appl: string[] = [];
   const hob = has(APPLIANCE_TYPE_LABELS.stove);
   const chimney = has(APPLIANCE_TYPE_LABELS.chimney);
-  if (hob) appl.push(`${proseCase(withoutSizes(hob.model ?? 'built-in hob'))}${chimney ? ' under a chimney hood' : ''}`);
-  else if (chimney) appl.push('a chimney hood');
+  // §141: the catalogue's description of its look, where there is one.
+  const named = (a: ApplianceEntry, fallback: string) => a.appearance ?? proseCase(withoutSizes(a.model ?? fallback));
+  if (hob) appl.push(`${named(hob, 'built-in hob')}${chimney ? ` under ${chimney.appearance ? withArticle(chimney.appearance) : 'a chimney hood'}` : ''}`);
+  else if (chimney) appl.push(chimney.appearance ?? 'a chimney hood');
   for (const label of [APPLIANCE_TYPE_LABELS.fridge, APPLIANCE_TYPE_LABELS.microwave, APPLIANCE_TYPE_LABELS.oven, APPLIANCE_TYPE_LABELS.otg, APPLIANCE_TYPE_LABELS.dishwasher, APPLIANCE_TYPE_LABELS['water-purifier']]) {
     const a = has(label);
-    if (a) appl.push(proseCase(withoutSizes(a.model ?? a.type)));
+    if (a) appl.push(named(a, a.type));
   }
   // One flowing paragraph, not a list of labelled fields: image models'
   // text encoders read prose better than "Key: value".
@@ -1482,7 +1694,7 @@ export function shortPrompt(b: Omit<RenderBrief, 'prompt'>, maxChars = SHORT_PRO
 // a dish rack and towel when that term was the one cut off (§104). Then
 // the generic guards, then what's absent.
 export function shortNegative(b: Omit<RenderBrief, 'prompt'>, maxChars = SHORT_NEGATIVE_MAX_CHARS): string {
-  const extras = inventedExtras(b).filter((t) => ['backsplash tiles', 'LED strip lights', 'scenery outside the window'].includes(t));
+  const extras = inventedExtras(b).filter((t) => ['backsplash tiles', 'LED strip lights', 'under-cabinet LED strips', SHARP_VIEW_NEGATIVE].includes(t));
   const counters = b.styling === 'styled' ? 'clutter on the counters' : 'decor or utensils on the counters';
   const terms = [...new Set(['text or labels', counters, ...extras, 'clutter', 'extra cabinets', 'extra appliances', 'people', 'watermark', 'CGI look', 'distorted perspective', ...b.notInThisRoom])];
   const out: string[] = [];
@@ -1498,10 +1710,13 @@ export function shortNegative(b: Omit<RenderBrief, 'prompt'>, maxChars = SHORT_N
 function inventedExtras(b: Omit<RenderBrief, 'prompt'>): string[] {
   // Styled (§127) allows a plant and a utensil holder, and a view outside.
   const styled = b.styling === 'styled';
-  const out = [...(styled ? [] : ['potted plants', 'utensil holder']), 'soap dispenser', 'kettle', 'wall sockets or switches'];
+  const out = [...(styled ? [] : ['potted plants', 'utensil holder']), 'soap dispenser', 'kettle', 'cables or extension boards'];
   if (b.room.walls.every((w) => !w.finish)) out.push('backsplash tiles');
-  if (!b.lighting.fixtures.some((f) => f.kind === FIXTURE_KIND_LABELS.strip)) out.push('LED strip lights');
-  if (!styled && b.openings.some((o) => o.kind === OPENING_KIND_LABELS.window && !o.outsideImageUrl)) out.push('scenery outside the window');
+  // §139: a cove light under a cabinet IS a strip; banning "LED strip
+  // lights" next to it contradicted the brief. Ban only what isn't there.
+  if (!b.lighting.fixtures.some(isLinearLight)) out.push('LED strip lights');
+  else if (!b.lighting.fixtures.some((f) => f.underCabinet)) out.push('under-cabinet LED strips');
+  if (!styled && b.openings.some((o) => o.kind === OPENING_KIND_LABELS.window && !o.outsideImageUrl)) out.push(SHARP_VIEW_NEGATIVE);
   return out;
 }
 
@@ -1511,9 +1726,12 @@ function addNothingRule(b: Omit<RenderBrief, 'prompt'>): string {
     ? 'plain matte paint everywhere; no backsplash and no tiles'
     : `only the finishes listed for each wall; no backsplash or tiles beyond them`;
   const on = [...new Set(b.lighting.fixtures.filter((f) => f.on).map((f) => f.kind.toLowerCase()))];
-  const strips = b.lighting.fixtures.some((f) => f.kind === FIXTURE_KIND_LABELS.strip);
+  // §139: name the cabinets that glow underneath, and say the rest don't;
+  // told "no strips under the wall cabinets" beside five under-cabinet
+  // lights, Gemini lit the underside of every one.
+  const under = [...new Set(b.lighting.fixtures.filter((f) => f.on && f.underCabinet).map((f) => f.underCabinet!))];
   const lights = on.length
-    ? `only the ${joinAnd(on)} listed${strips ? '' : '; no LED strips under the wall cabinets'}`
+    ? `only the ${joinAnd(on)} listed${under.length ? `; light strips only under ${joinAnd(under)}, and nothing under any other wall cabinet` : '; no LED strips under the wall cabinets'}`
     : 'no visible light fittings';
   const windows = b.openings.filter((o) => o.kind === OPENING_KIND_LABELS.window);
   const styled = b.styling === 'styled';
@@ -1523,12 +1741,12 @@ function addNothingRule(b: Omit<RenderBrief, 'prompt'>): string {
       ? ' Through the window: the supplied photo.'
       : styled
         ? ' Through the window: soft, out-of-focus greenery and daylight.'
-        : ' Through the window: soft, bright daylight only; no trees, buildings or scenery.';
+        : ` Through the window: ${BARE_WINDOW_VIEW}.`;
   return (
     (styled
       ? `LIGHTLY STYLED, NOTHING ELSE ADDED. On the counters, at most four small neutral props: ${STYLED_PROPS}. No other objects, fruit, dispensers or kettles. `
       : 'ADD NOTHING. Counters bare: no plants, fruit, utensils, utensil holders, dispensers, kettles or anything not listed. ') +
-    `Walls: ${walls}. Lights: ${lights}. No wall sockets or switches.${view} ` +
+    `Walls: ${walls}. ${WALL_SURFACES} Lights: ${lights}.${view} ` +
     'No extra cabinets, appliances, windows, shelves, decor, people or clutter; everything in `notInThisRoom` is absent.'
   );
 }

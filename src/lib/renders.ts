@@ -12,9 +12,20 @@
 // to drift from what was tested by hand.
 
 import { supabase } from './Supabaseclient';
-import { withoutRefs, type RenderBrief } from './renderBrief';
+import { renderBriefFileStem, withoutRefs, type RenderBrief } from './renderBrief';
 
 export type RenderPart = { text: string } | { image: { mimeType: string; data: string } };
+
+// §139: said when a finish photo couldn't be fetched for Make image (the
+// image is still made, from the finish's description), so a broken swatch
+// link is noticed instead of quietly costing realism.
+export function missingSwatchesMessage(names: string[]): string {
+  return `Finish photo${names.length > 1 ? 's' : ''} couldn’t be loaded, so not sent: ${names.join(', ')}. The image uses ${names.length > 1 ? 'their descriptions' : 'its description'} instead. Check the photo in Catalogue → Finishes.`;
+}
+
+// The Worker refuses a request with more pictures than this (its
+// MAX_IMAGES, Gemini Pro's limit). Kept in step by hand.
+export const MAX_REQUEST_IMAGES = 14;
 
 export interface RenderImageInput {
   // The file name the brief's referenceImages gives this picture.
@@ -35,6 +46,10 @@ export interface ImagePrompt {
   intro: string;
   closing: string;
   includeBrief: boolean;
+  // §141: whether the 3D colour preview is sent. Off tests whether it's
+  // what pulls the image back to a render look, now that the real finish
+  // photos are sent; the brief then never mentions it.
+  sendColourPreview: boolean;
 }
 
 // The prompt Make image used from the start (§132), and still uses when no
@@ -47,6 +62,7 @@ export const BUILT_IN_PROMPT: ImagePrompt = {
     'The pictures after it are the files listed in its `referenceImages`, each introduced by its file name.',
   closing: 'Now make the one photograph from the main camera, as described. Return the image.',
   includeBrief: true,
+  sendColourPreview: true,
 };
 
 // A reference photo (§137): a real kitchen, for look and finish only.
@@ -157,7 +173,9 @@ export function base64ToBlob(data: string, mimeType: string): Blob {
 // A snapshot (data: or blob: URL) as base64: JPEG for colour views (a
 // tenth of the PNG's size, and the Worker's request stays small), PNG for
 // line drawings (crisp edges, and mostly white, so small anyway).
-export async function snapshotBase64(url: string, mimeType: 'image/png' | 'image/jpeg'): Promise<string> {
+// `maxPx` shrinks a big picture (a finish photo, §139) to fit, so six of
+// them stay a small part of the request.
+export async function snapshotBase64(url: string, mimeType: 'image/png' | 'image/jpeg', maxPx?: number): Promise<string> {
   const img = new Image();
   // For a reference photo on Supabase storage (§137): without it the canvas
   // is "tainted" and can't be read back. Harmless for data:/blob: URLs.
@@ -165,13 +183,14 @@ export async function snapshotBase64(url: string, mimeType: 'image/png' | 'image
   img.src = url;
   await img.decode();
   const canvas = document.createElement('canvas');
-  canvas.width = img.naturalWidth;
-  canvas.height = img.naturalHeight;
+  const scale = maxPx ? Math.min(1, maxPx / Math.max(img.naturalWidth, img.naturalHeight)) : 1;
+  canvas.width = Math.round(img.naturalWidth * scale);
+  canvas.height = Math.round(img.naturalHeight * scale);
   const ctx = canvas.getContext('2d')!;
   // JPEG has no transparency: white, not black, behind anything clear.
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(img, 0, 0);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
   return canvas.toDataURL(mimeType, 0.88).split(',')[1];
 }
 
@@ -188,6 +207,39 @@ export interface DesignRender {
   createdAt: string;
   // Which prompt made it (§137); null on images made before prompts.
   promptName: string | null;
+}
+
+// The name a downloaded image is saved under. Storage keeps each under a
+// random id, so every download used to look the same; this says which
+// design, camera, prompt and styling made it, and when (local time, to the
+// minute), so images saved side by side can be told apart and compared.
+export function renderFileName(designName: string, r: Pick<DesignRender, 'cameraLabel' | 'promptName' | 'styling' | 'createdAt' | 'imagePath'>): string {
+  const d = new Date(r.createdAt);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+  const ext = r.imagePath.match(/\.(\w+)$/)?.[1] ?? 'png';
+  const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const words = [renderBriefFileStem(designName), slug(r.cameraLabel ?? 'view'), slug(r.promptName ?? 'built-in'), slug(r.styling ?? '')];
+  return `${words.filter(Boolean).join('-')}-${stamp}.${ext}`;
+}
+
+// Saves the image under renderFileName. A plain <a download> can't name a
+// file from another origin (Supabase storage): the browser ignores the
+// name, so it's fetched and saved from a local blob instead. If that
+// fails, the image opens in a new tab as before.
+export async function downloadRender(url: string, fileName: string): Promise<void> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(String(res.status));
+    const href = URL.createObjectURL(await res.blob());
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = fileName;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(href), 10_000);
+  } catch {
+    window.open(url, '_blank', 'noopener');
+  }
 }
 
 const RENDER_BUCKET = 'renders';

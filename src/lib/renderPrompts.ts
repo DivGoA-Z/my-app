@@ -33,6 +33,8 @@ interface PromptRow {
   intro: string;
   closing: string;
   include_brief: boolean;
+  // §141. Absent until schema.sql is re-run: reads as on.
+  send_colour_preview?: boolean;
   reference_images: ReferencePhoto[] | null;
   is_production: boolean;
   updated_at: string;
@@ -44,6 +46,7 @@ const fromRow = (r: PromptRow): SavedPrompt => ({
   intro: r.intro,
   closing: r.closing,
   includeBrief: r.include_brief,
+  sendColourPreview: r.send_colour_preview !== false,
   referenceImages: r.reference_images ?? [],
   isProduction: r.is_production,
   updatedAt: r.updated_at,
@@ -70,17 +73,17 @@ export async function productionPrompt(): Promise<SavedPrompt | typeof BUILT_IN_
 export async function createPrompt(from: ImagePrompt, name: string): Promise<SavedPrompt> {
   const { data, error } = await supabase
     .from('render_prompts')
-    .insert({ id: crypto.randomUUID(), name: name.trim(), intro: from.intro, closing: from.closing, include_brief: from.includeBrief })
+    .insert({ id: crypto.randomUUID(), name: name.trim(), intro: from.intro, closing: from.closing, include_brief: from.includeBrief, send_colour_preview: from.sendColourPreview })
     .select('*')
     .single();
   if (error) throw new Error(error.message.includes('At most 5') ? `At most ${MAX_PROMPTS} prompts: delete one first.` : `Couldn’t save: ${error.message}`);
   return fromRow(data as PromptRow);
 }
 
-export async function savePrompt(p: Pick<SavedPrompt, 'id' | 'name' | 'intro' | 'closing' | 'includeBrief'>): Promise<SavedPrompt> {
+export async function savePrompt(p: Pick<SavedPrompt, 'id' | 'name' | 'intro' | 'closing' | 'includeBrief' | 'sendColourPreview'>): Promise<SavedPrompt> {
   const { data, error } = await supabase
     .from('render_prompts')
-    .update({ name: p.name.trim(), intro: p.intro, closing: p.closing, include_brief: p.includeBrief, updated_at: new Date().toISOString() })
+    .update({ name: p.name.trim(), intro: p.intro, closing: p.closing, include_brief: p.includeBrief, send_colour_preview: p.sendColourPreview, updated_at: new Date().toISOString() })
     .eq('id', p.id)
     .select('*')
     .single();

@@ -19,7 +19,7 @@ import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useLayoutStore } from '../../store/layoutStore';
-import { modelUrlProblem } from '../../lib/modelUrl';
+import { modelUrlProblem, tidyModelUrl } from '../../lib/modelUrl';
 import { BoardSelect } from '../common/BoardSelect';
 import { EditPanel, Field, NumberField, TextField } from '../common/EditPanel';
 import { describePanels, resolveCarcassBoard } from '../../lib/panels';
@@ -398,7 +398,7 @@ export function ApplianceList() {
         onSave={ed.commit}
         saveLabel={ed.editing?.isNew ? 'Add appliance' : 'Save'}
         saving={ed.saving}
-        canSave={!modelUrlProblem(d?.modelUrl)}
+        canSave={!modelUrlProblem(tidyModelUrl(d?.modelUrl))}
         error={ed.error}
         onDelete={ed.editing?.isNew ? undefined : ed.destroy}
       >
@@ -451,6 +451,13 @@ export function ApplianceList() {
               </div>
             )}
             <NumberField label="Price" prefix="₹" min={0} value={d.unitPrice} onChange={(unitPrice) => ed.setDraft({ ...d, unitPrice })} />
+            <TextField
+              label="Looks like (for AI images)"
+              value={d.appearance ?? ''}
+              onChange={(v) => ed.setDraft({ ...d, appearance: v || undefined })}
+              placeholder="black granite single-bowl sink with a matte black tap"
+              hint="Colour, material and style in plain words. No brand names: they'd be painted on as logos."
+            />
             <div className="flex flex-col gap-4 rounded-2xl bg-secondary/60 p-4">
               <span className="text-[13px] font-bold uppercase tracking-[0.08em] text-muted-foreground">3D model</span>
               <TextField
@@ -458,7 +465,7 @@ export function ApplianceList() {
                 value={d.modelUrl ?? ''}
                 onChange={(v) => ed.setDraft({ ...d, modelUrl: v || undefined })}
                 placeholder="/models/hob-600.glb"
-                hint={modelUrlProblem(d.modelUrl) ? <span className="text-destructive">{modelUrlProblem(d.modelUrl)}</span> : 'Leave empty to show a plain box in 3D.'}
+                hint={modelUrlProblem(tidyModelUrl(d.modelUrl)) ? <span className="text-destructive">{modelUrlProblem(tidyModelUrl(d.modelUrl))}</span> : 'Leave empty to show a plain box in 3D.'}
               />
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="Orientation">

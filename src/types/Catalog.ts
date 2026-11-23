@@ -139,6 +139,12 @@ export interface ApplianceCatalogItem {
   // PlacedApplianceItem.
   sinkCutoutWidthMm?: number;
   sinkCutoutDepthMm?: number;
+  // How it LOOKS, in words, for AI images (§141): "black granite single-
+  // bowl sink with a matte black tap". The image brief had no words for
+  // an appliance's look, so every image restyled them (a steel sink, a
+  // branded French-door fridge). Absent: the brief falls back to the
+  // colour preview.
+  appearance?: string;
   unitPrice: number;   // ₹ per unit
   createdAt: string;
   updatedAt: string;

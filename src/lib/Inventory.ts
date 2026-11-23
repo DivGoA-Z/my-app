@@ -8,6 +8,7 @@
 // Supabase client, layoutStore.ts owns the in-memory state and is what
 // the rest of the app actually talks to.
 
+import { tidyModelUrl } from './modelUrl';
 import { supabase } from './Supabaseclient';
 import type { CatalogItem, ObstaclePreset, ApplianceCatalogItem } from '../types/Catalog';
 
@@ -74,6 +75,8 @@ interface ApplianceCatalogRow {
   // reads as "no cutout".
   sink_cutout_width_mm: number | null;
   sink_cutout_depth_mm: number | null;
+  // §141. Optional in the row type: absent until schema.sql is re-run.
+  appearance?: string | null;
   unit_price: number;
   business_id: string;
   created_at: string;
@@ -165,12 +168,13 @@ function rowToApplianceCatalogItem(row: ApplianceCatalogRow): ApplianceCatalogIt
     depthMm: row.depth_mm,
     heightMm: row.height_mm,
     defaultElevationMm: row.default_elevation_mm,
-    modelUrl: row.model_url ?? undefined,
+    modelUrl: tidyModelUrl(row.model_url),
     modelRotationXDeg: row.model_rotation_x_deg ?? undefined,
     modelRotationYDeg: row.model_rotation_y_deg ?? undefined,
     modelRotationZDeg: row.model_rotation_z_deg ?? undefined,
     sinkCutoutWidthMm: row.sink_cutout_width_mm ?? undefined,
     sinkCutoutDepthMm: row.sink_cutout_depth_mm ?? undefined,
+    appearance: row.appearance?.trim() || undefined,
     unitPrice: row.unit_price,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -189,12 +193,13 @@ function applianceCatalogItemToRow(
     depth_mm: item.depthMm,
     height_mm: item.heightMm,
     default_elevation_mm: item.defaultElevationMm,
-    model_url: item.modelUrl ?? null,
+    model_url: tidyModelUrl(item.modelUrl) ?? null,
     model_rotation_x_deg: item.modelRotationXDeg ?? null,
     model_rotation_y_deg: item.modelRotationYDeg ?? null,
     model_rotation_z_deg: item.modelRotationZDeg ?? null,
     sink_cutout_width_mm: item.sinkCutoutWidthMm ?? null,
     sink_cutout_depth_mm: item.sinkCutoutDepthMm ?? null,
+    appearance: item.appearance?.trim() || null,
     unit_price: item.unitPrice,
     business_id: businessId,
     created_at: item.createdAt,

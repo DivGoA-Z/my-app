@@ -8,6 +8,18 @@
 // back to a plain box (§109). Refusing it at the door is better than a
 // model that silently never appears.
 
+// The two mistakes with only one right reading (§142): spaces round the
+// address, and a "public/" prefix (files in public/ are served from the
+// site root). Fixed silently wherever an address comes in or goes out —
+// loading a catalogue row, saving it, the Excel sheet both ways — so a
+// downloaded sheet always uploads without errors, and old rows saved as
+// "public/models/…" stop tripping the check that came after them. What's
+// left for modelUrlProblem is a real mistake (a stray "." after .glb).
+export function tidyModelUrl(url: string | undefined | null): string | undefined {
+  const t = url?.trim();
+  return t ? t.replace(/^\/?public\//, '/') : undefined;
+}
+
 // Null when fine (including empty: no model, a plain box).
 export function modelUrlProblem(url: string | undefined | null): string | null {
   if (!url) return null;

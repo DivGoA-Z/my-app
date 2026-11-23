@@ -47,21 +47,31 @@ function helpDevRelay(): Plugin {
         res.end()
       })
       // "Make image" (§132), against the real Gemini and the real Supabase
-      // limits: only when GEMINI_API_KEY is set in the shell
-      // (GEMINI_API_KEY=… npm run dev). Unlike Help it keeps the sign-in
-      // and the limits, since every image costs money.
+      // limits. The key comes from the shell (GEMINI_API_KEY=… npm run dev)
+      // or, since §143, from .env: a GEMINI_ name has no VITE_ prefix, so
+      // Vite never puts it in the browser bundle, and .env is gitignored.
+      // Unlike Help it keeps the sign-in and the limits, since every image
+      // costs money.
       server.middlewares.use('/api/render', async (req, res) => {
         const chunks: Buffer[] = []
         for await (const c of req) chunks.push(c as Buffer)
         const fileEnv = loadEnv('development', import.meta.dirname, '')
+        const geminiKey = process.env.GEMINI_API_KEY || fileEnv.GEMINI_API_KEY
+        if (!geminiKey) {
+          // The Worker's own "isn't set up yet" says nothing about where
+          // the key goes on this machine.
+          res.statusCode = 503
+          res.setHeader('content-type', 'application/json')
+          return res.end(JSON.stringify({ error: 'Image making isn’t set up on this computer: add GEMINI_API_KEY=<your key> to the .env file, then restart npm run dev.' }))
+        }
         const request = new Request('http://localhost/api/render', {
           method: req.method,
           headers: { 'content-type': 'application/json', authorization: String(req.headers.authorization ?? '') },
           body: req.method === 'POST' ? Buffer.concat(chunks) : undefined,
         })
         const response = await handleRender(request, {
-          GEMINI_API_KEY: process.env.GEMINI_API_KEY,
-          GEMINI_IMAGE_MODEL: process.env.GEMINI_IMAGE_MODEL,
+          GEMINI_API_KEY: geminiKey,
+          GEMINI_IMAGE_MODEL: process.env.GEMINI_IMAGE_MODEL || fileEnv.GEMINI_IMAGE_MODEL,
           SUPABASE_URL: fileEnv.VITE_SUPABASE_URL,
           SUPABASE_ANON_KEY: fileEnv.VITE_SUPABASE_ANON_KEY,
         })

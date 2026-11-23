@@ -2,18 +2,25 @@ import { describe, expect, it } from 'vitest';
 import {
   buildRenderBrief,
   CONDENSED_MAX_WORDS,
+  edgeProfileWhere,
+  MAX_FINISH_SWATCHES,
   colourName,
   facingOf,
   fromLeftOnWall,
   renderBriefFileStem,
+  tileSizeWords,
   viewFromWorldCamera,
   type RenderBriefInput,
 } from './renderBrief';
 import { cabinet, layout } from '../test/fixtures';
 import { defaultRateCard } from '../types/rates';
 import type { PlacedApplianceItem } from '../types/appliance';
+import type { ApplianceCatalogItem } from '../types/Catalog';
 import type { SurfaceFinish } from '../types/finish';
 import type { WallOpening } from '../types/opening';
+import type { FixtureCatalogItem, LightFixture } from '../types/fixture';
+import type { HandleSpec } from '../types/front';
+import type { SurfaceTiling } from './tiling';
 
 const ROOM_W = 3000;
 const ROOM_D = 2400;
@@ -356,8 +363,9 @@ describe('add nothing, spelled out for this design (§114)', () => {
     // no fittings, and its window has no outside photo.
     expect(line).toMatch(/plain matte paint everywhere; no backsplash/);
     expect(line).toMatch(/no visible light fittings/);
-    expect(line).toMatch(/no trees, buildings or scenery/);
-    for (const t of ['potted plants', 'backsplash tiles', 'LED strip lights', 'scenery outside the window']) {
+    // §144: a soft, blurred view outside, never a sharp one.
+    expect(line).toMatch(/Through the window: bright daylight and a soft, blurred, slightly overexposed view outside .*no sharp buildings, trees or other detail/);
+    for (const t of ['potted plants', 'backsplash tiles', 'LED strip lights', 'sharp detailed view outside the window']) {
       expect(p.negativePrompt.split(', ')).toContain(t);
     }
     expect(p.negativePromptShort).toMatch(/^text or labels, decor or utensils on the counters, backsplash tiles/);
@@ -398,7 +406,7 @@ describe('re-photograph, and bare vs styled (§127)', () => {
     expect(b.prompt.instructions).toMatch(/soft, out-of-focus greenery/);
     const neg = b.prompt.negativePrompt.split(', ');
     expect(neg).not.toContain('potted plants');
-    expect(neg).not.toContain('scenery outside the window');
+    expect(neg).not.toContain('sharp detailed view outside the window');
     // Still never a kettle or dispensers.
     expect(neg).toContain('kettle');
     expect(b.prompt.negativePromptShort).toMatch(/^text or labels, clutter on the counters/);
@@ -426,5 +434,198 @@ describe('one image, other cameras as context (§128)', () => {
 
   it('says nothing about context without context views', () => {
     expect(buildRenderBrief(input()).prompt.instructions).not.toMatch(/ONE IMAGE ONLY/);
+  });
+});
+
+describe('what is designed, said so it can be drawn (§139)', () => {
+  const cove = {
+    id: 'cove-2700',
+    label: 'Cove strip 2700K',
+    kind: 'cove',
+    colorTempK: 2700,
+    lumens: 700,
+    pricingMode: 'per-metre',
+    price: 0,
+  } as FixtureCatalogItem;
+  const underUpper = {
+    id: 'fx-1',
+    layoutId: 'layout-1',
+    catalogItemId: 'cove-2700',
+    mount: { kind: 'cabinet', cabinetId: 'upper', face: 'under' },
+    throwDirection: 'down',
+    runLengthMm: 600,
+    quantity: 1,
+    enabled: true,
+  } as LightFixture;
+  const lit = (fixtures: LightFixture[]) => {
+    const base = input();
+    return input({ layout: { ...base.layout, fixtures }, fixtureCatalog: [cove] });
+  };
+
+  it('a cove light under a wall cabinet is a strip there, and is never banned', () => {
+    const b = buildRenderBrief(lit([underUpper]));
+    expect(b.lighting.fixtures[0].underCabinet).toBe('C2');
+    expect(b.lighting.fixtures[0].placement).toBe('along the underside of C2, shining down onto the counter');
+    expect(b.prompt.imagePrompt).toMatch(/a warm-white \(2700 K\) LED light strip along the underside of C2/);
+    expect(b.prompt.instructions).toMatch(/light strips only under C2, and nothing under any other wall cabinet/);
+    expect(b.prompt.instructions).not.toMatch(/no LED strips under the wall cabinets/);
+    expect(b.prompt.negativePrompt).not.toMatch(/LED strip/);
+    // No coordinates in the prompt's light line any more.
+    expect(b.prompt.imagePrompt).not.toMatch(/cove light 2700 K at \(/);
+  });
+
+  it('a cove light on top bans strips underneath, but not strips as such', () => {
+    const b = buildRenderBrief(lit([{ ...underUpper, mount: { kind: 'cabinet', cabinetId: 'upper', face: 'top' }, throwDirection: 'up' }]));
+    expect(b.lighting.fixtures[0].underCabinet).toBeUndefined();
+    expect(b.prompt.instructions).toMatch(/no LED strips under the wall cabinets/);
+    expect(b.prompt.negativePrompt.split(', ')).toContain('under-cabinet LED strips');
+    expect(b.prompt.negativePrompt.split(', ')).not.toContain('LED strip lights');
+  });
+
+  it('says how big a mosaic tile is, unless the surface is laid at a chosen size', () => {
+    const mosaic: SurfaceFinish = { ...walnut, id: 'f-hex', label: 'White Hexagon Mosaic', finishTypeLabel: 'Mosaic', patternCategory: 'solid', solidColor: '#ffffff', tileWidthMm: 35, tileHeightMm: 35 };
+    const base = input();
+    const withWall = (tiling?: SurfaceTiling) =>
+      buildRenderBrief(
+        input({
+          finishes: [walnut, mosaic],
+          layout: { ...base.layout, walls: [{ id: 'w-n', orientation: 'north', lengthMm: ROOM_W, openings: [], finishId: 'f-hex', tiling }] },
+        })
+      );
+    const b = withWall();
+    expect(b.room.walls[0].finish?.tileSizeMm).toEqual({ width: 35, height: 35 });
+    expect(b.prompt.imagePrompt).toMatch(/White Hexagon Mosaic[^)]*\), small tiles about 35 mm across/);
+    expect(b.prompt.imagePromptCondensed).toMatch(/small mosaic/);
+    expect(tileSizeWords({ ...b.room.walls[0].finish!, tileSizeMm: { width: 300, height: 600 } })).toBe('300×600 mm tiles');
+    const laid = withWall({ tileWidthMm: 100, tileHeightMm: 100, pattern: 'straight', groutMm: 2, groutColor: '#c9c7c2' });
+    expect(laid.prompt.imagePrompt).toMatch(/laid as 100×100 mm/);
+    expect(laid.prompt.imagePrompt).not.toMatch(/about 35 mm/);
+  });
+
+  it('describes an edge profile as flush, and allows no other handles', () => {
+    const edge: HandleSpec = {
+      id: 'h-edge',
+      label: 'Edge Profile — Matte Black',
+      kind: 'edge-profile',
+      lengthMm: 600,
+      colorHex: '#222222',
+      metalness: 0.6,
+      roughness: 0.6,
+      pricingMode: 'per-metre',
+      price: 0,
+      createdAt: '',
+      updatedAt: '',
+    };
+    const base = input();
+    const b = buildRenderBrief(input({ handles: [edge], cabinets: base.cabinets.map((c) => ({ ...c, handleId: 'h-edge' })) }));
+    expect(b.prompt.imagePrompt).toMatch(/aluminium profile fixed along the top edge of each (drawer|hinged door)[^,]*, flush with it; nothing sticks out/);
+    expect(b.prompt.imagePrompt).toMatch(/No other handles/);
+  });
+
+  it('allows at most two plain switch plates, in instructions and prompt (§141)', () => {
+    const p = buildRenderBrief(input()).prompt;
+    expect(p.instructions).toMatch(/at most two plain white switch-socket plates on the backsplash/);
+    expect(p.imagePrompt).toMatch(/at most two plain white switch-socket plates on the backsplash/);
+    expect(p.negativePrompt).not.toMatch(/socket/);
+  });
+
+  it('calls a camera eye-level only at eye level', () => {
+    const view = { mode: 'walkthrough', positionMm: { x: 1500, y: 2300, z: 2113 }, headingDeg: 0, pitchDeg: -28, facingWall: 'north', verticalFovDeg: 60, imageWidthPx: 1024, imageHeightPx: 576 } as const;
+    const high = buildRenderBrief(input({ view: { ...view } })).prompt;
+    expect(high.imagePrompt).toMatch(/Camera: photo taken from a raised position/);
+    expect(high.imagePromptCondensed).toMatch(/^Photograph looking toward/);
+    const eye = buildRenderBrief(input({ view: { ...view, positionMm: { ...view.positionMm, z: 1400 } } })).prompt;
+    expect(eye.imagePrompt).toMatch(/Camera: eye-level photo taken standing/);
+  });
+});
+
+describe('finish photos attached (§139)', () => {
+  it('lists each finish photo once, with where it is used, only when asked', () => {
+    expect(buildRenderBrief(input()).referenceImages).toEqual([]);
+    const b = buildRenderBrief(input({ attachSwatches: true }));
+    const sw = b.referenceImages.filter((r) => r.kind === 'finish-swatch');
+    expect(sw).toHaveLength(1);
+    expect(sw[0]).toMatchObject({
+      file: 'swatch-1-walnut-4102.jpg',
+      finishName: 'Walnut 4102',
+      usedOn: 'base cabinet fronts and upper cabinet fronts',
+      sourceUrl: 'https://app.example/textures/walnut.jpg',
+    });
+    expect(sw[0].whatItIs).toMatch(/^A flat close-up photo of one finish/);
+    expect(b.prompt.instructions).toMatch(/the attached finish photos .* are the real materials/);
+  });
+
+  it('keeps at most MAX_FINISH_SWATCHES, cabinets first', () => {
+    const many = Array.from({ length: 8 }, (_, i) => ({ ...walnut, id: `f-${i}`, label: `Finish ${i}`, albedoUrl: `/t/${i}.jpg` }));
+    const base = input();
+    const b = buildRenderBrief(
+      input({
+        attachSwatches: true,
+        finishes: many,
+        cabinets: base.cabinets.map((c, i) => ({ ...c, finishId: `f-${i}` })),
+        layout: {
+          ...base.layout,
+          countertopFinishId: 'f-3',
+          floorFinishId: 'f-7',
+          walls: (['north', 'east', 'south', 'west'] as const).map((o, i) => ({ id: `w-${o}`, orientation: o, lengthMm: 3000, openings: [], finishId: `f-${4 + (i % 3)}` })),
+        },
+      })
+    );
+    const sw = b.referenceImages.filter((r) => r.kind === 'finish-swatch');
+    expect(sw).toHaveLength(MAX_FINISH_SWATCHES);
+    expect(sw.slice(0, 3).map((s) => s.usedOn)).toEqual(['base cabinet fronts', 'upper cabinet fronts', 'base cabinet fronts']);
+    expect(sw.map((s) => s.finishName)).not.toContain('Finish 7'); // the floor was the one dropped
+  });
+});
+
+describe('finish photos within the request limit (§139)', () => {
+  it('takes fewer photos when the caller has less room, never fewer than none', () => {
+    const many = Array.from({ length: 3 }, (_, i) => ({ ...walnut, id: `f-${i}`, label: `Finish ${i}`, albedoUrl: `/t/${i}.jpg` }));
+    const base = input();
+    const cabs = base.cabinets.map((c, i) => ({ ...c, finishId: `f-${i}` }));
+    const n = (maxSwatches: number) =>
+      buildRenderBrief(input({ attachSwatches: true, maxSwatches, finishes: many, cabinets: cabs })).referenceImages.filter((r) => r.kind === 'finish-swatch').length;
+    expect(n(2)).toBe(2);
+    expect(n(-4)).toBe(0);
+    expect(n(99)).toBe(3);
+  });
+});
+
+describe('edgeProfileWhere (§139)', () => {
+  const panel = (kind: string, orientation: 'horizontal' | 'vertical') => ({
+    kind, widthMm: 200, heightMm: 800, fromLeftMm: 0, fromBottomMm: 0,
+    handle: { kind: 'edge-profile', orientation, lengthMm: 800, centerFromLeftMm: 0, centerFromBottomMm: 0 },
+  });
+  it('puts the profile on the top of drawers and down the side of pull-outs', () => {
+    expect(edgeProfileWhere([panel('drawers', 'horizontal'), panel('drawers', 'horizontal')])).toBe('along the top edge of each drawer');
+    expect(edgeProfileWhere([panel('trolley', 'vertical')])).toBe('down the side edge of each pull-out front');
+    expect(edgeProfileWhere([panel('drawers', 'horizontal'), panel('trolley', 'vertical')])).toBe(
+      'along the top edge of each drawer, and down the side edge of each pull-out front'
+    );
+    expect(edgeProfileWhere([])).toBe('along the top edge of each front');
+  });
+});
+
+describe('appliances described by their look (§141)', () => {
+  const sinkRow = { id: 'cat-sink', label: 'Single Bowl Sink (600mm)', applianceType: 'sink', widthMm: 600, depthMm: 450, heightMm: 200, defaultElevationMm: 850, unitPrice: 0, createdAt: '', updatedAt: '' } as ApplianceCatalogItem;
+  const withSink = (row: ApplianceCatalogItem, extra: Partial<RenderBriefInput> = {}) =>
+    buildRenderBrief(input({ applianceCatalog: [row], appliances: [appliance({ id: 'sink', applianceType: 'sink', catalogItemId: 'cat-sink', x: 0, y: 30, elevationMm: 760 })], ...extra }));
+
+  it('uses the catalogue description, and says every appliance is unbranded', () => {
+    const b = withSink({ ...sinkRow, appearance: 'black granite single-bowl sink with a matte black tap' });
+    expect(b.appliances[0].appearance).toBe('black granite single-bowl sink with a matte black tap');
+    expect(b.prompt.imagePrompt).toMatch(/Appliances look like this: Single Bowl Sink \(600mm\) \(sink\): black granite single-bowl sink with a matte black tap\. Every appliance is unbranded/);
+  });
+
+  it('without a description, points at the colour preview, or keeps it plain without one', () => {
+    const colour = [{ kind: 'colour-render' as const, file: 'c.jpg', widthPx: 10, heightPx: 10 }];
+    expect(withSink(sinkRow, { referenceImages: colour }).prompt.imagePrompt).toMatch(/\(sink\): colour and material as in the colour preview/);
+    expect(withSink(sinkRow).prompt.imagePrompt).toMatch(/\(sink\): not specified: plain and neutral/);
+  });
+
+  it('the condensed prompt names the look instead of the catalogue label', () => {
+    const hobRow = { ...sinkRow, id: 'cat-hob', label: '2-Burner Hob', applianceType: 'stove', appearance: 'black glass two-burner gas hob' } as ApplianceCatalogItem;
+    const b = buildRenderBrief(input({ applianceCatalog: [hobRow], appliances: [appliance({ id: 'hob', catalogItemId: 'cat-hob', x: 600, y: 30, elevationMm: 800 })] }));
+    expect(b.prompt.imagePromptCondensed).toMatch(/It has a black glass two-burner gas hob\./);
   });
 });

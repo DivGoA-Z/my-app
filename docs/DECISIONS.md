@@ -8324,3 +8324,287 @@ Not yet seen: the real demo account on Supabase.
 Tested on a fresh Postgres (the whole schema twice, then the filtered
 seed): 2 customers, their design and the renamed catalogue reference,
 only Neha's image.
+
+## 139. The image brief says what's designed in words a model can draw
+
+**Why.** A Make image test on a compact U-shaped kitchen (20 Nov 2026).
+The first shot used the design's camera: 2.1 m up, tilted down 28°, 60°
+field of view. The result was the 3D colour preview retouched, down to
+our renderer's light dots on the marble. Re-shot from the doorway
+(1.4 m, level), the same brief gave a much more photographic image, but
+with five errors. Each was traced to the brief, not the model:
+
+- **Every wall cabinet glowed underneath.** The design has cove lights
+  mounted *under* four cabinets. The brief also said "no LED strips under
+  the wall cabinets", because that rule fired whenever no light was of
+  the *strip* kind. The brief contradicted itself; Gemini picked "all".
+- **The hexagon mosaic came out about 180 mm across** (really ~35 mm).
+  The text said only "mosaic", and its scale was in `swatchRepeatMm`.
+  That helps only if you can see the photo.
+- **The model never saw any finish photo.** The brief said "match the
+  photo at `swatchImageUrl`", but only the JSON text and the camera
+  pictures were sent. A model can't open a URL.
+- **A steel bar handle appeared** on a base unit specified with a black
+  edge profile. "Edge-profile handle along the top edge" didn't say it is
+  flush with nothing sticking out.
+- **Three wall sockets appeared**, despite "No wall sockets or switches"
+  in the instructions and the negatives.
+
+**What changed** (`lib/renderBrief.ts`):
+- Lights are described by where they are and what they light, from the
+  mount (`LightEntry.placement`). For example: "a warm-white (2700 K)
+  LED light strip along the underside of the wall-hung upper cabinet on
+  the north wall, fourth from the left, shining down onto the counter".
+  - A light under a cabinet is a strip there, whatever its catalogue kind
+    (`underCabinet`).
+  - The add-nothing rule names the cabinets that glow underneath and says
+    the others don't.
+  - "LED strip lights" is negated only when the design has no linear
+    light at all. With linear lights but none under a cabinet, the
+    negative is "under-cabinet LED strips".
+  - Coordinates stay in the JSON, out of the prompt sentence.
+- Tile size in words from `SurfaceFinish.tileWidthMm` (`tileSizeMm`,
+  `tileSizeWords`): "small tiles about 35 mm across" (≤ 60 mm), else
+  "300×600 mm tiles". A chosen laying size (`laidAs`) wins. The condensed
+  prompt (no millimetres) says "small mosaic".
+- `schema.sql` records the measured tile size of six library tile photos
+  (tiles counted across each photo ÷ its swatch size): hexagon 35, penny
+  33, beige and dark grey stone 333, encaustic 150, black marble 225×112.
+  Blue & White Painted: 125, ASSUMED. Its joints are faint, so each
+  250 mm motif is taken as 2×2 tiles (the user asked for no gaps).
+  Side effect, as for every sized tile photo: a surface laid with a
+  chosen size on one of these now rescales the photo instead of showing
+  "size unknown".
+- Finish photos are attached (`attachSwatches`, Make image only): up to
+  6 (`MAX_FINISH_SWATCHES`), biggest surfaces first (cabinet fronts,
+  countertop, walls, floor, ceiling).
+  - Each is a `finish-swatch` reference image with `finishName`, `usedOn`
+    (with any tint) and `sourceUrl`.
+  - Each is shrunk to 512 px and sent as `File "swatch-N-name.jpg":` like
+    the camera pictures.
+  - Instruction 4 then says the attached photos are the real materials.
+  - Budgeted against the Worker's 14-picture limit: 14 − 3 (room for a
+    prompt's reference photos) − 2 (line + colour) − context views.
+    Without this, a design with 5+ cameras would have been refused.
+  - A photo that fails to load is skipped, not fatal, and never silent.
+    Make image shows a 15-second warning naming the finish ("Check the
+    photo in Catalogue → Finishes"), and See prompt lists it at the top
+    (`missingSwatchesMessage`).
+- Handles are described by what they physically are (`handleLook`):
+  edge profile "flush with it; nothing sticks out from the face", gola
+  "no handles on the fronts themselves". The list is followed by "No
+  other handles".
+  - Correction (same day): the "steel bar" was most likely the east
+    drawers' own edge profile seen in perspective, drawn as steel. The
+    first wording, "along the top edge of each front", was wrong for the
+    200 mm pull-outs, whose profile runs down the side.
+    `edgeProfileWhere` now reads each front's handle orientation: "along
+    the top edge of each drawer, and down the side edge of each pull-out
+    front".
+- Walls are said positively, in instructions and prompt
+  (`UNBROKEN_WALLS`): "one unbroken field of its finish: no electrical
+  sockets, switches or switch plates anywhere".
+- "Eye-level" is said only for a lens at 1,200–1,750 mm (`EYE_LEVEL_MM`).
+  Otherwise it says "a raised position". The old wording called a 2.1 m
+  camera eye-level and contradicted the line drawing.
+
+**Rejected:** fixing the lights by adding "except the listed ones" to
+the old rule. It kept the contradiction in another form, and still
+didn't say *which* cabinets glow.
+
+**Not done here** (next, in order):
+- a prompt variant in the Prompt lab that describes the photograph
+  (lens, light falling, what may and may not change);
+- a photo camera chosen automatically (the doorway re-shot showed the
+  camera matters most);
+- catalogue data: the "2-Burner Hob" uses a 4-burner model, and
+  appliances have no finish to state (the chimney came out steel where
+  the preview showed sage).
+
+**Tested:** unit tests for each rule (`renderBrief.test.ts`, "§139"
+blocks); full suite, type-check and lint. Not yet seen: a real Make
+image run with these changes, and whether every swatch URL loads
+cross-origin in the browser.
+
+## 140. Downloaded AI images get a name that says what made them
+
+**Why.** Storage keeps each AI image under a random id
+(`<business>/<layout>/<uuid>.png`). The Download button was a plain
+`<a download>`, which browsers ignore for a file on another origin
+(Supabase storage). So every download came out with the id, or with a
+name the user typed. Comparing prompts meant renaming files by hand.
+
+**What.** `renderFileName(design, render)` (`lib/renders.ts`) gives
+design-camera-prompt-styling-date-time, in local time to the minute, e.g.
+`u-shape-kitchen-camera-1-photographic-v1-bare-2026-11-20-1432.png`.
+Old images with no camera, prompt or styling get `view` / `built-in` /
+nothing.
+- `downloadRender` fetches the image and saves it from a local blob, the
+  only way to name a cross-origin file.
+- If the fetch fails, the image opens in a new tab, as before.
+
+**Rejected:** renaming the stored file. Its path is in `design_renders`
+and in every saved image row, and the id keeps it unique.
+
+**Tested:** unit tests for the name. Not seen in a browser.
+
+## 141. Appliances described by their look; colour preview optional per prompt; two sockets allowed
+
+**Why.** One image per prompt, same doorway camera, with the §139 brief
+(21 Nov 2026):
+- The **Built-in** prompt was faithful but looked like a render: flat
+  light, matte-looking gloss, a white hole for a window.
+- **Photographic v1** looked like a photo: a framed window, depth, gloss
+  reflections. But it restyled every appliance: a stainless sink for the
+  black one, a branded French-door fridge (a logo, i.e. text) for a
+  "Double-Door Fridge", a steel chimney. It also added two ceiling
+  downlights and two sockets.
+- The brief had no words for how an appliance looks, only its catalogue
+  label. So the model filled the gap with its idea of a real kitchen.
+
+**What changed.**
+- `appliance_catalog_items.appearance` (text, nullable) and
+  `ApplianceCatalogItem.appearance`. Catalogue → Appliances has **Looks
+  like (for AI images)**, with the hint "no brand names: they'd be
+  painted on as logos". There is also an `appearance` column in the Excel
+  sheet.
+  - A sheet exported before the column existed keeps the stored value
+    (§54); a blank cell clears it.
+  - The six library rows get a starting description matching their 3D
+    model or box, only where still NULL.
+- The brief's `imagePrompt` has one line, "Appliances look like this:
+  <label> (<type>): <appearance>; …", followed by "Every appliance is
+  unbranded: no logos, names or lettering".
+  - Without a description it says "colour and material as in the colour
+    preview", or "plain and neutral" when no preview is sent.
+  - The condensed prompt names the look instead of the label.
+- **Sockets: the user chose (b), allow them.** The brief says the walls
+  carry only their finish "plus at most two plain white switch-socket
+  plates on the backsplash, between the counter and the wall cabinets".
+  "Wall sockets or switches" left the negatives; "cables or extension
+  boards" replaced it.
+  - Reason: every real Indian kitchen has sockets, and the photographic
+    prompt kept adding them. A believable photo beat a bare wall the
+    model fights.
+  - Rejected: (a) keeping the wall exactly as designed, and pushing
+    harder.
+- **`render_prompts.send_colour_preview`** (default on) and
+  `ImagePrompt.sendColourPreview`: a checkbox on the Prompts page, "Send
+  the 3D colour preview".
+  - Make image and See prompt now choose the prompt *before* gathering
+    pictures.
+  - When it's off, the colour view isn't captured, isn't listed in the
+    brief, and its rules (re-photograph, "as in the colour preview") drop
+    out. The freed slot goes to finish photos.
+  - Purpose: test whether the preview is what pulls images back to a
+    render look, now that the real finish photos are sent.
+
+**Tested:** unit tests (brief lines, fallback, condensed, the socket
+wording, the Excel column with and without it); full suite, type-check,
+lint. Not seen in a browser: the new form field, the checkbox, an image
+made with the preview off.
+
+## 142. A downloaded Excel sheet uploads unchanged with no errors
+
+**Why.** The user downloaded the Appliances sheet, edited it and
+uploaded it. The upload refused it: `model_url: Leave out "public/"…`.
+- Older catalogue rows were saved as `public/models/…`, before the
+  address check (§124).
+- Loading has always corrected them (`servedModelUrl`), so the 3D view
+  worked. But the export wrote them out as stored, and the import's check
+  then refused the app's own file.
+- The user's rule: **a download must be ready to upload, with no
+  errors.**
+
+**What.**
+- `tidyModelUrl` (`lib/modelUrl.ts`) fixes the two mistakes that have
+  only one right reading: spaces round the address, and a `public/` or
+  `/public/` prefix. It runs wherever an address comes in or goes out:
+  - loading and saving appliance and light-fixture catalogue rows (so old
+    rows are corrected the next time they're saved);
+  - the Excel export and import of both sheets;
+  - the edit forms' check.
+- `modelUrlProblem` is left for real mistakes, like a stray "." after
+  `.glb` (§109).
+- The same trap was found in the appliance sheet's `unit_price`. It
+  required a positive number, but the form allows ₹0 (an appliance the
+  customer supplies). Now 0 or more, like the handle and fixture sheets.
+- **`roundTrip.test.ts`** covers all five sheets (Cabinets, Appliances,
+  Handles, Light fixtures, Pillars & shafts). It exports realistic stored
+  rows, reads the file exactly as an upload does (`readFirstSheetRows`),
+  parses it and requires zero errors. A new field or check that breaks
+  the round trip now fails a test.
+
+**Rejected:** a one-off SQL fix of the stored addresses. It wouldn't stop
+the next mismatch between what the app stores and what the import
+accepts, and the round-trip test does.
+
+**Tested:** the round-trip tests and the full suite. Not seen in a
+browser.
+
+## 143. One entry per prompt in the picker; the local Gemini key can live in .env
+
+**The picker.** The super admin's Prompt picker (3D tab, §137) listed
+"Prompt: production (Built-in)" *and* "Prompt: Built-in", which were the
+same prompt.
+- "Production" was never a prompt of its own. It pointed at whichever
+  prompt is "Used by businesses", which is Built-in or a saved prompt,
+  and those were listed too. So it always duplicated one entry.
+- Now every prompt appears once, and the production one is marked
+  "· used by businesses".
+- It's the default until the super admin picks another. That default is
+  derived during render (`pickedPrompt ?? productionId`), never synced in
+  an effect.
+- An untouched picker still fetches the production prompt at the moment
+  of Make image (`productionPrompt()`), as before.
+
+**Local Make image.** It said "Image making isn't set up yet" on
+localhost.
+- The dev bridge (`vite.config.ts`) read `GEMINI_API_KEY` only from the
+  shell, and `.env` doesn't load into the shell.
+- It now also reads `.env`. A `GEMINI_` name has no `VITE_` prefix, so
+  Vite never bundles it for the browser, and `.env` is gitignored. The
+  shell still wins.
+- With no key, the dev bridge itself answers: "add GEMINI_API_KEY=<your
+  key> to the .env file, then restart npm run dev".
+- `.env.example` and `docs/DEPLOY.md` say so. DEPLOY.md was corrected: it
+  gave the shell as the only way.
+
+**Tested:** full suite, type-check (app and node configs), lint. Not seen
+in a browser.
+
+## 144. Bare images show a soft, blurred view through the window
+
+**Why.** Three images from the same doorway camera on 23 Nov 2026:
+- Built-in and Photographic v2, with the preview on and off, all with
+  the §139–§141 brief.
+- **v2 with the preview was best on both realism and fidelity.** It gave
+  the first correct 2-burner hob (from §141's appearance text), the black
+  sink and tap, and no sockets or downlights.
+- But v2 painted a sharp city view (buildings, trees) through the window.
+  Bare mode had asked for "daylight only; no trees, buildings or
+  scenery". A blank white pane, as in the older images, reads as a
+  render.
+
+**Decision (user, option b):** Bare mode allows a believable window:
+"bright daylight and a soft, blurred, slightly overexposed view outside
+(sky and indistinct shapes only); no sharp buildings, trees or other
+detail" (`BARE_WINDOW_VIEW`).
+- It's used for the opening's "outside" text and in the add-nothing
+  rule.
+- The negative is now "sharp detailed view outside the window".
+- Nothing sharp, so nothing can be mistaken for the customer's real view.
+- Styled mode keeps its soft greenery.
+- A window with an outside photo keeps using that photo.
+- Rejected: (a) strengthening "daylight only". It's the same fight with
+  the model as the sockets in §141.
+
+**Also learned from the same images:**
+- **The colour preview helps.** Without it the mosaic grew to about
+  100 mm and the tap turned steel. The render look came from the old
+  prompt, not from the preview. The §141 switch stays, on by default.
+- **v2 still drew the hexagons about twice too big** (about 70 mm for
+  35 mm). That's the next brief fix: a count anchored to the real
+  backsplash height.
+
+**Tested:** unit tests (the window line and the negatives); full suite.

@@ -1,6 +1,6 @@
 // "Make image" (§132): what's sent, and reading what comes back.
 import { describe, expect, it } from 'vitest';
-import { BUILT_IN_PROMPT, nearestAspect, pickRenderImage, promptAsText, renderParts } from './renders';
+import { BUILT_IN_PROMPT, missingSwatchesMessage, nearestAspect, renderFileName, pickRenderImage, promptAsText, renderParts } from './renders';
 import type { RenderBrief } from './renderBrief';
 
 describe('the request', () => {
@@ -66,7 +66,7 @@ describe('prompts (§137)', () => {
   });
 
   it('a saved prompt: its words, the brief only if on, reference photos after the cameras', () => {
-    const prompt = { id: 'p1', name: 'Loose', intro: '  Make it warm.  ', closing: '', includeBrief: false };
+    const prompt = { id: 'p1', name: 'Loose', intro: '  Make it warm.  ', closing: '', includeBrief: false, sendColourPreview: true };
     const parts = renderParts(brief, cam, prompt, [{ mimeType: 'image/jpeg', data: 'R1' }]);
     expect(parts).toEqual([
       { text: 'Make it warm.' },
@@ -80,5 +80,24 @@ describe('prompts (§137)', () => {
   it('See prompt shows every text, and where each picture goes', () => {
     const text = promptAsText(renderParts(brief, cam, { ...BUILT_IN_PROMPT, includeBrief: false }));
     expect(text).toBe(`${BUILT_IN_PROMPT.intro}\n\nFile "k-guide.png":\n\n[picture: image/png]\n\n${BUILT_IN_PROMPT.closing}`);
+  });
+});
+
+describe('missingSwatchesMessage (§139)', () => {
+  it('names the finishes and says where to fix them', () => {
+    expect(missingSwatchesMessage(['Black Marble'])).toBe(
+      'Finish photo couldn’t be loaded, so not sent: Black Marble. The image uses its description instead. Check the photo in Catalogue → Finishes.'
+    );
+    expect(missingSwatchesMessage(['A', 'B'])).toMatch(/^Finish photos couldn’t be loaded, so not sent: A, B\. The image uses their descriptions/);
+  });
+});
+
+describe('renderFileName', () => {
+  const r = { cameraLabel: 'Camera 1', promptName: 'Photographic v1', styling: 'bare', createdAt: new Date(2026, 10, 20, 14, 32).toISOString(), imagePath: 'biz/lay/abc.png' };
+  it('names design, camera, prompt, styling and local time', () => {
+    expect(renderFileName('U-shape kitchen', r)).toBe('u-shape-kitchen-camera-1-photographic-v1-bare-2026-11-20-1432.png');
+  });
+  it('fills in for old images with no camera, prompt or styling', () => {
+    expect(renderFileName('', { ...r, cameraLabel: null, promptName: null, styling: null, imagePath: 'x/y.jpg' })).toBe('kitchen-view-built-in-2026-11-20-1432.jpg');
   });
 });

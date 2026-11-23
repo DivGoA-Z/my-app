@@ -101,7 +101,7 @@ import { lightingEnvironmentFor, clampExposure, DEFAULT_EXPOSURE, FIXTURE_LUMEN_
 import { capturePanorama, DEFAULT_CAPTURE_ORIENTATION } from '../../lib/panoramaCapture';
 import type { CapturePanoramaOptions } from '../../lib/panoramaCapture';
 import { PanoramaViewerModal } from '../panorama/PanoramaViewerModal';
-import { buildRenderBrief, renderBriefFileStem, viewFromWorldCamera, withoutRefs, type BriefStyling } from '../../lib/renderBrief';
+import { buildRenderBrief, renderBriefFileStem, viewFromWorldCamera, withoutRefs, SWATCH_PX, type BriefStyling } from '../../lib/renderBrief';
 import type { ReferenceImage } from '../../lib/renderBrief';
 import { elevationSheetSvg } from '../../lib/elevationSheet';
 import { svgToPng } from '../../lib/svgToPng';
@@ -110,8 +110,8 @@ import type { CameraPose, StructureOptions } from '../../lib/viewSnapshot';
 import { downloadBlob } from '../../lib/downloadBlob';
 import { useRenderBriefInput } from '../../hooks/useRenderBriefInput';
 import { useAuthStore } from '../../store/authStore';
-import { BUILT_IN_PROMPT, makeRender, nearestAspect, promptAsText, renderParts, saveRender, snapshotBase64, type ImagePrompt, type RenderImageInput } from '../../lib/renders';
-import { listPrompts, productionPrompt, referencePhotoParts, type SavedPrompt } from '../../lib/renderPrompts';
+import { BUILT_IN_PROMPT, MAX_REQUEST_IMAGES, makeRender, missingSwatchesMessage, nearestAspect, promptAsText, renderParts, saveRender, snapshotBase64, type ImagePrompt, type RenderImageInput } from '../../lib/renders';
+import { listPrompts, MAX_REFERENCE_PHOTOS, productionPrompt, referencePhotoParts, type SavedPrompt } from '../../lib/renderPrompts';
 import { RenderDialog, type RenderJob } from './RenderDialog';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
 import { CameraMovePad } from '../toolbar/CameraMovePad';
@@ -429,9 +429,12 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
   const [renderOpen, setRenderOpen] = useState(false);
   const [renderJob, setRenderJob] = useState<RenderJob | null>(null);
 
-  // §137: the super admin picks which prompt Make image uses ('production'
-  // = whatever businesses get); everyone else always gets production.
-  const [promptChoice, setPromptChoice] = useState<string>('production');
+  // §137: the super admin picks which prompt Make image uses; everyone else
+  // always gets production. §143: no separate "production" entry — it was
+  // only a pointer to Built-in or a saved prompt, which were listed too,
+  // so it always duplicated one. Until the super admin picks, the choice
+  // IS the production prompt (derived during render, never synced).
+  const [pickedPrompt, setPickedPrompt] = useState<string | null>(null);
   const [savedPrompts, setSavedPrompts] = useState<SavedPrompt[]>([]);
   const [promptPreview, setPromptPreview] = useState<{ name: string; text: string } | null>(null);
   useEffect(() => {
@@ -446,18 +449,23 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
     };
   }, [isSuperAdmin]);
 
+  const productionId = savedPrompts.find((p) => p.isProduction)?.id ?? 'built-in';
+  const promptChoice = pickedPrompt ?? productionId;
+
   async function chosenPrompt(): Promise<ImagePrompt> {
-    if (isSuperAdmin && promptChoice === 'built-in') return BUILT_IN_PROMPT;
-    if (isSuperAdmin && promptChoice !== 'production') {
-      const p = savedPrompts.find((x) => x.id === promptChoice);
+    if (isSuperAdmin && pickedPrompt === 'built-in') return BUILT_IN_PROMPT;
+    if (isSuperAdmin && pickedPrompt) {
+      const p = savedPrompts.find((x) => x.id === pickedPrompt);
       if (p) return p;
     }
     return productionPrompt();
   }
 
   // The same files as "Brief + other views" (§128): ONE image from Camera 1,
-  // the other cameras' colour views as context.
-  async function renderInputs() {
+  // the other cameras' colour views as context. `colourPreview` false
+  // (§141, a prompt's switch) leaves the 3D colour view out, and the brief
+  // then never mentions it.
+  async function renderInputs(colourPreview = true) {
     const fns = viewFnsRef.current;
     if (!currentLayout || !briefInput || !fns || cameras.length === 0) return null;
     const main = cameras[0];
@@ -466,17 +474,16 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
     const { widthPx, heightPx } = GUIDE_IMAGE_SIZE;
     const shot = fns.fromCamera(main, { widthPx, heightPx });
     const ctx = others.map((c) => ({ node: c, img: fns.fromCamera(c, { widthPx, heightPx }) }));
-    const refs: ReferenceImage[] = [
-      { kind: 'line-render', file: `${stem}-guide.png`, widthPx, heightPx },
-      { kind: 'colour-render', file: `${stem}-colour.jpg`, widthPx, heightPx },
-      ...ctx.map(({ node }) => ({
+    const lineRef: ReferenceImage = { kind: 'line-render', file: `${stem}-guide.png`, widthPx, heightPx };
+    const colourRef: ReferenceImage | null = colourPreview ? { kind: 'colour-render', file: `${stem}-colour.jpg`, widthPx, heightPx } : null;
+    const ctxRefs: ReferenceImage[] = ctx.map(({ node }) => ({
         kind: 'context-view' as const,
         file: `${stem}-context-${renderBriefFileStem(node.label)}.jpg`,
         widthPx,
         heightPx,
         cameraLabel: node.label,
-      })),
-    ];
+    }));
+    const refs: ReferenceImage[] = [lineRef, ...(colourRef ? [colourRef] : []), ...ctxRefs];
     const brief = buildRenderBrief({
       ...briefInput,
       view: viewFromWorldCamera({
@@ -493,29 +500,48 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
       referenceImages: refs,
       refs: false,
       styling: briefStyling,
+      attachSwatches: true,
+      // §139: the camera pictures and room for a prompt's reference
+      // photos come first; finish photos get the rest.
+      maxSwatches: MAX_REQUEST_IMAGES - MAX_REFERENCE_PHOTOS - refs.length,
     });
+    // §139: the finish photos the brief lists, fetched and shrunk.
+    const swatches = brief.referenceImages.filter((r) => r.kind === 'finish-swatch' && r.sourceUrl);
     const images: RenderImageInput[] = [
-      { file: refs[0].file, mimeType: 'image/png', data: await snapshotBase64(shot.line, 'image/png') },
-      { file: refs[1].file, mimeType: 'image/jpeg', data: await snapshotBase64(shot.colour, 'image/jpeg') },
+      { file: lineRef.file, mimeType: 'image/png', data: await snapshotBase64(shot.line, 'image/png') },
+      ...(colourRef ? [{ file: colourRef.file, mimeType: 'image/jpeg' as const, data: await snapshotBase64(shot.colour, 'image/jpeg') }] : []),
       ...(await Promise.all(
         ctx.map(async ({ img }, k): Promise<RenderImageInput> => ({
-          file: refs[2 + k].file,
+          file: ctxRefs[k].file,
           mimeType: 'image/jpeg',
           data: await snapshotBase64(img.colour, 'image/jpeg'),
         }))
       )),
     ];
-    return { main, brief, images, aspect: nearestAspect(widthPx, heightPx) };
+    // A photo that won't load is left out rather than costing the image
+    // (the brief still names it, and the model falls back to its words),
+    // and the caller says which, so it's never silent.
+    const missingSwatches: string[] = [];
+    for (const sw of swatches) {
+      try {
+        images.push({ file: sw.file, mimeType: 'image/jpeg', data: await snapshotBase64(sw.sourceUrl!, 'image/jpeg', SWATCH_PX) });
+      } catch {
+        missingSwatches.push(sw.finishName ?? sw.file);
+      }
+    }
+    return { main, brief, images, missingSwatches, aspect: nearestAspect(widthPx, heightPx) };
   }
 
   // "See prompt" (§137): exactly what Make image would send, as text.
   async function handleSeePrompt() {
     try {
-      const inputs = await renderInputs();
-      if (!inputs) return;
       const prompt = await chosenPrompt();
+      const inputs = await renderInputs(prompt.sendColourPreview);
+      if (!inputs) return;
       const refs = 'referenceImages' in prompt ? (prompt as SavedPrompt).referenceImages.map(() => ({ mimeType: 'image/jpeg' as const, data: '' })) : [];
-      setPromptPreview({ name: prompt.name, text: promptAsText(renderParts(inputs.brief, inputs.images, prompt, refs)) });
+      const text = promptAsText(renderParts(inputs.brief, inputs.images, prompt, refs));
+      const missing = inputs.missingSwatches.length ? `${missingSwatchesMessage(inputs.missingSwatches)}\n\n` : '';
+      setPromptPreview({ name: prompt.name, text: missing + text });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Couldn’t build the prompt.');
     }
@@ -536,9 +562,10 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
     setRenderJob({ state: 'working', cameraLabel: cameras[0].label });
     setRenderOpen(true);
     try {
-      const inputs = await renderInputs();
-      if (!inputs) throw new Error('The 3D view isn’t ready yet. Try again in a moment.');
       const prompt = await chosenPrompt();
+      const inputs = await renderInputs(prompt.sendColourPreview);
+      if (!inputs) throw new Error('The 3D view isn’t ready yet. Try again in a moment.');
+      if (inputs.missingSwatches.length) toast.warning(missingSwatchesMessage(inputs.missingSwatches), { duration: 15000 });
       const references = await referencePhotoParts(prompt);
       const made = await makeRender(renderParts(inputs.brief, inputs.images, prompt, references), inputs.aspect);
       const render = await saveRender({
@@ -758,16 +785,14 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
             <select
               aria-label="Prompt for Make image"
               value={promptChoice}
-              onChange={(e) => setPromptChoice(e.target.value)}
+              onChange={(e) => setPickedPrompt(e.target.value)}
               className="h-11 rounded-[10px] border border-input bg-card px-3 text-[15px]"
             >
-              <option value="production">
-                Prompt: production ({savedPrompts.find((p) => p.isProduction)?.name ?? 'Built-in'})
-              </option>
-              <option value="built-in">Prompt: Built-in</option>
+              <option value="built-in">Prompt: Built-in{productionId === 'built-in' ? ' · used by businesses' : ''}</option>
               {savedPrompts.map((p) => (
                 <option key={p.id} value={p.id}>
                   Prompt: {p.name}
+                  {p.isProduction ? ' · used by businesses' : ''}
                 </option>
               ))}
             </select>

@@ -64,6 +64,14 @@ function PromptFields({
         />
         Send the design brief (JSON: every cabinet, finish, size and the rules against inventing)
       </Label>
+      <Label className="flex items-center gap-2 text-[13px] font-semibold">
+        <Checkbox
+          checked={value.sendColourPreview}
+          disabled={readOnly}
+          onCheckedChange={(c) => onChange?.({ ...value, sendColourPreview: c === true })}
+        />
+        Send the 3D colour preview (shows which finish goes where; off = line drawing and finish photos only)
+      </Label>
       <Label className="flex flex-col items-stretch gap-1.5 text-[13px] font-semibold">
         Closing (read last)
         <textarea value={value.closing} readOnly={readOnly} onChange={(e) => onChange?.({ ...value, closing: e.target.value })} className={`${textareaClass} min-h-16`} />
@@ -151,7 +159,11 @@ function SavedPromptCard({
   const [draft, setDraft] = useState<ImagePrompt>(prompt);
   const [saving, setSaving] = useState(false);
   const dirty =
-    draft.name !== prompt.name || draft.intro !== prompt.intro || draft.closing !== prompt.closing || draft.includeBrief !== prompt.includeBrief;
+    draft.name !== prompt.name ||
+    draft.intro !== prompt.intro ||
+    draft.closing !== prompt.closing ||
+    draft.includeBrief !== prompt.includeBrief ||
+    draft.sendColourPreview !== prompt.sendColourPreview;
 
   async function save() {
     if (!draft.name.trim()) {
