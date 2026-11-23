@@ -340,6 +340,8 @@ export function WallElevationView({
               }}
             >
               {WALL_LABELS[w]}
+              {/* §146 */}
+              {currentLayout?.walls.find((x) => x.orientation === w)?.open ? ' (open)' : ''}
             </Button>
           ))}
           <Button variant="outline" size="sm" onClick={() => goToWall(1)} aria-label="Next wall">

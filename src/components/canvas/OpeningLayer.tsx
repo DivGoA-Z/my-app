@@ -28,6 +28,7 @@ import { computeRoomScale } from '../../lib/canvasScale';
 import { detectClearanceIssues } from '../../lib/clearance';
 import type { WallOpening } from '../../types/opening';
 import type { WallOrientation } from '../../types/layout';
+import { wallOpenings } from '../../lib/openSides';
 
 export interface OpeningLayerProps {
   widthMm: number;
@@ -75,7 +76,7 @@ export function OpeningLayer({
 
   if (!currentLayout) return null;
 
-  const openings = currentLayout.walls.flatMap((w) => w.openings ?? []);
+  const openings = currentLayout.walls.flatMap((w) => wallOpenings(w));
   if (openings.length === 0) return null;
 
   // Obstacles live in their own slice, not on currentLayout — same

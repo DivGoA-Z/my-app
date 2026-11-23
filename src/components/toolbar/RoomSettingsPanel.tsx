@@ -26,12 +26,14 @@ import { useState } from 'react';
 import { Ruler } from 'lucide-react';
 import { useLayoutStore } from '../../store/layoutStore';
 import { Button } from '../ui/button';
+import type { WallOrientation } from '../../types/layout';
 
 // Mirrors Room3DCanvas's own DEFAULT_CEILING_HEIGHT_MM fallback — kept
 // as a separate local constant rather than a shared import since
 // neither file exports its default today (small, stable value, not
 // worth a shared-constants module for one number).
 const DEFAULT_CEILING_HEIGHT_MM = 2700;
+const SIDES: WallOrientation[] = ['north', 'east', 'south', 'west'];
 
 // compact: an icon-only trigger, for the phone's top bar (§87).
 export function RoomSettingsPanel({ compact = false }: { compact?: boolean } = {}) {
@@ -39,6 +41,9 @@ export function RoomSettingsPanel({ compact = false }: { compact?: boolean } = {
   const updateRoomDimensions = useLayoutStore((state) => state.updateRoomDimensions);
   const setDepthIncludesFront = useLayoutStore((state) => state.setDepthIncludesFront);
   const businessDepthIncludesFront = useLayoutStore((state) => state.constructionSettings.depthIncludesFront);
+  const setWallOpen = useLayoutStore((state) => state.setWallOpen);
+  // §146: which sides have a wall built. Seeded on open, applied on Apply.
+  const [built, setBuilt] = useState<Record<WallOrientation, boolean>>({ north: true, east: true, south: true, west: true });
   // 'business' = follow the Workshop setting; otherwise this project's own.
   const [depthChoice, setDepthChoice] = useState<'business' | 'includes' | 'carcass'>('business');
 
@@ -65,12 +70,18 @@ export function RoomSettingsPanel({ compact = false }: { compact?: boolean } = {
     setCeilingHeightMm(currentLayout!.dimensions.ceilingHeightMm ?? DEFAULT_CEILING_HEIGHT_MM);
     const own = currentLayout!.depthIncludesFront;
     setDepthChoice(own === undefined ? 'business' : own ? 'includes' : 'carcass');
+    setBuilt(
+      Object.fromEntries(SIDES.map((o) => [o, !currentLayout!.walls.find((w) => w.orientation === o)?.open])) as Record<WallOrientation, boolean>
+    );
     setIsOpen(true);
   }
 
   function handleApply() {
     updateRoomDimensions({ widthMm, depthMm, ceilingHeightMm });
     setDepthIncludesFront(depthChoice === 'business' ? undefined : depthChoice === 'includes');
+    for (const o of SIDES) {
+      if (!built[o] !== !!currentLayout!.walls.find((w) => w.orientation === o)?.open) setWallOpen(o, !built[o]);
+    }
     setIsOpen(false);
   }
 
@@ -153,6 +164,24 @@ export function RoomSettingsPanel({ compact = false }: { compact?: boolean } = {
               <option value="carcass">Carcass only (shutter adds in front)</option>
             </select>
           </label>
+
+          {/* §146: an L-shaped kitchen is often open to the living room. */}
+          <fieldset className="flex flex-col gap-1 text-xs text-gray-600">
+            <legend className="mb-1">Walls (untick a side that's open)</legend>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+              {SIDES.map((o) => (
+                <label key={o} className="flex items-center gap-1.5 capitalize">
+                  <input type="checkbox" checked={built[o]} onChange={(e) => setBuilt({ ...built, [o]: e.target.checked })} />
+                  {o}
+                </label>
+              ))}
+            </div>
+            {SIDES.filter((o) => !built[o] && (currentLayout.walls.find((w) => w.orientation === o)?.openings?.length ?? 0) > 0).map((o) => (
+              <span key={o} className="text-[10px] text-amber-700">
+                The {o} side's doors and windows are hidden while it's open (kept, and back if you tick it again).
+              </span>
+            ))}
+          </fieldset>
 
           <p className="text-[10px] text-gray-400">
             Shrinking the room won't move cabinets/obstacles that end up outside it — drag them

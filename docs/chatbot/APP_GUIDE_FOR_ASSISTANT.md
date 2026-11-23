@@ -87,7 +87,7 @@ On a phone, the bottom tabs show Home, Customers, Production and Catalogue; the 
 - **Plan | 3D | Elevation** tabs.
 - **Saved / Saving… / Not saved**: designs save by themselves a moment after each change. Clicking it saves immediately.
 - **Style**: this kitchen's default finish, colour, handle and board (section 5.6).
-- **Room**: room width, depth, ceiling height, and the cabinet-depth convention for this project.
+- **Room**: room width, depth, ceiling height, the cabinet-depth convention for this project, and **Walls (untick a side that's open)**: North / East / South / West. An unticked side is an open side with no wall (e.g. an L-shaped kitchen open to the living room): it's drawn dashed on the plan, not built in 3D, has no wall finish and isn't charged, and can't take a door or window (any already on it are hidden and come back if ticked again). Units backed onto an open side get a check: their backs show, so plan a finished back panel.
 - **Cutting list**: opens the cutting list for this design.
 - **Quote**: opens or closes the quote panel on the right.
 - **Present**: the customer-facing view.
@@ -149,6 +149,7 @@ Lists problems: items overlapping, a door or drawer swinging into another cabine
 ## 6. 3D and Elevation
 
 **3D tab:**
+- **Hide walls**: **N / E / S / W** buttons hide a wall while you look around in 3D. It's only for viewing, never saved; AI images, image briefs and 360° photos always show every wall. An open side's button is greyed out.
 - **Look from**: **Free orbit (drag to turn)** (drag to turn, scroll or pinch to zoom) or a camera (stand there and look around; tap a glowing floor marker to step to another camera).
 - **Save this view** (when at a camera): saves where it's looking and the lens.
 - Move pad on the 3D view: hold the arrows to glide; the double arrows change height.

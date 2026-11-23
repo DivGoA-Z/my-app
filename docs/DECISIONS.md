@@ -8631,3 +8631,56 @@ cabinets."
 
 **Tested:** unit tests (the count, the laid size, no line when it doesn't
 apply); full suite. Not yet seen in an image.
+
+## 146. Open sides: a room edge with no wall; walls hidden in 3D for viewing
+
+**Why.** The user (23 Nov 2026): "an L shaped kitchen need not
+necessarily need walls". Asked what removing a wall should mean, they
+chose both: a design setting **and** a view toggle.
+
+**Open side (design).** `Wall.open` in the walls JSONB (no column).
+It's set in **Room → Walls (untick a side that's open)** and applied
+with the pop-up's Apply. The room rectangle stays the kitchen's
+footprint: placement, collision and aisles are unchanged. What changes
+is that nothing is built on that edge.
+- **`lib/openSides.ts` is the one place for the rule.** Every reader of
+  openings goes through `wallOpenings()` / `allOpenings()`, which return
+  none for an open side: pricing, clearance, hit-testing, kitchen checks,
+  the image brief, surface areas, the 2D and 3D openings, and daylight.
+  The openings stay in the data, so re-ticking the side brings them back.
+  The Room pop-up warns when a side being opened has some.
+- **Surfaces and pricing:** an open side has zero area (`wallAreas`) and
+  no line in the quote, even if a finish was chosen before. The Surfaces
+  panel shows "open side, no wall". Tested.
+- **Drawing:** plan = a dashed, light edge; 3D = no wall; the exported
+  plan has no wall band, only a dashed edge; the image-brief sheet shows
+  a dashed outline titled "SIDE (OPEN)"; the Elevation tab's wall picker
+  says "(open)".
+- **Doors and windows:** the Doors panel's wall button is disabled for an
+  open side.
+- **Image brief:** the side has `open: true` and no finish. Its line reads
+  "North side, OPEN: no wall, the units stand free there". The walls line
+  adds "there is NO wall on the north side; the kitchen opens there into
+  an adjoining room, seen softly out of focus with nothing in it in sharp
+  detail" (as §144 does for windows).
+- **Kitchen check** `checkBacksOnOpenSide`: floor units backing onto an
+  open side show their backs to the next room. Nothing finishes or prices
+  that back on its own, so the check says to plan a finished back panel
+  and confirm it's quoted.
+
+**Hide walls (view only).** A **Hide walls N / E / S / W** toggle on the
+3D tab, in React state and never saved. Make image, See prompt, both
+image briefs and 360° capture first call `showAllWalls()`: it restores
+every wall and waits two animation frames for the scene to redraw, so a
+picture never misses a wall the design has. The wall view (§84) ignores
+the toggle.
+
+**Rejected:**
+- Deleting the wall from `walls`. `normalizeWalls` rebuilds all four on
+  load, and its finish and openings would be lost.
+- Rectilinear or partial walls. Still deferred (CLAUDE.md "not
+  started").
+
+**Tested:** `openSides.test.ts` (openings hidden and kept, zero area, the
+quote line gone, the backs check) and the brief test; full suite. Not
+seen in a browser.

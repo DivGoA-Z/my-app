@@ -302,6 +302,8 @@ interface LayoutStore {
     orientation: WallOrientation,
     updates: Partial<Pick<Wall, 'finishId' | 'concealedFinishId' | 'colorOverride' | 'tiling'>>
   ) => void;
+  // §146: build or remove a wall on one side of the room.
+  setWallOpen: (orientation: WallOrientation, open: boolean) => void;
   setCabinets: (cabinets: PlacedCabinetItem[]) => void;
   setObstacles: (obstacles: Obstacle[]) => void;
   setAppliances: (appliances: PlacedApplianceItem[]) => void;
@@ -663,6 +665,23 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
               ...state.currentLayout,
               walls: state.currentLayout.walls.map((wall) =>
                 wall.orientation === orientation ? { ...wall, ...updates } : wall
+              ),
+              updatedAt: new Date().toISOString(),
+            },
+          }
+        : {}
+    );
+  },
+
+  setWallOpen: (orientation, open) => {
+    noteDesignEdit('setWallOpen:' + orientation);
+    set((state) =>
+      state.currentLayout
+        ? {
+            currentLayout: {
+              ...state.currentLayout,
+              walls: state.currentLayout.walls.map((wall) =>
+                wall.orientation === orientation ? { ...wall, open: open || undefined } : wall
               ),
               updatedAt: new Date().toISOString(),
             },

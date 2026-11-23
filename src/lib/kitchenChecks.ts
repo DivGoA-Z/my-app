@@ -33,8 +33,10 @@ import type { PlacedCabinetItem } from '../types/cabinet';
 import type { PlacedApplianceItem } from '../types/appliance';
 import { currentFootprintRect } from './footprint';
 import type { FootprintRect } from './footprint';
-import { extentAlongWall, startAlongWall, wallIncursionMm, touchesFloor } from './surfaceAreas';
+import { extentAlongWall, startAlongWall, wallIncursionMm, touchesFloor, isAgainstWall } from './surfaceAreas';
 import { openingsForWall } from './openings';
+import { openSides, wallOpenings } from './openSides';
+import { backWall } from './wallView';
 
 export interface KitchenCheckFinding {
   // Stable across re-renders for the same underlying condition, so a
@@ -244,7 +246,7 @@ export function checkHobUnderWindow(
     const hobStart = startAlongWall(wall, rect);
     const hobEnd = hobStart + extentAlongWall(wall, rect);
     const wallData = layout.walls.find((w) => w.orientation === wall);
-    const windows = openingsForWall(wallData?.openings ?? [], wall).filter((o) => o.kind === 'window');
+    const windows = openingsForWall(wallOpenings(wallData), wall).filter((o) => o.kind === 'window');
 
     for (const window of windows) {
       const windowStart = window.offsetMm;
@@ -436,5 +438,27 @@ export function checkKitchenErgonomics(
     ...checkHobUnderWindow(layout, appliances),
     ...checkCounterBesideHob(layout, cabinets, appliances),
     ...checkChimneyCentredOnHob(appliances),
+    ...checkBacksOnOpenSide(layout, cabinets),
   ];
+}
+
+// §146: units standing with their back to an OPEN side (no wall) show
+// that back to the next room. Nothing finishes or prices it on its own,
+// so say so once per side instead of letting a plain carcass back reach
+// the customer.
+export function checkBacksOnOpenSide(layout: RoomLayout, cabinets: PlacedCabinetItem[]): KitchenCheckFinding[] {
+  const { widthMm, depthMm } = layout.dimensions;
+  return openSides(layout).flatMap((side) => {
+    const backs = cabinets.filter(
+      (c) => touchesFloor(c.elevationMm) && backWall(c.rotationDeg) === side && isAgainstWall(side, currentFootprintRect(c), widthMm, depthMm)
+    );
+    if (!backs.length) return [];
+    return [
+      {
+        id: `open-side-backs-${side}`,
+        message: `${backs.length} ${backs.length === 1 ? 'unit backs' : 'units back'} onto the open ${side} side: the back${backs.length === 1 ? '' : 's'} will show from the next room. Plan a finished back panel and check it is in the quote.`,
+        itemIds: backs.map((c) => c.id),
+      },
+    ];
+  });
 }

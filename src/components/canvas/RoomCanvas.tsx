@@ -18,6 +18,7 @@
 
 import type { ReactNode } from 'react';
 import { Stage, Layer, Rect, Line, Text } from 'react-konva';
+import type { WallOrientation } from '../../types/layout';
 import { computeRoomScale } from '../../lib/canvasScale';
 import { useLayoutStore } from '../../store/layoutStore';
 
@@ -46,6 +47,9 @@ export function RoomCanvas({
 }: RoomCanvasProps) {
   const selectCabinet = useLayoutStore((state) => state.selectCabinet);
   const selectObstacle = useLayoutStore((state) => state.selectObstacle);
+  // §146: an open side is drawn dashed and light, not as a wall.
+  const walls = useLayoutStore((state) => state.currentLayout?.walls);
+  const isOpen = (o: WallOrientation) => !!walls?.find((w) => w.orientation === o)?.open;
 
   const { scale, roomWidthPx, roomHeightPx, originX, originY } = computeRoomScale(
     widthMm,
@@ -71,16 +75,23 @@ export function RoomCanvas({
       }}
     >
       <Layer>
-        {/* Room boundary */}
-        <Rect
-          x={originX}
-          y={originY}
-          width={roomWidthPx}
-          height={roomHeightPx}
-          fill="#fafaf9"
-          stroke="#1f2937"
-          strokeWidth={2}
-        />
+        {/* Room boundary: the floor, then each side as a wall or (§146)
+            a dashed open side. */}
+        <Rect x={originX} y={originY} width={roomWidthPx} height={roomHeightPx} fill="#fafaf9" />
+        {(
+          [
+            ['north', [originX, originY, originX + roomWidthPx, originY]],
+            ['east', [originX + roomWidthPx, originY, originX + roomWidthPx, originY + roomHeightPx]],
+            ['south', [originX, originY + roomHeightPx, originX + roomWidthPx, originY + roomHeightPx]],
+            ['west', [originX, originY, originX, originY + roomHeightPx]],
+          ] as [WallOrientation, number[]][]
+        ).map(([o, points]) =>
+          isOpen(o) ? (
+            <Line key={`side-${o}`} points={points} stroke="#9ca3af" strokeWidth={1.5} dash={[8, 6]} />
+          ) : (
+            <Line key={`side-${o}`} points={points} stroke="#1f2937" strokeWidth={2} lineCap="square" />
+          )
+        )}
 
         {/* Grid — vertical lines */}
         {verticalLinesMm.map((xMm) => (

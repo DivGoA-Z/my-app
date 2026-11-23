@@ -113,6 +113,14 @@ export function RoomSurfacesPanel() {
 
       {WALL_ORDER.map((orientation) => {
         const wall = currentLayout.walls.find((w) => w.orientation === orientation);
+        // §146: an open side has no surface to finish.
+        if (wall?.open) {
+          return (
+            <p key={orientation} className="rounded-lg border border-dashed border-border px-3 py-2 text-[13px] text-muted-foreground">
+              {WALL_LABELS[orientation]}: open side, no wall (change in Room)
+            </p>
+          );
+        }
         return (
           <SurfaceRow
             key={orientation}

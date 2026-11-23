@@ -138,6 +138,7 @@ import type { PlacedCabinetItem } from '../../types/cabinet';
 import type { Obstacle, WallOrientation } from '../../types/layout';
 import { wallViewRoles } from '../../lib/wallView';
 import type { PlacedApplianceItem, ApplianceType } from '../../types/appliance';
+import { wallOpenings } from '../../lib/openSides';
 
 export interface Room3DCanvasProps {
   widthMm: number;
@@ -267,7 +268,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
       (f) => f.enabled && fixtureCatalogForEnv.some((c) => c.id === f.catalogItemId)
     ) ||
     (currentLayout?.walls ?? []).some((w) =>
-      (w.openings ?? []).some((o) => o.daylight?.enabled)
+      wallOpenings(w).some((o) => o.daylight?.enabled)
     );
 
   const lightEnv = lightingEnvironmentFor(
@@ -388,6 +389,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
 
   async function handleCapture() {
     if (!selectedCamera || !captureFnRef.current) return;
+    await showAllWalls();
     setIsCapturing(true);
     setCaptureError(null);
     try {
@@ -419,6 +421,15 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
 
   // The brief's styling (§127): a session choice, Bare by default.
   const [briefStyling, setBriefStyling] = useState<BriefStyling>('bare');
+  // §146: walls hidden just for looking (never saved). Images, briefs and
+  // 360° photos always show the real walls: showAllWalls() puts them
+  // back and waits for the scene to redraw before anything is captured.
+  const [hiddenWalls, setHiddenWalls] = useState<WallOrientation[]>([]);
+  async function showAllWalls() {
+    if (!hiddenWalls.length) return;
+    setHiddenWalls([]);
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  }
 
   // §132: the brief downloads are the software owner's (for testing image
   // models by hand); everyone gets "Make image", which sends the same
@@ -466,6 +477,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
   // (§141, a prompt's switch) leaves the 3D colour view out, and the brief
   // then never mentions it.
   async function renderInputs(colourPreview = true) {
+    await showAllWalls();
     const fns = viewFnsRef.current;
     if (!currentLayout || !briefInput || !fns || cameras.length === 0) return null;
     const main = cameras[0];
@@ -592,6 +604,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
   async function handleContextBrief() {
     const fns = viewFnsRef.current;
     if (!currentLayout || !briefInput || !fns || cameras.length < 2) return;
+    await showAllWalls();
     try {
       const main = cameras[0];
       const others = cameras.filter((c) => c.id !== main.id);
@@ -650,6 +663,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
   async function handleRenderBrief() {
     const fns = viewFnsRef.current;
     if (!currentLayout || !briefInput || !fns) return;
+    await showAllWalls();
     try {
       const pose = fns.pose();
       const stem = renderBriefFileStem(currentLayout.name);
@@ -751,6 +765,30 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
             ))}
           </select>
         </label>
+        {/* §146: hide walls to see in; view only, never saved. */}
+        <div role="group" aria-label="Hide walls" className="flex flex-col gap-1.5 text-[13px] font-semibold">
+          Hide walls
+          <div className="flex gap-1">
+            {(['north', 'east', 'south', 'west'] as WallOrientation[]).map((o) => {
+              const open = currentLayout?.walls.find((w) => w.orientation === o)?.open;
+              const on = hiddenWalls.includes(o);
+              return (
+                <Button
+                  key={o}
+                  variant={on ? 'secondary' : 'outline'}
+                  size="touch"
+                  aria-pressed={on}
+                  disabled={open}
+                  title={open ? `The ${o} side is open: no wall is built there (Room)` : on ? `Show the ${o} wall` : `Hide the ${o} wall while you look`}
+                  onClick={() => setHiddenWalls((h) => (on ? h.filter((x) => x !== o) : [...h, o]))}
+                  className="px-3 capitalize"
+                >
+                  {o.charAt(0).toUpperCase()}
+                </Button>
+              );
+            })}
+          </div>
+        </div>
         {lockedCamera && (
           <Button variant="outline" size="touch" onClick={handleSaveView}>
             <Save /> Save this view
@@ -1116,7 +1154,7 @@ export function Room3DCanvas({ widthMm, depthMm, wallView, inspectorOverlay = fa
 
           {/* Wall view (§84): the room taken apart — only the chosen wall,
               no ceiling — like an elevation, not a camera across the room. */}
-          <RoomWalls widthM={roomWidthM} depthM={roomDepthM} heightM={ceilingHeightM} only={wallView} />
+          <RoomWalls widthM={roomWidthM} depthM={roomDepthM} heightM={ceilingHeightM} only={wallView} hidden={wallView ? undefined : hiddenWalls} />
 
           {!drawingView && <RoomCeiling widthM={roomWidthM} depthM={roomDepthM} heightM={ceilingHeightM} />}
 
@@ -1759,6 +1797,8 @@ interface RoomWallsProps {
   heightM: number;
   // Wall view: draw only this wall (§84).
   only?: WallOrientation;
+  // §146: hidden for viewing only (open sides are never drawn anyway).
+  hidden?: WallOrientation[];
 }
 
 // Geometry still comes from the room's dimensions (which are always
@@ -1766,7 +1806,7 @@ interface RoomWallsProps {
 // orientation. Keeping those separate means a layout whose walls array
 // is missing or stale still renders a correct room — it just renders it
 // in plaster.
-function RoomWalls({ widthM, depthM, heightM, only }: RoomWallsProps) {
+function RoomWalls({ widthM, depthM, heightM, only, hidden }: RoomWallsProps) {
   const currentLayout = useLayoutStore((state) => state.currentLayout);
 
   // Walls are no longer one plane each. A single plane cannot have a
@@ -1797,9 +1837,11 @@ function RoomWalls({ widthM, depthM, heightM, only }: RoomWallsProps) {
     <>
       {(['north', 'south', 'west', 'east'] as WallOrientation[]).filter((o) => !only || o === only).map((orientation) => {
         const wall = walls.find((w) => w.orientation === orientation);
+        // §146: an open side has no wall; a hidden one is only out of view.
+        if (wall?.open || hidden?.includes(orientation)) return null;
         const horizontal = orientation === 'north' || orientation === 'south';
         const wallLengthMm = (horizontal ? widthM : depthM) / MM_TO_M;
-        const segments = wallSegments(wallLengthMm, ceilingHeightMm, wall?.openings ?? []);
+        const segments = wallSegments(wallLengthMm, ceilingHeightMm, wallOpenings(wall));
 
         return (
           <group key={orientation}>
@@ -1868,7 +1910,7 @@ function RoomWalls({ widthM, depthM, heightM, only }: RoomWallsProps) {
               );
             })}
 
-            {(wall?.openings ?? []).map((opening) => (
+            {wallOpenings(wall).map((opening) => (
               <OpeningInWall
                 key={opening.id}
                 opening={opening}
@@ -2268,7 +2310,7 @@ function PlacedFixtures({ keep }: { keep?: (mount: FixtureMount) => boolean } = 
       (f) => f.enabled && fixtureCatalog.some((c) => c.id === f.catalogItemId)
     ) ||
     (currentLayout?.walls ?? []).some((w) =>
-      (w.openings ?? []).some((o) => o.daylight?.enabled)
+      wallOpenings(w).some((o) => o.daylight?.enabled)
     );
   const lightEnv = lightingEnvironmentFor(
     currentLayout?.lightingMode ?? 'designed',

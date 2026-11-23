@@ -26,6 +26,7 @@ import { doorSwingZone, rectsOverlap } from './openings';
 import type { RoomRect } from './openings';
 import { currentFootprintRect } from './footprint';
 import { applianceFootprint } from './applianceGeometry';
+import { wallOpenings } from './openSides';
 
 // A door swing only conflicts with something standing ON the floor. A
 // wall cabinet at 1450mm is well above a door leaf's path... except a
@@ -93,7 +94,7 @@ export function detectClearanceIssues(
   const blockedObstacleIds = new Set<string>();
   const swingZones: { openingId: string; zone: RoomRect }[] = [];
 
-  const openings = layout.walls.flatMap((w) => w.openings ?? []);
+  const openings = layout.walls.flatMap((w) => wallOpenings(w));
 
   for (const opening of openings) {
     const zone = doorSwingZone(opening, widthMm, depthMm);

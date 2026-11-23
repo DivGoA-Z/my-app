@@ -56,6 +56,7 @@ import { hasCountertop, COUNTERTOP_THICKNESS_MM, COUNTERTOP_OVERHANG_MM } from '
 import { resolveSinkCutout } from './applianceGeometry';
 import { lookAnglesFromDirection } from './scene3d';
 import { resolveAllFixtures } from './fixtures';
+import { wallOpenings } from './openSides';
 
 export const RENDER_BRIEF_SCHEMA = 'kitchen-render-brief/v1';
 
@@ -273,6 +274,8 @@ export interface RenderBrief {
       lengthMm: number;
       leftCorner: string;
       finish: FinishDescription | null;
+      // §146: no wall is built on this side; units along it stand free.
+      open?: boolean;
       elementsLeftToRight: WallElement[];
     }[];
     notSpecifiedMeans: string;
@@ -785,7 +788,7 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
   });
 
   // ---- Openings ----
-  const allOpenings = layout.walls.flatMap((w) => w.openings ?? []);
+  const allOpenings = layout.walls.flatMap((w) => wallOpenings(w));
   const openingRows = byKey(
     allOpenings.map((op) => {
       const len = wallLengthMm(op.wallId, roomW, roomD);
@@ -882,11 +885,15 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
       wall,
       lengthMm: wallLengthMm(wall, roomW, roomD),
       leftCorner: LEFT_CORNER[wall],
-      finish: optionalFinish(
-        layout.walls.find((w) => w.orientation === wall)?.finishId,
-        layout.walls.find((w) => w.orientation === wall)?.colorOverride,
-        layout.walls.find((w) => w.orientation === wall)?.tiling
-      ),
+      // An open side (§146) has no surface, so no finish.
+      finish: layout.walls.find((w) => w.orientation === wall)?.open
+        ? null
+        : optionalFinish(
+            layout.walls.find((w) => w.orientation === wall)?.finishId,
+            layout.walls.find((w) => w.orientation === wall)?.colorOverride,
+            layout.walls.find((w) => w.orientation === wall)?.tiling
+          ),
+      open: layout.walls.find((w) => w.orientation === wall)?.open || undefined,
       elementsLeftToRight: elements,
     };
   });
@@ -1284,7 +1291,7 @@ function buildPrompt(b: Omit<RenderBrief, 'prompt'>, useRefs = true): RenderBrie
       }
       return `${pre(e.ref)}${e.what.toLowerCase()} ${mm(e.widthMm)} wide, ${mm(e.fromLeftMm)} from the left corner, ${mm(e.bottomMm)}–${mm(e.topMm)} high`;
     });
-    lines.push(`${cap(w.wall)} wall (${mm(w.lengthMm)}, left to right as you face it): ${parts.join('; ')}.`);
+    lines.push(`${cap(w.wall)} ${w.open ? 'side, OPEN: no wall, the units stand free there' : 'wall'} (${mm(w.lengthMm)}, left to right as you face it): ${parts.join('; ')}.`);
   }
   const freestanding = b.cabinets.filter((c) => !c.against);
   if (freestanding.length) {
@@ -1336,13 +1343,19 @@ function buildPrompt(b: Omit<RenderBrief, 'prompt'>, useRefs = true): RenderBrie
   // Grouped like the cabinets, so four plain walls are one clause.
   const wallsByFinish = new Map<string, string[]>();
   for (const w of b.room.walls) {
+    if (w.open) continue;
     const key = finishPhrase(w.finish, UNSET.wall);
     wallsByFinish.set(key, [...(wallsByFinish.get(key) ?? []), w.wall]);
   }
   const wallClauses = [...wallsByFinish].map(([phrase, ws]) =>
     ws.length === 4 ? `all four ${phrase}` : `${ws.join(' and ')} ${phrase}`
   );
-  lines.push(`Walls: ${wallClauses.join('; ')}. ${WALL_SURFACES}`);
+  const open = b.room.walls.filter((w) => w.open).map((w) => w.wall);
+  // §146: say what an open side shows, or the model builds a wall there.
+  const openLine = open.length
+    ? ` Open ${open.length === 1 ? 'side' : 'sides'}: there is NO wall on the ${joinAnd(open)} ${open.length === 1 ? 'side' : 'sides'}; the kitchen opens there into an adjoining room, seen softly out of focus with nothing in it in sharp detail.`
+    : '';
+  lines.push(`${wallClauses.length ? `Walls: ${wallClauses.join('; ')}. ` : ''}${WALL_SURFACES}${openLine}`);
   const scale = tileRowsLine(b);
   if (scale) lines.push(scale);
   lines.push(`Floor: ${finishPhrase(b.room.floor, UNSET.floor)}. Ceiling: ${finishPhrase(b.room.ceiling, UNSET.ceiling)}.`);

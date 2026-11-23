@@ -40,6 +40,7 @@ import { measuredBoardWaste, type BoardWaste } from './nesting';
 import { effectiveConstruction, physicalCabinets } from './physicalDepth';
 import type { ConstructionSettings } from '../types/construction';
 import { cabinetCutParts, edgeBandMm, loosePartsCut, partAreaSqM, type CutPart } from './cutList';
+import { wallOpenings } from './openSides';
 
 export interface BOMLineItem {
   cabinetId: string;
@@ -870,7 +871,7 @@ function buildOpeningLineItems(layout: RoomLayout): OpeningLineItem[] {
   const ceilingHeightMm = layout.dimensions.ceilingHeightMm ?? 2700;
 
   return layout.walls.flatMap((wall) => {
-    const openings = wall.openings ?? [];
+    const openings = wallOpenings(wall);
     return openings.map((opening) => {
       // Deducted area is computed per-opening through the SAME clipping
       // helper the wall total uses, so the sum of these rows always
@@ -935,7 +936,9 @@ function buildSurfaceLineItems(
     // full-height unit, and that OCCUPIES the area rather than
     // concealing it (see surfaceAreas.ts).
     line('Ceiling', areas.ceiling, layout.ceilingFinishId, undefined),
-    ...layout.walls.map((wall) =>
+    // An open side (§146) is not a wall: no line, even if a finish was
+    // chosen before it was opened.
+    ...layout.walls.filter((wall) => !wall.open).map((wall) =>
       line(WALL_LABELS[wall.orientation], areas.walls[wall.orientation], wall.finishId, wall.concealedFinishId)
     ),
   ];

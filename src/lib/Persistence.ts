@@ -298,6 +298,7 @@ function normalizeWalls(walls: Wall[], roomWidthMm: number, roomDepthMm: number)
       // load unless it's added here (§120).
       colorOverride: existing?.colorOverride ?? undefined,
       tiling: existing?.tiling ?? undefined,
+      open: existing?.open || undefined,
     };
   });
 }

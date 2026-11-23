@@ -49,6 +49,10 @@ export interface Wall {
   // Laid as tiles (§122): size, offset rows, grout. In the walls JSONB.
   // Unset/null = a continuous surface (paint, or the photo as it is).
   tiling?: SurfaceTiling | null;
+  // An OPEN SIDE (§146): no wall is built here, e.g. an L-shaped kitchen
+  // open to the living room. Read through lib/openSides.ts. Unset/false
+  // = a wall, as every room had before.
+  open?: boolean;
 }
 
 export type ObstacleType = 'pillar' | 'shaft' | 'exposed-pipe' | 'electrical-panel';

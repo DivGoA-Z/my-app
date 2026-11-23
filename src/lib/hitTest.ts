@@ -31,6 +31,7 @@ import { currentFootprintRect } from './footprint';
 import { applianceFootprint } from './applianceGeometry';
 import { openingToRoomRect } from './openings';
 import { resolveAllFixtures } from './fixtures';
+import { wallOpenings } from './openSides';
 
 export interface HitCandidate {
   type: SelectableType;
@@ -120,7 +121,7 @@ export function hitTestAt(xMm: number, yMm: number, input: HitTestInput): HitCan
   }
 
   for (const wall of layout.walls) {
-    for (const opening of wall.openings ?? []) {
+    for (const opening of wallOpenings(wall)) {
       const rect = openingToRoomRect(opening, roomWidthMm, roomDepthMm);
       if (!contains(rect, xMm, yMm)) continue;
       hits.push({

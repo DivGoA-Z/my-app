@@ -41,6 +41,7 @@ import { currentFootprintRect } from './footprint';
 import type { FootprintRect } from './footprint';
 import { applianceFootprint } from './applianceGeometry';
 import { voidAreaMm2 } from './openings';
+import { isOpenSide, wallOpenings } from './openSides';
 
 const MM2_PER_SQM = 1000 * 1000;
 
@@ -290,6 +291,9 @@ function wallAreas(
   const { widthMm, depthMm } = layout.dimensions;
   const ceilingHeightMm = layout.dimensions.ceilingHeightMm ?? DEFAULT_CEILING_HEIGHT_MM;
   const wallLengthMm = orientation === 'north' || orientation === 'south' ? widthMm : depthMm;
+  // An open side (§146) has no wall, so no surface: nothing exposed,
+  // concealed or charged.
+  if (isOpenSide(layout, orientation)) return breakdown(0, []);
   const claims: Claim[] = [];
 
   for (const obstacle of layout.obstacles) {
@@ -332,7 +336,7 @@ function wallAreas(
   // wallSegments does, so the area deducted here and the geometry drawn
   // in the 3D view can never disagree about how much wall is missing.
   const wall = layout.walls.find((w) => w.orientation === orientation);
-  const voidMm2 = voidAreaMm2(wallLengthMm, ceilingHeightMm, wall?.openings ?? []);
+  const voidMm2 = voidAreaMm2(wallLengthMm, ceilingHeightMm, wallOpenings(wall));
 
   return breakdown(wallLengthMm * ceilingHeightMm, claims, voidMm2);
 }
@@ -569,7 +573,7 @@ export function computeWallElevationItems(
   }
 
   const wall = layout.walls.find((w) => w.orientation === orientation);
-  for (const opening of wall?.openings ?? []) {
+  for (const opening of wallOpenings(wall)) {
     items.push({
       kind: 'opening',
       id: opening.id,

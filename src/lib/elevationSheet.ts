@@ -169,9 +169,12 @@ export function elevationSheetSvg(brief: RenderBrief): ElevationSheet {
     const g: string[] = [];
 
     g.push(
-      `<text x="${ox}" y="${top + 26}" font-size="16" font-weight="bold" fill="${INK}">${wallName.toUpperCase()} WALL</text>`,
-      `<text x="${ox + 120}" y="${top + 26}" font-size="12" fill="${LIGHT_INK}">facing ${wallName}; left end = ${wall.leftCorner} corner · ${len} mm</text>`,
-      rect(0, 0, len, ceiling, `fill="${WALL_FILL}" stroke="${INK}" stroke-width="1.5"`)
+      `<text x="${ox}" y="${top + 26}" font-size="16" font-weight="bold" fill="${INK}">${wallName.toUpperCase()} ${wall.open ? 'SIDE (OPEN)' : 'WALL'}</text>`,
+      `<text x="${ox + (wall.open ? 190 : 120)}" y="${top + 26}" font-size="12" fill="${LIGHT_INK}">facing ${wallName}; left end = ${wall.leftCorner} corner · ${len} mm${wall.open ? ' · no wall' : ''}</text>`,
+      // §146: an open side is an outline, not a wall face.
+      wall.open
+        ? rect(0, 0, len, ceiling, `fill="none" stroke="${LIGHT_INK}" stroke-width="1" stroke-dasharray="8 6"`)
+        : rect(0, 0, len, ceiling, `fill="${WALL_FILL}" stroke="${INK}" stroke-width="1.5"`)
     );
 
     // Openings, behind everything that stands in front of the wall.

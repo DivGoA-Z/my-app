@@ -86,6 +86,15 @@ export function planElements(brief: RenderBrief, area: PlanArea): string[] {
 
   // Walls: a dark band around the room, cut for openings.
   g.push(rect(-WALL_MM, -WALL_MM, W + WALL_MM * 2, D + WALL_MM * 2, `fill="${INK}"`), rect(0, 0, W, D, 'fill="#ffffff"'));
+  // §146: an open side has no wall band, only a dashed edge.
+  for (const w of brief.room.walls.filter((x) => x.open)) {
+    const band = { north: [0, -WALL_MM, W, WALL_MM], south: [0, D, W, WALL_MM], west: [-WALL_MM, 0, WALL_MM, D], east: [W, 0, WALL_MM, D] }[w.wall];
+    const edge = { north: [0, 0, W, 0], south: [0, D, W, D], west: [0, 0, 0, D], east: [W, 0, W, D] }[w.wall];
+    g.push(
+      rect(band[0], band[1], band[2], band[3], 'fill="#ffffff"'),
+      `<line x1="${PX(edge[0])}" y1="${PY(edge[1])}" x2="${PX(edge[2])}" y2="${PY(edge[3])}" stroke="${LIGHT_INK}" stroke-width="1.5" stroke-dasharray="8 6"/>`
+    );
+  }
 
   for (const op of brief.openings) {
     const len = wallLengthMm(op.wall, W, D);

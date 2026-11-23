@@ -23,6 +23,7 @@ import type { OpeningKind } from '../../types/opening';
 import { overlappingOpeningPairs, openingsForWall } from '../../lib/openings';
 import { detectClearanceIssues, isStructural } from '../../lib/clearance';
 import type { WallOrientation } from '../../types/layout';
+import { isOpenSide, wallOpenings } from '../../lib/openSides';
 
 const WALL_ORDER: WallOrientation[] = ['north', 'east', 'south', 'west'];
 
@@ -47,7 +48,7 @@ export function OpeningToolbar() {
 
   if (!currentLayout) return null;
 
-  const openings = currentLayout.walls.flatMap((w) => w.openings ?? []);
+  const openings = currentLayout.walls.flatMap((w) => wallOpenings(w));
   const overlaps = overlappingOpeningPairs(openings);
   const layoutWithObstacles = { ...currentLayout, obstacles };
   const clearance = detectClearanceIssues(layoutWithObstacles, cabinets, appliances);
@@ -97,6 +98,9 @@ export function OpeningToolbar() {
                 size="sm"
                 className="h-auto min-h-6 flex-1 py-1 whitespace-normal font-normal"
                 onClick={() => handleAdd(kind, wallId)}
+                // §146: nothing to cut a door or window into on an open side.
+                disabled={isOpenSide(currentLayout, wallId)}
+                title={isOpenSide(currentLayout, wallId) ? 'Open side: no wall here (Room)' : undefined}
               >
                 {WALL_LABELS[wallId]}
               </Button>

@@ -670,3 +670,20 @@ describe('tile scale as a count (§145)', () => {
     expect(tileRowsLine(noUppers)).toBeNull();
   });
 });
+
+describe('an open side in the brief (§146)', () => {
+  it('has no finish, says the units stand free, and that the kitchen opens there', () => {
+    const base = input();
+    const b = buildRenderBrief(
+      input({
+        finishes: [walnut],
+        layout: { ...base.layout, walls: [{ id: 'w-n', orientation: 'north', lengthMm: ROOM_W, openings: [], finishId: 'f-walnut', open: true }] },
+      })
+    );
+    const north = b.room.walls.find((w) => w.wall === 'north')!;
+    expect(north.open).toBe(true);
+    expect(north.finish).toBeNull();
+    expect(b.prompt.imagePrompt).toMatch(/North side, OPEN: no wall, the units stand free there/);
+    expect(b.prompt.imagePrompt).toMatch(/there is NO wall on the north side; the kitchen opens there into an adjoining room/);
+  });
+});
