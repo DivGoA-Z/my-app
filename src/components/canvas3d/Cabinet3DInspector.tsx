@@ -29,6 +29,7 @@ import { FrontPicker } from '../inspector/FrontPicker';
 import { boardLabel } from '../../types/rates';
 import { resolveCarcassBoard } from '../../lib/panels';
 import type { PlacedCabinetItem } from '../../types/cabinet';
+import { CornerInsideControl } from '../inspector/CornerInsideControl';
 
 
 const MODULE_TYPE_LABELS: Record<string, string> = {
@@ -92,6 +93,7 @@ export function Cabinet3DInspector({ cabinet }: Cabinet3DInspectorProps) {
       {/* The very same component the 2D inspector uses — one editor, so
           the two panels can't offer different options or write the
           field differently. */}
+      <CornerInsideControl cabinet={cabinet} />
       <FrontPicker cabinet={cabinet} />
 
       {/* Substrate is invisible on a finished cabinet, so it's here for

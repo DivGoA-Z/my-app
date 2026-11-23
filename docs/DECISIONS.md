@@ -8744,3 +8744,52 @@ so the live catalogue may differ from that file.
 **Tested:** `standardSizes.test.ts`, the `StandardSizesCard` screen test
 (listing, both buttons, saving the standard) and the round trip; full
 suite. Not seen in a browser.
+
+## 148. A corner unit's inside is chosen on the cabinet: shelves, magic corner, carousel or cylinder trolley
+
+**Why.** The user (23 Nov 2026): "corner unit should have options of
+cylinder trolley and all fronts to be applied there". Asked what was
+missing, they chose an inside choice, and said "trolley unit front is
+missing there in fronts".
+
+**What.** An **Inside** select on a placed corner unit, in both the
+editor's and the 3D inspector, above Front (`CornerInsideControl`).
+`lib/cornerInside.ts` maps each choice onto what the app already
+prices, so no rate is new:
+- Shelves → `corner-blind`.
+- Magic corner → `corner-magic`, plus the magic-corner mechanism.
+- Carousel → `corner-carousel`, plus the carousel mechanism.
+- Cylinder trolley → `corner-blind` with ONE `trolley` front: a channel
+  pair and a basket, exactly as a cylinder trolley unit is priced. A blind
+  corner whose door is one pull-out *is* that unit.
+
+Switching keeps any front the designer chose, except that leaving the
+cylinder drops its pull-out back to the default.
+
+**Rejected:** a new `corner-cylinder` module type. It would ripple through
+every `Record<ModuleType, …>` label table, the catalogue's type check,
+the cutting list and the brief, for a unit the existing parts already
+describe.
+
+**"Trolley front missing".** Not reproduced.
+- In code, both front lists (editor `FrontPicker` and catalogue
+  `FrontFields`) offer **Trolley pull-out** for every unit, corners
+  included.
+- In a browser (test login, Catalogue → a Corner Magic's form), the Front
+  list shows all nine, with Trolley pull-out.
+- Possible confusion: the front picture draws a trolley like stacked
+  drawers.
+- The placed-unit inspector wasn't seen on screen: the test design has no
+  corner unit, and placing one would have changed data. If the user still
+  sees it missing, a screenshot is needed.
+
+**Tested:** `cornerInside.test.ts`: reading the choice, switching, and a
+corner cylinder charged a channel and a basket with no corner mechanism.
+Full suite.
+
+**Process note (browser check, same day).** To find a corner unit, the
+check clicked a grid of points across the plan. Once an item was
+selected, its inspector opened over the plan, and later clicks landed on
+its buttons. The test design's fridge appears to have been turned 180°
+and autosaved. Never click blindly on the editor: select items through
+the UI by name, or use a throwaway design.

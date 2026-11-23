@@ -32,6 +32,7 @@ import { rotateCabinet, resizeCabinet, duplicateCabinet } from '../../lib/cabine
 import { FinishPicker } from './FinishPicker';
 import { FrontPicker } from './FrontPicker';
 import { CornerPanelControl } from './CornerPanelControl';
+import { CornerInsideControl } from './CornerInsideControl';
 
 
 // Mirrors the fallback used in App.tsx/CabinetToolbar — only matters
@@ -139,6 +140,7 @@ export function CabinetInspector({ onOpenDesigner }: { onOpenDesigner?: (cabinet
       {/* Front (structure) sits under Finish (appearance) deliberately:
           the two are orthogonal, and grouping them adjacently is what
           makes that legible in the UI rather than just in the types. */}
+      <CornerInsideControl cabinet={cabinet} />
       <FrontPicker cabinet={cabinet} />
       <CornerPanelControl cabinet={cabinet} />
 
