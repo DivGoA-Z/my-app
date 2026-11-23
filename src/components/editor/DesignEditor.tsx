@@ -121,6 +121,8 @@ export function DesignEditor({
   const loadError = useLayoutStore((s) => s.loadError);
   const isSaving = useLayoutStore((s) => s.isSaving);
   const saveError = useLayoutStore((s) => s.saveError);
+  const saveConflict = useLayoutStore((s) => s.saveConflict);
+  const loadProject = useLayoutStore((s) => s.loadProject);
   const lastAutosaveAt = useLayoutStore((s) => s.lastAutosaveAt);
   const saveProject = useLayoutStore((s) => s.saveProject);
   const undo = useLayoutStore((s) => s.undo);
@@ -373,6 +375,19 @@ export function DesignEditor({
           </DropdownMenuContent>
         </DropdownMenu>
       </header>
+      {/* §153: a save was refused because this design changed in another
+          tab or device; nothing more is saved from here until a reload. */}
+      {saveConflict && (
+        <div role="alert" className="flex flex-wrap items-center gap-3 border-b border-destructive/30 bg-destructive/10 px-4 py-2.5 text-[14px] text-destructive">
+          <span className="min-w-0 flex-1">
+            This design was changed in another tab or device, so your latest edits here were <strong>not saved</strong> (they would have
+            overwritten it). Reload to see the latest version.
+          </span>
+          <Button size="sm" variant="outline" onClick={() => currentProject && void loadProject(currentProject.id)}>
+            Reload the latest
+          </Button>
+        </div>
+      )}
 
       {(loadError || saveError) && (
         <div className="bg-destructive/10 px-4 py-2 text-sm text-destructive">

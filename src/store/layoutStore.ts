@@ -37,7 +37,7 @@ import type { CameraNode } from '../types/Camera';
 import { calculateBOM, legacyProjectChargeRates } from '../lib/bom';
 import { computeCutList, freezeCutList } from '../lib/cutList';
 import { effectiveConstruction } from '../lib/physicalDepth';
-import { saveProjectBundle, loadProjectBundle } from '../lib/Persistence';
+import { DesignChangedElsewhereError, saveProjectBundle, loadProjectBundle } from '../lib/Persistence';
 import { uploadPanorama, deletePanorama } from '../lib/panoramaStorage';
 import {
   fetchCabinetCatalog,
@@ -262,6 +262,12 @@ interface LayoutStore {
   // Distinct from isSaving: this covers the DEBOUNCE window too, not
   // just the in-flight request.
   lastAutosaveAt: string | null;
+  // §153: the open layout's updated_at as last loaded or saved; every
+  // save is refused if the database has moved on since.
+  layoutVersion: string | null;
+  // §153: set when a save was refused because the design changed
+  // elsewhere; autosave stops until the design is reloaded.
+  saveConflict: boolean;
 
   setProject: (project: CustomerProject) => void;
   setLayout: (layout: RoomLayout) => void;
@@ -534,6 +540,9 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
   function scheduleAutosave() {
     cancelPendingAutosave();
     if (!get().currentProject || !get().currentLayout) return;
+    // §153: a refused save stays refused until a reload; retrying every
+    // edit would only repeat the message.
+    if (get().saveConflict) return;
     autosaveTimer = setTimeout(() => {
       autosaveTimer = null;
       get().saveProject({ silent: true });
@@ -625,6 +634,8 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
   saveError: null,
   loadError: null,
   lastAutosaveAt: null,
+  layoutVersion: null,
+  saveConflict: false,
 
   setProject: (project) => set({ currentProject: project }),
 
@@ -1531,7 +1542,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
 
     if (!silent) set({ isSaving: true, saveError: null });
     try {
-      await saveProjectBundle(
+      const layoutVersion = await saveProjectBundle(
         {
           project: projectWithQuote,
           layout: layoutForQuote,
@@ -1539,10 +1550,12 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
           appliances,
           styleDefaults: get().projectStyleDefaults,
         },
-        requireBusinessId()
+        requireBusinessId(),
+        get().layoutVersion
       );
       set({
         isSaving: false,
+        layoutVersion,
         currentProject: projectWithQuote,
         currentLayout: layoutForQuote,
         lastAutosaveAt: new Date().toISOString(),
@@ -1552,6 +1565,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
       set({
         isSaving: false,
         saveError: err instanceof Error ? err.message : 'Failed to save project.',
+        saveConflict: err instanceof DesignChangedElsewhereError,
       });
     }
   },
@@ -1566,8 +1580,11 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
 
     set({ isLoading: true, loadError: null });
     try {
-      const { project, layout, cabinets, appliances, styleDefaults } = await loadProjectBundle(projectId);
+      const { project, layout, cabinets, appliances, styleDefaults, layoutVersion } = await loadProjectBundle(projectId);
       set({
+        layoutVersion: layoutVersion ?? null,
+        saveConflict: false,
+        saveError: null,
         currentProject: project,
         currentLayout: layout,
         projectStyleDefaults: styleDefaults,

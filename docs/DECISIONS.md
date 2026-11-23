@@ -8953,3 +8953,54 @@ Sharma, 23 Nov 2026).
 
 **Tested:** the vivid name, the recoloured phrase, a hung unit's brief
 entry and the countertop area; full suite.
+
+## 153. A design is saved only over the version the screen loaded
+
+**Why.** 23 Nov 2026: the user's new kitchen ("Kitchen - Ground Floor",
+customer Ananya Sharma) "vanished and went back to previous version".
+- Autosave writes the WHOLE design about 2 s after any edit (`upsert`
+  of the layout row: every cabinet, light, appliance), with no check that
+  the database still holds what the screen loaded.
+- So a second open copy holding an older version (another tab, a phone,
+  or the live site and localhost, both used that day) overwrites a newer
+  kitchen with its first small edit.
+- A second way a kitchen can seem to revert: `loadProjectBundle` opens
+  the most recently UPDATED layout row of a customer. If a customer has
+  two rows and the older one is saved last, the newer one is still
+  stored, just not the one opened.
+
+**What.**
+- `saveProjectBundle(bundle, businessId, expectedUpdatedAt)`:
+  - It writes the layout with `update … where id = … and updated_at =
+    <the version this screen loaded or last saved>`, and returns the new
+    `updated_at`.
+  - If no row matches but the row exists, it throws
+    `DesignChangedElsewhereError` and writes nothing: not the layout, not
+    the customer row.
+  - A layout with no version (never saved) is upserted as before; one
+    that's gone is inserted.
+  - The layout is now written before the customer row, so a refused save
+    doesn't push a stale quote total either.
+- Store:
+  - `layoutVersion` is set on load and after each save.
+  - `saveConflict` is set by that error; it stops autosave and is cleared
+    on reload.
+- Editor: a red bar ("This design was changed in another tab or device,
+  so your latest edits here were not saved … Reload to see the latest
+  version.") with **Reload the latest**.
+
+**Rejected:**
+- A periodic re-fetch: it would silently replace what the designer is
+  looking at.
+- Merging the two versions: cabinets have no per-item history to merge.
+- Last-write-wins with a warning: the overwrite is exactly what lost the
+  kitchen.
+
+**Recovery of the lost kitchen:** a read-only query lists the customer's
+layout rows. If an intact newer row exists, it can be made current by
+bumping its `updated_at`. Otherwise the design is rebuilt from the image
+brief JSON saved at 20:24, as a new row.
+
+**Tested:** `saveGuard.test.ts` (a fake database: saves at the loaded
+version, refuses after a foreign save with nothing written, inserts a
+never-saved design); full suite. Not tried with two real tabs.

@@ -380,10 +380,66 @@ export interface ProjectBundle {
   // never set one, so a database without the column still saves);
   // null = back to the business's.
   styleDefaults?: StyleDefaults | null;
+  // §153: the layout row's updated_at as loaded; null = never saved.
+  layoutVersion?: string | null;
 }
 
-export async function saveProjectBundle(bundle: ProjectBundle, businessId: string): Promise<void> {
+// §153: a save refused because the design changed since this screen
+// loaded it (another tab, device, or the live site and localhost).
+export class DesignChangedElsewhereError extends Error {
+  constructor() {
+    super('This design was changed in another tab or device since you opened it, so your changes here were NOT saved (that would have overwritten it). Reload to see the latest.');
+    this.name = 'DesignChangedElsewhereError';
+  }
+}
+
+// Saves the design and returns the layout row's new updated_at.
+//
+// `expectedUpdatedAt` (§153) is the row's updated_at as this screen last
+// loaded or saved it. The layout is written only if the database still
+// holds exactly that version; otherwise DesignChangedElsewhereError and
+// NOTHING is written. Before this, every save upserted the whole design
+// (every cabinet, light, appliance) blind, so a second open copy holding
+// an older version overwrote a newer kitchen 2 s after any edit. null =
+// a layout never saved yet (a plain insert).
+//
+// The layout is written FIRST, then the customer row, so a refused save
+// doesn't push a stale quote total either.
+export async function saveProjectBundle(
+  bundle: ProjectBundle,
+  businessId: string,
+  expectedUpdatedAt: string | null = null
+): Promise<string> {
   const { project, layout, cabinets, appliances, styleDefaults } = bundle;
+  const row = {
+    ...layoutToRow(layout, cabinets, appliances, businessId),
+    ...(styleDefaults !== undefined ? { style_defaults: styleDefaults } : {}),
+  };
+
+  let savedAt: string;
+  if (expectedUpdatedAt) {
+    const { data, error } = await supabase
+      .from('layouts')
+      .update(row)
+      .eq('id', row.id)
+      .eq('updated_at', expectedUpdatedAt)
+      .select('updated_at');
+    if (error) throw new Error(`Failed to save layout: ${error.message}`);
+    if (!data || data.length === 0) {
+      // No row at that version: changed elsewhere, or (rarely) deleted.
+      const { data: now } = await supabase.from('layouts').select('updated_at').eq('id', row.id).maybeSingle();
+      if (now) throw new DesignChangedElsewhereError();
+      const { data: inserted, error: insertError } = await supabase.from('layouts').insert(row).select('updated_at').single();
+      if (insertError) throw new Error(`Failed to save layout: ${insertError.message}`);
+      savedAt = (inserted as { updated_at: string }).updated_at;
+    } else {
+      savedAt = (data[0] as { updated_at: string }).updated_at;
+    }
+  } else {
+    const { data, error } = await supabase.from('layouts').upsert(row).select('updated_at').single();
+    if (error) throw new Error(`Failed to save layout: ${error.message}`);
+    savedAt = (data as { updated_at: string }).updated_at;
+  }
 
   const { error: projectError } = await supabase
     .from('projects')
@@ -391,16 +447,7 @@ export async function saveProjectBundle(bundle: ProjectBundle, businessId: strin
   if (projectError) {
     throw new Error(`Failed to save project: ${projectError.message}`);
   }
-
-  const { error: layoutError } = await supabase
-    .from('layouts')
-    .upsert({
-      ...layoutToRow(layout, cabinets, appliances, businessId),
-      ...(styleDefaults !== undefined ? { style_defaults: styleDefaults } : {}),
-    });
-  if (layoutError) {
-    throw new Error(`Failed to save layout: ${layoutError.message}`);
-  }
+  return savedAt;
 }
 
 // Links captured panoramas back to the leads they belong to via the
@@ -465,7 +512,7 @@ export async function loadProjectBundle(projectId: string): Promise<ProjectBundl
   const project = rowToProject(projectRow as ProjectRow);
 
   if (!layoutRow) {
-    return { project, layout: blankLayout(projectId), cabinets: [], appliances: [] };
+    return { project, layout: blankLayout(projectId), cabinets: [], appliances: [], layoutVersion: null };
   }
 
   const typedLayoutRow = layoutRow as LayoutRow;
@@ -473,6 +520,7 @@ export async function loadProjectBundle(projectId: string): Promise<ProjectBundl
     project,
     layout: rowToLayout(typedLayoutRow),
     styleDefaults: typedLayoutRow.style_defaults ?? undefined,
+    layoutVersion: typedLayoutRow.updated_at,
     cabinets: typedLayoutRow.cabinets.map(normalizeCabinet),
     // Defensive fallback for a row saved before the appliances column
     // existed — same reasoning as the cameras ?? [] fallback in
