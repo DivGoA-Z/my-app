@@ -189,6 +189,10 @@ export interface LightFixture {
   // Which way it throws. Absent falls back to defaultThrowFor(kind),
   // so existing fixtures keep behaving as their kind implies.
   throwDirection?: ThrowDirection;
+  // §151: on a cabinet's underside or top, which long edge the strip
+  // runs along: 'front' (near the person, lighting the counter, the
+  // default) or 'back' (near the wall, washing the backsplash).
+  edge?: 'front' | 'back';
   // Quarter-turn rotation of the RUN, for ceiling and free mounts only.
   //
   // Cabinet and wall mounts take their axis from the host — a strip

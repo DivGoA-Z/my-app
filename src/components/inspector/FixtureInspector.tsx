@@ -215,6 +215,25 @@ export function FixtureInspector() {
             Moves and resizes with the cabinet, and is removed if the cabinet is deleted.
           </span>
 
+          {/* §151: which long edge, under or on top of the cabinet. */}
+          {(mount.face === 'under' || mount.face === 'top') && (
+            <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Position
+              <Select value={fixture.edge ?? 'front'} onValueChange={(value) => set({ edge: value as 'front' | 'back' })}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="front">Near you (front edge)</SelectItem>
+                  <SelectItem value="back">Near the wall (back edge)</SelectItem>
+                </SelectContent>
+              </Select>
+              {(fixture.edge ?? 'front') === 'front' && placement?.secondRun && (
+                <span>On this corner unit the strip follows its L: along the front and down the open side ({Math.round(placement.runLengthMm + placement.secondRun.runLengthMm)} mm in all).</span>
+              )}
+            </div>
+          )}
+
           {/* 'Top' on a unit that carries a countertop has nowhere to
               go — the slab is exactly there. It used to render inside
               the stone and look like nothing had happened; now it's

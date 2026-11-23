@@ -161,6 +161,25 @@ export function FixtureLayer({
                 shadowBlur={p.fixture.enabled ? 8 : 0}
               />
             )}
+            {/* §151: a corner unit's L, the second leg. */}
+            {isLinear(p.item.kind) && p.secondRun && (
+              <Line
+                points={(() => {
+                  const r = p.secondRun!;
+                  const dx = (r.xMm - p.xMm) * scale;
+                  const dy = (r.yMm - p.yMm) * scale;
+                  const half = (r.runLengthMm / 2) * scale;
+                  return r.runAxis === 'x' ? [dx - half, dy, dx + half, dy] : [dx, dy - half, dx, dy + half];
+                })()}
+                stroke={colour}
+                strokeWidth={4}
+                hitStrokeWidth={RUN_HIT_WIDTH_PX}
+                opacity={p.fixture.enabled ? 0.95 : 0.35}
+                lineCap="round"
+                shadowColor={colour}
+                shadowBlur={p.fixture.enabled ? 8 : 0}
+              />
+            )}
 
             <Circle
               radius={MARKER_RADIUS_PX}

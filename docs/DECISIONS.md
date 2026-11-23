@@ -8878,3 +8878,39 @@ cabinets", landing beside a 600 mm gap rather than in it.
 **Tested:** `applianceSnap.test.ts`, `wallRunFromBase.test.ts` (widths,
 skips, idempotence, a west-wall run's rotated geometry); full suite. Not
 seen in a browser.
+
+## 151. Cabinet lights near you or near the wall; a corner unit's strip follows its L
+
+**Why.** The user (23 Nov 2026): "lights attached to cabinets should
+have an option of adding light close to wall or close to person
+standing"; "light attached to corner unit should go to L shaped bottom
+of the corner unit". Strips under or on a cabinet were always at its
+front edge.
+
+**What.**
+- `LightFixture.edge` = 'front' (default, near the person, lighting the
+  counter) or 'back' (near the wall, washing the backsplash). It's used
+  for the under and top faces only, via `cabinetFacePlacement(…, edge)`,
+  which mirrors the front shift. The light inspector has **Position: Near
+  you (front edge) / Near the wall (back edge)** for those faces.
+- A front-edge strip under or on a **corner unit** (blind, magic,
+  carousel) gets `FixturePlacement.secondRun`: a leg along the side open
+  to the room, running the unit's depth, and meeting the front run at the
+  corner.
+  - The open side is the one of the two sides not within 60 mm of a room
+    wall. With both or neither side open, it stays one run.
+  - `fixtureQuantity` prices both legs (strips are per metre).
+  - Both legs are drawn in 3D (a second glowing bar in the same group)
+    and on the plan (a second line). The real light stays at the main run,
+    within the light budget.
+  - The inspector says "follows its L … N mm in all".
+- **Image brief:** "…, at the back near the wall, shining down and
+  washing the wall", or "…, in an L along its front and open side".
+
+**Not done:** dragging or picking the second leg on the plan (the hit
+test still covers the main run only), and an L for a wall-mounted corner
+cabinet (a wall cabinet isn't a corner type; its corner panel is
+separate, §116).
+
+**Tested:** `lightEdge.test.ts`: front vs back, the corner's leg and its
+1.8 m price, and the brief's words. Full suite. Not seen in a browser.

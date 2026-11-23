@@ -929,7 +929,7 @@ export function buildRenderBrief(input: RenderBriefInput): RenderBrief {
       runLengthMm: linear ? r(p.runLengthMm) : undefined,
       runAxis: linear ? p.runAxis : undefined,
       quantity: p.fixture.quantity,
-      placement: lightPlacement(p.item.kind, p.fixture.mount, host, throwDir, { x: p.xMm, y: p.yMm, z: p.zMm }),
+      placement: lightPlacement(p.item.kind, p.fixture.mount, host, throwDir, { x: p.xMm, y: p.yMm, z: p.zMm }, { edge: p.fixture.edge, corner: !!p.secondRun }),
       underCabinet: linear && host && p.fixture.mount.kind === 'cabinet' && p.fixture.mount.face === 'under' ? host : undefined,
     };
   });
@@ -1114,15 +1114,18 @@ export function lightPlacement(
   mount: FixtureMount,
   host: string | undefined,
   throwDir: ThrowDirection,
-  at: { x: number; y: number; z: number }
+  at: { x: number; y: number; z: number },
+  // §151: which long edge, and whether it follows a corner unit's L.
+  shape: { edge?: 'front' | 'back'; corner?: boolean } = {}
 ): string {
   const throws = THROW_WORDS[throwDir];
+  const edgeWords = shape.edge === 'back' ? ', at the back near the wall' : shape.corner ? ', in an L along its front and open side' : '';
   if (mount.kind === 'cabinet' && host) {
     switch (mount.face) {
       case 'under':
-        return `along the underside of ${host}, ${throws}${throwDir === 'down' ? ' onto the counter' : ''}`;
+        return `along the underside of ${host}${edgeWords}, ${throws}${throwDir === 'down' ? (shape.edge === 'back' ? ' and washing the wall' : ' onto the counter') : ''}`;
       case 'top':
-        return `on top of ${host}, ${throws}`;
+        return `on top of ${host}${edgeWords}, ${throws}`;
       case 'left':
       case 'right':
         return `on the ${mount.face} side of ${host}, ${throws}`;

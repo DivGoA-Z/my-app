@@ -103,6 +103,10 @@ export interface FixturePlacement {
   // edge.
   runLengthMm: number;
   runAxis: 'x' | 'y' | 'vertical';
+  // §151: the second leg of an L-shaped strip under (or on) a CORNER
+  // unit, along its open side, meeting the main run at the corner.
+  // Priced with it (fixtureQuantity) and drawn with it.
+  secondRun?: { xMm: number; yMm: number; runLengthMm: number; runAxis: 'x' | 'y' };
   // Height the fixture is SUSPENDED FROM, when it hangs. Only pendants
   // set it, and it's what lets the renderer draw a cord back up to the
   // ceiling — without which a pendant reads as floating in mid-air
@@ -177,18 +181,62 @@ function cabinetFrontNormal(rotationDeg: number): { nx: number; ny: number } {
   }
 }
 
+// §151: a strip under (or on) a CORNER unit follows its L: besides the
+// front run, a second leg runs along the side that is open to the room
+// (not against a wall), from the front corner back to the wall. Returns
+// nothing when the unit isn't a corner or doesn't have exactly one open
+// side (then it's a single run, as before).
+const CORNER_TYPES = ['corner-blind', 'corner-magic', 'corner-carousel'];
+function cornerSecondRun(
+  cabinet: PlacedCabinetItem,
+  rect: { x: number; y: number; widthMm: number; depthMm: number },
+  nx: number,
+  ny: number,
+  room: { widthMm: number; depthMm: number }
+): FixturePlacement['secondRun'] {
+  if (!CORNER_TYPES.includes(cabinet.moduleType)) return undefined;
+  const cx = rect.x + rect.widthMm / 2;
+  const cy = rect.y + rect.depthMm / 2;
+  // The two sides, perpendicular to the front.
+  const sides = [
+    { sx: ny, sy: -nx },
+    { sx: -ny, sy: nx },
+  ];
+  const atWall = ({ sx, sy }: { sx: number; sy: number }) =>
+    sx === 1 ? rect.x + rect.widthMm >= room.widthMm - SIDE_WALL_TOLERANCE_MM
+      : sx === -1 ? rect.x <= SIDE_WALL_TOLERANCE_MM
+        : sy === 1 ? rect.y + rect.depthMm >= room.depthMm - SIDE_WALL_TOLERANCE_MM
+          : rect.y <= SIDE_WALL_TOLERANCE_MM;
+  const open = sides.filter((s) => !atWall(s));
+  if (open.length !== 1) return undefined;
+  const { sx, sy } = open[0];
+  const halfToSide = sx !== 0 ? rect.widthMm / 2 : rect.depthMm / 2;
+  const sideShift = Math.max(0, halfToSide - FRONT_FACE_INSET_MM);
+  // Runs along the front normal's axis, the unit's full depth that way.
+  return {
+    xMm: cx + sx * sideShift,
+    yMm: cy + sy * sideShift,
+    runLengthMm: nx !== 0 ? rect.widthMm : rect.depthMm,
+    runAxis: nx !== 0 ? 'x' : 'y',
+  };
+}
+const SIDE_WALL_TOLERANCE_MM = 60;
+
 // A fixture on a cabinet face. The whole point of the cabinet mount:
 // every number here is derived from the cabinet, so moving or resizing
 // it carries the light along.
 function cabinetFacePlacement(
   cabinet: PlacedCabinetItem,
-  face: CabinetFace
+  face: CabinetFace,
+  edge: 'front' | 'back' = 'front',
+  room?: { widthMm: number; depthMm: number }
 ): {
   xMm: number;
   yMm: number;
   zMm: number;
   runLengthMm: number;
   runAxis: 'x' | 'y' | 'vertical';
+  secondRun?: FixturePlacement['secondRun'];
 } {
   // The ROTATED rectangle, so a turned cabinet's strip runs along the
   // edge it actually presents.
@@ -207,14 +255,16 @@ function cabinetFacePlacement(
   const alongAxis: 'x' | 'y' = nx !== 0 ? 'y' : 'x';
   const alongLength = nx !== 0 ? rect.depthMm : rect.widthMm;
 
-  // At the front edge, at a given height, and standing clear of the
-  // surface rather than coplanar with it.
+  // At the front edge (or, §151, the back edge, near the wall), at a
+  // given height, standing clear of the surface rather than coplanar.
+  const edgeSign = edge === 'back' ? -1 : 1;
   const atFront = (zMm: number) => ({
-    xMm: centreX + nx * frontShift,
-    yMm: centreY + ny * frontShift,
+    xMm: centreX + nx * frontShift * edgeSign,
+    yMm: centreY + ny * frontShift * edgeSign,
     zMm,
     runLengthMm: alongLength,
     runAxis: alongAxis,
+    secondRun: edge === 'front' && room ? cornerSecondRun(cabinet, rect, nx, ny, room) : undefined,
   });
 
   switch (face) {
@@ -430,7 +480,9 @@ export function resolveFixturePlacement(
         };
       }
 
-      const placed = cabinetFacePlacement(cabinet, mount.face);
+      // §151: front/back edge only means something under or on top.
+      const edge = mount.face === 'under' || mount.face === 'top' ? (fixture.edge ?? 'front') : 'front';
+      const placed = cabinetFacePlacement(cabinet, mount.face, edge, { widthMm: roomWidthMm, depthMm: roomDepthMm });
       const hostNormal = cabinetFrontNormal(cabinet.rotationDeg);
       return {
         ...base,
@@ -571,7 +623,9 @@ export function fixtureQuantity(
   placement: FixturePlacement
 ): { amount: number; unit: 'm' | 'pcs' } {
   if (isLinear(placement.item.kind)) {
-    return { amount: (placement.runLengthMm / 1000) * placement.fixture.quantity, unit: 'm' };
+    // §151: a corner's L is both legs.
+    const mm = placement.runLengthMm + (placement.secondRun?.runLengthMm ?? 0);
+    return { amount: (mm / 1000) * placement.fixture.quantity, unit: 'm' };
   }
   return { amount: placement.fixture.quantity, unit: 'pcs' };
 }

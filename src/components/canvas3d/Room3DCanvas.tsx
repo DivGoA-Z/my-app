@@ -2489,6 +2489,34 @@ function FixtureInScene({
         fallback={primitiveBody}
       />
 
+      {/* §151: a corner unit's L: the second leg, glowing like the first,
+          placed relative to the main run. */}
+      {linear && placement.secondRun && (
+        <mesh
+          position={[
+            mmToWorld(placement.secondRun.xMm - placement.xMm),
+            0,
+            mmToWorld(placement.secondRun.yMm - placement.yMm),
+          ]}
+        >
+          <boxGeometry
+            args={
+              placement.secondRun.runAxis === 'x'
+                ? [mmToWorld(placement.secondRun.runLengthMm), thicknessM, thicknessM]
+                : [thicknessM, thicknessM, mmToWorld(placement.secondRun.runLengthMm)]
+            }
+          />
+          <meshStandardMaterial
+            color={emissiveOn ? colour : '#3f3f46'}
+            emissive={emissiveOn ? colour : '#000000'}
+            emissiveIntensity={emissiveOn ? FIXTURE_EMISSIVE_INTENSITY : 0}
+            roughness={0.5}
+            metalness={0.2}
+            toneMapped
+          />
+        </mesh>
+      )}
+
       {/* The real light, for the budgeted few — AIMED.
           This was a pointLight, which is omnidirectional, so an
           under-cabinet strip lit the wall unit above it as brightly as
