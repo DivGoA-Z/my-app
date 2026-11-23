@@ -47,7 +47,9 @@ interface FootprintRect {
   bottom: number;
 }
 
-function getFootprintRect(item: PlacedCabinetItem): FootprintRect {
+type Placed = Pick<PlacedCabinetItem, 'x' | 'y' | 'widthMm' | 'depthMm' | 'rotationDeg' | 'elevationMm' | 'heightMm'>;
+
+function getFootprintRect(item: Placed): FootprintRect {
   const { footprintWidthMm, footprintHeightMm } = getFootprint(item.widthMm, item.depthMm, item.rotationDeg);
   const centerX = item.x + item.widthMm / 2;
   const centerY = item.y + item.depthMm / 2;
@@ -112,7 +114,7 @@ interface ZRange {
   maxZ: number;
 }
 
-function zRangeOf(item: PlacedCabinetItem): ZRange {
+function zRangeOf(item: Placed): ZRange {
   return { minZ: item.elevationMm, maxZ: item.elevationMm + item.heightMm };
 }
 
@@ -238,4 +240,30 @@ function resolveOverlaps(
   }
 
   return { footprintLeftMm: left, footprintTopMm: top };
+}
+
+// An APPLIANCE's edges (§150): the same magnetic snap, against the
+// cabinets and other appliances that share its HEIGHT band only. A
+// chimney between two wall cabinets snaps flush into the gap; a hob on
+// the counter is not pulled toward the wall cabinets above it. No
+// overlap fix-up: an appliance can legitimately sit inside a cabinet's
+// footprint at another height (a hob on a base unit), and a real clash
+// is shown by the collision check.
+export function snapApplianceFootprint(
+  appliance: Placed & { id: string },
+  proposedFootprintLeftMm: number,
+  proposedFootprintTopMm: number,
+  footprintWidthMm: number,
+  footprintHeightMm: number,
+  neighbours: (Placed & { id: string })[],
+  roomWidthMm: number,
+  roomDepthMm: number,
+  gridSnapMm: number
+): { left: number; top: number } {
+  const band = zRangeOf(appliance);
+  const near = neighbours.filter((n) => n.id !== appliance.id && zOverlaps(band, zRangeOf(n))).map(getFootprintRect);
+  return {
+    left: bestSnapForAxis(proposedFootprintLeftMm, footprintWidthMm, roomWidthMm, near.map((n) => n.left), near.map((n) => n.right), gridSnapMm),
+    top: bestSnapForAxis(proposedFootprintTopMm, footprintHeightMm, roomDepthMm, near.map((n) => n.top), near.map((n) => n.bottom), gridSnapMm),
+  };
 }

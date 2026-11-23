@@ -35,6 +35,7 @@ import { useCollisions } from '../../hooks/useCollisions';
 import { detectCollisions } from '../../lib/collision';
 import { getFootprint } from '../../lib/footprint';
 import type { ApplianceType } from '../../types/appliance';
+import { snapApplianceFootprint } from '../../lib/cabinetSnapping';
 
 export interface ApplianceLayerProps {
   widthMm: number;
@@ -185,16 +186,21 @@ export function ApplianceLayer({
               const centerXMm = (node.x() - originX) / scale;
               const centerYMm = (node.y() - originY) / scale;
 
-              const snappedLeftMm = clamp(
-                snapTo(centerXMm - footprintWidthMm / 2, gridSnapMm),
-                0,
-                widthMm - footprintWidthMm
+              // §150: flush against a neighbour at the same height (a
+              // chimney between wall cabinets), else the grid.
+              const snapped = snapApplianceFootprint(
+                item,
+                centerXMm - footprintWidthMm / 2,
+                centerYMm - footprintHeightMm / 2,
+                footprintWidthMm,
+                footprintHeightMm,
+                [...cabinets, ...appliances],
+                widthMm,
+                depthMm,
+                gridSnapMm
               );
-              const snappedTopMm = clamp(
-                snapTo(centerYMm - footprintHeightMm / 2, gridSnapMm),
-                0,
-                depthMm - footprintHeightMm
-              );
+              const snappedLeftMm = clamp(snapped.left, 0, widthMm - footprintWidthMm);
+              const snappedTopMm = clamp(snapped.top, 0, depthMm - footprintHeightMm);
 
               // Back to the stored UNROTATED top-left convention via
               // the center, which is the value that's invariant under
@@ -320,6 +326,3 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-function snapTo(value: number, step: number): number {
-  return Math.round(value / step) * step;
-}

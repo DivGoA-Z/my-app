@@ -8837,3 +8837,44 @@ default for later tests. It's now `structuredClone`.
 **Tested:** `fronts.test.ts` (handle height on wall vs base, lift-up
 panels, hardware and handle, the missing-rate fallback); full suite. Not
 seen in a browser.
+
+## 150. Appliances snap to same-height neighbours; "Add wall cabinets above this run"
+
+**Chimney snap.** The user: the chimney "is not clicking to the wall
+cabinets", landing beside a 600 mm gap rather than in it.
+- Appliances only rounded to the 50 mm grid, so a gap whose edges aren't
+  on the grid (e.g. after 637 mm or 525 mm units) could never be filled
+  flush.
+- `snapApplianceFootprint` (`lib/cabinetSnapping.ts`) uses the cabinets'
+  magnetic `bestSnapForAxis` (100 mm capture, else the grid), against
+  cabinets and appliances whose HEIGHT band overlaps the dragged one's. A
+  chimney snaps between wall cabinets; a hob on the counter isn't pulled
+  toward the wall units above it.
+- No overlap fix-up: an appliance legitimately sits in a cabinet's
+  footprint at another height, and a real clash is the collision check's
+  job.
+- Tested with a 600 gap at 637–1237.
+
+**Add wall cabinets above this run** (`lib/wallRunFromBase.ts`,
+`WallRunControl` on a base unit's inspector). The user wanted base units
+"replicated" to the wall, pre-set to edit, with a height option shown as
+1,500 by default.
+- For each floor base unit backed onto the same wall, it adds a wall
+  cabinet of the same width along the wall, at the standard wall depth
+  and height (§147), at the chosen bottom height. The height is capped at
+  the ceiling; under 200 mm it skips.
+- It skips three things and says how many of each it skipped:
+  - the unit under a hob ("left for the chimney");
+  - anything that would cover a window on that wall (openings via
+    `wallOpenings`, so none on an open side);
+  - anything already occupied (the collision boxes against cabinets,
+    appliances, obstacles and the units it just added). Running it twice
+    adds nothing.
+- Results go through placement's own path: `withStyleDefaults` (the
+  kitchen's wall-unit finish, handle and board) and `fitCornerPanel`
+  (onlyWhereRunMeets, as for a placed wall cabinet).
+- Works on stored cabinets (§61). Each unit is its own undo step.
+
+**Tested:** `applianceSnap.test.ts`, `wallRunFromBase.test.ts` (widths,
+skips, idempotence, a west-wall run's rotated geometry); full suite. Not
+seen in a browser.

@@ -33,6 +33,7 @@ import { FinishPicker } from './FinishPicker';
 import { FrontPicker } from './FrontPicker';
 import { CornerPanelControl } from './CornerPanelControl';
 import { CornerInsideControl } from './CornerInsideControl';
+import { WallRunControl } from './WallRunControl';
 
 
 // Mirrors the fallback used in App.tsx/CabinetToolbar — only matters
@@ -143,6 +144,7 @@ export function CabinetInspector({ onOpenDesigner }: { onOpenDesigner?: (cabinet
       <CornerInsideControl cabinet={cabinet} />
       <FrontPicker cabinet={cabinet} />
       <CornerPanelControl cabinet={cabinet} />
+      <WallRunControl cabinet={cabinet} />
 
       <div className="flex flex-col gap-2 border-t border-border pt-4">
         <span className="text-[13px] font-semibold">Size</span>
