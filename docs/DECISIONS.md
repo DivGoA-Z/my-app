@@ -8684,3 +8684,63 @@ the toggle.
 **Tested:** `openSides.test.ts` (openings hidden and kept, zero area, the
 quote line gone, the backs check) and the brief test; full suite. Not
 seen in a browser.
+
+## 147. Standard cabinet sizes, with warnings, not a lock
+
+**Why.** The user (23 Nov 2026): "all should work on one standard like
+D × H should be same for all (if any exceptions then let me know)". Asked
+how strict, they chose a standard with warnings.
+
+**Exceptions found** in `final-catalogues/cabinets-final.xlsx`, against
+base 600 × 850, wall 300 × 700, tall 600 × 2100:
+- a Base Cabinet 600 at 720 high;
+- a 600-wide Corner Carousel twice (720 and 850 high, 600 deep);
+- a 600 × 600 Magic Corner;
+- every corner unit 900 deep, which is its corner footprint, not an
+  error.
+
+The user's live design also had wall units 350 deep at 800 and 400 high,
+so the live catalogue may differ from that file.
+
+**What.**
+- `lib/standardSizes.ts`:
+  - Groups: base (base, sink, drawer, cylinder trolley and the three
+    corners), wall, and tall (tall, pantry).
+  - `standardFor` returns depth and height; corners get the base height
+    and no depth, because their depth is the corner's.
+  - `sizeDeviation`, `nonStandardItems` (skips kept exceptions),
+    `withStandardSize`, and `normalizeStandardSizes`, which falls back to
+    the defaults for missing or nonsense values.
+- **Storage:** `construction_settings.standard_sizes` (jsonb), beside
+  `settings` like `style_defaults` (§117), because it prices nothing.
+  NULL means the defaults. The store's `standardSizes` loads with the
+  inventory, and `saveStandardSizes` saves it.
+- `cabinet_catalog_items.size_exception` / `CatalogItem.sizeException`:
+  kept at another size on purpose.
+  - The cabinet Excel import rebuilds rows field by field, so it now
+    carries this field over explicitly. Without that, a re-import would
+    have cleared every exception.
+  - `roundTrip.test.ts` checks it survives.
+- **UI (Catalogue → Cabinets):**
+  - A Standard sizes card: three groups of depth and height, edited as a
+    draft and saved with **Save standard sizes**.
+  - An amber list of cabinets that differ, each showing its size against
+    the standard, with **Use standard** / **Keep as exception**, plus
+    **Use standard for all**.
+  - New cabinets start at the standard.
+  - In a cabinet's form, changing the type moves a standard size to the
+    new type's standard but leaves a custom size alone. A size off the
+    standard shows the standard, **Use standard** and **Keep this size
+    (an exception)**.
+
+**Rejected:**
+- **Locking D×H to the standard.** The user chose warnings, and real
+  businesses keep a few deliberate oddities, such as a low base under a
+  window.
+- **Flagging placed cabinets in designs.** Left for later: the catalogue
+  is where sizes are chosen, and a placed cabinet carries no record that
+  its size was deliberate.
+
+**Tested:** `standardSizes.test.ts`, the `StandardSizesCard` screen test
+(listing, both buttons, saving the standard) and the round trip; full
+suite. Not seen in a browser.

@@ -29,6 +29,9 @@ export function resetStore(overrides: Partial<ReturnType<typeof useLayoutStore.g
       }),
       loadQuotes: vi.fn(async () => {}),
       upsertCabinetCatalogItem: vi.fn(async () => {}),
+      saveStandardSizes: vi.fn(async (sizes) => {
+        useLayoutStore.setState({ standardSizes: sizes });
+      }),
       ...overrides,
     },
     true

@@ -60,11 +60,13 @@ describe('every sheet uploads exactly as downloaded (§142)', () => {
   it('cabinets: a ₹0 reference price, a finish found by its name', async () => {
     const finishes = [{ id: 'fin1', label: 'White Gloss' }, { id: 'fin2', label: 'Sage Acrylic' }] as SurfaceFinish[];
     const items = [
-      { id: 'c1', category: 'Base', label: 'Base 600', moduleType: 'base-cabinet', widthMm: 600, depthMm: 560, heightMm: 720, material: 'HDMR', finishId: 'fin2', unitPrice: 0, ...t },
+      { id: 'c1', category: 'Base', label: 'Base 600', moduleType: 'base-cabinet', widthMm: 600, depthMm: 560, heightMm: 720, material: 'HDMR', finishId: 'fin2', unitPrice: 0, sizeException: true, ...t },
       { id: 'c2', category: 'Wall', label: 'Wall 800', moduleType: 'wall-cabinet', widthMm: 800, depthMm: 350, heightMm: 720, material: 'Plywood', finishId: 'fin1', unitPrice: 5000, ...t },
     ] as CatalogItem[];
     const parsed = parseCabinetCatalogRows(await rowsOf(exportCabinetCatalogXlsx(items, finishes)), items, finishes);
     expect(errorsOf(parsed)).toEqual([]);
     expect(parsed.map((p) => p.data.finishId)).toEqual(['fin2', 'fin1']);
+    // §147: not a sheet column, so it must survive the re-import.
+    expect(parsed[0].data.sizeException).toBe(true);
   });
 });

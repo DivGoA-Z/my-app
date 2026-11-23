@@ -26,6 +26,9 @@ import type { ApplianceType } from './appliance';
 
 export interface CatalogItem {
   id: string;
+  // §147: kept at a size other than the business's standard on purpose,
+  // so the catalogue stops flagging it (lib/standardSizes.ts).
+  sizeException?: boolean;
   category: string;   // free-form grouping label the business chooses, e.g. "Base", "Wall", "Premium Range"
   label: string;       // the business's own name for this piece, shown on the toolbar button
   moduleType: ModuleType;

@@ -35,6 +35,8 @@ interface CabinetCatalogRow {
   panels: CatalogItem['panels'] | null;
   // JSONB list of ExtraPart (§48). NULL = none.
   extra_parts: CatalogItem['extraParts'] | null;
+  // §147. Optional in the row type: absent until schema.sql is re-run.
+  size_exception?: boolean | null;
   unit_price: number;
   business_id: string;
   created_at: string;
@@ -99,6 +101,7 @@ function rowToCatalogItem(row: CabinetCatalogRow): CatalogItem {
     handleId: row.handle_id ?? undefined,
     panels: row.panels ?? undefined,
     extraParts: row.extra_parts ?? undefined,
+    sizeException: row.size_exception || undefined,
     unitPrice: row.unit_price,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -121,6 +124,7 @@ function catalogItemToRow(item: CatalogItem, businessId: string): CabinetCatalog
     handle_id: item.handleId ?? null,
     panels: item.panels ?? null,
     extra_parts: item.extraParts ?? null,
+    size_exception: item.sizeException || null,
     unit_price: item.unitPrice,
     business_id: businessId,
     created_at: item.createdAt,

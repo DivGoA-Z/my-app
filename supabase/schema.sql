@@ -1795,6 +1795,12 @@ create table if not exists public.construction_settings (
 -- starts from. Beside `settings`, not in it: `settings` is part of every
 -- quote's pricing context, and a style default prices nothing.
 alter table public.construction_settings add column if not exists style_defaults jsonb;
+-- Standard cabinet depth × height per kind of unit (§147), beside
+-- `settings` for the same reason: it prices nothing. NULL = the library
+-- defaults (base 600 × 850, wall 300 × 700, tall 600 × 2100).
+alter table public.construction_settings add column if not exists standard_sizes jsonb;
+-- A catalogue cabinet kept at another size on purpose (§147).
+alter table public.cabinet_catalog_items add column if not exists size_exception boolean;
 
 -- ============================================================
 -- BUSINESS ISOLATION (RLS)

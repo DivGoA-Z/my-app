@@ -224,6 +224,8 @@ export function parseCabinetCatalogRows(
       handleId: prior?.handleId,
       panels: prior?.panels,
       extraParts: prior?.extraParts,
+      // Not in the sheet (§147): kept, like the fields above.
+      sizeException: prior?.sizeException,
       carcassBoardId: prior && prior.material === newMaterial ? prior.carcassBoardId : undefined,
       createdAt,
       updatedAt: now,

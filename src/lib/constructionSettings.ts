@@ -6,6 +6,7 @@
 // falls back to defaults when no row exists yet, and an upsert on save.
 
 import type { StyleDefaults } from './styleDefaults';
+import { DEFAULT_STANDARD_SIZES, normalizeStandardSizes, type StandardSizes } from './standardSizes';
 import { supabase } from './Supabaseclient';
 import {
   defaultConstructionSettings,
@@ -87,6 +88,27 @@ export async function fetchBusinessStyleDefaults(): Promise<StyleDefaults | null
   const { data, error } = await supabase.from('construction_settings').select('style_defaults').maybeSingle();
   if (error || !data) return null;
   return (data as { style_defaults: StyleDefaults | null }).style_defaults ?? null;
+}
+
+// The business's standard cabinet sizes (§147), same column posture as
+// the style defaults: absent or unreadable → the library defaults.
+export async function fetchStandardSizes(): Promise<StandardSizes> {
+  const { data, error } = await supabase.from('construction_settings').select('standard_sizes').maybeSingle();
+  if (error || !data) return DEFAULT_STANDARD_SIZES;
+  return normalizeStandardSizes((data as { standard_sizes: unknown }).standard_sizes);
+}
+
+export async function saveStandardSizes(sizes: StandardSizes, settingsId: string, businessId: string): Promise<void> {
+  const { error } = await supabase
+    .from('construction_settings')
+    .upsert({ id: settingsId, business_id: businessId, standard_sizes: sizes });
+  if (error) {
+    throw new Error(
+      /standard_sizes/.test(error.message)
+        ? 'Saving standard sizes needs a database update: re-run supabase/schema.sql in the Supabase SQL editor.'
+        : `Failed to save standard sizes: ${error.message}`
+    );
+  }
 }
 
 // Writes only that column (plus the row's keys, for a first save): an

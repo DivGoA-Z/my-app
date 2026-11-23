@@ -22,6 +22,8 @@ import { useLayoutStore } from '../../store/layoutStore';
 import { modelUrlProblem, tidyModelUrl } from '../../lib/modelUrl';
 import { BoardSelect } from '../common/BoardSelect';
 import { EditPanel, Field, NumberField, TextField } from '../common/EditPanel';
+import { StandardSizesCard } from './StandardSizesCard';
+import { SIZE_GROUP_LABELS, sizeDeviation, sizeGroup, standardFor, withStandardSize } from '../../lib/standardSizes';
 import { describePanels, resolveCarcassBoard } from '../../lib/panels';
 import { boardLabel } from '../../types/rates';
 import type { CatalogItem, ObstaclePreset, ApplianceCatalogItem } from '../../types/Catalog';
@@ -89,6 +91,7 @@ export function CabinetList({ onOpenDesigner }: { onOpenDesigner?: (itemId: stri
   const rateCard = useLayoutStore((s) => s.rateCard);
   const upsert = useLayoutStore((s) => s.upsertCabinetCatalogItem);
   const remove = useLayoutStore((s) => s.removeCabinetCatalogItem);
+  const standard = useLayoutStore((s) => s.standardSizes);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All');
   const categories = Array.from(new Set(items.map((c) => c.category).filter(Boolean)));
@@ -104,14 +107,15 @@ export function CabinetList({ onOpenDesigner }: { onOpenDesigner?: (itemId: stri
       (!q || [c.label, c.category, MODULE_TYPE_LABELS[c.moduleType]].some((f) => f?.toLowerCase().includes(q)))
   );
 
+  // A new cabinet starts at the standard size (§147).
   const blank = (): CatalogItem => ({
     id: crypto.randomUUID(),
     category: category !== 'All' ? category : (categories[0] ?? 'Base'),
     label: '',
     moduleType: 'base-cabinet',
     widthMm: 600,
-    depthMm: 600,
-    heightMm: 850,
+    depthMm: standard.base.depthMm,
+    heightMm: standard.base.heightMm,
     material: 'HDMR',
     finishId: FALLBACK_FINISH_ID,
     unitPrice: 10000,
@@ -122,6 +126,7 @@ export function CabinetList({ onOpenDesigner }: { onOpenDesigner?: (itemId: stri
   const d = ed.editing?.draft;
   return (
     <>
+      <StandardSizesCard items={items} />
       <div className="flex flex-wrap items-center gap-3">
         <SearchBox value={query} onChange={setQuery} placeholder="Search cabinets" />
         <NewButton label="New cabinet" onClick={() => ed.open(blank(), true)} />
@@ -174,7 +179,15 @@ export function CabinetList({ onOpenDesigner }: { onOpenDesigner?: (itemId: stri
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <TextField label="Category" value={d.category} list="catalog-categories" onChange={(category) => ed.setDraft({ ...d, category })} />
               <Field label="Type">
-                <Select value={d.moduleType} onValueChange={(v) => ed.setDraft({ ...d, moduleType: v as ModuleType })}>
+                <Select
+                  value={d.moduleType}
+                  onValueChange={(v) => {
+                    // §147: a size that was the old type's standard follows
+                    // the type to its own standard; a custom size stays.
+                    const next = { ...d, moduleType: v as ModuleType };
+                    ed.setDraft(sizeDeviation(d, standard) ? next : withStandardSize(next, standard));
+                  }}
+                >
                   <SelectTrigger className="h-11! w-full rounded-[10px] bg-card text-[15px] font-normal">
                     <SelectValue />
                   </SelectTrigger>
@@ -193,6 +206,24 @@ export function CabinetList({ onOpenDesigner }: { onOpenDesigner?: (itemId: stri
               <NumberField label="Depth" unit="mm" min={50} value={d.depthMm} onChange={(depthMm) => ed.setDraft({ ...d, depthMm })} />
               <NumberField label="Height" unit="mm" min={50} value={d.heightMm} onChange={(heightMm) => ed.setDraft({ ...d, heightMm })} />
             </div>
+            {sizeDeviation(d, standard) && (
+              <div className="flex flex-col gap-2 rounded-xl bg-amber-50 p-3 text-[13px] text-amber-900">
+                <span>
+                  Not the standard for {SIZE_GROUP_LABELS[sizeGroup(d.moduleType)].toLowerCase()}:{' '}
+                  {standardFor(d.moduleType, standard).depthMm !== undefined ? `${standardFor(d.moduleType, standard).depthMm} deep × ` : ''}
+                  {standardFor(d.moduleType, standard).heightMm} high.
+                </span>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button type="button" size="sm" variant="outline" onClick={() => ed.setDraft({ ...withStandardSize(d, standard), sizeException: undefined })}>
+                    Use standard
+                  </Button>
+                  <label className="flex items-center gap-2">
+                    <Checkbox checked={!!d.sizeException} onCheckedChange={(c) => ed.setDraft({ ...d, sizeException: c === true || undefined })} />
+                    Keep this size (an exception)
+                  </label>
+                </div>
+              </div>
+            )}
             <Field
               label="Carcass board"
               hint={

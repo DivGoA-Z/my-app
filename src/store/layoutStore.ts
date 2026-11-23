@@ -66,7 +66,8 @@ import {
   deleteFixtureCatalogItemsBulk,
 } from '../lib/fixtureCatalog';
 import { fetchRateCard, saveRateCard } from '../lib/rates';
-import { fetchBusinessStyleDefaults, fetchConstructionSettings, saveBusinessStyleDefaults, saveConstructionSettings } from '../lib/constructionSettings';
+import { fetchBusinessStyleDefaults, fetchConstructionSettings, fetchStandardSizes, saveBusinessStyleDefaults, saveConstructionSettings, saveStandardSizes } from '../lib/constructionSettings';
+import { DEFAULT_STANDARD_SIZES, type StandardSizes } from '../lib/standardSizes';
 import type { StyleDefaults } from '../lib/styleDefaults';
 import {
   defaultConstructionSettings,
@@ -236,6 +237,8 @@ interface LayoutStore {
   // this kitchen's own, undefined until it sets one (then saved with the
   // layout row; null = back to the business's).
   businessStyleDefaults: StyleDefaults | null;
+  // §147: standard cabinet depth × height per kind of unit.
+  standardSizes: StandardSizes;
   projectStyleDefaults: StyleDefaults | null | undefined;
   // The business's finish catalogue (types/finish.ts). Read by the
   // 3D renderer, the inspector's finish picker and BOM costing.
@@ -373,6 +376,7 @@ interface LayoutStore {
     patches?: { id: string; patch: Partial<PlacedCabinetItem> }[]
   ) => void;
   saveBusinessStyleDefaults: (defaults: StyleDefaults | null) => Promise<void>;
+  saveStandardSizes: (sizes: StandardSizes) => Promise<void>;
   removeCabinet: (id: string) => void;
 
   addObstacle: (obstacle: Obstacle) => void;
@@ -606,6 +610,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
   rateCard: defaultRateCard(),
   constructionSettings: defaultConstructionSettings(),
   businessStyleDefaults: null,
+  standardSizes: DEFAULT_STANDARD_SIZES,
   projectStyleDefaults: undefined,
   finishes: [],
   isInventoryLoading: false,
@@ -1030,6 +1035,11 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
     }));
   },
 
+  saveStandardSizes: async (sizes) => {
+    await saveStandardSizes(sizes, get().constructionSettings.id, requireBusinessId());
+    set({ standardSizes: sizes });
+  },
+
   saveBusinessStyleDefaults: async (defaults) => {
     await saveBusinessStyleDefaults(defaults, get().constructionSettings.id, requireBusinessId());
     set({ businessStyleDefaults: defaults });
@@ -1196,6 +1206,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
         rateCard,
         constructionSettings,
         businessStyleDefaults,
+        standardSizes,
       ] = await Promise.all([
         fetchCabinetCatalog(),
         fetchObstaclePresets(),
@@ -1206,6 +1217,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
         fetchRateCard(),
         fetchConstructionSettings(),
         fetchBusinessStyleDefaults(),
+        fetchStandardSizes(),
       ]);
       set({
         cabinetCatalog,
@@ -1217,6 +1229,7 @@ export const useLayoutStore = create<LayoutStore>((set, get) => {
         rateCard,
         constructionSettings,
         businessStyleDefaults,
+        standardSizes,
         isInventoryLoading: false,
       });
     } catch (err) {
