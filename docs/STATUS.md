@@ -6,9 +6,8 @@ snapshot, not a history. The reasoning is in `docs/DECISIONS-INDEX.md`
 (one line per decision, with `§` pointers into `docs/DECISIONS.md`), and
 the history is in `git log`.
 
-**Last updated:** 8 Oct 2026. Everything is on `main` (the
-`charges-and-cutting-list` branch was merged 5 Oct; this line still said
-"not yet merged" until 6 Oct).
+**Last updated:** 23 Nov 2026 (§139–§151 added; earlier sections not
+re-checked). Everything is on `main`.
 
 ---
 
@@ -56,6 +55,32 @@ the history is in `git log`.
 - Depth convention ("includes shutter" or "carcass only"): business
   setting with a per-project override, followed by the plan, 3D and
   collisions. Shutter thickness comes from each cabinet's fronts board.
+- Open sides (§146): Room → Walls, untick a side that has no wall (e.g.
+  an L-kitchen open to the living room). Not built or charged, no
+  doors/windows, dashed on the plan; a check flags unit backs that show.
+  3D tab: Hide walls N/E/S/W, for viewing only.
+- Standard cabinet sizes (§147): one depth × height for base, wall and
+  tall units per business (Catalogue → Cabinets); cabinets that differ
+  are listed with Use standard / Keep as exception.
+- Corner units (§148): Inside = Shelves, Magic corner, Carousel or
+  Cylinder trolley, chosen on the placed unit.
+- Wall cabinets (§149): door handles near the bottom edge; Lift-up flap
+  front; "False front (fixed panel)" on any cabinet; a Wall Corner Unit
+  in the library catalogue.
+- Placement (§150): appliances snap flush to same-height neighbours (a
+  chimney between wall cabinets); "Add wall cabinets above this run" on a
+  base unit (bottom height asked, 1500 offered; skips the hob, windows,
+  occupied space).
+- Cabinet lights (§151): Position near you (front edge) or near the wall
+  (back edge); a strip under a corner unit follows its L.
+- AI images (§139–§145): the brief describes lights by where they're
+  mounted, tile size (in words and as rows on the backsplash), handle
+  shapes, each appliance's look (new "Looks like (for AI images)" field
+  on appliances), and open sides. Finish photos are attached to Make
+  image. Up to two plain switch plates and a soft, blurred window view
+  are allowed. Prompts can switch off the colour preview. The Prompt
+  picker lists each prompt once. Downloaded images are named
+  design-camera-prompt-styling-time.
 
 **Pricing and quotes**
 - Board priced on the real area of every cut part, per board line
@@ -96,13 +121,14 @@ the history is in `git log`.
   business folder; no super-admin bypass in the app; a two-business
   isolation check (`supabase/isolation_check.sql`).
 - Excel import/export for all five catalogues (merges onto stored rows).
+  A downloaded sheet uploads unchanged with no errors (§142; tested for
+  all five).
 - Inventory managers; customer pipeline dashboard; first-run checklist.
 - shadcn/ui throughout.
 
 ## Tests
 
-`npm test` (Vitest): **367 tests** in 49 files (this said 125, which
-was stale). Maths tests cover pricing, the cutting list, nesting,
+`npm test` (Vitest): **436 tests** in 62 files. Maths tests cover pricing, the cutting list, nesting,
 panels, the importer, physical depth, the pipeline rules, and the image
 brief with its plan and elevation drawings. Screen tests (React Testing Library) cover the rate card, boards,
 Cabinet Designer, charges, the Cutting List, the quote's version list,
@@ -110,6 +136,18 @@ Home, Customers, the app shell and catalogue duplicates. 3D and 2D drawing is
 still checked by eye.
 
 ## Your to-dos before using this branch
+
+0. **From 23 Nov (§139–§151):**
+   - Re-run `supabase/schema.sql`. It adds appliance `appearance`,
+     `render_prompts.send_colour_preview`, `standard_sizes`,
+     `size_exception`, library tile sizes and the Wall Corner Unit. Saves
+     of those fail until it's run.
+   - Set the **Lift-up mechanism** rate (₹3,500 placeholder).
+   - Fill **Looks like (for AI images)** on your own appliances (hob,
+     fridge, chimney, sink).
+   - For Make image on your laptop: `GEMINI_API_KEY=` in `.env`.
+   - Check the fridge in the test design "sid" (a browser check may have
+     turned it 180°).
 
 1. **Re-run `supabase/schema.sql`.** Several new columns; saves fail
    without them. Re-run again after 3 Oct for the Installed/Lost stages
@@ -166,9 +204,12 @@ still checked by eye.
   `select public.refresh_starter_catalog('biz_default');`, then run
   `supabase/isolation_check.sql` (should say ALL ISOLATION CHECKS
   PASSED), then turn on sign-ups in Supabase.
-- Image generation (§105): models compared by hand on one design;
-  nothing is sent to a model from the app (that needs a server-side
-  piece holding the API key).
+- Not seen in a browser from 23 Nov: opening a side, the lift-up front,
+  low handles in 3D, appliance snapping, Add wall cabinets above, the
+  Inside choice on a placed corner, light Position and the corner L, and
+  the finish photos and missing-photo warning in Make image. (Seen: the
+  Room → Walls tick boxes, Hide walls in 3D, the Standard sizes card,
+  the corner's front list, and the new download names.)
 - Image brief and Top view (§97–§105): the guide image was downloaded
   from a real design and used successfully by hand; the Top view was
   checked in a browser only on an empty design (3D top view with units
@@ -210,8 +251,13 @@ assumed settings, which is a check, not a blocker.
 3. Browser tests that script the walkthrough's flows.
 4. The "before the first customer" list in `docs/AFTER_FIRST_CUSTOMERS.md`.
 5. L-shaped / bi-fold wall corner units (not built; blind wall corners are).
+7. AI images: try Photographic v2 on a second kitchen, then set it as
+   "Used by businesses"; then an automatic photo camera (eye height, level).
+8. Kitchen design agent: plan written (Kitchen Design Agent Plan doc);
+   needs your decision on own tool vs product feature.
 6. Tiling extras (§122): backsplash tiles starting at the counter (3D
    only; grout pricing and 2D tiles decided against, §123).
 
-Open issues: none (`docs/ISSUES.md`). Fixed issues are logged in
+Open issues: one (`docs/ISSUES.md`): AI images draw small mosaic tiles
+about twice too big; untried lever: 2K output. Fixed issues are logged in
 `docs/ISSUES-FIXED.md`.
